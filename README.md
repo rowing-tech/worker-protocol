@@ -15,7 +15,7 @@ operates it or hands it work never has to know how it was built.
 
 Two halves, and a worker may implement one or both:
 
-- **Operate.** A worker publishes its health and its indicators, raises alerts, and declares the
+- **Operate.** A worker exposes its health and its indicators, raises alerts, and declares the
   actions it accepts, each with the schema of its input. An operator acts on it from a console
   without knowing what is inside.
 - **Delegate.** A worker takes tasks it did not create, claims one under a lease, and answers.
@@ -23,8 +23,12 @@ Two halves, and a worker may implement one or both:
 
 ## Normative and explanatory
 
-The **schemas** and the **HTTP contracts** are normative. The prose exists to explain why they are
-shaped the way they are; where the two disagree, the schemas win.
+Three layers, and only the first two bind:
+
+- **`schemas/`** is normative for *shape* — what a request and a response carry.
+- **`spec/`** is normative for *behavior* — the endpoints, the lifecycles, the status codes, which
+  no schema can state. Where a sentence there and a schema disagree, the schema wins.
+- **`docs/`** explains why the other two look the way they do, and binds nobody.
 
 Every section of `spec/` carries a maturity marker, so that implementing this in parts is a fact
 you can read rather than a negotiation:
@@ -55,8 +59,8 @@ does not say, the package has become the standard and the text has started to ro
 
 ## Status
 
-Draft. Nothing is frozen and no version is published. Until the first version is tagged, treat
-every section as `draft` whatever its marker says.
+Draft. Nothing is frozen and no version is published. Until the first version is tagged, read no
+section as `stable` whatever its marker says.
 
 ## License and name
 

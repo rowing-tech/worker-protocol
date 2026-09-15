@@ -17,7 +17,7 @@ behind it. Until then, the protocol is silent, and where it is silent the option
   several teams.**
 - **Whether Alerts need a Contract to be read** — and whether Alerts are a distinct surface at all,
   or Tasks nobody must claim. Nothing implements them yet.
-- **Who consolidates the metrics a Response carries.** Nothing does today.
+- **Who consolidates the cost and elapsed time a Response carries.** Nothing does today.
 - **Whether the consumer names the Action or posts a fact the owner maps to one.** The second is
   more decoupled; the first is simpler.
 - **Whether a stale Response is refused by lease time or by a fencing token.** A precondition

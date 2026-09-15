@@ -1,10 +1,12 @@
 # spec
 
-The normative prose: one file per subject, each opening with its maturity marker — `stable`,
-`draft` or `open`.
+Normative for **behavior**: the endpoints, the lifecycles and the status codes that no schema can
+state. What a request and a response carry is normative in `schemas/`, and where a sentence here
+disagrees with a schema, the schema wins.
 
-A file here says what a worker must do and answers why the schema next to it looks the way it does.
-It never restates a schema in words: when the two disagree, `schemas/` wins.
+One file per subject, each opening with its maturity marker — `stable`, `draft` or `open`. A
+section marked `open` links to its entry in [deliberately undecided](../docs/undecided.md), so
+that a question is recorded in one place and not two.
 
-Planned subjects: the worker's endpoints and its descriptor, health, actions, tasks and claims,
+Planned subjects: the worker's endpoints, health, indicators, actions, alerts, tasks and claims,
 events.
