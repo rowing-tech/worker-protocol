@@ -12,17 +12,45 @@
 >    edits another worker's state except through an Action it published. How a worker keeps its
 >    own state — including whether it derives some of it from events it consumes — is that
 >    worker's business; the protocol prescribes only that the worker is authoritative over it.
-> 2. **The protocol is HTTP and JSON Schema, and nothing else.** A worker built with none of our
->    tooling — a cron job in Python over Postgres — must be able to satisfy it completely.
-> 3. **The Hub facilitates and monitors. It does not execute business logic and does not
->    remember.** It knows who exists, what each offers, and how each is doing; it brokers the
->    Contracts by which a consumer uses a Service, and then steps out of the way.
+> 2. **The Worker API is HTTP and JSON Schema, and nothing else.** A worker built with none of our
+>    tooling — a cron job in Python over Postgres — must be able to satisfy it completely. Events
+>    travel over whatever broker a worker declares, which is the one place another transport
+>    appears.
+> 3. **The Hub facilitates and monitors. It runs no business logic, and remembers nothing on a
+>    worker's behalf.** It knows who exists, what each offers, and how each is doing; it brokers
+>    the Contracts by which a consumer uses a Service, and then steps out of the way.
 >
 > **This document is the reasoning, not the normative text.** It explains why the protocol is
 > shaped the way it is; `spec/` and `schemas/` say what a worker must do. Nothing here is closed:
 > there is not yet enough operational experience to justify hard rules, and this document avoids
 > writing any that would foreclose an option later. What is open on purpose is listed in
 > [deliberately undecided](undecided.md).
+
+## Dictionary
+
+Every term the rest of this document uses, in an order where each one is defined using only the
+terms above it. Read it first, or skip it and come back — the argument earns each of these in turn.
+
+| Term | Definition |
+|---|---|
+| **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
+| **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
+| **Hub** | The one node that is not a Worker: the registry and the operator's console. It catalogs what Workers declare and polls how each is doing. It runs no business logic and holds no Worker's state. |
+| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its health, its indicators, the Actions it accepts, and the Tasks and Alerts it has raised. |
+| **Indicator** | A named quantity a Worker exposes over a period it declares — cost, volume, outcomes. Health says whether a Worker works; indicators say whether it is worth running. |
+| **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker. |
+| **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Capability it names. Closes only when the condition disappears. |
+| **Capability** | The Task types a Worker or person declares it answers, each with its payload and response schemas. What a Task requires, and what the Hub catalogs by. |
+| **Claim** | One consumer's exclusive lease on a Task. Closes by declaration — `done`, `failed`, `released` — or by expiry, after which the owner reclaims. |
+| **Nudge** | A best-effort notification that there is something to claim. Carries no payload and no guarantee; whoever receives one claims as it would have on its next schedule. Losing one costs latency, never work. |
+| **Response** | What a consumer posts to the owner: the Action performed, and the outcome declared on the Claim. Does not close the Task. |
+| **Event** | A Fact published for anyone to consume, with a shape declared in the Hub. No addressee, no commitment. |
+| **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
+| **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
+| **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
+| **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Capability. A recurring shape, not a kind of node: the protocol does not know the term. |
+| **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
+| **Contract** | An agreement between a consumer and a Service, brokered by the Hub: which of its Events, Task types and Actions the consumer may use, with credentials. Only the agreement and the credentials are stored; execution runs over it, not through the Hub. |
 
 ## One kind of node, several platforms
 
@@ -49,6 +77,10 @@ Notification and schedule are a deliberate pair: the nudge makes the common case
 schedule makes it correct when a nudge is lost. A worker that claims only on a nudge is one dropped
 request away from stalling silently. The pair also answers how a consumer learns of a new Task — by
 the same means a worker finds any work: on a schedule, or after a best-effort nudge.
+
+Pushing needs no such pair, for a reason worth stating: whoever pushes still holds the work, sees
+the call fail and retries. A nudge is different precisely because it carries nothing — lose it and
+nobody is holding anything, which is why something else has to come round eventually.
 
 **Workers that talk to people** ask for the opposite: a store and a user interface close enough
 together that building the screens is cheap, and a way for a person's action to become a message
@@ -137,9 +169,11 @@ converge on — one top-level status and a map of named checks — with our own 
 `healthy`, `degraded`, `unhealthy`, where that draft says `pass`, `warn` and `fail`. Each check
 carries its own status and a short human-readable detail: the upstream
 source, the broker, the store, whatever the worker depends on. `healthy` and `degraded` answer
-HTTP 200 and `unhealthy` answers 503, so a poller that reads only the status code still learns the
-one thing that matters. The envelope is fixed; which checks a worker reports, and what makes it
-`degraded`, are the worker's to declare.
+HTTP 200 and `unhealthy` answers 503, so a poller that reads only the status code still learns
+whether the worker is answering at all. The third value is for whoever reads the body: the console
+shows `degraded` as its own state, and an operator decides whether a worker that works with one
+check failing is worth a Task or worth leaving alone. The envelope is fixed; which checks a worker
+reports, and what makes it `degraded`, are the worker's to declare.
 
 ### Why pulled, and not pushed
 
@@ -221,8 +255,10 @@ Task instance.
 
 Once a Contract exists, the consumer reads Tasks from the owner's API and posts Responses to it
 directly. The Hub is not in the path — if it aggregated open Tasks and routed them, it would be a
-dependency of execution and would have to remember, and both principles would fall. **The network
-runs with the Hub down.**
+dependency of execution and would have to remember, and both principles would fall. **Work already
+under Contract runs with the Hub down**, which is the claim worth making and the narrow one: a
+consumer that needs a *new* Contract, or credentials that have expired, waits for the Hub like
+anyone else. What never waits is the work.
 
 ## Settings are an Action
 
@@ -232,16 +268,22 @@ and may give it a fixed place. The worker validates and stores the result; the H
 A worker that starts without configuration raises a Task requiring that Action, with the Capability
 to operate it — same mechanism, no special path.
 
+Because the Hub keeps no copy, a worker that accepts `configure` also exposes its current settings
+for reading on the Worker API — otherwise the console has no way to show a form with anything in
+it, and the only reader of a worker's configuration would be the worker itself. Reading is a
+surface like health or indicators; writing stays an Action.
+
 ## The constraints that keep it honest
 
-- **Platform independence.** The protocol is HTTP and JSON Schema so that a worker built with none
-  of our libraries can satisfy it fully. That constrains what may ever enter the protocol, and the
+- **Platform independence.** The Worker API is HTTP and JSON Schema so that a worker built with
+  none of our libraries can satisfy it fully. That constrains what may ever enter it, and the
   constraint is the point.
-- **The Hub does not execute.** Schedules, derivation and connections to foreign APIs live in the
-  workers; the Hub posts Actions from the console and nothing else.
-- **The Hub does not remember.** A Task's lifecycle belongs to the worker that raised it; settings
-  live in the worker. The Hub keeps its own management state — the registry, the Contracts — never
-  state on a worker's behalf.
+- **The Hub runs no business logic.** Schedules, derivation and connections to foreign APIs live in
+  the workers. The Hub does post Actions — that is what the console is for — but it posts what an
+  operator decided, never what it decided itself, and it is in nobody's execution path.
+- **The Hub remembers nothing on a worker's behalf.** A Task's lifecycle belongs to the worker that
+  raised it; settings live in the worker. The Hub keeps its own management state — the registry,
+  the Contracts, the credentials — and that is all it keeps.
 - **Each Worker stays authoritative.** State is read where it lives. A consumer may cache, and owns
   the consequences of caching.
 - **Ownership is strict.** Facts belong to whoever derived them, events to whoever published them,
@@ -267,21 +309,3 @@ is gone and the Task closes.
 The worker owns motion and silence; the app owns trips and the Task; the Hub owns the Contracts and
 watches. Nobody touches another's state.
 
-## Dictionary
-
-| Term | Definition |
-|---|---|
-| **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
-| **Hub** | The one node that is not a Worker: the registry and the operator's console. It catalogs what Workers declare and polls how each is doing. It executes nothing and holds no Worker's state. |
-| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its health, its indicators, the Actions it accepts, and the Tasks and Alerts it has raised. |
-| **Indicator** | A named quantity a Worker exposes over a period it declares — cost, volume, outcomes. Health says whether a Worker works; indicators say whether it is worth running. |
-| **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker. |
-| **Task** | A condition a Worker evaluates over its own facts that, while it holds, requires one of a closed list of Actions from someone holding the Capability it names. Closes only when the condition disappears. |
-| **Capability** | The Task types a Worker or person declares it answers, each with its payload and response schemas. What a Task requires, and what the Hub catalogs by. |
-| **Claim** | One consumer's exclusive lease on a Task. Closes by declaration — `done`, `failed`, `released` — or by expiry, after which the owner reclaims. |
-| **Response** | What a consumer posts to the owner: the Action performed, and the outcome declared on the Claim. Does not close the Task. |
-| **Event** | A fact published to the broker with a shape declared in the Hub. No addressee, no commitment. |
-| **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
-| **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
-| **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
-| **Contract** | An agreement between a consumer and a Service, brokered by the Hub: which of its Events, Task types and Actions the consumer may use, with credentials. Only the agreement and the credentials are stored; execution runs over it, not through the Hub. |

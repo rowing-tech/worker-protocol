@@ -7,6 +7,15 @@ answer it the way it is phrased here.
 An entry leaves this list in one direction only: a section of `spec/` answers it, with a schema
 behind it. Until then, the protocol is silent, and where it is silent the option is open.
 
+- **Whether the event envelope is CloudEvents**, and if so in which version and which binding.
+  It is the candidate and nothing more; until it is settled, nobody knows where the id they must
+  deduplicate by lives.
+- **Whether the Hub keeps a copy of the shapes it catalogs.** Everything schema-shaped is derived
+  from the workers today, which means discovery degrades when a worker is down and not only when
+  the Hub is. Caching fixes that and costs the guarantee that a catalog entry cannot be stale.
+- **What the minimum conformance profile is.** Whether a Worker may implement one half and not the
+  other — the worked case has one that raises no Tasks — and what is required of every Worker
+  whatever else it does.
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers.
 - **Who verifies that a worker answers the Task types it declares.** The hub at registration, the
