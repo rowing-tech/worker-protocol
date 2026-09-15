@@ -3,6 +3,9 @@
 An open specification for workers that can be seen, operated and given work by people who did not
 build them. HTTP and JSON Schema, no runtime.
 
+**Start with [the architecture](docs/architecture.md)** — the model and the reasoning behind it.
+What is open on purpose is in [deliberately undecided](docs/undecided.md).
+
 ## What it is
 
 A **Worker** is any process that does work on its own — a Cloudflare Worker, an Azure Function, a
