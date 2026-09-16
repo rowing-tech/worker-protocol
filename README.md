@@ -11,7 +11,9 @@ What is open on purpose is in [deliberately undecided](docs/undecided.md).
 A **Worker** is any process that does work on its own — a Cloudflare Worker, an Azure Function, a
 Convex app, a cron job in Python over Postgres. This specification says how one describes itself,
 reports how it is doing, accepts actions, and takes work that somebody else raised, so that whoever
-operates it or hands it work never has to know how it was built.
+operates it or hands it work never has to know how it was built. A worker declares which parts of
+this it implements, and in which version, in a descriptor it serves — so nobody finds out by
+trying.
 
 Two halves, and a worker may implement one or both:
 

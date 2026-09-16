@@ -2,9 +2,9 @@
 
 > How an organization runs many small systems without a central one owning their data. Each system
 > is a **Worker**: it keeps its own state and stays authoritative over it. What it offers outward is
-> **Events it publishes** through a broker, and a small **Worker API it answers when polled** —
-> health, indicators, the Actions it accepts, the settings it holds, and the Tasks and Alerts it
-> has raised.
+> **Events it publishes** through a broker, and a small **Worker API it answers when polled** — a
+> Descriptor of what it implements, then health, indicators, the Actions it accepts, the settings
+> it holds, and the Tasks and Alerts it has raised.
 >
 > Three principles drive the shape:
 >
@@ -31,27 +31,29 @@
 
 Every term the rest of this document uses, in an order where each one is defined using only the
 terms above it, as far as the terms allow: **Worker** comes first and names what hangs off it, and
-**Task** and **Capability** define each other. Read it first, or skip it and come back — the
+**Task** and **Skill** define each other. Read it first, or skip it and come back — the
 argument earns each of these in turn.
 
 | Term | Definition |
 |---|---|
 | **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
-| **Hub** | The one node that is not a Worker: the registry and the operator's console. It catalogs what Workers declare and polls how each is doing. It runs no business logic and holds no Worker's state. |
+| **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, indicators, actions, alerts, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
+| **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; the Capabilities it implements, with the address and schemas of each; and the edition of this protocol it speaks. Everything the Hub knows about a Worker is read from here. |
+| **Hub** | The one node that is not a Worker: the registry and the operator's console. It catalogs what Workers declare in their Descriptors and polls how each is doing. It runs no business logic and holds no Worker's state. |
 | **Indicator** | A named quantity a Worker exposes over a period it declares — cost, volume, outcomes. Health says whether a Worker works; indicators say whether it is worth running. |
 | **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker that the protocol knows of; whatever else a Worker answers is its own business, and no console, catalog or Contract sees it. |
-| **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Capability it names. Closes only when the condition disappears. |
-| **Capability** | The Task types a Worker or person declares it answers, each with its payload and response schemas. What a Task requires, and what the Hub catalogs by. |
+| **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Skill it names. Closes only when the condition disappears. |
+| **Skill** | What a Worker or a person knows how to do in its domain, stated as the Task types it answers, each with its payload and response schemas. What a Task requires, and what the Hub catalogs by. |
 | **Claim** | One consumer's exclusive lease on a Task. Closes by declaration — `done`, `failed`, `released` — or by expiry, after which the owner reclaims. |
 | **Nudge** | A best-effort notification that there is something to claim. Carries no payload and no guarantee; whoever receives one claims as it would have on its next schedule. Losing one costs latency, never work. |
 | **Response** | What a consumer posts to the owner: the Action performed, and the outcome declared on the Claim. Does not close the Task. |
 | **Event** | A Fact published for anyone to consume, with a shape declared in the Hub. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
 | **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
-| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its health, its indicators, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
+| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, indicators, the Actions it accepts and the settings they hold, the Tasks and Alerts it has raised. |
 | **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
-| **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Capability. A recurring shape, not a kind of node: the protocol does not know the term. |
+| **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
 | **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
 | **Contract** | An agreement between a consumer and a Service, brokered by the Hub: which of its Events, Task types and Actions the consumer may use, with credentials. Only the agreement and the credentials are stored; execution runs over it, not through the Hub. |
 
@@ -101,13 +103,15 @@ timers are many is asking for what a durable object gives.
 
 Three shapes recur often enough to have names; none is a different kind of node. A *domain service
 app* has a custom UI in domain language and works the Tasks it raises and claims. A *teams app*
-gives a person or team one view of the Tasks they hold across owners, by Capability. A *proxy*
+gives a person or team one view of the Tasks they hold across owners, by Skill. A *proxy*
 wraps a system that cannot speak the protocol — Power Automate, Zapier, SAP — and answers for it.
 
 **The Hub** is the one node that is not a worker: the registry and the operator's console. It
-catalogs who exists and what each declares — Capabilities, events, Actions; it holds the Services
-teams publish over them; it brokers the Contracts by which a consumer uses a Service; it polls how
-each worker is doing. It holds nobody's data.
+catalogs who exists and what each declares — read from each worker's Descriptor, together with the
+Skills the worker or its people answer for; it holds the Services teams publish over them; it
+brokers the Contracts by which a consumer uses a Service; it polls how each worker is doing. The
+registry is derived from those Descriptors: enrolling a worker is a URL and a credential, and the
+rest is read. It holds nobody's data.
 
 A **Service** is a name a team publishes over things workers already offer — these events, these
 Task types, these Actions — and answers for. It is the unit a Contract is made over, never a unit
@@ -119,7 +123,7 @@ behind it — which may be many, and which need not know which Service they serv
 flowchart LR
   subgraph hub["The Hub — registry & operator console"]
     direction TB
-    registry["who exists, capabilities,<br/>services, contracts"]
+    registry["who exists — descriptors, skills,<br/>services, contracts"]
     console["operator UI:<br/>health, indicators, alerts,<br/>settings, actions"]
   end
   source["Upstream source"]
@@ -159,7 +163,8 @@ subscriber owns nothing but its position in the stream. Delivery is at least onc
 deduplicates by event id.
 
 **The Worker API.** Everything a worker exposes for reading or acting on, over HTTP and JSON
-Schema: its **health**, the minimal answer to a poll, whose absence is the signal; its
+Schema: its **Descriptor**, which says which of the rest it serves and where; its **health**, the
+minimal answer to a poll, whose absence is the signal; its
 **indicators**; its **Actions**, each with a schema and an address to post to; its **settings**,
 when it accepts `configure` — read here, written only through that Action; its **Tasks**, exposed
 as current state so a late consumer sees what is open and not only what happened; and its
@@ -203,6 +208,42 @@ interface for free; adding one adds no code to the Hub and teaches it nothing ab
 vehicles or shipments. That uniformity is the only way a small team operates a growing number of
 systems.
 
+## The Descriptor: a Worker says what it implements
+
+Not every Worker has every surface. The telemetry worker in the worked case below raises no Tasks,
+and until it says so, nobody can know that except by trying. So a Worker serves a **Descriptor** at
+a route the spec fixes, and it is the first thing anyone reads about it: the Worker's own id; the
+**Capabilities** it implements, each with the address it answers at and the schemas it answers
+with; and its versions.
+
+A Capability is a part of this protocol — health, indicators, actions with settings inside them,
+alerts, tasks, events — and the list is closed; the spec names them. The word follows the
+convention of LSP, MCP and WebDriver, where *capabilities* already means exactly this. A prefix is
+reserved for a Worker to declare something of its own without breaking verification: a verifier
+ignores what it does not know. Endpoints, registration and naming are not Capabilities; they cut
+across all of them, and every Worker meets them.
+
+Versions come in two, and both are needed. An umbrella version names the edition of this
+specification a Worker speaks — *this worker speaks worker-protocol 0.1* — and is what gets cited,
+and what lets a new Capability appear at all. A version per Capability lets `health` freeze while
+`events` still moves, which is the grain at which each file of `spec/` already carries its
+maturity marker.
+
+The id is the Worker's own, and it is distinct from its URL: the URL is where a Worker is, the id
+is who it is. A Worker that moves keeps its Contracts.
+
+**The Hub's registry is derived entirely from Descriptors.** Enrolling a Worker is an operator
+pasting a URL and a credential, and nothing else — no handshake, and no Worker registering itself.
+That human act is the moment of trust: the Worker declares its identity and its team, and what
+ties the declaration to reality is that a person put that URL there.
+
+One consequence has to be faced. If the registry were read from Descriptors and nothing more, a
+Worker that is down would vanish from the catalog, and an empty catalog is worse than an old one.
+So **the Hub keeps a copy of the last Descriptor it saw from each Worker, with the time it saw
+it.** This sits beside the principle that the Hub holds nothing schema-shaped of its own only if
+it is said precisely: the Hub is authority over none of it, the copy is dated, and the Worker's
+own Descriptor wins wherever the two differ.
+
 ## Tasks: delegation without dependency
 
 An event is a fact with no addressee; publishing one commits nobody to anything. When a worker
@@ -210,7 +251,7 @@ needs something *done*, it raises a Task.
 
 A **Task** is a condition the worker evaluates over its own facts. While the condition holds, the
 Task exists; it names the **Actions** that may answer it — a closed list, not an instruction — and
-the **Capability** needed to perform them. A consumer with that Capability — another worker, or a
+the **Skill** needed to perform them. A consumer with that Skill — another worker, or a
 person through an app — claims the Task and acts. **Nothing the consumer does closes the Task.**
 The owner never waits for a Response; it re-evaluates its condition when one arrives, and when the
 condition no longer holds the Task is gone. Nobody declares it done.
@@ -219,7 +260,7 @@ This inverts the dependency rather than removing it. The consumer knows the owne
 subscriber knows the shape of the event it consumes. The owner knows nobody. That is the direction
 the network already accepts for events.
 
-**Capability** is the keystone, and it is concrete: the Task types a worker declares it answers,
+**Skill** is the keystone, and it is concrete: the Task types a worker declares it answers,
 each with its payload and response schemas. A Task requires one; a worker or a person declares
 one; the Hub catalogs by it. It is the *unit of discovery*: the owner names a Task type, never an
 actor, and the Hub answers "who answers it". The owner's logic names no actor, exactly as a
@@ -247,7 +288,7 @@ on the Claim. It may carry the cost and elapsed time of the execution; what happ
 numbers is undecided.
 
 **Alerts** are conditions an operator should see. An Alert may carry Actions; a Task additionally
-requires a Capability and a Claim. A silent vehicle is a Task for whoever can check it; a worker
+requires a Skill and a Claim. A silent vehicle is a Task for whoever can check it; a worker
 whose credentials expire in three days is an Alert for the Hub. Nothing implements them yet, and
 whether they are a surface of their own or Tasks nobody must claim is
 [open](undecided.md).
@@ -257,13 +298,14 @@ They are neither Tasks nor Alerts, and are named here only so nobody calls them 
 
 ## Contracts: how a consumer comes to use a Service
 
-Workers register with the Hub, and teams publish Services over them. A consumer that needs a
+Workers are enrolled with the Hub, and teams publish Services over them. A consumer that needs a
 Service — wired by an operator ahead of time, or asking the Hub at runtime who answers a Task type
 — obtains a **Contract**: which of the Service's events, Task types and Actions it may use, under
-which credentials. Everything with the shape of a schema belongs to the workers and is derived,
-never stored; the Hub stores only the agreement and the credentials, so a Contract cannot drift
-from the workers behind it. Discovery is by Task type, which is to say by Capability, never by
-Task instance.
+which credentials. Everything with the shape of a schema belongs to the workers; the Hub keeps a
+dated copy of what each last declared and is authority over none of it, and what it stores as its
+own is the agreement and the credentials — so a Contract is made over the workers' declarations
+and can drift from them by no more than the age of that copy. Discovery is by Task type, which is
+to say by Skill, never by Task instance.
 
 Once a Contract exists, the consumer reads Tasks from the owner's API and posts Responses to it
 directly. The Hub is not in the path — if it aggregated open Tasks and routed them, it would be a
@@ -277,8 +319,8 @@ anyone else. What never waits is the work.
 Configuration is not a separate mechanism. A worker publishes an Action, `configure`, whose schema
 is the schema of its settings; the console renders the form from it as it would for any Action,
 and may give it a fixed place. The worker validates and stores the result; the Hub keeps no copy.
-A worker that starts without configuration raises a Task requiring that Action, with the Capability
-to operate it — same mechanism, no special path.
+A worker that starts without configuration raises a Task requiring that Action, with the Skill to
+operate it — same mechanism, no special path.
 
 Because the Hub keeps no copy, a worker that accepts `configure` also exposes its current settings
 for reading on the Worker API — otherwise the console has no way to show a form with anything in
@@ -295,7 +337,8 @@ surface like health or indicators; writing stays an Action.
   operator decided, never what it decided itself, and it is in nobody's execution path.
 - **The Hub remembers nothing on a worker's behalf.** A Task's lifecycle belongs to the worker that
   raised it; settings live in the worker. The Hub keeps its own management state — the registry,
-  the Contracts, the credentials — and that is all it keeps.
+  which is the dated copy of each Descriptor it last saw; the Contracts; the credentials — and
+  that is all it keeps.
 - **Each Worker stays authoritative.** State is read where it lives. A consumer may cache, and owns
   the consequences of caching.
 - **Ownership is strict.** Facts belong to whoever derived them, events to whoever published them,
@@ -313,8 +356,8 @@ of those came back on their own. It raises no Tasks and does not know who listen
 
 A fleet operations app on Convex subscribes to those events and derives its own facts: trips, and
 which silent vehicles matter. From a `signal.lost` event it may raise the Task *verify silent
-vehicle*, requiring the Action *record verification* and the Capability *fleet verification*. A
-person with that Capability claims it — from the app's own UI, or from a teams app under a Contract
+vehicle*, requiring the Action *record verification* and the Skill *fleet verification*. A
+person with that Skill claims it — from the app's own UI, or from a teams app under a Contract
 the Hub brokered — verifies, and posts the Response: the verification, and `done` on the Claim.
 The app re-evaluates: the vehicle reported again, or a verification is on record, so the condition
 is gone and the Task closes.
