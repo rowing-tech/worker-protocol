@@ -12,13 +12,6 @@ back — so that when the answer lands, both places know.
 - **Whether the event envelope is CloudEvents**, and if so in which version and which binding.
   It is the candidate and nothing more; until it is settled, nobody knows where the id they must
   deduplicate by lives. Listed in [spec/events.md](../spec/events.md).
-- **What the minimum conformance profile is.** Whether a Worker may implement one half and not the
-  other — the worked case has one that raises no Tasks — and what is required of every Worker
-  whatever else it does. On the answer hangs what stands for a liveness probe when a Worker
-  declares no `health`. *Answered in substance by [spec/descriptor.md](../spec/descriptor.md),
-  which makes the Descriptor the floor, leaves Capabilities freely combinable, and makes the
-  Descriptor route itself the liveness probe. It does not discharge until
-  [schemas/descriptor.json](../schemas/descriptor.json) exists, so the entry stands.*
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers. Listed in [spec/health.md](../spec/health.md).
 - **Who verifies that a worker answers the Task types it declares.** The Control Tower at

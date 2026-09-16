@@ -4,9 +4,9 @@
 
 The document a Worker serves at a route this spec fixes, and the first thing anyone reads about
 it: the Worker's own id, distinct from where it lives; the Capabilities it implements, each with
-the address it answers at and the schemas it answers with; the edition of this protocol it speaks,
-and a version per Capability. The Control Tower's registry is read from here, and the Tower keeps a
-dated copy of the last one it saw.
+the schemas it answers with and, where it answers over HTTP, the address it answers at; the edition
+of this protocol it speaks, and a version per Capability. The Control Tower's registry is read from
+here, and the Tower keeps a dated copy of the last one it saw.
 
 Its shape is [schemas/descriptor.json](../schemas/descriptor.json), and one entry of its Capability
 list is [schemas/capability-entry.json](../schemas/capability-entry.json). What follows is what no
@@ -82,12 +82,16 @@ id it has not seen before is [registration](registration.md)'s.
 
 ## Two versions
 
-**DESC-7. A Descriptor carries exactly one edition: the version of this specification the Worker
-speaks.**
+**DESC-23. A Descriptor carries exactly one edition: the version of this specification the Worker
+speaks, written `MAJOR.MINOR`. Editions are ordered, by comparing MAJOR and then MINOR as
+numbers.**
 
 **DESC-8. The Capability names an edition may contain are the enumeration in
 [schemas/capability-name.json](../schemas/capability-name.json), which is normative and is the list
 a verifier checks against.**
+
+**DESC-24. A MAJOR bump changes what a reader cannot survive not knowing. A MINOR bump only adds
+what a reader holding an earlier MINOR of the same MAJOR may ignore and still be correct.**
 
 **DESC-9. A Capability version is a single integer, counting breaking changes to that Capability
 alone. There is no minor version.**
@@ -96,6 +100,32 @@ The edition is what gets cited — *this Worker speaks worker-protocol 0.1* — 
 new Capability exist at all, because the closed list of Capability names is a property of an
 edition and not of the protocol forever. Prose does not repeat that list; the table in
 [spec/README.md](README.md) is a reading aid and the schema wins.
+
+Editions are ordered because DESC-25 spends the ordering: a verifier that meets an edition it does
+not hold reports that it is *older than the Worker*, and there is no way to say "older" about two
+values that cannot be compared. The alternative was to let a verifier report only that it did not
+recognize the edition, and that loses a diagnostic worth keeping — knowing the verifier is behind
+tells an operator to upgrade the verifier, where an unrecognized token leaves the Worker under
+suspicion for what is the reader's problem.
+
+DESC-24 is what makes that diagnostic *actionable* rather than merely true. An order alone tells a
+reader which of two editions is newer; it does not tell it whether it can still talk. With the
+meaning attached, the two components answer different questions: MAJOR asks *can I read this at
+all*, MINOR asks *am I seeing everything*. A reader behind on MINOR is not broken, only partial,
+and knows which of the two it is.
+
+This is deliberately the same shape as the dotted and undotted Capability names. There, a name a
+reader does not recognize is either safely ignorable or a failure, and the dot is what tells the
+two apart without a registry. Here, MAJOR and MINOR do that for the specification itself. In both
+places the reader can act on what it does not understand, which is the only way a protocol grows
+without every reader upgrading at once.
+
+**The shape is two components on purpose, and it is not SemVer.** A PATCH would have to be a change
+that by construction never alters a verdict — and this repository already has a test for exactly
+that, in the rule ids: a rewrite that cannot change a verdict keeps its id and is not a version
+event at all. A third component would name the one kind of change that needs no name. Two also
+keeps the edition beside DESC-9's Capability version, which is a single integer for a related
+reason; a three-component edition sitting next to a bare integer would be the larger inconsistency.
 
 `health` can freeze at 1 while `events` moves to 3, which is the grain at which each file here
 already carries its own maturity marker. There is no minor version on purpose: the only decision a
@@ -108,8 +138,10 @@ version knows the surface.
 
 ## Capability entries and their addresses
 
-**DESC-10. Each entry in the Capability list names the Capability, its version, and the address it
-answers at.**
+**DESC-22. Capabilities are declared as a map keyed by Capability name, so a Capability is
+declared at most once. Each entry carries that Capability's version. An address is optional in this
+shared entry and required by each Capability's own file: every Capability answered over HTTP
+requires one, and `events`, which is answered over a broker, does not.**
 
 **DESC-11. Where a Capability's behavior on a call is conditional, the condition is declared in its
 entry.**
@@ -120,9 +152,22 @@ the Descriptor was read from. It may point away from the origin that served the 
 **DESC-13. A client does not present a credential it was granted for this Worker to an address on
 an origin the operator did not record as the Worker's own.**
 
-What else an entry carries is the business of the Capability's own file — which Actions a Worker
-accepts, which indicators it publishes, which Task types it answers, which events it publishes and
-to which broker — and each of those files extends
+A map rather than a list, because the alternative could not keep the promise this file makes. The
+question of declaring one Capability twice is [open](../docs/undecided.md), and until it is
+answered the shape forbids it — but a list of entries cannot express that. JSON Schema compares
+whole items for uniqueness, so two entries named `health` at two addresses are distinct items and
+validate cleanly. Keyed by name, the constraint costs nothing and is structural: there is nowhere
+to put the second one.
+
+The address is optional here and nowhere else. `events` is the reason: what a Worker declares for
+it is the broker it publishes to, and the protocol deliberately names no broker and gives it no
+HTTP surface to answer at. Requiring an address of every Capability would have forced that entry to
+carry a URL that does not exist. The obligation is not softened, only moved — each Capability's own
+file says whether its entry requires an address, and every Capability answered over HTTP does.
+
+What else an entry carries is the business of that same file — which Actions a Worker accepts,
+which indicators it publishes, which Task types it answers, which events it publishes and to which
+broker — and each of those files extends
 [schemas/capability-entry.json](../schemas/capability-entry.json) with what its own surface needs.
 This file fixes only the envelope they share.
 
@@ -154,9 +199,17 @@ That rule is all a verifier needs, and it needs no registry:
 - **DESC-15. A verifier ignores a dotted name it does not know, and reports it as ignored.**
 - **DESC-16. A verifier fails a Worker for an undotted name it does not know, when it knows the
   declared edition:** the Descriptor claims a Capability that edition does not define.
-- **DESC-17. A verifier that does not know the declared edition verifies nothing, and reports that
-  it is older than the Worker** — rather than checking an undotted name against a list that no
-  longer applies.
+- **DESC-25. A verifier that does not hold the declared edition's MAJOR verifies nothing, and
+  reports that it is older than the Worker. One that holds the MAJOR but not that MINOR verifies
+  what the edition it does hold defines, ignores every undotted name that edition does not name,
+  and reports what it ignored** — rather than failing a Worker for a Capability added after the
+  verifier was built.
+
+DESC-16 and DESC-25 divide cleanly because DESC-16 fires only when the verifier holds the declared
+edition exactly. A verifier one MINOR behind does not, so it never fails a Worker for a name it
+could not have heard of; a verifier holding the edition does, and an undotted name that edition
+does not define is then a real fault with nowhere to hide. The two together are why an older
+verifier is useful rather than merely safe: it still checks everything it knows.
 
 What a dotted name may look like, and how two teams avoid colliding inside that space, are
 [naming](naming.md)'s.
@@ -197,4 +250,18 @@ it, no catalog holds it, and no Contract can be made over it.
 
 ## Withdrawn
 
-None.
+- **DESC-7** — required that a Descriptor carry exactly one edition, without saying what an edition
+  is as a value. Replaced by **DESC-23**, which gives it the form `MAJOR.MINOR` and an ordering.
+  An edition of `banana` satisfied DESC-7 and does not satisfy DESC-23, so the rewrite could change
+  a verdict and took a new id.
+- **DESC-17** — required that a verifier which does not know the declared edition verify nothing
+  and report itself older than the Worker. Replaced by **DESC-25**, which scopes that to the
+  edition's MAJOR and has a verifier one MINOR behind check what it does hold. DESC-24 is what
+  broke it: once a MINOR bump is defined as safely ignorable, a verifier that refused to check
+  anything against a Worker one MINOR ahead was discarding work it was capable of, and a Worker
+  that went unverified under DESC-17 can now be verified and can now fail. The verdict moves, so
+  the id did not survive.
+- **DESC-10** — required that each entry in the Capability list name the Capability, its version
+  and the address it answers at. Replaced by **DESC-22**, which keys the entries by name instead of
+  naming the Capability inside each, and makes the address optional in the shared entry. A
+  Descriptor conformant under one is not a document the other accepts, so the id did not survive.

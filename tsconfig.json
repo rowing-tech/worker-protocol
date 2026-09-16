@@ -1,0 +1,14 @@
+{
+  "//": "Type-checks the repository's own tooling under scripts/. packages/* carry their own tsconfig. Emits nothing: these scripts run through Node's native type stripping and are never built.",
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["scripts"]
+}

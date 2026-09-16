@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capability-name.json",
+  "type": "string",
+  "enum": [
+    "health",
+    "indicators",
+    "actions",
+    "alerts",
+    "tasks",
+    "events"
+  ],
+  "title": "Capability name",
+  "description": "DESC-8. The Capability names the current edition of worker-protocol defines."
+}

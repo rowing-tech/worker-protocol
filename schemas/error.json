@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "error.json",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "malformed_request",
+            "invalid_parameter",
+            "unknown_filter",
+            "unsupported_version",
+            "idempotency_key_required",
+            "unauthenticated",
+            "forbidden",
+            "not_found",
+            "conflict",
+            "idempotency_key_reused",
+            "unprocessable_content"
+          ],
+          "description": "ENDP-25. A code naming a condition this request will meet again (ENDP-8). endpoints.md gives the status each is answered with."
+        },
+        "message": {
+          "type": "string",
+          "description": "ENDP-25. A human-readable message. Not addressed to a program."
+        },
+        "class": {
+          "type": "string",
+          "const": "reject",
+          "description": "ENDP-26. Carried by the code, not chosen beside it."
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "class"
+      ],
+      "additionalProperties": {}
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "request_timeout",
+            "rate_limited",
+            "internal_error",
+            "unavailable",
+            "upstream_error",
+            "upstream_timeout"
+          ],
+          "description": "ENDP-25. A code naming a condition that may have passed by the time the request is sent again (ENDP-9). endpoints.md gives the status each is answered with."
+        },
+        "message": {
+          "type": "string",
+          "description": "ENDP-25. A human-readable message. Not addressed to a program."
+        },
+        "class": {
+          "type": "string",
+          "const": "retry",
+          "description": "ENDP-26. Carried by the code, not chosen beside it."
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "class"
+      ],
+      "additionalProperties": {}
+    }
+  ],
+  "title": "Error",
+  "description": "ENDP-25. The error envelope shared by every surface. The code is drawn from a closed enumeration, so a new code requires a new edition — the price of a vocabulary a conformance check can actually verify. ENDP-27 decides whether the code or the status wins when they disagree."
+}

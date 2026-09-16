@@ -1,0 +1,14 @@
+{
+  "//": "Type-checks everything under src/, emits nothing. This is the DEFAULT tsconfig on purpose: an editor resolves the nearest one, so the file it checks an open source file against is the one that covers every source file. tsconfig.build.json narrows to what the package publishes.",
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

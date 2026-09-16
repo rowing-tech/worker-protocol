@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "descriptor.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "DESC-6. The Worker's own id: opaque, stable, not the URL and not derived from it, and unambiguous without ambient context. A schema can assert that it is a non-empty string and no more; the rest of DESC-6 has no schema witness."
+    },
+    "edition": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$",
+      "description": "DESC-23. The edition of worker-protocol this Worker speaks, written MAJOR.MINOR. Editions are ordered by comparing MAJOR and then MINOR as numbers, which is the ordering DESC-25 spends when a verifier reports itself older than a Worker. DESC-24 gives the two components their meaning: MAJOR is what a reader cannot survive not knowing, MINOR is what an older reader may ignore and still be correct. Leading zeros are refused so that one edition has one spelling and string equality agrees with numeric comparison."
+    },
+    "capabilities": {
+      "type": "object",
+      "propertyNames": {
+        "anyOf": [
+          {
+            "$ref": "capability-name.json"
+          },
+          {
+            "type": "string",
+            "pattern": "^[^.\\s]+(?:\\.[^.\\s]+)+$",
+            "title": "Vendor Capability name",
+            "description": "DESC-14. A Capability a Worker defines itself. Contains a dot, which is what makes it disjoint from the reserved names of DESC-8. Its full syntax is naming.md's and is unwritten."
+          }
+        ]
+      },
+      "additionalProperties": {
+        "$ref": "capability-entry.json"
+      },
+      "description": "DESC-2. Any combination, including none. Keyed by Capability name, which is what makes a Capability declared at most once — the question descriptor.md leaves open."
+    }
+  },
+  "required": [
+    "id",
+    "edition",
+    "capabilities"
+  ],
+  "additionalProperties": false,
+  "title": "Descriptor",
+  "description": "DESC-1. The document a Worker serves at the route DESC-3 fixes, and the whole of what every Worker owes."
+}

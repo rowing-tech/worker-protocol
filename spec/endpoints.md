@@ -28,7 +28,7 @@ already holds a document listing every address has no use for a rule that would 
 What the protocol buys with that is a Worker on any platform: one that mounts its protocol surfaces
 under a path of its own, one that answers them from a second deployment, one that is a thin proxy
 in front of a system that has no notion of any of this. A Worker states where each surface is; the
-obligation that the statement is complete is DESC-10.
+obligation that the statement is complete is DESC-22.
 
 A Worker is free to group its surfaces under a prefix, and most will. It is a convention between a
 Worker and its own maintainers, and no reader depends on it.
@@ -80,9 +80,15 @@ and the caller's recourse is to re-read the Descriptor, which is where the answe
 
 ## Errors: which responses mean stop, and which mean try again
 
-**ENDP-7. Every response that is not a success carries the shared error envelope: a stable
-machine-readable code, a human-readable message, and an explicit class, one of `reject` or
-`retry`.**
+**ENDP-25. Every response that is not a success carries the shared error envelope: a code from the
+closed enumeration in [schemas/error.json](../schemas/error.json), a human-readable message, and an
+explicit class, one of `reject` or `retry`.**
+
+**ENDP-26. A code fixes one status and one class. A Worker answers a code with the status that code
+names and the class that code carries, and never the same code under two statuses.**
+
+**ENDP-27. Where a code and a status code disagree, the code wins when an envelope is present and
+parses, and the status when it is not** — the same answer, and for the same reason, as ENDP-14.
 
 **ENDP-8. A caller does not repeat a `reject`.** The request is wrong and will be wrong again; the
 caller changes something, or raises the failure where a person will see it, and stops.
@@ -131,6 +137,50 @@ Three rules hold the table together:
 **ENDP-14. Where the class and the status code disagree, the class in the envelope wins when an
 envelope is present and parses; the status code wins when it is not; and an answer that can be
 classified by neither is `reject`.**
+
+The codes, and the status each one is answered with — which is the half of ENDP-26 no schema can
+state, because a status code is not in the body. The class column is a reading aid;
+[schemas/error.json](../schemas/error.json) is normative and carries the class with the code.
+
+| Code | Status | Class | The condition, and the rule that already commits to it |
+|---|---|---|---|
+| `malformed_request` | `400` | `reject` | A body that will not parse, or a content type that is not `application/json` — ENDP-4, ENDP-10 |
+| `invalid_parameter` | `400` | `reject` | A parameter missing or malformed — ENDP-10 |
+| `unknown_filter` | `400` | `reject` | A filter parameter the Worker does not recognize — ENDP-24 |
+| `unsupported_version` | `400` | `reject` | A requested Capability version the Worker cannot answer — ENDP-6 |
+| `idempotency_key_required` | `400` | `reject` | An Action requires a key and none was sent — ENDP-18 |
+| `unauthenticated` | `401` | `reject` | No credential, or one the Worker cannot read — ENDP-10 |
+| `forbidden` | `403` | `reject` | The credential is understood and does not carry the right — ENDP-10 |
+| `not_found` | `404` | `reject` | No such address, or no such resource — ENDP-10, DESC-21 |
+| `request_timeout` | `408` | `retry` | The request did not arrive in time to be answered — ENDP-10 |
+| `conflict` | `409` | `reject` | The request conflicts with the current state — ENDP-10 |
+| `idempotency_key_reused` | `409` | `reject` | A key reused with a different body — ENDP-17 |
+| `unprocessable_content` | `422` | `reject` | Well-formed, schema-valid, and refused on the Worker's own rules — ENDP-10, ENDP-12 |
+| `rate_limited` | `429` | `retry` | Too many requests — ENDP-10 |
+| `internal_error` | `500` | `retry` | The Worker failed for its own reasons — ENDP-10 |
+| `unavailable` | `503` | `retry` | Starting, `unhealthy`, or a dependency down — ENDP-10 |
+| `upstream_error` | `502` | `retry` | Something the Worker depends on answered badly — ENDP-10 |
+| `upstream_timeout` | `504` | `retry` | Something the Worker depends on did not answer in time — ENDP-10 |
+
+Every code above names a condition some rule already states. None was invented to fill a gap, and
+where the text has not committed to a condition there is deliberately no code for it: `conflict` is
+the only broad one, because ENDP-10 names *a Task already claimed* among its 409s and
+[tasks-and-claims](tasks-and-claims.md) is still `open`. When that file lands it may want a code of
+its own, and the price is stated below.
+
+**Closing the vocabulary costs something, and it was taken knowingly: a new code now requires a new
+edition.** A caller validating against `error.json` refuses a code that file does not list, which
+is precisely what makes a code worth reading — and it means the set cannot grow quietly. The
+alternative was an open string, where a conformance check can verify that a code is *present* and
+never that it *means* what it says, which is to check almost nothing on the one surface every other
+surface leans on.
+
+ENDP-26 forbids one code under two statuses for a reason worth stating: if a code could arrive with
+either of two statuses, a caller reading the code would still have to read the status to know what
+had happened, and the code would have bought nothing. That rule is what splits ENDP-10's one
+`502, 504` row into two codes here. They are genuinely two conditions — a dependency that answered
+badly, and one that did not answer at all — and a Worker that could not tell them apart was not
+going to send either code accurately.
 
 The envelope is the Worker's statement about itself and the status code is whatever reached the
 caller last. A proxy that rewrites a `422` into a `502` has not changed what the Worker meant, and
@@ -224,4 +274,9 @@ anything happened.
 
 ## Withdrawn
 
-None.
+- **ENDP-7** — required that every unsuccessful response carry a code, a message and a class, with
+  the code an unconstrained "stable machine-readable" string. Replaced by **ENDP-25**, which draws
+  the code from the closed enumeration in [schemas/error.json](../schemas/error.json). A code of
+  `banana` satisfied ENDP-7 and does not satisfy ENDP-25, so the rewrite could change a verdict and
+  took a new id. ENDP-26 and ENDP-27, which say how a code relates to a status and a class, are new
+  and retire nothing.

@@ -1,0 +1,12 @@
+{
+  "//": "Emits only what @worker-protocol/schemas publishes. generate.ts is toolchain, not package: it is type-checked by tsconfig.json and never reaches dist/, so `files: [\"dist\"]` cannot ship a build tool to consumers.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/index.ts"]
+}

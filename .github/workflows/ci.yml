@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# This workflow only reads the tree.
+permissions:
+  contents: read
+
+jobs:
+  schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm, always. The version comes from the root `packageManager` field, so this
+      # workflow and a developer's machine cannot drift apart.
+      - uses: pnpm/action-setup@v4
+
+      # Node 26 is a deliberate choice, not an incidental one. Generation runs
+      # packages/schemas/src/generate.ts DIRECTLY, through Node's native TypeScript type
+      # stripping, so NODE >= 23.6 IS A HARD FLOOR. Downgrading this runner breaks
+      # generation with a syntax error in a .ts file, which does not obviously read as
+      # "the Node version is too old". Raise it freely; lower it only by first adding a
+      # compile step to the two scripts below.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The reason schemas/ is generated AND committed. This regenerates from the Zod
+      # source in memory and compares byte for byte against what is in the tree, naming
+      # the files that differ. A generated artifact nobody compares is a claim nobody
+      # verifies.
+      - name: schemas/ matches packages/schemas
+        run: pnpm schemas:check
+
+      # spec/README.md states a rule-id convention — bold carries an id, an id is never reused,
+      # a withdrawn id is written only in its file's Withdrawn list. This is what stands behind
+      # that claim. A failure names the file, the id and the rule, because a lint that said
+      # "spec is invalid" would be the same mistake the ids exist to fix.
+      - name: spec/ holds the rule-id convention
+        run: pnpm spec:lint
+
+      # Covers scripts/ and then EVERY file under packages/schemas/src, generator included.
+      - name: type-check repository tooling
+        run: pnpm typecheck
+
+      # Covers EVERY file under packages/schemas/src, generator included. The build below
+      # compiles only what the package publishes, so without this step the generator — the one
+      # piece of code here that can corrupt the normative artifact — would never be checked.
+      - name: type-check @worker-protocol/schemas
+        run: pnpm -C packages/schemas typecheck
+
+      # Proves the published entry points compile and that the declarations @worker-protocol
+      # /schemas ships are the ones the source describes.
+      - name: build @worker-protocol/schemas
+        run: pnpm -C packages/schemas build

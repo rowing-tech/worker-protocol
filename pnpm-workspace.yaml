@@ -1,0 +1,18 @@
+packages:
+  - packages/*
+
+# Refuse any package version published less than seven days ago (10080 minutes).
+#
+# What this defends against is not the key name: it is the compromised release. The usual shape of
+# a supply-chain attack on npm is a maintainer account taken over and a malicious version published
+# under a name thousands of projects already trust — and the window that matters is short, because
+# those releases are almost always spotted, reported and pulled within a few days. Waiting is the
+# whole defence. It costs this repository close to nothing: a specification has three dependencies
+# that move a few times a year, and none of them is ever needed within a week of its release.
+#
+# When an install fails on this gate, that is the policy working, and there are two honest answers.
+# Widen nothing and wait, which is right whenever the new version is merely convenient. Or add the
+# exact version below, which is right when it is genuinely needed sooner — a security fix in the
+# dependency itself being the clearest case. Adding an entry is a claim that someone looked; the
+# list is kept short so that claim stays readable.
+minimumReleaseAge: 10080

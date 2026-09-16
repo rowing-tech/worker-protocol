@@ -1,0 +1,17 @@
+{
+  "name": "worker-protocol",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@12.4.2",
+  "scripts": {
+    "schemas:generate": "node packages/schemas/src/generate.ts",
+    "schemas:check": "node packages/schemas/src/generate.ts --check",
+    "spec:lint": "node scripts/lint-spec.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "typescript": "7.0.2"
+  }
+}

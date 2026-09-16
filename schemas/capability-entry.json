@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capability-entry.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "DESC-9. A single integer counting breaking changes to this Capability alone. There is no minor version."
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "additionalProperties": {},
+  "title": "Capability entry",
+  "description": "DESC-22. What a Worker declares about one Capability: its version, and the address it answers at where it answers over HTTP. The Capability's name is the key this entry is held under, which is what makes it declarable at most once. The address is optional HERE ONLY: each Capability's own file requires one, and every Capability answered over HTTP does — `events`, answered over a broker, is why the shared entry cannot require it. Open to the extensions each Capability's own file defines, including the conditional declarations of DESC-11."
+}

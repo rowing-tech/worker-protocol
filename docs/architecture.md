@@ -43,7 +43,7 @@ argument earns each of these in turn.
 | **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
 | **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, indicators, actions, alerts, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
-| **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; the Capabilities it implements, with the address and schemas of each; and the edition of this protocol it speaks. Everything anyone knows about a Worker before calling it is read from here. |
+| **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; the Capabilities it implements, with the schemas of each and, where one answers over HTTP, its address; and the edition of this protocol it speaks. Everything anyone knows about a Worker before calling it is read from here. |
 | **Control Tower** | The one node that is not a Worker — the Tower, for short: the registry and the operator's console. It catalogs what Workers declare in their Descriptors, brokers the Contracts between them, and polls how each is doing. It runs no business logic and holds no Worker's state. |
 | **Indicator** | A named quantity a Worker exposes over a period it declares — cost, volume, outcomes. Health says whether a Worker works; indicators say whether it is worth running. |
 | **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker that the protocol knows of; whatever else a Worker answers is its own business, and no console, catalog or Contract sees it. |
@@ -228,8 +228,8 @@ systems.
 Not every Worker has every surface. The telemetry worker in the worked case below raises no Tasks,
 and until it says so, nobody can know that except by trying. So a Worker serves a **Descriptor** at
 a route the spec fixes, and it is the first thing anyone reads about it: the Worker's own id; the
-**Capabilities** it implements, each with the address it answers at and the schemas it answers
-with; and its versions.
+**Capabilities** it implements, each with the schemas it answers with and, where it answers over
+HTTP, the address it answers at; and its versions.
 
 A Capability is a part of this protocol — health, indicators, actions with settings inside them,
 alerts, tasks, events — and the list is closed; the spec names them. The word follows the
