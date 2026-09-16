@@ -14,7 +14,8 @@ back — so that when the answer lands, both places know.
   deduplicate by lives. Listed in [spec/events.md](../spec/events.md).
 - **What the minimum conformance profile is.** Whether a Worker may implement one half and not the
   other — the worked case has one that raises no Tasks — and what is required of every Worker
-  whatever else it does.
+  whatever else it does. On the answer hangs what stands for a liveness probe when a Worker
+  declares no `health`.
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers. Listed in [spec/health.md](../spec/health.md).
 - **Who verifies that a worker answers the Task types it declares.** The Hub at registration, the

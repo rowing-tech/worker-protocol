@@ -39,7 +39,7 @@ argument earns each of these in turn.
 | **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
 | **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, indicators, actions, alerts, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
-| **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; the Capabilities it implements, with the address and schemas of each; and the edition of this protocol it speaks. Everything the Hub knows about a Worker is read from here. |
+| **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; the Capabilities it implements, with the address and schemas of each; and the edition of this protocol it speaks. Everything anyone knows about a Worker before calling it is read from here. |
 | **Hub** | The one node that is not a Worker: the registry and the operator's console. It catalogs what Workers declare in their Descriptors and polls how each is doing. It runs no business logic and holds no Worker's state. |
 | **Indicator** | A named quantity a Worker exposes over a period it declares — cost, volume, outcomes. Health says whether a Worker works; indicators say whether it is worth running. |
 | **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker that the protocol knows of; whatever else a Worker answers is its own business, and no console, catalog or Contract sees it. |
@@ -51,7 +51,7 @@ argument earns each of these in turn.
 | **Event** | A Fact published for anyone to consume, with a shape declared in the Hub. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
 | **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
-| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, indicators, the Actions it accepts and the settings they hold, the Tasks and Alerts it has raised. |
+| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, indicators, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
 | **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
 | **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
