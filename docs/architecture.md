@@ -3,7 +3,8 @@
 > How an organization runs many small systems without a central one owning their data. Each system
 > is a **Worker**: it keeps its own state and stays authoritative over it. What it offers outward is
 > **Events it publishes** through a broker, and a small **Worker API it answers when polled** —
-> health, indicators, the Actions it accepts, and the Tasks and Alerts it has raised.
+> health, indicators, the Actions it accepts, the settings it holds, and the Tasks and Alerts it
+> has raised.
 >
 > Three principles drive the shape:
 >
@@ -29,16 +30,17 @@
 ## Dictionary
 
 Every term the rest of this document uses, in an order where each one is defined using only the
-terms above it. Read it first, or skip it and come back — the argument earns each of these in turn.
+terms above it, as far as the terms allow: **Worker** comes first and names what hangs off it, and
+**Task** and **Capability** define each other. Read it first, or skip it and come back — the
+argument earns each of these in turn.
 
 | Term | Definition |
 |---|---|
 | **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
 | **Hub** | The one node that is not a Worker: the registry and the operator's console. It catalogs what Workers declare and polls how each is doing. It runs no business logic and holds no Worker's state. |
-| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its health, its indicators, the Actions it accepts, and the Tasks and Alerts it has raised. |
 | **Indicator** | A named quantity a Worker exposes over a period it declares — cost, volume, outcomes. Health says whether a Worker works; indicators say whether it is worth running. |
-| **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker. |
+| **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker that the protocol knows of; whatever else a Worker answers is its own business, and no console, catalog or Contract sees it. |
 | **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Capability it names. Closes only when the condition disappears. |
 | **Capability** | The Task types a Worker or person declares it answers, each with its payload and response schemas. What a Task requires, and what the Hub catalogs by. |
 | **Claim** | One consumer's exclusive lease on a Task. Closes by declaration — `done`, `failed`, `released` — or by expiry, after which the owner reclaims. |
@@ -47,6 +49,7 @@ terms above it. Read it first, or skip it and come back — the argument earns e
 | **Event** | A Fact published for anyone to consume, with a shape declared in the Hub. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
 | **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
+| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its health, its indicators, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
 | **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Capability. A recurring shape, not a kind of node: the protocol does not know the term. |
 | **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
@@ -69,7 +72,10 @@ A worker finds work in four ways, and they combine freely:
   work for it.
 - **Claimed, after a notification.** A best-effort nudge says there is work, and the worker claims
   it straight away.
-- **Pushed to an endpoint.** Someone calls the worker with the work in hand.
+- **Pushed to an endpoint.** Someone calls the worker with the work in hand. If the worker wants
+  the protocol to see that door — a console to render it, a Contract to cover it — it publishes it
+  as an Action; otherwise it is an endpoint like any other the worker chooses to serve, and the
+  protocol has no opinion about it.
 - **Perception, on a schedule.** The worker reads an upstream source on a timer and derives what
   changed. The source has no idea the worker exists.
 
@@ -114,7 +120,7 @@ flowchart LR
   subgraph hub["The Hub — registry & operator console"]
     direction TB
     registry["who exists, capabilities,<br/>services, contracts"]
-    console["operator UI:<br/>health, indicators, alerts, actions"]
+    console["operator UI:<br/>health, indicators, alerts,<br/>settings, actions"]
   end
   source["Upstream source"]
   caller["Any caller"]
@@ -132,7 +138,7 @@ flowchart LR
   hub -- "polls the Worker API" --> worker
   hub -- "polls the Worker API" --> app
   console -- "posts an Action" --> worker
-  registry -. "brokers a Contract<br/>to the consumer" .-> worker
+  worker -. "obtains a Contract,<br/>as consumer" .-> registry
 ```
 
 Every arrow points from whoever initiates to whom it calls.
@@ -154,15 +160,16 @@ deduplicates by event id.
 
 **The Worker API.** Everything a worker exposes for reading or acting on, over HTTP and JSON
 Schema: its **health**, the minimal answer to a poll, whose absence is the signal; its
-**indicators**; its **Actions**, each with a schema and an address to post to; its **Tasks**,
-exposed as current state so a late consumer sees what is open and not only what happened; and its
+**indicators**; its **Actions**, each with a schema and an address to post to; its **settings**,
+when it accepts `configure` — read here, written only through that Action; its **Tasks**, exposed
+as current state so a late consumer sees what is open and not only what happened; and its
 **Alerts**. The Hub is one client of this API; other workers are the main ones.
 
 **Indicators, concretely.** Health says whether a worker works; indicators say whether it is worth
 running. They are few, named, and carry the period they cover — a day, a month — because the
-question they answer is a progression and a cost, not an instant: tokens consumed, hires resolved,
-hires failed, how many had to be handed to a person. A worker declares which it publishes and what
-each means.
+question they answer is a progression and a cost, not an instant — a recruiting worker's, say:
+tokens consumed, hires resolved, hires failed, how many had to be handed to a person. A worker
+declares which it publishes and what each means.
 
 **Health, concretely.** The shape is the one the cloud platforms and the IETF health-check draft
 converge on — one top-level status and a map of named checks — with our own three values:
@@ -202,7 +209,7 @@ An event is a fact with no addressee; publishing one commits nobody to anything.
 needs something *done*, it raises a Task.
 
 A **Task** is a condition the worker evaluates over its own facts. While the condition holds, the
-Task exists; it names the **Actions** that may resolve it — a closed list, not an instruction — and
+Task exists; it names the **Actions** that may answer it — a closed list, not an instruction — and
 the **Capability** needed to perform them. A consumer with that Capability — another worker, or a
 person through an app — claims the Task and acts. **Nothing the consumer does closes the Task.**
 The owner never waits for a Response; it re-evaluates its condition when one arrives, and when the
@@ -228,9 +235,12 @@ exclusive — the owner grants one lease per Task and refuses a second claim of 
 settles contention by first commit, and the owner needs no policy for that.
 
 Failure is counted over Claims, never over the condition: the owner keeps, beside the Task, how
-many Claims have failed and how many lapsed without a word, and stops granting new leases past a
-cap. The Task itself is untouched by any of it — its condition still holds, so it still exists. A
-Task that has outlived several failed Claims is a signal to an operator, not a stuck queue.
+many Claims have failed and how many lapsed without a word, and may stop granting new leases past
+a cap of its own choosing. The Task itself is untouched by any of it — its condition still holds,
+so it still exists. A Task that has outlived several failed Claims is stuck, and that is the point:
+it is stuck where an operator can see it, with the count beside it, rather than in a queue that
+keeps retrying in silence. What the owner raises when it stops granting, and what lets it grant
+again, is for `spec/` to say.
 
 A **Response** is therefore two things: the Action posted into the owner, and the outcome declared
 on the Claim. It may carry the cost and elapsed time of the execution; what happens to those
@@ -238,7 +248,9 @@ numbers is undecided.
 
 **Alerts** are conditions an operator should see. An Alert may carry Actions; a Task additionally
 requires a Capability and a Claim. A silent vehicle is a Task for whoever can check it; a worker
-whose credentials expire in three days is an Alert for the Hub.
+whose credentials expire in three days is an Alert for the Hub. Nothing implements them yet, and
+whether they are a surface of their own or Tasks nobody must claim is
+[open](undecided.md).
 
 **Alarms** are something else again: a worker waking *itself* at a future time to re-evaluate.
 They are neither Tasks nor Alerts, and are named here only so nobody calls them either.
@@ -295,8 +307,9 @@ surface like health or indicators; writing stays an Action.
 A telemetry worker on Cloudflare polls a GPS source every minute, derives motion facts per vehicle
 — movement, stops — and publishes them as events. It detects silence itself, with its own timer
 over indexed state, and publishes `signal.lost` when a vehicle has gone quiet past a threshold. It
-exposes health and indicators to the Hub: how many vehicles reported, how many are silent. It raises
-no Tasks and does not know who listens.
+exposes health to the Hub — whether the GPS source answered, whether the broker took its last
+publish — and indicators over the day: how many vehicles reported, how many fell silent, how many
+of those came back on their own. It raises no Tasks and does not know who listens.
 
 A fleet operations app on Convex subscribes to those events and derives its own facts: trips, and
 which silent vehicles matter. From a `signal.lost` event it may raise the Task *verify silent

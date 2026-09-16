@@ -8,7 +8,9 @@ Claim.
 To answer here:
 
 - Whether Alerts are a surface of their own at all, or Tasks nobody is required to claim. Nothing
-  implements them yet, and the answer decides whether this file survives.
+  implements them yet, and the answer decides whether this file survives. Open in
+  [undecided](../docs/undecided.md).
 - The envelope, if they are: severity, when it started, what it is about, and the Actions offered.
-- Whether reading a Worker's Alerts needs a Contract or is open to anyone who can reach it.
+- Whether reading a Worker's Alerts needs a Contract or is open to anyone who can reach it. Open in
+  [undecided](../docs/undecided.md).
 - How an Alert ends: by its condition disappearing, like a Task, or by someone dismissing it.

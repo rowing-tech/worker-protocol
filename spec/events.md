@@ -8,7 +8,8 @@ transitions of its Tasks and Alerts.
 To answer here:
 
 - The envelope. CloudEvents is the candidate; the version and the binding are unsettled, and until
-  they are nobody knows where the id to deduplicate by lives.
+  they are nobody knows where the id to deduplicate by lives. Open in
+  [undecided](../docs/undecided.md).
 - How a Worker declares which events it publishes, with what shape, and to which broker.
 - How a consumer obtains access to a broker that is not its own: through the Contract, or out of
   band.

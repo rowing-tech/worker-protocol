@@ -9,4 +9,5 @@ normative text leaves out. Nothing here is normative.
 | [undecided.md](undecided.md) | What is open on purpose. An entry leaves it when a `spec/` section answers it |
 
 Start with `architecture.md`. Its dictionary comes first and is ordered so that each term is
-defined using only the ones above it; the argument that follows earns each of them in turn.
+defined using only the ones above it, as far as the terms allow — Worker comes first and names what
+hangs off it; the argument that follows earns each of them in turn.

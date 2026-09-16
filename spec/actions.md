@@ -3,7 +3,8 @@
 `open`
 
 How a Worker declares the operations it accepts, and how somebody performs one. An Action is
-published with a schema and an address, and is the only way to act on a Worker.
+published with a schema and an address, and is the only way to act on a Worker that the protocol
+sees; what else a Worker serves is its own business.
 
 To answer here:
 

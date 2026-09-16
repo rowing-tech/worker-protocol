@@ -9,9 +9,13 @@ lease.
 To answer here:
 
 - The shape of a Task on the wire: id, type, payload, the Capability it requires, the closed list
-  of Actions that may resolve it, and whether its Claims travel with it or separately.
+  of Actions that may answer it, and whether its Claims travel with it or separately. The last is
+  open in [undecided](../docs/undecided.md).
 - Claiming: the verb, the address, what is answered, who sets the lease, how it is renewed, and
   what a second claimant is told.
+- Failure over Claims: where the owner exposes how many Claims have failed or lapsed, who sets the
+  cap past which it stops granting leases, what it raises when it does, and what lets it grant
+  again.
 - Whether a Response is one call or two — the Action into the owner, the outcome onto the Claim —
   and whether the two are atomic.
 - How a consumer learns which Tasks it may claim: whether the owner filters by its Contract and its

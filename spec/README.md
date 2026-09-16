@@ -4,10 +4,11 @@ Normative for **behavior**: the endpoints, the lifecycles and the status codes t
 state. What a request and a response carry is normative in `schemas/`, and where a sentence here
 disagrees with a schema, the schema wins.
 
-One file per subject, each opening with its maturity marker — `stable`, `draft` or `open`. A
-section marked `open` links to its entry in [deliberately undecided](../docs/undecided.md) when
-the question is one of meaning; a file that is merely unwritten says so and lists what it will
-answer.
+One file per subject, each opening with its maturity marker — `stable`, `draft` or `open`. A file
+marked `open` lists what it will answer. Where one of those questions is one of meaning and has an
+entry in [deliberately undecided](../docs/undecided.md), the bullet links there and the entry
+links back, so that when the answer lands both places know; the rest is mechanics, merely
+unwritten.
 
 | File | Subject |
 |---|---|
