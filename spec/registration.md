@@ -2,16 +2,16 @@
 
 `open`
 
-How a Worker comes to be known by the Hub, and how the two sides of every call prove who they are.
-Enrollment is settled in shape: an operator gives the Hub a URL and a credential, the Hub reads the
-[Descriptor](descriptor.md) it finds there, and the registry follows from that.
+How a Worker comes to be known by the Control Tower, and how the two sides of every call prove who
+they are. Enrollment is settled in shape: an operator gives the Tower a URL and a credential, the
+Tower reads the [Descriptor](descriptor.md) it finds there, and the registry follows from that.
 
 To answer here:
 
 - What the credential an operator gives at enrollment is, and how it relates to the ones a
   Contract carries.
-- What the Hub does when the Descriptor at an enrolled URL answers with a different id than before.
-- How the Hub authenticates when it polls, and how a consumer authenticates against an owner under
+- What the Tower does when the Descriptor at an enrolled URL answers with a different id than before.
+- How the Tower authenticates when it polls, and how a consumer authenticates against an owner under
   a Contract.
 - What kind of credential a Contract carries, how it is presented on a request, and how it is
   rotated and revoked — including while a Task is claimed under it, which is open in

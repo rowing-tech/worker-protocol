@@ -1,10 +1,14 @@
-# A network of Workers, and the Hub that lets them collaborate
+# A network of Workers, and the Control Tower that watches over them
 
 > How an organization runs many small systems without a central one owning their data. Each system
 > is a **Worker**: it keeps its own state and stays authoritative over it. What it offers outward is
 > **Events it publishes** through a broker, and a small **Worker API it answers when polled** — a
 > Descriptor of what it implements, then health, indicators, the Actions it accepts, the settings
 > it holds, and the Tasks and Alerts it has raised.
+>
+> One node is not a Worker. The **Control Tower** knows who exists, what each offers and how each
+> is doing; it brokers the Contracts by which one Worker comes to use another's work, and then the
+> work runs without it — as aircraft already cleared keep flying when the tower goes quiet.
 >
 > Three principles drive the shape:
 >
@@ -17,7 +21,7 @@
 >    tooling — a cron job in Python over Postgres — must be able to satisfy it completely. Events
 >    travel over whatever broker a worker declares, which is the one place another transport
 >    appears.
-> 3. **The Hub facilitates and monitors. It runs no business logic, and remembers nothing on a
+> 3. **The Tower facilitates and monitors. It runs no business logic, and remembers nothing on a
 >    worker's behalf.** It knows who exists, what each offers, and how each is doing; it brokers
 >    the Contracts by which a consumer uses a Service, and then steps out of the way.
 >
@@ -40,22 +44,22 @@ argument earns each of these in turn.
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
 | **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, indicators, actions, alerts, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
 | **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; the Capabilities it implements, with the address and schemas of each; and the edition of this protocol it speaks. Everything anyone knows about a Worker before calling it is read from here. |
-| **Hub** | The one node that is not a Worker: the registry and the operator's console. It catalogs what Workers declare in their Descriptors and polls how each is doing. It runs no business logic and holds no Worker's state. |
+| **Control Tower** | The one node that is not a Worker — the Tower, for short: the registry and the operator's console. It catalogs what Workers declare in their Descriptors, brokers the Contracts between them, and polls how each is doing. It runs no business logic and holds no Worker's state. |
 | **Indicator** | A named quantity a Worker exposes over a period it declares — cost, volume, outcomes. Health says whether a Worker works; indicators say whether it is worth running. |
 | **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker that the protocol knows of; whatever else a Worker answers is its own business, and no console, catalog or Contract sees it. |
 | **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Skill it names. Closes only when the condition disappears. |
-| **Skill** | What a Worker or a person knows how to do in its domain, stated as the Task types it answers, each with its payload and response schemas. What a Task requires, and what the Hub catalogs by. |
+| **Skill** | What a Worker or a person knows how to do in its domain, stated as the Task types it answers, each with its payload and response schemas. What a Task requires, and what the Tower catalogs by. |
 | **Claim** | One consumer's exclusive lease on a Task. Closes by declaration — `done`, `failed`, `released` — or by expiry, after which the owner reclaims. |
 | **Nudge** | A best-effort notification that there is something to claim. Carries no payload and no guarantee; whoever receives one claims as it would have on its next schedule. Losing one costs latency, never work. |
 | **Response** | What a consumer posts to the owner: the Action performed, and the outcome declared on the Claim. Does not close the Task. |
-| **Event** | A Fact published for anyone to consume, with a shape declared in the Hub. No addressee, no commitment. |
+| **Event** | A Fact published for anyone to consume, with a shape declared in the Tower. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
 | **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
 | **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, indicators, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
 | **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
 | **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
-| **Contract** | An agreement between a consumer and a Service, brokered by the Hub: which of its Events, Task types and Actions the consumer may use, with credentials. Only the agreement and the credentials are stored; execution runs over it, not through the Hub. |
+| **Contract** | An agreement between a consumer and a Service, brokered by the Tower: which of its Events, Task types and Actions the consumer may use, with credentials. Only the agreement and the credentials are stored; execution runs over it, not through the Tower. |
 
 ## One kind of node, several platforms
 
@@ -106,12 +110,23 @@ app* has a custom UI in domain language and works the Tasks it raises and claims
 gives a person or team one view of the Tasks they hold across owners, by Skill. A *proxy*
 wraps a system that cannot speak the protocol — Power Automate, Zapier, SAP — and answers for it.
 
-**The Hub** is the one node that is not a worker: the registry and the operator's console. It
-catalogs who exists and what each declares — read from each worker's Descriptor, together with the
-Skills the worker or its people answer for; it holds the Services teams publish over them; it
-brokers the Contracts by which a consumer uses a Service; it polls how each worker is doing. The
-registry is derived from those Descriptors: enrolling a worker is a URL and a credential, and the
-rest is read. It holds nobody's data.
+**The Control Tower** is the one node that is not a worker: the registry and the operator's
+console. It catalogs who exists and what each declares — read from each worker's Descriptor,
+together with the Skills the worker or its people answer for; it holds the Services teams publish
+over them; it brokers the Contracts by which a consumer uses a Service; it polls how each worker is
+doing. The registry is derived from those Descriptors: enrolling a worker is a URL and a
+credential, and the rest is read. It holds nobody's data.
+
+*Control Tower* names a role, not a product: whatever enrolls Workers, keeps their Descriptors,
+brokers Contracts and polls is one, and a Worker must be legible to any of them. The name is a
+metaphor carried on purpose. A tower sees all the traffic and flies none of it; when it goes quiet,
+whoever is already cleared continues on the last clearance and whoever is not waits — which is
+exactly the claim made under Contracts below. Where the metaphor ends: a real tower sequences
+traffic in flight, and this one does not. A Contract, once granted, is the clearance.
+
+Teams also talk about a Service — an issue raised against it, a question about what it answers
+for. A Tower may host that conversation; the protocol does not see it, and it is neither a Task
+nor an Alert.
 
 A **Service** is a name a team publishes over things workers already offer — these events, these
 Task types, these Actions — and answers for. It is the unit a Contract is made over, never a unit
@@ -121,7 +136,7 @@ behind it — which may be many, and which need not know which Service they serv
 
 ```mermaid
 flowchart LR
-  subgraph hub["The Hub — registry & operator console"]
+  subgraph tower["The Control Tower — registry & operator console"]
     direction TB
     registry["who exists — descriptors, skills,<br/>services, contracts"]
     console["operator UI:<br/>health, indicators, alerts,<br/>settings, actions"]
@@ -139,8 +154,8 @@ flowchart LR
   person -- "claims Tasks in the UI" --> app
   worker -- "publishes events" --> broker
   app -- "subscribes to events" --> broker
-  hub -- "polls the Worker API" --> worker
-  hub -- "polls the Worker API" --> app
+  tower -- "polls the Worker API" --> worker
+  tower -- "polls the Worker API" --> app
   console -- "posts an Action" --> worker
   worker -. "obtains a Contract,<br/>as consumer" .-> registry
 ```
@@ -151,7 +166,7 @@ Every arrow points from whoever initiates to whom it calls.
 
 **Published Events.** A worker publishes the facts it derives, to a broker, in a standard shape —
 CloudEvents is the candidate. This is broker-agnostic by design: a worker may declare "I publish
-`vehicle-moved` on Azure Event Hub", and the Hub catalogs *that it does, and with what shape*.
+`vehicle-moved` on Azure Event Hub", and the Tower catalogs *that it does, and with what shape*.
 Anyone can subscribe and act on it without knowing how that worker is built. Task and Alert
 lifecycle transitions are events too. The broker carries events and nothing else.
 
@@ -168,7 +183,7 @@ minimal answer to a poll, whose absence is the signal; its
 **indicators**; its **Actions**, each with a schema and an address to post to; its **settings**,
 when it accepts `configure` — read here, written only through that Action; its **Tasks**, exposed
 as current state so a late consumer sees what is open and not only what happened; and its
-**Alerts**. The Hub is one client of this API; other workers are the main ones.
+**Alerts**. The Tower is one client of this API; other workers are the main ones.
 
 **Indicators, concretely.** Health says whether a worker works; indicators say whether it is worth
 running. They are few, named, and carry the period they cover — a day, a month — because the
@@ -193,7 +208,7 @@ The least obvious decision here, stated directly: **a dead worker is detected be
 fails.** If workers pushed their status, silence would be ambiguous — a worker that has gone down,
 one whose credentials expired, and one that was never registered correctly all produce exactly the
 same signal, and telling them apart needs a second mechanism that exists only to watch for absence.
-Polling collapses that: the Hub already knows who should answer, and a worker that does not answer
+Polling collapses that: the Tower already knows who should answer, and a worker that does not answer
 is a fact, immediately.
 
 The same argument holds for Tasks between workers: a consumer reads the Tasks it may claim from
@@ -204,7 +219,7 @@ the owner's API, and posts its Response to an owner it already knows.
 The console renders a form from a JSON Schema it did not author, and posts the result to an
 address it does not understand, on behalf of a worker whose domain it has never heard of. So does a
 teams app, for Tasks instead of Actions. Every worker that speaks the protocol inherits that
-interface for free; adding one adds no code to the Hub and teaches it nothing about invoices,
+interface for free; adding one adds no code to the Tower and teaches it nothing about invoices,
 vehicles or shipments. That uniformity is the only way a small team operates a growing number of
 systems.
 
@@ -232,16 +247,16 @@ maturity marker.
 The id is the Worker's own, and it is distinct from its URL: the URL is where a Worker is, the id
 is who it is. A Worker that moves keeps its Contracts.
 
-**The Hub's registry is derived entirely from Descriptors.** Enrolling a Worker is an operator
+**The Tower's registry is derived entirely from Descriptors.** Enrolling a Worker is an operator
 pasting a URL and a credential, and nothing else — no handshake, and no Worker registering itself.
 That human act is the moment of trust: the Worker declares its identity and its team, and what
 ties the declaration to reality is that a person put that URL there.
 
 One consequence has to be faced. If the registry were read from Descriptors and nothing more, a
 Worker that is down would vanish from the catalog, and an empty catalog is worse than an old one.
-So **the Hub keeps a copy of the last Descriptor it saw from each Worker, with the time it saw
-it.** This sits beside the principle that the Hub holds nothing schema-shaped of its own only if
-it is said precisely: the Hub is authority over none of it, the copy is dated, and the Worker's
+So **the Tower keeps a copy of the last Descriptor it saw from each Worker, with the time it saw
+it.** This sits beside the principle that the Tower holds nothing schema-shaped of its own only if
+it is said precisely: the Tower is authority over none of it, the copy is dated, and the Worker's
 own Descriptor wins wherever the two differ.
 
 ## Tasks: delegation without dependency
@@ -262,8 +277,8 @@ the network already accepts for events.
 
 **Skill** is the keystone, and it is concrete: the Task types a worker declares it answers,
 each with its payload and response schemas. A Task requires one; a worker or a person declares
-one; the Hub catalogs by it. It is the *unit of discovery*: the owner names a Task type, never an
-actor, and the Hub answers "who answers it". The owner's logic names no actor, exactly as a
+one; the Tower catalogs by it. It is the *unit of discovery*: the owner names a Task type, never an
+actor, and the Tower answers "who answers it". The owner's logic names no actor, exactly as a
 publisher names no subscriber; its runtime records who claimed, because refusing a late Response
 requires knowing who holds the Claim. That is what keeps a Task from becoming a dependency on a
 particular consumer.
@@ -289,7 +304,7 @@ numbers is undecided.
 
 **Alerts** are conditions an operator should see. An Alert may carry Actions; a Task additionally
 requires a Skill and a Claim. A silent vehicle is a Task for whoever can check it; a worker
-whose credentials expire in three days is an Alert for the Hub. Nothing implements them yet, and
+whose credentials expire in three days is an Alert for the Tower. Nothing implements them yet, and
 whether they are a surface of their own or Tasks nobody must claim is
 [open](undecided.md).
 
@@ -298,31 +313,31 @@ They are neither Tasks nor Alerts, and are named here only so nobody calls them 
 
 ## Contracts: how a consumer comes to use a Service
 
-Workers are enrolled with the Hub, and teams publish Services over them. A consumer that needs a
-Service — wired by an operator ahead of time, or asking the Hub at runtime who answers a Task type
+Workers are enrolled with the Tower, and teams publish Services over them. A consumer that needs a
+Service — wired by an operator ahead of time, or asking the Tower at runtime who answers a Task type
 — obtains a **Contract**: which of the Service's events, Task types and Actions it may use, under
-which credentials. Everything with the shape of a schema belongs to the workers; the Hub keeps a
+which credentials. Everything with the shape of a schema belongs to the workers; the Tower keeps a
 dated copy of what each last declared and is authority over none of it, and what it stores as its
 own is the agreement and the credentials — so a Contract is made over the workers' declarations
 and can drift from them by no more than the age of that copy. Discovery is by Task type, which is
 to say by Skill, never by Task instance.
 
 Once a Contract exists, the consumer reads Tasks from the owner's API and posts Responses to it
-directly. The Hub is not in the path — if it aggregated open Tasks and routed them, it would be a
+directly. The Tower is not in the path — if it aggregated open Tasks and routed them, it would be a
 dependency of execution and would have to remember, and both principles would fall. **Work already
-under Contract runs with the Hub down**, which is the claim worth making and the narrow one: a
-consumer that needs a *new* Contract, or credentials that have expired, waits for the Hub like
+under Contract runs with the Tower down**, which is the claim worth making and the narrow one: a
+consumer that needs a *new* Contract, or credentials that have expired, waits for the Tower like
 anyone else. What never waits is the work.
 
 ## Settings are an Action
 
 Configuration is not a separate mechanism. A worker publishes an Action, `configure`, whose schema
 is the schema of its settings; the console renders the form from it as it would for any Action,
-and may give it a fixed place. The worker validates and stores the result; the Hub keeps no copy.
+and may give it a fixed place. The worker validates and stores the result; the Tower keeps no copy.
 A worker that starts without configuration raises a Task requiring that Action, with the Skill to
 operate it — same mechanism, no special path.
 
-Because the Hub keeps no copy, a worker that accepts `configure` also exposes its current settings
+Because the Tower keeps no copy, a worker that accepts `configure` also exposes its current settings
 for reading on the Worker API — otherwise the console has no way to show a form with anything in
 it, and the only reader of a worker's configuration would be the worker itself. Reading is a
 surface like health or indicators; writing stays an Action.
@@ -332,11 +347,11 @@ surface like health or indicators; writing stays an Action.
 - **Platform independence.** The Worker API is HTTP and JSON Schema so that a worker built with
   none of our libraries can satisfy it fully. That constrains what may ever enter it, and the
   constraint is the point.
-- **The Hub runs no business logic.** Schedules, derivation and connections to foreign APIs live in
-  the workers. The Hub does post Actions — that is what the console is for — but it posts what an
+- **The Tower runs no business logic.** Schedules, derivation and connections to foreign APIs live in
+  the workers. The Tower does post Actions — that is what the console is for — but it posts what an
   operator decided, never what it decided itself, and it is in nobody's execution path.
-- **The Hub remembers nothing on a worker's behalf.** A Task's lifecycle belongs to the worker that
-  raised it; settings live in the worker. The Hub keeps its own management state — the registry,
+- **The Tower remembers nothing on a worker's behalf.** A Task's lifecycle belongs to the worker that
+  raised it; settings live in the worker. The Tower keeps its own management state — the registry,
   which is the dated copy of each Descriptor it last saw; the Contracts; the credentials — and
   that is all it keeps.
 - **Each Worker stays authoritative.** State is read where it lives. A consumer may cache, and owns
@@ -350,7 +365,7 @@ surface like health or indicators; writing stays an Action.
 A telemetry worker on Cloudflare polls a GPS source every minute, derives motion facts per vehicle
 — movement, stops — and publishes them as events. It detects silence itself, with its own timer
 over indexed state, and publishes `signal.lost` when a vehicle has gone quiet past a threshold. It
-exposes health to the Hub — whether the GPS source answered, whether the broker took its last
+exposes health to the Tower — whether the GPS source answered, whether the broker took its last
 publish — and indicators over the day: how many vehicles reported, how many fell silent, how many
 of those came back on their own. It raises no Tasks and does not know who listens.
 
@@ -358,10 +373,10 @@ A fleet operations app on Convex subscribes to those events and derives its own 
 which silent vehicles matter. From a `signal.lost` event it may raise the Task *verify silent
 vehicle*, requiring the Action *record verification* and the Skill *fleet verification*. A
 person with that Skill claims it — from the app's own UI, or from a teams app under a Contract
-the Hub brokered — verifies, and posts the Response: the verification, and `done` on the Claim.
+the Tower brokered — verifies, and posts the Response: the verification, and `done` on the Claim.
 The app re-evaluates: the vehicle reported again, or a verification is on record, so the condition
 is gone and the Task closes.
 
-The worker owns motion and silence; the app owns trips and the Task; the Hub owns the Contracts and
+The worker owns motion and silence; the app owns trips and the Task; the Tower owns the Contracts and
 watches. Nobody touches another's state.
 

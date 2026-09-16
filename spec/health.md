@@ -12,6 +12,6 @@ To answer here:
   [undecided](../docs/undecided.md).
 - Whether common checks share names across Workers, or every Worker names its own. Open in
   [undecided](../docs/undecided.md).
-- The cadence the Hub polls at and the timeout it allows, which together decide what a Worker can
-  afford to do inside a check.
+- The cadence the Control Tower polls at and the timeout it allows, which together decide what a
+  Worker can afford to do inside a check.
 - What a Worker answers while it is starting and has not yet checked anything.

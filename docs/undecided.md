@@ -18,7 +18,7 @@ back — so that when the answer lands, both places know.
   declares no `health`.
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers. Listed in [spec/health.md](../spec/health.md).
-- **Who verifies that a worker answers the Task types it declares.** The Hub at registration, the
+- **Who verifies that a worker answers the Task types it declares.** The Control Tower at registration, the
   owner at claim time, or nobody.
 - **What a Contract carries beyond credentials.** Rate, retention of Task events, revocation while
   a Task is claimed. Revocation is listed in [spec/registration.md](../spec/registration.md).
@@ -35,7 +35,7 @@ back — so that when the answer lands, both places know.
   checked at write time needs no sweep.
 - **Whether a Task and its Claims travel as one resource or two** on the Worker API. Listed in
   [spec/tasks-and-claims.md](../spec/tasks-and-claims.md).
-- **Whether a person's cross-owner work list is the Hub's or a Worker's.** A teams app is one
+- **Whether a person's cross-owner work list is the Tower's or a Worker's.** A teams app is one
   answer; the console is another.
 - **How much the protocol recognizes about Workers that talk to people**, beyond what it recognizes
   about any worker.
