@@ -1,6 +1,6 @@
 # Descriptor
 
-`open`
+`draft`
 
 The document a Worker serves at a route this spec fixes, and the first thing anyone reads about
 it: the Worker's own id, distinct from where it lives; the Capabilities it implements, each with
@@ -8,15 +8,193 @@ the address it answers at and the schemas it answers with; the edition of this p
 and a version per Capability. The Control Tower's registry is read from here, and the Tower keeps a
 dated copy of the last one it saw.
 
-To answer here:
+Its shape is [schemas/descriptor.json](../schemas/descriptor.json), and one entry of its Capability
+list is [schemas/capability-entry.json](../schemas/capability-entry.json). What follows is what no
+schema can state. Rules carry ids; the convention is in [spec/README.md](README.md).
 
-- The route, and whether a Worker may serve it anywhere else.
-- The envelope: how the id, the Capabilities and the versions are laid out.
-- How the two versions are expressed — the edition of this specification, and the version of each
-  Capability — and how a reader tells which Capabilities an edition may contain.
-- How each Capability declares its address, and whether an address may point away from the host
-  that serves the Descriptor.
-- The prefix under which a Worker declares a Capability of its own, and what a verifier does with
-  one it does not know.
-- What a Descriptor that declares a Capability the Worker does not serve means to a verifier, to
-  the Tower, and to a consumer that trusted it.
+## The floor
+
+**DESC-1. Every Worker serves a Descriptor, and that is the whole of what every Worker owes.**
+
+**DESC-2. Capabilities are declared or left out freely, in any combination including none, and no
+Capability is a precondition of another.** A Worker that raises no Tasks declares no `tasks`, a
+Worker that only ever answers people declares no `events`, and a Worker that declares an empty list
+is conformant and does nothing. There is no half a Worker must implement in order to be one.
+Conformance is a statement about whether a Worker can be read and believed, never about whether it
+is worth enrolling.
+
+That settles what stands for a liveness probe when a Worker declares no `health`: the Descriptor
+route itself. The Tower fetches it on a schedule anyway, because the dated copy its registry is
+made of has to come from somewhere; a fetch that fails is the same fact a failed health poll would
+have been, arriving by the same means. `health` says how a Worker is doing, which is a different
+and better question, and a Tower is free to refuse to enroll a Worker that does not answer it —
+but that is one Tower's policy, not this protocol's floor. Making it a condition of conformance
+would disqualify a Worker that usefully declares only `actions`: a thin proxy in front of a system
+that cannot speak this protocol, whose whole job is to accept an operation and pass it on. Such a
+Worker has no dependency of its own worth reporting on, and requiring it to invent one buys a
+poller nothing it could not already learn by fetching the Descriptor.
+
+## The route
+
+**DESC-3. A Worker is enrolled as a base URL — one absolute `https` URL, with or without a path —
+and serves its Descriptor at `.well-known/worker-protocol` beneath it.**
+
+**DESC-4. A Worker serves its Descriptor at no other address.**
+
+**DESC-5. Reading a Descriptor is a GET and changes nothing.**
+
+An operator who enrolls `https://example.com` is read at
+`https://example.com/.well-known/worker-protocol`; one who enrolls `https://example.com/fleet/` is
+read at `https://example.com/fleet/.well-known/worker-protocol`.
+
+A Worker that owns the root of its origin therefore serves the well-known URI of RFC 8615
+unchanged, and is discoverable from a bare hostname. One mounted under a path does not, and is
+found only from the base URL an operator recorded. That is the deliberate trade: reserving the
+origin root would forbid a Worker from living beside an application that already owns it, and the
+Workers that most need to live beside one are the Workers people use.
+
+Nowhere else, because a second copy at a second address is a second Worker to anyone who reads it,
+and nothing in the document says which of the two is the original.
+
+This is the only route this protocol fixes. Every other address is declared, so the question of a
+fixed prefix does not arise — see [endpoints](endpoints.md).
+
+What credential the reader presents, and what an unrecognized reader is shown, belong to
+[registration](registration.md); this file assumes only that the Tower can read the Descriptor with
+the credential its operator was given at enrollment, because the registry is derived from it and
+there is no other source.
+
+## Identity
+
+**DESC-6. The Worker's id is opaque and stable: it identifies this Worker and no other, carries
+whatever scope it needs to be unambiguous, is not the URL and is not derived from the URL, and
+survives a move.**
+
+A Worker that changes host keeps its id and keeps its Contracts. Nothing outside the Descriptor
+supplies context that the id needs in order to mean something: a reader holding the id alone, with
+no knowledge of the deployment it came from, still knows which Worker is meant. An id that is a
+path through a Worker's own internals, or that is only unique within a deployment the reader cannot
+name, is not an id.
+
+How ids are spelled, whether they are namespaced, and whether a retired one may be reused, are
+[naming](naming.md)'s. What the Tower does when the Descriptor at an enrolled URL answers with an
+id it has not seen before is [registration](registration.md)'s.
+
+## Two versions
+
+**DESC-7. A Descriptor carries exactly one edition: the version of this specification the Worker
+speaks.**
+
+**DESC-8. The Capability names an edition may contain are the enumeration in
+[schemas/capability-name.json](../schemas/capability-name.json), which is normative and is the list
+a verifier checks against.**
+
+**DESC-9. A Capability version is a single integer, counting breaking changes to that Capability
+alone. There is no minor version.**
+
+The edition is what gets cited — *this Worker speaks worker-protocol 0.1* — and it is what lets a
+new Capability exist at all, because the closed list of Capability names is a property of an
+edition and not of the protocol forever. Prose does not repeat that list; the table in
+[spec/README.md](README.md) is a reading aid and the schema wins.
+
+`health` can freeze at 1 while `events` moves to 3, which is the grain at which each file here
+already carries its own maturity marker. There is no minor version on purpose: the only decision a
+reader makes from this number is whether it can talk to this surface at all, and a change that does
+not force that decision is a change a reader can discover by looking and is not worth announcing.
+
+Editions and Capability versions move independently. A Worker speaking a newer edition may declare
+a Capability at the same version an older edition defined; a reader that knows the edition and the
+version knows the surface.
+
+## Capability entries and their addresses
+
+**DESC-10. Each entry in the Capability list names the Capability, its version, and the address it
+answers at.**
+
+**DESC-11. Where a Capability's behavior on a call is conditional, the condition is declared in its
+entry.**
+
+**DESC-12. An address is an absolute `https` URL, or a relative reference resolved against the URL
+the Descriptor was read from. It may point away from the origin that served the Descriptor.**
+
+**DESC-13. A client does not present a credential it was granted for this Worker to an address on
+an origin the operator did not record as the Worker's own.**
+
+What else an entry carries is the business of the Capability's own file — which Actions a Worker
+accepts, which indicators it publishes, which Task types it answers, which events it publishes and
+to which broker — and each of those files extends
+[schemas/capability-entry.json](../schemas/capability-entry.json) with what its own surface needs.
+This file fixes only the envelope they share.
+
+An Action that requires an idempotency key is the first case of DESC-11: it declares that in its
+entry, together with where the key is read from and how long the Worker honors one; see
+[endpoints](endpoints.md) for what those mean on a call and [actions](actions.md) for the shape of
+the declaration. The reason it lives in the Descriptor and not in a response is the order of
+events: a caller decides whether it can retry safely *before* it sends anything, and a caller that
+had to learn the answer from a reply has already sent the request it was trying to protect.
+
+An address may point away because a Worker whose Tasks are held by one deployment and whose health
+is answered by another is a placement decision, and this protocol cannot see the difference. The
+rule about credentials is what that costs. A Descriptor is a document a Worker controls, and an
+address in it is an instruction to send a request somewhere; without DESC-13, a Worker that
+declares an address at somebody else's origin has arranged for the Tower to hand that somebody a
+credential. Which origins count as a Worker's own, and how an operator records a second one, are
+[registration](registration.md)'s to say. A client that reaches an address it may not authenticate
+against reads it unauthenticated or not at all, and reports the entry as unverifiable rather than
+failing quietly.
+
+## A Capability a Worker defines itself
+
+**DESC-14. A Capability name that contains a `.` is the Worker's own and is never defined by this
+specification. A name with no `.` is reserved: it is defined by the edition the Descriptor
+declares, or it is nothing.**
+
+That rule is all a verifier needs, and it needs no registry:
+
+- **DESC-15. A verifier ignores a dotted name it does not know, and reports it as ignored.**
+- **DESC-16. A verifier fails a Worker for an undotted name it does not know, when it knows the
+  declared edition:** the Descriptor claims a Capability that edition does not define.
+- **DESC-17. A verifier that does not know the declared edition verifies nothing, and reports that
+  it is older than the Worker** — rather than checking an undotted name against a list that no
+  longer applies.
+
+What a dotted name may look like, and how two teams avoid colliding inside that space, are
+[naming](naming.md)'s.
+
+## When the Descriptor and the Worker disagree
+
+**DESC-18. A Descriptor that declares a Capability the Worker does not serve is a fault in the
+Descriptor, not in the surface.**
+
+It is read that way by all three readers:
+
+- **DESC-19. A verifier reports the discrepancy against the Descriptor and fails the Worker.** It
+  does not report the Capability as absent, because the Worker said it was there; the discrepancy
+  is the finding.
+- **DESC-20. The Tower catalogs what the Descriptor declared, records that the address did not
+  answer and when, and does not drop the entry.** A registry that silently omits what a Worker
+  claims leaves the Worker's claim and the catalog disagreeing with nothing written down, and an
+  operator looking at a Capability missing from the console cannot tell whether it was never
+  declared or quietly discarded.
+- **DESC-21. A consumer that meets a declared surface answering `404` stops, and does not retry.**
+  It is a contract error, and [endpoints](endpoints.md) says why at length. A consumer that treats
+  a missing declared surface as a transient failure retries against a Worker that will never
+  answer, and the mistake surfaces as slow silence instead of a refusal.
+
+The converse is not a fault. A Worker serves whatever else it likes at whatever address it likes,
+and this protocol has no opinion about it — but nothing undeclared is visible: no console renders
+it, no catalog holds it, and no Contract can be made over it.
+
+## Still open here
+
+- **Whether a Worker may declare the same Capability twice, at two addresses and two versions**, so
+  that a consumer built against an older one keeps working while a newer one exists. Nothing needs
+  it yet, and the schema forbids it until something does. Open in
+  [undecided](../docs/undecided.md).
+- What a Descriptor says about a Capability that exists but is temporarily not answering — a
+  degraded surface as against an undeclared one. Today that is `health`'s to report and the
+  Descriptor does not express it.
+
+## Withdrawn
+
+None.

@@ -15,3 +15,8 @@ To answer here:
   one is answered.
 - What a schema change does to Contracts already granted over it, and who is told.
 - Whether a name may ever be reused once retired.
+- That an **Alarm** — a Worker waking itself at a future time to re-evaluate — is neither a Task
+  nor an Alert, and that neither word is used for one. The distinction is argued in
+  [the architecture](../docs/architecture.md), which binds nobody; it is a fence only a normative
+  sentence can hold, and runtimes exist whose own `Alarm` is exactly the thing a reader will
+  confuse it with.

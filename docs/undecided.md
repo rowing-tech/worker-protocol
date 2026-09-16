@@ -15,11 +15,14 @@ back — so that when the answer lands, both places know.
 - **What the minimum conformance profile is.** Whether a Worker may implement one half and not the
   other — the worked case has one that raises no Tasks — and what is required of every Worker
   whatever else it does. On the answer hangs what stands for a liveness probe when a Worker
-  declares no `health`.
+  declares no `health`. *Answered in substance by [spec/descriptor.md](../spec/descriptor.md),
+  which makes the Descriptor the floor, leaves Capabilities freely combinable, and makes the
+  Descriptor route itself the liveness probe. It does not discharge until
+  [schemas/descriptor.json](../schemas/descriptor.json) exists, so the entry stands.*
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers. Listed in [spec/health.md](../spec/health.md).
-- **Who verifies that a worker answers the Task types it declares.** The Control Tower at registration, the
-  owner at claim time, or nobody.
+- **Who verifies that a worker answers the Task types it declares.** The Control Tower at
+  registration, the owner at claim time, or nobody.
 - **What a Contract carries beyond credentials.** Rate, retention of Task events, revocation while
   a Task is claimed. Revocation is listed in [spec/registration.md](../spec/registration.md).
 - **Whether a Task type may belong to several Services, and whether a Service may span workers of
@@ -39,3 +42,13 @@ back — so that when the answer lands, both places know.
   answer; the console is another.
 - **How much the protocol recognizes about Workers that talk to people**, beyond what it recognizes
   about any worker.
+- **Whether a Worker may declare the same Capability twice, at two addresses and two versions**, so
+  that a consumer built against the older one keeps working while the newer one exists. Nothing
+  needs it yet, and until something does the schema forbids it — which is a choice, not an
+  absence. Listed in [spec/descriptor.md](../spec/descriptor.md).
+- **Whether an idempotency key is scoped to the caller that presented it, or is global to the
+  Action.** A key a caller invents is its own, and two callers sending the same string mean two
+  different things; a key read from a declared field of the payload is often a natural identity
+  that any caller would send for the same fact, and deduplicating across callers is the point of
+  it. The two cases pull opposite ways and the declaration does not yet say which applies. Listed
+  in [spec/endpoints.md](../spec/endpoints.md).
