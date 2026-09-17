@@ -55,7 +55,9 @@ export const capabilityName = z
 /**
  * DESC-14 — a name containing a `.` is the Worker's own and is never defined by this
  * specification. The pattern asserts only what DESC-14 asserts: at least one dot, and no dot at
- * either end. The rest of the syntax is naming.md's, which is still `open`.
+ * either end. naming.md answers the rest of the syntax by adding nothing to it: nobody compares one
+ * Worker's vendor Capability against another's, so there is no collision for a longer name to
+ * prevent.
  */
 export const vendorCapabilityName = z
   .string()
@@ -64,7 +66,38 @@ export const vendorCapabilityName = z
     title: "Vendor Capability name",
     description:
       "DESC-14. A Capability a Worker defines itself. Contains a dot, which is what makes it " +
-      "disjoint from the reserved names of DESC-8. Its full syntax is naming.md's and is unwritten.",
+      "disjoint from the reserved names of DESC-8. The dot is the whole of the syntax: naming.md " +
+      "requires nothing further, because no reader ever compares one Worker's vendor Capability " +
+      "against another's. NAME-1 fixes how any two names are compared.",
+  });
+
+/**
+ * NAME-7 — a name this protocol expects one party to match against a name that came from somewhere
+ * else: a Task type, a Skill, an event type.
+ *
+ * The pattern is at least three dot-separated labels — two or more for the DNS name in reverse
+ * label order, one or more for the local part — each a DNS label of lowercase letters, digits and
+ * hyphens, never starting or ending with a hyphen.
+ *
+ * Lowercase is asserted rather than left to taste, and it is the one part of this that is load-
+ * bearing rather than conventional. DNS is case-insensitive, so `Example.com` and `example.com`
+ * are one domain; NAME-1 compares names byte for byte, so `com.Example.x` and `com.example.x`
+ * would be two names for one thing. One spelling closes a trap the two rules open between them.
+ *
+ * NAME-8 — that the domain is one the minting team controls — has no schema witness and cannot
+ * have one. Nothing verifies domain ownership, which is why it recommends rather than binds.
+ */
+export const qualifiedName = z
+  .string()
+  .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$/)
+  .meta({
+    title: "Qualified name",
+    description:
+      "NAME-7. A name matched across Workers: a DNS name the minting team controls, in reverse " +
+      "label order, followed by a local part — `tech.rowing.fleet.verify-vehicle`. At least three " +
+      "labels, lowercase. NAME-8 asks that the domain be one you control and no schema can check " +
+      "it. This does NOT apply to a name read only inside the Descriptor that declared it: a " +
+      "vendor Capability (DESC-14), an Action, an indicator.",
   });
 
 /**
@@ -140,8 +173,10 @@ export const descriptor = z
       .meta({
         description:
           "DESC-6. The Worker's own id: opaque, stable, not the URL and not derived from it, " +
-          "and unambiguous without ambient context. A schema can assert that it is a non-empty " +
-          "string and no more; the rest of DESC-6 has no schema witness.",
+          "and unambiguous without ambient context. NAME-9 requires only that no two Workers " +
+          "share one, which a namespaced name and a random identifier satisfy equally — so no " +
+          "pattern is asserted here on purpose. A schema can assert that it is a non-empty " +
+          "string and no more; the rest of DESC-6 and NAME-9 have no schema witness.",
       }),
     edition: z
       .string()
@@ -290,6 +325,7 @@ export const page = z
   });
 
 registry.add(capabilityName, { id: "capability-name" });
+registry.add(qualifiedName, { id: "qualified-name" });
 registry.add(capabilityEntry, { id: "capability-entry" });
 registry.add(descriptor, { id: "descriptor" });
 registry.add(error, { id: "error" });

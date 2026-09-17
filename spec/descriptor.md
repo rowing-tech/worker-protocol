@@ -105,9 +105,12 @@ promises would survive are then attached to an id nobody serves. A rule drawn at
 would catch the slug and miss the hash, which is the case that fails silently; drawn at derivation
 it catches the mechanism, and the implementer is the one party who knows which it used.
 
-How ids are spelled, whether they are namespaced, and whether a retired one may be reused, are
-[naming](naming.md)'s. What the Tower does when the Descriptor at an enrolled URL answers with an
-id it has not seen before is [registration](registration.md)'s.
+How ids are spelled is [naming](naming.md)'s, and it fixes nothing: every property of an id that
+anyone depends on is above, and none of them is a property of its characters. NAME-9 requires only
+that no two Workers share one — which a namespaced name and a random identifier satisfy equally, so
+no spelling follows from it — and NAME-2 forbids reusing a retired one for a different thing. What
+the Tower does when the Descriptor at an enrolled URL answers with an id it has not seen before is
+[registration](registration.md)'s.
 
 ## Two versions
 
@@ -250,8 +253,11 @@ could not have heard of; a verifier holding the edition does, and an undotted na
 does not define is then a real fault with nowhere to hide. The two together are why an older
 verifier is useful rather than merely safe: it still checks everything it knows.
 
-What a dotted name may look like, and how two teams avoid colliding inside that space, are
-[naming](naming.md)'s.
+[naming](naming.md) answers what a dotted name may look like, and answers it by adding nothing: the
+dot is the whole of the syntax, because DESC-15 has a verifier ignore a dotted name it does not
+know and nobody ever compares one Worker's vendor Capability against another's. The names that
+*are* compared across Workers — a Task type, a Skill, an event type — are namespaced under NAME-7
+instead, and the contrast between the two rules is argued there.
 
 ## When the Descriptor and the Worker disagree
 

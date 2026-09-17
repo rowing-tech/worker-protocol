@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualified-name.json",
+  "type": "string",
+  "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?){2,}$",
+  "title": "Qualified name",
+  "description": "NAME-7. A name matched across Workers: a DNS name the minting team controls, in reverse label order, followed by a local part — `tech.rowing.fleet.verify-vehicle`. At least three labels, lowercase. NAME-8 asks that the domain be one you control and no schema can check it. This does NOT apply to a name read only inside the Descriptor that declared it: a vendor Capability (DESC-14), an Action, an indicator."
+}

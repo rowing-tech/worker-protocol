@@ -35,11 +35,10 @@ The Capability names in that table are a reading aid. The normative list is
 [schemas/capability-name.json](../schemas/capability-name.json), and where the two differ the
 schema wins — see [descriptor.md](descriptor.md).
 
-[descriptor.md](descriptor.md), [endpoints.md](endpoints.md) and
-[registration.md](registration.md) are `draft`: they were answered first because every other file
-leans on them — the Descriptor route, the addresses, the versioning rule, the error envelope, and
-how either side of a call proves who it is. The rest are `open`: their subjects are settled, their
-answers are not.
+The four cross-cutting files are `draft`: they were answered first because every other file leans
+on them — the Descriptor route, the addresses, the versioning rule, the error envelope, how either
+side of a call proves who it is, and how a name is compared and what a schema change breaks. The
+Capability files are `open`: their subjects are settled, their answers are not.
 
 ## Rule ids
 

@@ -6,7 +6,7 @@
     "id": {
       "type": "string",
       "minLength": 1,
-      "description": "DESC-6. The Worker's own id: opaque, stable, not the URL and not derived from it, and unambiguous without ambient context. A schema can assert that it is a non-empty string and no more; the rest of DESC-6 has no schema witness."
+      "description": "DESC-6. The Worker's own id: opaque, stable, not the URL and not derived from it, and unambiguous without ambient context. NAME-9 requires only that no two Workers share one, which a namespaced name and a random identifier satisfy equally — so no pattern is asserted here on purpose. A schema can assert that it is a non-empty string and no more; the rest of DESC-6 and NAME-9 have no schema witness."
     },
     "edition": {
       "type": "string",
@@ -24,7 +24,7 @@
             "type": "string",
             "pattern": "^[^.\\s]+(?:\\.[^.\\s]+)+$",
             "title": "Vendor Capability name",
-            "description": "DESC-14. A Capability a Worker defines itself. Contains a dot, which is what makes it disjoint from the reserved names of DESC-8. Its full syntax is naming.md's and is unwritten."
+            "description": "DESC-14. A Capability a Worker defines itself. Contains a dot, which is what makes it disjoint from the reserved names of DESC-8. The dot is the whole of the syntax: naming.md requires nothing further, because no reader ever compares one Worker's vendor Capability against another's. NAME-1 fixes how any two names are compared."
           }
         ]
       },
