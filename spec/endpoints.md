@@ -255,11 +255,14 @@ the Worker answers the outcome it recorded.**
 
 **ENDP-18 (required). A required key that is absent is `400`.**
 
-**ENDP-19 (required). An Action that declares no key is at-least-once under retry, and a caller
-that retries one accepts that it may happen twice.** This file orders retries — that is what
-ENDP-30 is — so it owes the plain statement of what a retry costs where nothing protects it. A
-specification that orders a retry and offers no safe way to perform one is incoherent; this one
-offers the way and says where it does not apply.
+**An Action that declares no key is at-least-once under retry, and a caller that retries one
+accepts that it may happen twice.** That is emphasis and not an obligation, deliberately: it
+forbids nothing and requires nothing of anybody, it states what guarantee a caller is buying. It
+was written as a rule and carried an id until somebody asked what a conformance check would observe
+when it was broken, and the answer was that nothing can break it. This file orders retries — that
+is what ENDP-30 is — so it owes the plain statement of what a retry costs where nothing protects
+it, and owes it in prose. A specification that orders a retry and offers no safe way to perform one
+is incoherent; this one offers the way and says where it does not apply.
 
 Only the caller can tell a retry from a genuine repeat. Two byte-identical posts may be one
 intention sent twice because an answer was lost, or two intentions that happen to look alike, and
@@ -296,7 +299,7 @@ by a caller.**
 
 **ENDP-31 (required). A caller reads how many items it received, never how many it asked for.**
 
-**ENDP-32 (recommended). A Worker caps the page size it answers rather than negotiating it.**
+**ENDP-19 (recommended). A Worker caps the page size it answers rather than negotiating it.**
 
 **ENDP-23 (required). A collection declares an order and holds it**, so that paging through it
 terminates.
@@ -312,7 +315,7 @@ and an id it read off a page; opaque, it is a token the Worker may re-mean betwe
 nobody notices. What the caller gives up is the ability to resume from a position it computed
 itself, which no reader of this protocol has asked for.
 
-ENDP-31 and ENDP-32 were one rule and are two, because only the first half of it binds. A caller
+ENDP-31 and ENDP-19 were one rule and are two, because only the first half of it binds. A caller
 that assumes it received the page size it asked for reads a short page as the end of a collection
 and stops early — it has silently lost the rest, and no Worker can prevent it. That is a contract
 between the two and it has to hold whatever the Worker does about sizes.
@@ -352,10 +355,10 @@ anything happened.
   and now merely does not follow ENDP-30, so the id did not survive.
 - **ENDP-22** — required that a Worker cap the page size rather than negotiating it, *and* that a
   caller read how many items it received. Replaced by **ENDP-31**, which keeps the caller's half as
-  an obligation, and **ENDP-32**, which makes the Worker's half a recommendation. Only the first
+  an obligation, and **ENDP-19**, which makes the Worker's half a recommendation. Only the first
   half is a contract: a caller that assumes it got the size it asked for stops early and loses the
   rest of a collection. A Worker that honors a requested size up to its cap breaks nothing and no
-  caller can tell, so it failed ENDP-22 and now merely does not follow ENDP-32.
+  caller can tell, so it failed ENDP-22 and now merely does not follow ENDP-19.
 - **ENDP-8** — required that a caller not *repeat* a `reject`. Replaced by **ENDP-28**, which
   forbids retrying one. The argument beneath it was always about a caller that backs off and sends
   the same thing again because the answer might change on its own; read literally it also forbade

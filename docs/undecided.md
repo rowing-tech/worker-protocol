@@ -35,10 +35,6 @@ back — so that when the answer lands, both places know.
   answer; the console is another.
 - **How much the protocol recognizes about Workers that talk to people**, beyond what it recognizes
   about any worker.
-- **Whether a Worker may declare the same Capability twice, at two addresses and two versions**, so
-  that a consumer built against the older one keeps working while the newer one exists. Nothing
-  needs it yet, and until something does the schema forbids it — which is a choice, not an
-  absence. Listed in [spec/descriptor.md](../spec/descriptor.md).
 - **Whether an idempotency key is scoped to the caller that presented it, or is global to the
   Action.** A key a caller invents is its own, and two callers sending the same string mean two
   different things; a key read from a declared field of the payload is often a natural identity

@@ -37,8 +37,58 @@ schema wins — see [descriptor.md](descriptor.md).
 
 The four cross-cutting files are `draft`: they were answered first because every other file leans
 on them — the Descriptor route, the addresses, the versioning rule, the error envelope, how either
-side of a call proves who it is, and how a name is compared and what a schema change breaks. The
-Capability files are `open`: their subjects are settled, their answers are not.
+side of a call proves who it is, and how a name is compared and what a schema change breaks.
+[health.md](health.md) is `draft` too, and is the first Capability answered. The rest are `open`:
+their subjects are settled, their answers are not.
+
+## What this specification does not define
+
+**This specification fixes what two parties must agree on in order to talk about work, and stops
+there.** Everything a Worker does that no other party can see is the Worker's business, and a
+sentence about it in this directory is a sentence that will one day be quoted at somebody who was
+right.
+
+**A rule earns its place only if you can name what a conformance check would observe when it is
+broken.** Not *how* the check reaches it — what it would see. A rule whose violation looks exactly
+like compliance from every vantage point outside the implementation is not an obligation; it is an
+opinion with an id, and it will condition somebody's code for no return.
+
+That test admits one exception on purpose, and the exception has to stay small. A few rules have a
+violation that is real and nameable but that nothing outside can reach: DESC-26, where a second
+differing Descriptor at some address nobody enumerated is exactly the fault, and DESC-20, where
+what a Tower dropped from its catalog is a fact inside the Tower. Those are legal, and
+`conformance/` reports them as **unverified** rather than passing them silently, because a check
+that quietly counts them as passed is the same false claim a generated artifact nobody compares
+would be. A rule in this class has to say what would be seen if anyone could see it. A rule that
+cannot even do that has failed the test outright and does not belong here.
+
+Named non-goals, each settled by work already done rather than asserted in advance:
+
+- **What a Worker does inside itself.** Its storage, its concurrency, its language, its hosting,
+  how it derives its facts, how it schedules itself. [The architecture](../docs/architecture.md)
+  makes each Worker authoritative over its own state; this directory never looks in.
+- **Credential lifecycle.** How a credential is *presented* binds. What it is made of, who issued
+  it, how long it lives, how it is rotated and when a revocation takes effect belong to whatever
+  identity provider a deployment already runs — fought out in [registration](registration.md),
+  which carries the argument.
+- **A security model.** A deployment's exposure, its threat model and how much an error message
+  gives away are its own; this protocol has standing to advise and none to enforce.
+- **A permission model.** `403` is the entire vocabulary here for a right a caller lacks. A scope,
+  a role, a Contract's list — everything behind that status is the Worker's.
+- **Style.** Beyond the one-convention-per-kind consistency NAME-3 *recommends* for the names this
+  specification itself mints, how anything is spelled is not this protocol's business —
+  [naming](naming.md) opens by saying so at length.
+- **A data model.** Nothing here says what a Worker's facts, payloads or domain objects look like.
+  Every schema a Worker declares is the Worker's own.
+- **Orchestration.** No workflow, no routing, no scheduling, no retry policy beyond the class an
+  answer carries.
+- **A runtime, an SDK or a deployment story.** `packages/` is convenience and carries no behaviour;
+  the day a package does something this text does not say, the package has become the standard.
+- **A Control Tower product.** The Tower is a role this protocol names and requires little of.
+
+The cost of getting this wrong is not an untidy document. It is thousands of rules that condition
+an implementation in ways that buy nobody anything, written by people who will not maintain the
+code that obeys them.
 
 ## Rule ids
 

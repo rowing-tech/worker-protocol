@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "health-entry.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "DESC-9. A single integer counting breaking changes to this Capability alone. There is no minor version."
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+    }
+  },
+  "required": [
+    "version",
+    "address"
+  ],
+  "additionalProperties": {},
+  "title": "Health capability entry",
+  "description": "HLTH-1. The shared Capability entry with the address required, because `health` is answered over HTTP. DESC-22 makes the address optional in the shared entry only so that `events`, answered over a broker, can be declared at all."
+}

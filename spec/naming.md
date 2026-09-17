@@ -266,6 +266,22 @@ whether the schema in question is closed, and `schemas/` decides that per docume
 this file states the test and not the verdict: the same protocol has both closed documents and open
 ones, deliberately, and each says which it is.
 
+**How long a Worker answers a superseded schema has an answer, and it is not a duration.** This
+file once listed it as blocked for a mechanical reason — DESC-22 keys Capabilities by name, so a
+Worker had nowhere to say *I also still answer the previous one*. descriptor.md has since settled
+that a Capability is declared once and explained why the second entry was the wrong instrument:
+what a consumer actually holds is an Action or a Task type, not a Capability surface, and NAME-2
+makes a payload that changed breakingly a different thing, which under NAME-7 is a different name.
+So an owner keeps an old consumer working by declaring **both names at once**, each with its own
+schema, and the old one leaving the Descriptor is the announcement that it is gone. There is now
+somewhere to declare it, and it was never the Capability entry.
+
+*How long* the old name stays is then the owner's, and this protocol does not state a number for
+the same reason [health](health.md) states no poll cadence: it would be a figure every deployment
+was measured against, invented by somebody who had seen none of them. What the protocol owes is
+that the window is *visible* — both names are in the Descriptor while both are answered — and that
+is already true.
+
 What a breaking change then costs is already fixed elsewhere and is not repeated here. DESC-9 makes
 a Capability's version a single integer counting breaking changes to that Capability, so the number
 moving *is* the announcement. ENDP-5 puts that version on every response, and ENDP-6 lets a caller
@@ -275,14 +291,6 @@ is the discovery this protocol is built to deliver, and it needs nothing from th
 
 ## Still open here
 
-- **How long a Worker answers a superseded version of a schema.** This cannot be answered today for
-  a mechanical reason rather than a philosophical one: there is nowhere to declare it. DESC-22 keys
-  Capabilities by name, so a Worker declares one version of each and has no way to say *I also
-  still answer the previous one, at this address, until this date*. That is the same shape as
-  **whether a Worker may declare the same Capability twice, at two addresses and two versions**,
-  open in [undecided](../docs/undecided.md) — which this file is now the second thing waiting on,
-  and which [actions](actions.md) and [tasks and claims](tasks-and-claims.md) will both want before
-  either can say what a consumer holding an old integration is owed.
 - Whether anyone is told *proactively* when a breaking change lands under a Contract already
   granted, or whether the loud discovery described above is the whole of it. **This is deliberately
   parked rather than merely unanswered**: the loud discovery is held to be sufficient until

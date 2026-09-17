@@ -292,12 +292,59 @@ The converse is not a fault. A Worker serves whatever else it likes at whatever 
 and this protocol has no opinion about it — but nothing undeclared is visible: no console renders
 it, no catalog holds it, and no Contract can be made over it.
 
+## One Capability, declared once
+
+DESC-22 says a Capability is declared at most once, and that was parked as provisional — *the
+schema forbids it until something does* need a second entry. Two files now want an answer, so here
+it is: **no, and nothing changes.** A Worker declares each Capability once, at one address, at one
+version.
+
+The question was always asked in service of something else: *so that a consumer built against an
+older version keeps working while a newer one exists.* That need is real. Declaring the Capability
+twice is the wrong instrument for it, and the reason is what a Capability version actually counts.
+
+DESC-9 makes it a count of breaking changes **to that Capability's own surface** — how Actions are
+declared and posted, how Tasks are claimed, what the health envelope carries. It is not a count of
+breaking changes to the things a Worker declares *through* that surface. An Action's payload schema
+and a Task type's payload are the Worker's own, and this specification does not have a data model.
+So `actions` going from 1 to 2 means the shape of an Action *declaration* changed for every Worker
+in the network — a protocol event, at edition scale, which no Worker reaches by editing one of its
+own payloads.
+
+The pressure from [actions](actions.md) and [tasks and claims](tasks-and-claims.md) is the second
+kind, and the second kind already has a mechanism. NAME-2 says a name is never reused for a
+different thing, and a payload that changed breakingly is a different thing; NAME-7 gives every
+such name a namespace of its own. So an owner that must keep an old consumer working declares
+**both things, side by side, under two names** — two Actions, two Task types — each with its own
+schema, each nameable in a Contract, and the old one disappearing from the Descriptor is the
+announcement that it is gone. Nothing in the Capability entry has to change, and nothing anywhere
+has to grow a second address.
+
+What remains genuinely unserved is a Worker that must answer two *surface* versions at once, and
+DESC-23 already decided that case for the larger version above it: **a Worker that needs to speak
+two editions is two Workers, with two ids.** A Capability version sits underneath an edition and
+takes the same answer for the same reason — a Contract is made over a declaration, and with two
+live declarations there would be no saying which one it was made over. That is the honest shape,
+and it costs a second enrollment rather than a change to every reader in the network.
+
+Which is what the alternative would have cost. The map in DESC-22 was chosen precisely because a
+list could not express *at most once* — JSON Schema compares whole items for uniqueness, so two
+entries named `health` validate cleanly as distinct items. Answering *yes* therefore could not have
+been a loosened constraint; it would have been a different shape. Either the key becomes something
+compound, or the value becomes an array, and every reader that today writes `capabilities.health`
+to get an entry writes a lookup instead — in the one document every party in this protocol parses
+before it can do anything else. Answering *no* costs the schema nothing at all, and that is not a
+coincidence: it is the shape being right.
+
+**What a conformance check observes is the same thing it observed before**, which is the other half
+of why nothing changes. A second entry under one key is not a document JSON can express — a parser
+keeps one and drops the other, or refuses — so the verifier's observation is simply that
+`capabilities` validates against
+[schemas/descriptor.json](../schemas/descriptor.json) or does not. The rule was already structural
+and stays structural; this section adds no rule, because there is no new violation for one to name.
+
 ## Still open here
 
-- **Whether a Worker may declare the same Capability twice, at two addresses and two versions**, so
-  that a consumer built against an older one keeps working while a newer one exists. Nothing needs
-  it yet, and the schema forbids it until something does. Open in
-  [undecided](../docs/undecided.md).
 - What a Descriptor says about a Capability that exists but is temporarily not answering — a
   degraded surface as against an undeclared one. Today that is `health`'s to report and the
   Descriptor does not express it.

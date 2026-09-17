@@ -155,6 +155,80 @@ export const capabilityEntry = z
   });
 
 /**
+ * HLTH-2 — the three values a health status takes, and the only three.
+ *
+ * `degraded` is the one that earns its place: `healthy` and `unhealthy` alone would force a Worker
+ * that works with one dependency down to lie in one direction or the other.
+ */
+export const healthStatus = z.enum(["healthy", "degraded", "unhealthy"]).meta({
+  title: "Health status",
+  description: "HLTH-2. The three values, for the whole Worker and for one named check alike.",
+});
+
+/**
+ * HLTH-2 — one named check.
+ *
+ * Loose on purpose: health.md records as open what a check carries beyond its status and detail —
+ * an observed value, a unit, a threshold — and closing this would answer that by accident.
+ */
+export const healthCheck = z
+  .looseObject({
+    status: healthStatus,
+    detail: z.string().optional().meta({
+      description:
+        "HLTH-2. Short, human-readable, addressed to whoever is looking. Not addressed to a " +
+        "program: nothing in this protocol parses it.",
+    }),
+  })
+  .meta({
+    title: "Health check",
+    description: "HLTH-2. One dependency or invariant a Worker reports on, under its own name.",
+  });
+
+/**
+ * HLTH-2 — the whole answer.
+ *
+ * Closed, unlike a check: HLTH-2 enumerates the envelope exhaustively and no open question asks
+ * for a third member. The check object inside is where the open question lives.
+ *
+ * `checks` is required and may be empty. A Worker with no dependency worth reporting answers `{}`
+ * rather than omitting the member, so that every reader parses one shape.
+ */
+export const health = z
+  .strictObject({
+    status: healthStatus.meta({
+      description:
+        "HLTH-2. The Worker's own summary. HLTH-3 forbids `healthy` while any check it reports " +
+        "is not passing.",
+    }),
+    checks: z.record(z.string(), healthCheck).meta({
+      description:
+        "HLTH-2. Keyed by check name. Whether check names are shared across Workers is open, " +
+        "which is why the key carries no pattern; if they come to be shared they become a name " +
+        "that crosses between Workers and NAME-7 reaches them.",
+    }),
+  })
+  .meta({
+    title: "Health",
+    description: "HLTH-2. What a Worker answers at the address its `health` entry declares.",
+  });
+
+/**
+ * HLTH-1 — the `health` Capability entry, which requires the address the shared entry leaves
+ * optional. This is the extension DESC-22 promises each Capability's own file will define, and it
+ * is the first one.
+ */
+export const healthEntry = capabilityEntry
+  .extend({ address })
+  .meta({
+    title: "Health capability entry",
+    description:
+      "HLTH-1. The shared Capability entry with the address required, because `health` is " +
+      "answered over HTTP. DESC-22 makes the address optional in the shared entry only so that " +
+      "`events`, answered over a broker, can be declared at all.",
+  });
+
+/**
  * DESC-1, DESC-2, DESC-6, DESC-23, DESC-22 — the document every Worker serves.
  *
  * Closed on purpose: the rules above enumerate what a Descriptor carries, and a new top-level
@@ -326,6 +400,9 @@ export const page = z
 
 registry.add(capabilityName, { id: "capability-name" });
 registry.add(qualifiedName, { id: "qualified-name" });
+registry.add(healthStatus, { id: "health-status" });
+registry.add(health, { id: "health" });
+registry.add(healthEntry, { id: "health-entry" });
 registry.add(capabilityEntry, { id: "capability-entry" });
 registry.add(descriptor, { id: "descriptor" });
 registry.add(error, { id: "error" });

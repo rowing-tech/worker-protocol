@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "health.json",
+  "type": "object",
+  "properties": {
+    "status": {
+      "description": "HLTH-2. The Worker's own summary. HLTH-3 forbids `healthy` while any check it reports is not passing.",
+      "$ref": "health-status.json"
+    },
+    "checks": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "health-status.json"
+          },
+          "detail": {
+            "description": "HLTH-2. Short, human-readable, addressed to whoever is looking. Not addressed to a program: nothing in this protocol parses it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": {},
+        "title": "Health check",
+        "description": "HLTH-2. One dependency or invariant a Worker reports on, under its own name."
+      },
+      "description": "HLTH-2. Keyed by check name. Whether check names are shared across Workers is open, which is why the key carries no pattern; if they come to be shared they become a name that crosses between Workers and NAME-7 reaches them."
+    }
+  },
+  "required": [
+    "status",
+    "checks"
+  ],
+  "additionalProperties": false,
+  "title": "Health",
+  "description": "HLTH-2. What a Worker answers at the address its `health` entry declares."
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "health-status.json",
+  "type": "string",
+  "enum": [
+    "healthy",
+    "degraded",
+    "unhealthy"
+  ],
+  "title": "Health status",
+  "description": "HLTH-2. The three values, for the whole Worker and for one named check alike."
+}

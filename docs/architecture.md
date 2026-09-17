@@ -194,13 +194,18 @@ declares which it publishes and what each means.
 **Health, concretely.** The shape is the one the cloud platforms and the IETF health-check draft
 converge on — one top-level status and a map of named checks — with our own three values:
 `healthy`, `degraded`, `unhealthy`, where that draft says `pass`, `warn` and `fail`. Each check
-carries its own status and a short human-readable detail: the upstream
-source, the broker, the store, whatever the worker depends on. `healthy` and `degraded` answer
-HTTP 200 and `unhealthy` answers 503, so a poller that reads only the status code still learns
-whether the worker is answering at all. The third value is for whoever reads the body: the console
-shows `degraded` as its own state, and an operator decides whether a worker that works with one
-check failing is worth a Task or worth leaving alone. The envelope is fixed; which checks a worker
-reports, and what makes it `degraded`, are the worker's to declare.
+carries its own status and a short human-readable detail: the upstream source, the broker, the
+store, whatever the worker depends on. **All three answer HTTP 200**, and the status is read from
+the body; anything other than 200 means the worker did not answer, not that it is unwell. *This
+paragraph previously said `unhealthy` answers 503. Drafting [spec/health.md](../spec/health.md)
+found that 503 collides with ENDP-29, which classes it `retry`, so a poller obeying the spec would
+back off from a worker that had answered it correctly — and a worker that is unwell would be
+indistinguishable from one that is unreachable, which is the one distinction health exists to draw.
+HLTH-5 is normative; a worker that wants the load-balancer behaviour serves that probe outside the
+protocol.* The third value is for whoever reads the body: the console shows `degraded` as its own
+state, and an operator decides whether a worker that works with one check failing is worth a Task
+or worth leaving alone. The envelope is fixed; which checks a worker reports, and what makes it
+`degraded`, are the worker's to declare.
 
 ### Why pulled, and not pushed
 
