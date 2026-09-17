@@ -230,7 +230,7 @@ export const error = z
     z.looseObject({
       code: z.enum(rejectCodes).meta({
         description:
-          "ENDP-25. A code naming a condition this request will meet again (ENDP-8). " +
+          "ENDP-25. A code naming a condition this request will meet again (ENDP-28). " +
           "endpoints.md gives the status each is answered with.",
       }),
       message,
@@ -242,7 +242,7 @@ export const error = z
       code: z.enum(retryCodes).meta({
         description:
           "ENDP-25. A code naming a condition that may have passed by the time the request is " +
-          "sent again (ENDP-9). endpoints.md gives the status each is answered with.",
+          "sent again (ENDP-30). endpoints.md gives the status each is answered with.",
       }),
       message,
       class: z.literal("retry").meta({

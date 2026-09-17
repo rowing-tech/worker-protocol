@@ -23,6 +23,9 @@ const findings: Finding[] = [];
 const report = (file: string, id: string, rule: string, detail: string) =>
   findings.push({ file, id, rule, detail });
 
+/** Every id whose rule is marked `(recommended)`, for the count at the end. */
+const recommended = new Set<string>();
+
 /** `spec/README.md`: every file has a prefix, so that two files never race for the same one. */
 async function prefixTable(): Promise<Map<string, string>> {
   const readme = await readFile(join(SPEC, "README.md"), "utf8");
@@ -77,11 +80,30 @@ for (const file of files) {
   const body = cut === -1 ? text : text.slice(0, cut);
   const withdrawnSection = cut === -1 ? "" : text.slice(cut);
 
-  // A rule: a bold statement opening with its id. "**DESC-4. ...**"
+  // A rule: a bold statement opening with its id and its class.
+  // "**DESC-4 (required). ...**" or "**REG-26 (recommended). ...**"
   const live = new Map<number, number>();
-  for (const m of body.matchAll(new RegExp(`\\*\\*${prefix}-(\\d+)\\. `, "g"))) {
+  for (const m of body.matchAll(
+    new RegExp(`\\*\\*${prefix}-(\\d+) \\((required|recommended)\\)\\. `, "g"),
+  )) {
     const n = Number(m[1]);
     live.set(n, (live.get(n) ?? 0) + 1);
+    if (m[2] === "recommended") recommended.add(`${prefix}-${n}`);
+  }
+
+  // spec/README.md: "Every rule states its class in the rule itself." A bold statement that opens
+  // with an id and goes straight to its sentence carries neither marker, and the convention has no
+  // default: an author who meant `recommended` and wrote nothing would otherwise have published an
+  // obligation, which is the one direction this must never fail in.
+  const unclassed = new RegExp(
+    `\\*\\*${prefix}-(\\d+)(?! \\((?:required|recommended)\\))`,
+    "g",
+  );
+  for (const m of body.matchAll(unclassed)) {
+    const rest = body.slice(m.index + m[0].length);
+    if (!rest.startsWith(".") && !rest.startsWith("*")) continue;
+    if (rest.startsWith("**")) continue; // a `## Withdrawn` style citation, handled elsewhere
+    report(file, `${prefix}-${m[1]}`, "class", "states no class: (required) or (recommended)");
   }
 
   // A withdrawn entry: a bullet opening with the retired id. "- **DESC-7** — ..."
@@ -174,7 +196,10 @@ for (const source of sources) {
 }
 
 for (const p of parsed) {
-  const stray = new RegExp(`\\*\\*(?!${p.prefix}-)([A-Z]+)-(\\d+)\\. `, "g");
+  const stray = new RegExp(
+    `\\*\\*(?!${p.prefix}-)([A-Z]+)-(\\d+) \\((?:required|recommended)\\)\\. `,
+    "g",
+  );
   for (const m of p.body.matchAll(stray)) {
     if (!prefixes.includes(m[1])) continue;
     report(p.file, `${m[1]}-${m[2]}`, "prefix", `defined in spec/${p.file}, whose prefix is ${p.prefix}`);
@@ -197,12 +222,26 @@ if (findings.length > 0) {
 
 const total = parsed.reduce((n, p) => n + p.live.size, 0);
 const retired = parsed.reduce((n, p) => n + p.withdrawn.size, 0);
-console.log(`spec/ holds the rule-id convention (${total} rules, ${retired} withdrawn).`);
+const advisory = recommended.size;
+console.log(
+  `spec/ holds the rule-id convention (${total} rules — ${total - advisory} required, ` +
+    `${advisory} recommended; ${retired} withdrawn).`,
+);
 
 /**
  * What spec/README.md claims that this script deliberately does not check, because each needs a
  * reader rather than a parser. Naming them here keeps the lint from being read as complete.
  *
+ * - "An id is fixed by the edition that publishes it." Nothing here knows which edition published
+ *   what, and no edition is published yet. The checks below therefore enforce the post-publication
+ *   discipline against the working tree, which is the strict reading: a `Withdrawn` entry is still
+ *   required for anything the text has actually retired, and an id is never reused. What the rule
+ *   permits and this script cannot reward is editing an unpublished rule in place — which produces
+ *   no findings, so nothing has to be taught to allow it.
+ * - "A rule binds when a client and a Worker must agree on it for a call to work; it recommends
+ *   when breaking it makes one deployment worse and nobody misreads anything." Which side a given
+ *   rule falls on is the judgement the class exists to record. This script checks that every rule
+ *   states a class, never that it states the right one.
  * - "No obligation is stated outside a bold, id-carrying statement." Whether a sentence states an
  *   obligation is a question of meaning. The same sentence forbids nothing mechanical: bold
  *   WITHOUT an id is explicitly allowed as emphasis, so "every bold statement carries an id" is

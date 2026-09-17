@@ -35,10 +35,11 @@ The Capability names in that table are a reading aid. The normative list is
 [schemas/capability-name.json](../schemas/capability-name.json), and where the two differ the
 schema wins — see [descriptor.md](descriptor.md).
 
-[descriptor.md](descriptor.md) and [endpoints.md](endpoints.md) are `draft`: they were answered
-first because every other file leans on them — the Descriptor route, the addresses, the versioning
-rule and the error envelope. The rest are `open`: their subjects are settled, their answers are
-not.
+[descriptor.md](descriptor.md), [endpoints.md](endpoints.md) and
+[registration.md](registration.md) are `draft`: they were answered first because every other file
+leans on them — the Descriptor route, the addresses, the versioning rule, the error envelope, and
+how either side of a call proves who it is. The rest are `open`: their subjects are settled, their
+answers are not.
 
 ## Rule ids
 
@@ -46,12 +47,37 @@ Every obligation in this directory carries an id, so that a conformance report c
 ENDP-11* rather than *fails endpoints*, and so that the same sentence is written once and cited
 everywhere else.
 
-**A rule is a bold statement that carries an id. Bold without an id is emphasis, not obligation,
-and no obligation is stated outside a bold, id-carrying statement.** That is the whole boundary,
-and it is deliberately mechanical: everything else in a file — the argument, the worked example,
-the reason a rule is shaped the way it is — binds nobody and can be rewritten freely. A writer who
-wants to add an obligation adds an id, and a reader extracting what a Worker must do reads the
-bold lines and nothing else.
+**A rule is a bold statement that carries an id and its class. Bold without an id is emphasis, not
+obligation, and no obligation is stated outside a bold, id-carrying statement.** That is the whole
+boundary, and it is deliberately mechanical: everything else in a file — the argument, the worked
+example, the reason a rule is shaped the way it is — binds nobody and can be rewritten freely. A
+writer who wants to add an obligation adds an id, and a reader extracting what a Worker must do
+reads the bold lines and nothing else.
+
+**Every rule states its class in the rule itself, written `(required)` or `(recommended)` after its
+id.** A `required` rule is a contract: a client and a Worker must agree on it for a call to work at
+all, or one party will read what the other sent and act on the wrong meaning. A `recommended` rule
+is advice this protocol has standing to give and no standing to enforce: breaking it makes one
+deployment worse while every call still succeeds and nobody misreads anything. A conformance report
+fails a Worker for the first and says *does not follow REG-28 (recommended)* for the second, which
+is a sentence an operator can act on without it being a verdict.
+
+The class goes in the rule because there is no safe default. A reader extracting the bold lines has
+only what the line says, and an author who meant *recommended* and wrote nothing would have
+published an obligation — the one direction this must never fail in. `scripts/lint-spec.ts` refuses
+a rule that states neither.
+
+Where a rule turns out to be neither a contract nor advice this specification has standing to give,
+it is withdrawn rather than demoted. A recommendation nobody had a reason to make is still
+something a reader has to carry.
+
+**A prohibition carries the argument that earns its scope.** Where the argument defends less than
+the rule forbids, the rule is wrong — not the implementation that trips over it, and not the reader
+who reads the bold line as written. A rule is extracted alone and applied by someone who never saw
+the paragraph beneath it, so a prohibition that reaches further than its reason is a reason nobody
+can find and a ban everybody obeys. The remedy is the same either way: narrow the rule to what the
+argument earns, or write the argument that earns it. If neither can be done, the prohibition was
+not wanted.
 
 An id is `PREFIX-N`. Every file has a prefix from the day it exists, whatever its maturity marker,
 so that two files never race for the same one:
@@ -72,7 +98,28 @@ built to an older edition; an id that silently changed meaning between editions 
 at all, because it turns a report that was true into a report that is false without either side
 noticing.
 
-So:
+**An id is fixed by the edition that publishes it. Before that, a rule is edited in place —
+reworded, narrowed, widened, reclassified — and neither retires nor reissues.** The protection
+above exists for a conformance report that outlives the text it cites, and a report cites what it
+was run against, which is an edition (DESC-23). An id that has never appeared in one cannot have
+been cited by anything, anywhere, by anyone; retiring it protects a reader who does not exist, and
+charges every later reader an entry to scroll past.
+
+The boundary is the edition and not the commit. A commit is not a release, a branch nobody pulled
+is not a publication, and a rule that turned on git state would be one a rebase could silently
+break — an author would have to know what had been pushed where in order to know whether they were
+allowed to fix a typo. An edition is a deliberate act with a number on it, it is already the thing
+a Worker declares and a report names, and nobody reaches it by accident.
+
+Today no edition is published: the repository README says to read no section as `stable` whatever
+its marker says, so every id in this directory is still editable in place. The `Withdrawn` lists
+these files already carry are not obligations under this rule — they record changes that *stand*,
+and the reasoning behind them is worth a reader's time. A change that is reverted before
+publication leaves no trace at all, because there is nothing left to record: an entry saying a rule
+was replaced by one that says the same thing is not history, it is a reader wondering what they
+missed.
+
+So, once an edition has published an id:
 
 - **A rule that is deleted keeps its id, withdrawn.** Its number is never issued again. Each file
   ends with a `Withdrawn` list — the id, what it required, and what replaced it if anything — and

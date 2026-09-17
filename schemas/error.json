@@ -20,7 +20,7 @@
             "idempotency_key_reused",
             "unprocessable_content"
           ],
-          "description": "ENDP-25. A code naming a condition this request will meet again (ENDP-8). endpoints.md gives the status each is answered with."
+          "description": "ENDP-25. A code naming a condition this request will meet again (ENDP-28). endpoints.md gives the status each is answered with."
         },
         "message": {
           "type": "string",
@@ -52,7 +52,7 @@
             "upstream_error",
             "upstream_timeout"
           ],
-          "description": "ENDP-25. A code naming a condition that may have passed by the time the request is sent again (ENDP-9). endpoints.md gives the status each is answered with."
+          "description": "ENDP-25. A code naming a condition that may have passed by the time the request is sent again (ENDP-30). endpoints.md gives the status each is answered with."
         },
         "message": {
           "type": "string",
