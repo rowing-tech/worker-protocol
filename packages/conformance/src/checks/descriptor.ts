@@ -1,4 +1,9 @@
-import { descriptor as descriptorSchema } from "@worker-protocol/schemas";
+import {
+  capabilityName,
+  descriptor as descriptorSchema,
+  vendorCapabilityName,
+} from "@worker-protocol/schemas";
+import { type Attribution, ruleFor } from "../attribution.ts";
 import type { Result, Rule } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
@@ -43,36 +48,10 @@ export type DescriptorReading = {
 
 const ROUTE = ".well-known/worker-protocol";
 
-/**
- * Which rule a schema failure belongs to.
- *
- * A report that answered "the Descriptor is invalid" would be the failure the rule ids exist to
- * prevent — an operator cannot act on it, and two very different faults read identically. So each
- * issue path is attributed to the rule that states the thing it broke.
- *
- * This map is hand-written, and that is a debt rather than a design: every schema node in
- * `packages/schemas` already opens its description with the rule it encodes, so the attribution
- * can be derived from the normative artifact instead of judged here. Until it is, this is the
- * verifier holding an opinion about `spec/`, which `conformance/README.md` says it may not.
- */
-const attribute = (path: PropertyKey[]): string => {
-  const [head, , leaf] = path;
-  if (head === "edition") return "DESC-23";
-  if (head === "id") return "DESC-6";
-  if (head === "capabilities") {
-    if (path.length === 1) return "DESC-22";
-    if (leaf === "version") return "DESC-9";
-    if (leaf === "address") return "DESC-12";
-    // A key that is neither a reserved name nor a well-formed vendor one. DESC-14 draws that line
-    // and DESC-8 holds the reserved list, so which of the two is wrong depends on the dot.
-    return String(path[1]).includes(".") ? "DESC-14" : "DESC-8";
-  }
-  return path.length === 0 ? "DESC-22" : "DESC-1";
-};
-
 export async function readDescriptor(
   baseUrl: string,
   rules: Map<string, Rule>,
+  attribution: Attribution,
   transcript: Transcript,
 ): Promise<DescriptorReading> {
   const results: Result[] = [];
@@ -132,10 +111,53 @@ export async function readDescriptor(
 
   const validation = descriptorSchema.safeParse(first.json);
 
+  /**
+   * DESC-8 and DESC-14, judged before the document as a whole.
+   *
+   * The attribution map cannot reach these, and the reason is worth stating rather than working
+   * around: the key schema is a union of the reserved enumeration and the vendor pattern, and a
+   * key that fails it matched neither — so nothing in `schemas/` says which branch it was reaching
+   * for. Attribution would land on DESC-22, and DESC-8 would become a rule that can pass and never
+   * fail, which is a check that only knows how to say yes.
+   *
+   * What tells them apart is DESC-14 itself: a name containing a `.` is the Worker's own, and a
+   * name without one is reserved to the edition or is nothing. That is the rule, applied — not the
+   * verifier deciding anything — and the enumeration it compares against is `capabilityName`,
+   * which is the normative list DESC-8 points at.
+   */
+  const keys = Object.keys(
+    (first.json as { capabilities?: Record<string, unknown> })?.capabilities ?? {},
+  );
+  const reserved = new Set<string>(capabilityName.options);
+  const unknownReserved = keys.filter((key) => !key.includes(".") && !reserved.has(key));
+  const malformedVendor = keys.filter(
+    (key) => key.includes(".") && !vendorCapabilityName.safeParse(key).success,
+  );
+
+  const judgedKeys = new Set<string>();
+  if (unknownReserved.length > 0) {
+    judgedKeys.add("DESC-8");
+    const names = unknownReserved.map((k) => `\`${k}\``).join(", ");
+    say("DESC-8", "fails", `${names}: undotted, and this edition defines no such Capability`);
+  }
+  if (malformedVendor.length > 0) {
+    judgedKeys.add("DESC-14");
+    const names = malformedVendor.map((k) => `\`${k}\``).join(", ");
+    say("DESC-14", "fails", `${names}: dotted, and not a well-formed vendor Capability name`);
+  }
+
   if (!validation.success) {
-    const blamed = new Set<string>();
+    // A report that answered "the Descriptor is invalid" would be the failure the rule ids exist
+    // to prevent: an operator cannot act on it, and two very different faults read identically.
+    // The rule each issue belongs to is read off `schemas/` rather than judged here — see
+    // `src/attribution.ts` for why that distinction is worth the machinery.
+    const blamed = new Set<string>(judgedKeys);
+    // Where a key was already judged precisely above, the map's coarser verdict on the same fault
+    // is suppressed: DESC-22 is about the map's shape, and reporting it beside DESC-8 would give
+    // an operator two findings for one mistake and send them to the wrong one first.
+    if (judgedKeys.size > 0) blamed.add("DESC-22");
     for (const issue of validation.error.issues) {
-      const id = attribute(issue.path);
+      const id = ruleFor(attribution, "descriptor", issue.path) ?? "DESC-1";
       if (blamed.has(id)) continue;
       blamed.add(id);
       say(id, "fails", `${issue.path.join(".") || "(root)"}: ${issue.message}`);
@@ -163,7 +185,7 @@ export async function readDescriptor(
   // The rest are what validation established. Saying so per rule rather than once is the whole
   // point of the ids: a reader learns which obligations were actually judged.
   for (const id of ["DESC-8", "DESC-9", "DESC-12", "DESC-14", "DESC-22", "DESC-23"]) {
-    say(id, "passes");
+    if (!judgedKeys.has(id)) say(id, "passes");
   }
 
   // DESC-12: an address is an absolute https URL, or a relative reference resolved against the URL

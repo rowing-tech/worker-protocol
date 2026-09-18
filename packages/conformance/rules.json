@@ -700,5 +700,95 @@
       "status": 504,
       "class": "retry"
     }
-  ]
+  ],
+  "attribution": {
+    "capability-entry": {
+      "": "DESC-22",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "capability-name": {
+      "": "DESC-8"
+    },
+    "descriptor": {
+      "": "DESC-1",
+      "capabilities": "DESC-22",
+      "capabilities/*": "DESC-22",
+      "capabilities/*/address": "DESC-12",
+      "capabilities/*/version": "DESC-9",
+      "edition": "DESC-23",
+      "id": "DESC-6"
+    },
+    "error": {
+      "": "ENDP-25",
+      "class": "ENDP-26",
+      "code": "ENDP-25",
+      "message": "ENDP-25"
+    },
+    "health-entry": {
+      "": "HLTH-1",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "health-status": {
+      "": "HLTH-2"
+    },
+    "health": {
+      "": "HLTH-2",
+      "checks": "HLTH-2",
+      "checks/*": "HLTH-2",
+      "checks/*/detail": "HLTH-2",
+      "checks/*/status": "HLTH-2",
+      "status": "HLTH-2"
+    },
+    "metric-bucket": {
+      "": "MET-13",
+      "dimensions": "MET-19",
+      "end": "MET-13",
+      "start": "MET-13"
+    },
+    "metric-declaration": {
+      "": "MET-2",
+      "additive": "MET-3",
+      "dimensions": "MET-4",
+      "dimensions/*": "MET-4",
+      "dimensions/*/values": "MET-4",
+      "granularities": "MET-3",
+      "unit": "MET-3"
+    },
+    "metric-dimension": {
+      "": "MET-4",
+      "values": "MET-4"
+    },
+    "metric-granularity": {
+      "": "MET-3"
+    },
+    "metric-page": {
+      "": "MET-14",
+      "items": "MET-14",
+      "nextCursor": "ENDP-21"
+    },
+    "metrics-entry": {
+      "": "MET-1",
+      "address": "DESC-12",
+      "metrics": "MET-2",
+      "metrics/*": "MET-2",
+      "metrics/*/additive": "MET-3",
+      "metrics/*/dimensions": "MET-4",
+      "metrics/*/dimensions/*": "MET-4",
+      "metrics/*/dimensions/*/values": "MET-4",
+      "metrics/*/granularities": "MET-3",
+      "metrics/*/unit": "MET-3",
+      "timeZone": "MET-6",
+      "version": "DESC-9"
+    },
+    "page": {
+      "": "ENDP-20",
+      "items": "ENDP-20",
+      "nextCursor": "ENDP-21"
+    },
+    "qualified-name": {
+      "": "NAME-7"
+    }
+  }
 }

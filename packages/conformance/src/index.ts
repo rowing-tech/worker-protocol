@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { Attribution } from "./attribution.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkHealth } from "./checks/health.ts";
@@ -7,6 +8,7 @@ import { callSurfaces } from "./checks/surfaces.ts";
 import { type Report, type Result, type Rule, unclaimed } from "./report.ts";
 import { transcript } from "./transcript.ts";
 
+export type { Attribution } from "./attribution.ts";
 export type { Report, Result, Rule, Verdict } from "./report.ts";
 export { tally } from "./report.ts";
 export type { Exchange } from "./transcript.ts";
@@ -34,7 +36,7 @@ export type VerifyOptions = {
   fetch?: typeof globalThis.fetch;
 };
 
-type Universe = { rules: Rule[]; codes: Code[] };
+type Universe = { rules: Rule[]; codes: Code[]; attribution: Attribution };
 
 /** Generated from `spec/` by `src/generate-rules.ts` and committed beside the source. */
 export async function universe(): Promise<Universe> {
@@ -43,11 +45,11 @@ export async function universe(): Promise<Universe> {
 }
 
 export async function verify(options: VerifyOptions): Promise<Report> {
-  const { rules: all, codes } = await universe();
+  const { rules: all, codes, attribution } = await universe();
   const byId = new Map(all.map((rule) => [rule.id, rule]));
   const tape = transcript(options.fetch ?? globalThis.fetch, options.credential);
 
-  const descriptor = await readDescriptor(options.baseUrl, byId, tape);
+  const descriptor = await readDescriptor(options.baseUrl, byId, attribution, tape);
   const results: Result[] = [...descriptor.results];
 
   if (descriptor.document !== null && descriptor.url !== null) {

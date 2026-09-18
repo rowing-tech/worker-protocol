@@ -268,8 +268,11 @@ export const descriptor = z
       }),
     capabilities: z.record(z.union([capabilityName, vendorCapabilityName]), capabilityEntry).meta({
       description:
-        "DESC-2. Any combination, including none. Keyed by Capability name, which is what " +
-        "makes a Capability declared at most once — the question descriptor.md leaves open.",
+        "DESC-22. Keyed by Capability name, which is what makes a Capability declared at most " +
+        "once: a list could not express that, because JSON Schema compares whole items for " +
+        "uniqueness and two entries named `health` validate cleanly as distinct items. DESC-2 " +
+        "admits any combination, including none. A key is a reserved name (DESC-8) or a vendor " +
+        "one (DESC-14), and the dot is what tells the two apart.",
     }),
   })
   .meta({

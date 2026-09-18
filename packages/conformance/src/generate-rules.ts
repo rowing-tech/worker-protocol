@@ -105,6 +105,97 @@ if (codes.length === 0) {
 
 codes.sort((a, b) => a.code.localeCompare(b.code));
 
+/**
+ * Which rule a failure at a given place in a document belongs to.
+ *
+ * A report that answered "the Descriptor is invalid" is what the rule ids exist to prevent — an
+ * operator cannot act on it, and two very different faults read identically. So a verifier has to
+ * name the rule, and the question is where that attribution comes from.
+ *
+ * It comes from here: every schema node in `schemas/` opens its `description` with the rule it
+ * encodes, so the map is *read off the normative artifact* rather than written into the verifier.
+ * That matters beyond tidiness. A hand-written map is the verifier holding an opinion about what
+ * `spec/` requires, which `conformance/README.md` forbids it, and it is an opinion nothing would
+ * ever compare against the document it claims to describe.
+ *
+ * A path segment under `additionalProperties` becomes `*`, because the key is the Worker's and the
+ * schema has nothing to say about which one it was.
+ */
+const schemasDir = join(ROOT, "schemas");
+const documents = new Map<string, Record<string, unknown>>();
+for (const name of (await readdir(schemasDir)).filter((n) => n.endsWith(".json"))) {
+  documents.set(name, JSON.parse(await readFile(join(schemasDir, name), "utf8")));
+}
+
+/** The leading `PREFIX-N` of a description, which is the citation convention `schemas/` holds. */
+const ruleIn = (node: unknown): string | null => {
+  if (node === null || typeof node !== "object") return null;
+  const description = (node as { description?: unknown }).description;
+  if (typeof description !== "string") return null;
+  return description.match(/^([A-Z]{3,4}-\d+)\./)?.[1] ?? null;
+};
+
+const attribution: Record<string, Record<string, string>> = {};
+
+const walk = (
+  node: unknown,
+  into: Record<string, string>,
+  path: string,
+  seen: Set<unknown>,
+): void => {
+  if (node === null || typeof node !== "object" || seen.has(node)) return;
+  seen.add(node);
+
+  const ref = (node as { $ref?: unknown }).$ref;
+  if (typeof ref === "string") {
+    const target = documents.get(ref);
+    if (target) walk(target, into, path, seen);
+    return;
+  }
+
+  const rule = ruleIn(node);
+  if (rule !== null && into[path] === undefined) into[path] = rule;
+
+  const properties = (node as { properties?: Record<string, unknown> }).properties;
+  if (properties) {
+    for (const [name, child] of Object.entries(properties)) {
+      walk(child, into, path === "" ? name : `${path}/${name}`, new Set(seen));
+    }
+  }
+
+  const additional = (node as { additionalProperties?: unknown }).additionalProperties;
+  if (additional && typeof additional === "object") {
+    walk(additional, into, path === "" ? "*" : `${path}/*`, new Set(seen));
+  }
+
+  // A union. Every branch describes the same place, so a branch never overrides the rule already
+  // recorded for this path — the assignment above is what enforces that — but every branch is
+  // still walked, because their members are reachable by path and would otherwise be a silent
+  // hole. The error envelope is exactly that case: a union at the root whose two branches carry
+  // `code`, `message` and `class`.
+  //
+  // Where the branches cite DIFFERENT rules — a Capability key is DESC-8 or DESC-14 depending on
+  // a dot — the first one walked wins the node, which is why the attribution for that place stays
+  // deliberately at the map itself. The schema does not say which branch a failing key was
+  // reaching for, so neither does the verifier.
+  for (const key of ["anyOf", "oneOf", "allOf"]) {
+    const branches = (node as Record<string, unknown>)[key];
+    if (Array.isArray(branches)) {
+      for (const branch of branches) walk(branch, into, path, new Set(seen));
+    }
+  }
+};
+
+for (const [name, document] of [...documents].sort(([a], [b]) => a.localeCompare(b))) {
+  const into: Record<string, string> = {};
+  walk(document, into, "", new Set());
+  if (Object.keys(into).length > 0) {
+    attribution[name.replace(/\.json$/, "")] = Object.fromEntries(
+      Object.entries(into).sort(([a], [b]) => a.localeCompare(b)),
+    );
+  }
+}
+
 const contents = `${JSON.stringify(
   {
     $comment:
@@ -112,6 +203,7 @@ const contents = `${JSON.stringify(
       "packages/conformance/src/generate-rules.ts. Do not edit: run `pnpm rules:generate`.",
     rules,
     codes,
+    attribution,
   },
   null,
   2,

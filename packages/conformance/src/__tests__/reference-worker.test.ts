@@ -140,6 +140,58 @@ describe("the reference worker, verified", () => {
     }
   });
 
+  it("names DESC-8 for a reserved Capability the edition does not define", async () => {
+    // The precision this costs machinery for. The key schema is a union of the reserved
+    // enumeration and the vendor pattern, so a key that fails it matched neither and nothing in
+    // schemas/ says which branch it was reaching for — attribution alone would report DESC-22 and
+    // leave DESC-8 a rule that can pass and never fail. DESC-14 is what tells them apart: no dot
+    // means reserved, and reserved means this edition defines it or it is nothing.
+    const canned = (document: unknown): typeof globalThis.fetch =>
+      (async () =>
+        new Response(JSON.stringify(document), {
+          headers: {
+            "content-type": "application/json",
+            "worker-protocol-edition": "0.1",
+            "worker-protocol-capability-version": "1",
+          },
+        })) as unknown as typeof globalThis.fetch;
+
+    const report = await verify({
+      baseUrl: "https://worker.example.com",
+      fetch: canned({ id: "w", edition: "0.1", capabilities: { telemetry: { version: 1 } } }),
+    });
+    const result = (id: string) => report.results.find((r) => r.rule.id === id);
+
+    expect(result("DESC-8")?.verdict).toBe("fails");
+    expect(result("DESC-8")?.detail).toContain("telemetry");
+    // And the coarser verdict on the same mistake is suppressed, so an operator gets one finding.
+    expect(result("DESC-22")?.verdict).not.toBe("fails");
+  });
+
+  it("names DESC-14 for a dotted name that is not a well-formed vendor Capability", async () => {
+    const canned: typeof globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          id: "w",
+          edition: "0.1",
+          capabilities: { "acme..billing": { version: 1 } },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+            "worker-protocol-edition": "0.1",
+            "worker-protocol-capability-version": "1",
+          },
+        },
+      )) as unknown as typeof globalThis.fetch;
+
+    const report = await verify({ baseUrl: "https://worker.example.com", fetch: canned });
+    const result = report.results.find((r) => r.rule.id === "DESC-14");
+
+    expect(result?.verdict).toBe("fails");
+    expect(result?.detail).toContain("acme..billing");
+  });
+
   it("fails DESC-1 when the credential is refused, and judges nothing else on the document", async () => {
     const report = await verify({ baseUrl: worker.url, credential: "the-wrong-token" });
     const result = report.results.find((r) => r.rule.id === "DESC-1");
