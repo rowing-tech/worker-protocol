@@ -398,12 +398,233 @@ export const page = z
     description: "ENDP-20. The page envelope shared by every collection surface.",
   });
 
+/**
+ * MET-3 — the five periods a metric may accumulate over, and the only five.
+ *
+ * Closed because a console renders a period selector from what a metric declares, and an arbitrary
+ * duration would make that a free-text box. It is also where accumulation stops being a time
+ * series, which is the distinction this Capability rests on.
+ */
+export const metricGranularity = z
+  .enum(["hour", "day", "week", "month", "year"])
+  .meta({
+    title: "Metric granularity",
+    description:
+      "MET-3. The period one bucket covers. MET-6 cuts every boundary in the time zone the entry " +
+      "declares, and MET-7 makes a week the ISO 8601 one, beginning Monday.",
+  });
+
+/**
+ * MET-4 — one dimension a metric is broken down by, held under its name.
+ *
+ * `values` absent is the free case and is not the same as an empty list, which is why the minimum
+ * is 1: a dimension that declared no possible value could never be filtered to anything, and
+ * MET-17 would answer `400` for every value a caller sent.
+ *
+ * Declaring the set buys two different things, which is why metrics.md spends two rules on it:
+ * MET-17 refuses a value outside it, and MET-19 grants the dimension the right to be broken down
+ * by — a free dimension is filtered and never grouped, because nothing would bound the answer.
+ */
+export const metricDimension = z
+  .strictObject({
+    values: z
+      .array(z.string().min(1))
+      .min(1)
+      .optional()
+      .meta({
+        description:
+          "MET-4. The closed set of values this dimension takes. Absent means any string, and " +
+          "MET-17 then accepts one that matches nothing rather than refusing it. Only a " +
+          "dimension that declares its set may be broken down by, under MET-19.",
+      }),
+  })
+  .meta({
+    title: "Metric dimension",
+    description:
+      "MET-4. One dimension of a metric, declared under its name so that a reader knows every " +
+      "dimension before it calls. MET-16 fixes it with a query parameter of that same name.",
+  });
+
+/**
+ * MET-2, MET-3, MET-4 — what a Worker declares about one metric.
+ *
+ * Closed: MET-3 and MET-4 enumerate the declaration, and no open question in metrics.md asks for
+ * another member of it. A member added later is what an edition is for, which is DESC-23.
+ *
+ * `dimensions` is required and may be empty, for the reason `checks` is in `health`: one shape for
+ * every reader, rather than a member whose absence and whose emptiness say the same thing.
+ */
+export const metricDeclaration = z
+  .strictObject({
+    unit: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "MET-3. Declared by the Worker and parsed by nothing here. This protocol has no " +
+          "dimensional analysis: the unit exists so a console can put something beside a number.",
+      }),
+    additive: z.boolean().meta({
+      description:
+        "MET-3. Whether buckets of this metric may be summed. Declared because a reader will " +
+        "otherwise assume it and produce a number that is wrong and plausible: tokens over two " +
+        "days is the sum of the two, vehicles that reported over two days is not.",
+    }),
+    granularities: z
+      .array(metricGranularity)
+      .min(1)
+      .meta({
+        description:
+          "MET-3. At least one, and only what the Worker actually keeps. MET-10 answers `400` " +
+          "for anything not listed here, and MET-8 lets a read omit the granularity where this " +
+          "carries exactly one.",
+      }),
+    dimensions: z.record(z.string().regex(/^[A-Za-z0-9_-]+$/), metricDimension).meta({
+      description:
+        "MET-4. Keyed by dimension name. The pattern asserts only what the transport needs, " +
+        "because MET-16 spells the name into a query parameter; NAME-3 imposes no convention on " +
+        "a name a Worker mints. MET-5 also forbids the names this protocol defines on a read, " +
+        "which no pattern here asserts: excluding a word list needs a negative lookahead, and " +
+        "RE2-backed validators refuse one. May be empty.",
+    }),
+  })
+  .meta({
+    title: "Metric declaration",
+    description:
+      "MET-2. One metric, held under its name in the `metrics` entry. The Descriptor is the " +
+      "catalog: the surface itself never lists what exists.",
+  });
+
+/**
+ * MET-6 — an IANA Time Zone Database name.
+ *
+ * The separator is written `[/]` rather than `\/` so the generated pattern carries no JavaScript
+ * escape. A regular expression literal cannot hold a bare `/` outside a character class, and `\/`
+ * is an escape ECMA-262 accepts and Java refuses outright — a runtime's fingerprint smuggled into
+ * the normative artifact, which is the same thing the generator strips a safe-integer bound for.
+ *
+ * The pattern refuses the common wrong answers — an offset like `-03:00`, an abbreviation like
+ * `ART` — and asserts nothing about whether the zone exists. No schema can check a name against
+ * a database that ships with the reader.
+ */
+export const timeZone = z
+  .string()
+  .regex(/^(?:UTC|[A-Za-z_]+[/][A-Za-z0-9_+/-]+)$/)
+  .meta({
+    title: "Time zone",
+    description:
+      "MET-6. An IANA Time Zone Database name — `America/Argentina/Buenos_Aires`, `UTC`. A fixed " +
+      "offset is not one: an offset cannot say when a day begins across a daylight-saving " +
+      "transition, which is the whole reason the zone is declared. This is the calendar a caller " +
+      "gets when the Worker has agreed no other with it.",
+  });
+
+/**
+ * MET-1, MET-2, MET-6 — the `metrics` Capability entry.
+ *
+ * The address is required, as HLTH-1 requires it, because this Capability is answered over HTTP.
+ */
+export const metricsEntry = capabilityEntry
+  .extend({
+    address,
+    timeZone,
+    metrics: z.record(z.string().min(1), metricDeclaration).meta({
+      description:
+        "MET-2. Every metric the Worker publishes, keyed by name. A name not here is `404` " +
+        "under MET-9. The key carries no pattern: it is spelled into the VALUE of a query " +
+        "parameter, which is percent-encoded, and naming.md leaves a Worker's own names alone.",
+    }),
+  })
+  .meta({
+    title: "Metrics capability entry",
+    description:
+      "MET-1. The shared Capability entry with the address required, the time zone every bucket " +
+      "boundary is cut in, and the metrics this Worker publishes.",
+  });
+
+/**
+ * MET-13 — an RFC 3339 instant carrying an offset.
+ *
+ * `format` is an annotation in Draft 2020-12 unless a validator opts into format-assertion, so the
+ * pattern is what binds. It admits a wrong date — the 31st of February — because a regular
+ * expression that ruled those out would be unreadable, and a Worker that emits one has a bug no
+ * schema was going to find.
+ */
+const instant = (description: string) =>
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
+    .meta({ format: "date-time", description });
+
+/**
+ * MET-12, MET-13, MET-15, MET-19 — one bucket.
+ *
+ * Closed, and it carries no name, unit or granularity: MET-8 has the caller name the metric and,
+ * where there is a choice, the granularity, and MET-2 has it read the unit from the Descriptor
+ * before it calls. Repeating any of them here would be a second place for them to disagree.
+ *
+ * It carries no status and no judgment of any kind. metrics.md answers `how much` and stops: a
+ * Worker that decides one of its own numbers is wrong raises an Alert, and what is inside a
+ * Worker's settings is not a thing this surface has a view of.
+ */
+export const metricBucket = z
+  .strictObject({
+    start: instant("MET-13. Inclusive. MET-6 cuts it in the zone the entry declares."),
+    end: instant(
+      "MET-13. Exclusive, and carried rather than derived: a day across a daylight-saving " +
+        "transition is 23 or 25 hours, and a reader comparing this against its own clock knows " +
+        "whether the bucket is still accumulating without holding a calendar.",
+    ),
+    value: z.number().nullable().meta({
+      description:
+        "MET-13, MET-15. What the Worker accumulated over the period. Null means the Worker no " +
+        "longer holds this bucket and never means zero; a bucket it accumulated nothing in is " +
+        "absent from the answer instead.",
+    }),
+    dimensions: z
+      .record(z.string().regex(/^[A-Za-z0-9_-]+$/), z.string())
+      .optional()
+      .meta({
+        description:
+          "MET-19. The values this bucket is broken down by, present only on a read that asked " +
+          "for a breakdown with `by`. One entry per dimension named there, each a value from " +
+          "that dimension's declared set — MET-19 admits no other kind.",
+      }),
+  })
+  .meta({
+    title: "Metric bucket",
+    description: "MET-13. One period of one metric, whole under MET-12.",
+  });
+
+/**
+ * MET-14 — what a read answers: the shared page envelope with its items narrowed, which is the
+ * narrowing ENDP-20 says each surface's own schema performs.
+ */
+export const metricPage = page
+  .extend({
+    items: z.array(metricBucket).meta({
+      description: "MET-14. Ascending by start. MET-12: whole buckets only.",
+    }),
+  })
+  .meta({
+    title: "Metric page",
+    description:
+      "MET-14. One page of buckets, in the envelope ENDP-20 fixes for every collection in this " +
+      "protocol.",
+  });
+
 registry.add(capabilityName, { id: "capability-name" });
 registry.add(qualifiedName, { id: "qualified-name" });
 registry.add(healthStatus, { id: "health-status" });
 registry.add(health, { id: "health" });
 registry.add(healthEntry, { id: "health-entry" });
 registry.add(capabilityEntry, { id: "capability-entry" });
+registry.add(metricGranularity, { id: "metric-granularity" });
+registry.add(metricDimension, { id: "metric-dimension" });
+registry.add(metricDeclaration, { id: "metric-declaration" });
+registry.add(metricsEntry, { id: "metrics-entry" });
+registry.add(metricBucket, { id: "metric-bucket" });
+registry.add(metricPage, { id: "metric-page" });
 registry.add(descriptor, { id: "descriptor" });
 registry.add(error, { id: "error" });
 registry.add(page, { id: "page" });

@@ -327,7 +327,7 @@ because a parameter one Worker honors is a parameter every other Worker must rec
 That is a good reason and it is not a contract: a Worker that does honor a requested size, up to
 its cap, breaks nothing and no caller can tell. It answers to its own operators for the choice.
 
-Filters belong to the surfaces that have them — which Tasks a consumer may claim, which period an
+Filters belong to the surfaces that have them — which Tasks a consumer may claim, which period a
 metric covers — and each file names its own. ENDP-24 is about the one a Worker does not know,
 and it is strict for a reason: a filter that is dropped silently answers with more than the caller
 asked for, in a shape it will happily parse. A caller that filtered in order to stay inside a

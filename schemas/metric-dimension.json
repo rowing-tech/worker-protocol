@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "metric-dimension.json",
+  "type": "object",
+  "properties": {
+    "values": {
+      "description": "MET-4. The closed set of values this dimension takes. Absent means any string, and MET-17 then accepts one that matches nothing rather than refusing it. Only a dimension that declares its set may be broken down by, under MET-19.",
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false,
+  "title": "Metric dimension",
+  "description": "MET-4. One dimension of a metric, declared under its name so that a reader knows every dimension before it calls. MET-16 fixes it with a query parameter of that same name."
+}

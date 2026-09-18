@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "metric-bucket.json",
+  "type": "object",
+  "properties": {
+    "start": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+      "format": "date-time",
+      "description": "MET-13. Inclusive. MET-6 cuts it in the zone the entry declares."
+    },
+    "end": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+      "format": "date-time",
+      "description": "MET-13. Exclusive, and carried rather than derived: a day across a daylight-saving transition is 23 or 25 hours, and a reader comparing this against its own clock knows whether the bucket is still accumulating without holding a calendar."
+    },
+    "value": {
+      "description": "MET-13, MET-15. What the Worker accumulated over the period. Null means the Worker no longer holds this bucket and never means zero; a bucket it accumulated nothing in is absent from the answer instead.",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "dimensions": {
+      "description": "MET-19. The values this bucket is broken down by, present only on a read that asked for a breakdown with `by`. One entry per dimension named there, each a value from that dimension's declared set — MET-19 admits no other kind.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "start",
+    "end",
+    "value"
+  ],
+  "additionalProperties": false,
+  "title": "Metric bucket",
+  "description": "MET-13. One period of one metric, whole under MET-12."
+}

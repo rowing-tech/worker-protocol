@@ -55,7 +55,6 @@ argument earns each of these in turn.
 | **Event** | A Fact published for anyone to consume, with a shape declared in the Tower. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
 | **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
-| **Indicator** | A metric read against a level configured into the Worker, carrying a status beside the value. Crossing the level raises an Alert. Not a Capability of its own: a shape inside metrics. |
 | **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, metrics, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
 | **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
@@ -190,27 +189,25 @@ workers are the main ones.
 named, and carry the period they cover — a day, a month — because the question they answer is a
 progression and a cost, not an instant — a recruiting worker's, say: tokens consumed, hires
 resolved, hires failed, how many had to be handed to a person. A worker declares which it publishes
-and what each means. None of them carries a judgment: they are quantities, and a quantity is a fact
-the worker derived and is authoritative over.
+and what each means, and whether its buckets may be summed — tokens consumed over two days is the
+sum of the two, vehicles that reported is not, and a reader left to guess produces a number that is
+wrong and plausible. The periods are five and fixed — hour, day, week,
+month, year — cut in a time zone the worker declares, because a day is a calendar fact and two
+readers without a zone disagree about what yesterday was. A metric may also declare dimensions it
+can be filtered by, so that *tasks resolved* answers *of which type* without becoming three metrics.
 
-**An indicator is a metric read against a level**, and the word is kept for that. Tokens consumed
-over a month is a number; *tokens consumed, against the level somebody set* is the thing that says
-whether the worker is worth running. So a level is configured into the worker, through the one
-mechanism that writes into one — the `configure` Action — and the worker publishes a status beside
-the value, in health's shape, so that a console rendering a check renders an indicator. A value
-outside its level is an Alert: a condition an operator should see, asking no Claim. Reading a
-quantity against a level needs the history behind it, the history is the worker's, and the Tower
-keeps nothing on a worker's behalf — which is why both halves live in the worker.
+**No verdict is published beside the number, and that is deliberate.** Whether a quantity is good
+is a comparison against something somebody agreed or configured, and this protocol has no view
+inside a worker's settings — a bound may live there, or in the worker's code, or nowhere. A worker
+that decides one of its own numbers is wrong raises an **Alert**, which is the surface that exists
+for a condition an operator should see; a consumer that agreed to something compares with what it
+read. The metrics surface answers *how much*, and stops.
 
-A Contract is where a level comes from, one step removed: an operator, or the Tower acting on a
-Contract it brokered, writes it in as a setting. The distance is deliberate. A Contract is made over
-a Service and a Service may span several workers, so no one worker's status is the Contract's
-verdict; and a level a consumer agreed to is not a fact the worker derived, so it should arrive as
-something somebody wrote rather than something the worker claims to know. A worker never reads a
-Contract. What it can do is split a metric by the Contract each request came under — it sees the
-credential, so it is authoritative over that — which is what makes any consolidation above it
-possible. Whether a Contract carries service levels at all is [undecided](undecided.md), and
-[spec/metrics.md](../spec/metrics.md) carries the rest of the questions.
+A worker never reads a Contract. What it can do is split a metric by the Contract each request came
+under — it sees the credential, so it is authoritative over that — which is what makes any
+consolidation above it possible. Whether this protocol names that breakdown is
+[undecided](undecided.md), and [spec/metrics.md](../spec/metrics.md) carries the rest of the
+questions.
 
 **Health, concretely.** The shape is the one the cloud platforms and the IETF health-check draft
 converge on — one top-level status and a map of named checks — with our own three values:

@@ -17,7 +17,9 @@ back — so that when the answer lands, both places know.
 - **Who verifies that a worker answers the Task types it declares.** The Control Tower at
   registration, the owner at claim time, or nobody.
 - **What a Contract carries beyond credentials.** Rate, retention of Task events, revocation while
-  a Task is claimed. Revocation is listed in [spec/registration.md](../spec/registration.md).
+  a Task is claimed, and the time zone a multi-tenant Worker cuts a consumer's metric buckets in.
+  Revocation is listed in [spec/registration.md](../spec/registration.md) and the time zone in
+  [spec/metrics.md](../spec/metrics.md).
 - **Whether a Task type may belong to several Services, and whether a Service may span workers of
   several teams.**
 - **Whether Alerts need a Contract to be read** — and whether Alerts are a distinct surface at all,
@@ -26,11 +28,6 @@ back — so that when the answer lands, both places know.
 - **Who consolidates the cost and elapsed time a Response carries.** Nothing does today; the
   consumer's own metrics, split by the Contract each Response came under, are the obvious
   candidate. Listed in [spec/metrics.md](../spec/metrics.md).
-- **Whether a Contract carries service levels**, and how a level agreed over a Service reaches the
-  settings of the Workers behind it. A metric is read against a level configured into the Worker,
-  and a Service may span several Workers, so no one Worker's status is the Contract's verdict. This
-  joins *what a Contract carries beyond credentials*, above. Listed in
-  [spec/metrics.md](../spec/metrics.md).
 - **Whether the consumer names the Action or posts a fact the owner maps to one.** The second is
   more decoupled; the first is simpler.
 - **Whether a stale Response is refused by lease time or by a fencing token.** A precondition

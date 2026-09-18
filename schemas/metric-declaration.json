@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "metric-declaration.json",
+  "type": "object",
+  "properties": {
+    "unit": {
+      "type": "string",
+      "minLength": 1,
+      "description": "MET-3. Declared by the Worker and parsed by nothing here. This protocol has no dimensional analysis: the unit exists so a console can put something beside a number."
+    },
+    "additive": {
+      "type": "boolean",
+      "description": "MET-3. Whether buckets of this metric may be summed. Declared because a reader will otherwise assume it and produce a number that is wrong and plausible: tokens over two days is the sum of the two, vehicles that reported over two days is not."
+    },
+    "granularities": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "metric-granularity.json"
+      },
+      "description": "MET-3. At least one, and only what the Worker actually keeps. MET-10 answers `400` for anything not listed here, and MET-8 lets a read omit the granularity where this carries exactly one."
+    },
+    "dimensions": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "$ref": "metric-dimension.json"
+      },
+      "description": "MET-4. Keyed by dimension name. The pattern asserts only what the transport needs, because MET-16 spells the name into a query parameter; NAME-3 imposes no convention on a name a Worker mints. MET-5 also forbids the names this protocol defines on a read, which no pattern here asserts: excluding a word list needs a negative lookahead, and RE2-backed validators refuse one. May be empty."
+    }
+  },
+  "required": [
+    "unit",
+    "additive",
+    "granularities",
+    "dimensions"
+  ],
+  "additionalProperties": false,
+  "title": "Metric declaration",
+  "description": "MET-2. One metric, held under its name in the `metrics` entry. The Descriptor is the catalog: the surface itself never lists what exists."
+}

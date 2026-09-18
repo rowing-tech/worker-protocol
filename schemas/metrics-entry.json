@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "metrics-entry.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "DESC-9. A single integer counting breaking changes to this Capability alone. There is no minor version."
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+    },
+    "timeZone": {
+      "type": "string",
+      "pattern": "^(?:UTC|[A-Za-z_]+[/][A-Za-z0-9_+/-]+)$",
+      "title": "Time zone",
+      "description": "MET-6. An IANA Time Zone Database name — `America/Argentina/Buenos_Aires`, `UTC`. A fixed offset is not one: an offset cannot say when a day begins across a daylight-saving transition, which is the whole reason the zone is declared. This is the calendar a caller gets when the Worker has agreed no other with it."
+    },
+    "metrics": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "metric-declaration.json"
+      },
+      "description": "MET-2. Every metric the Worker publishes, keyed by name. A name not here is `404` under MET-9. The key carries no pattern: it is spelled into the VALUE of a query parameter, which is percent-encoded, and naming.md leaves a Worker's own names alone."
+    }
+  },
+  "required": [
+    "version",
+    "address",
+    "timeZone",
+    "metrics"
+  ],
+  "additionalProperties": {},
+  "title": "Metrics capability entry",
+  "description": "MET-1. The shared Capability entry with the address required, the time zone every bucket boundary is cut in, and the metrics this Worker publishes."
+}

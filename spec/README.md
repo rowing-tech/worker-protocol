@@ -25,7 +25,7 @@ a version of its own:
 | Capability | File | Subject |
 |---|---|---|
 | `health` | [health.md](health.md) | The answer to a poll: one status, named checks |
-| `metrics` | [metrics.md](metrics.md) | Named quantities over a declared period |
+| `metrics` | [metrics.md](metrics.md) | Named quantities accumulated over declared periods |
 | `actions` | [actions.md](actions.md) | Declaring and performing an operation, `configure` and settings included |
 | `alerts` | [alerts.md](alerts.md) | Conditions an operator should see |
 | `tasks` | [tasks-and-claims.md](tasks-and-claims.md) | Exposing Tasks, claiming under a lease, answering |
@@ -38,8 +38,8 @@ schema wins — see [descriptor.md](descriptor.md).
 The four cross-cutting files are `draft`: they were answered first because every other file leans
 on them — the Descriptor route, the addresses, the versioning rule, the error envelope, how either
 side of a call proves who it is, and how a name is compared and what a schema change breaks.
-[health.md](health.md) is `draft` too, and is the first Capability answered. The rest are `open`:
-their subjects are settled, their answers are not.
+[health.md](health.md) and [metrics.md](metrics.md) are `draft` too, and are the Capabilities
+answered so far. The rest are `open`: their subjects are settled, their answers are not.
 
 ## What this specification does not define
 
