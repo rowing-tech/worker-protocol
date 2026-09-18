@@ -59,9 +59,16 @@ opinion with an id, and it will condition somebody's code for no return.
 
 That test admits one exception on purpose. Some rules have a violation that is real and nameable
 but that nothing outside can reach: DESC-26, where a second differing Descriptor at some address
-nobody enumerated is exactly the fault, and DESC-20, where what a Tower dropped from its catalog is
-a fact inside the Tower. Those two are named here because they are the clearest shape of it — the
-fault is precise, and the only party who could observe it is the one committing it. Rules in this
+nobody enumerated is exactly the fault, and MET-15, where a Worker that discarded a bucket and
+answered as though it had merely been quiet is indistinguishable from one that was quiet. Those two
+are named here because they are the clearest shape of it — the fault is precise, the subject is the
+Worker, and the only party who could observe it is the one committing it.
+
+**The subject is what puts a rule in this class rather than the other one.** A rule that binds a
+Tower, a consumer or a verifier is equally unobservable from outside and is not this: a report
+calls that *another subject's*, because it never contacted the party the rule obliges. DESC-20 was
+filed here for a while and is a Tower's obligation, which is the distinction this paragraph exists
+to draw. Rules in this
 class are legal, and `conformance/` reports them as **unverified** rather than passing them
 silently, because a check that quietly counts them as passed is the same false claim a generated
 artifact nobody compares would be. A rule in this class has to say what would be seen if anyone
@@ -75,7 +82,10 @@ without a row, and the rules in this class are the ones it marks `N`. This parag
 the exception *had to stay small* and named two. The register, the first time anybody put the
 question to every rule in turn, found sixteen. Whether that is too many is worth arguing about, and
 the argument is now possible — which is the point of the count living somewhere gated rather than
-in a sentence here that would drift the moment a rule was written.
+in a sentence here that would drift the moment a rule was written. It has drifted since: the
+specification is ten files rather than six and the register counts twenty-one, which is a larger
+number and the same proportion. Whether that is too many is still worth arguing about, and the
+argument is still there to be had.
 
 Named non-goals, each settled by work already done rather than asserted in advance:
 

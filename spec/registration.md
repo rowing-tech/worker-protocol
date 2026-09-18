@@ -314,16 +314,15 @@ Contract is. The rule is about the call, not about the history.
   [undecided](../docs/undecided.md).
 - Whether taking a Claim and acting on one already held are authorized by the same right. They pull
   apart in practice — taking work is a grant about a Task type, acting is a fact about a lease you
-  already hold — and the distinction belongs to [tasks and claims](tasks-and-claims.md), which is
-  still `open`.
-- The credential a `nudge` carries, which is listed in [tasks and claims](tasks-and-claims.md) and
-  is that file's to answer, because only it knows who sends one and to what address.
+  already hold — and [tasks and claims](tasks-and-claims.md) has since been written without
+  dividing them: TASK-17 refuses a call naming a Claim that is no longer current, and says nothing
+  about a right. The question is still open and is now this file's rather than that one's.
 - Whether a Tower exposes an enrollment surface at all. This protocol defines what a Worker serves;
   a Tower's own API is not in it.
 
 ## Withdrawn
 
-The first four entries are from the audit that read every rule against the argument beneath it. The
+The first three entries are from the audit that read every rule against the argument beneath it. The
 rest are from the sort that followed, which read every rule against a different question: *must a
 client and a Worker agree on this for a call to work, or does breaking it only make one deployment
 worse?* Thirteen rules in this file answered the second way. They are listed individually rather

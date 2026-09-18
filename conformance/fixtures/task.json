@@ -1,0 +1,14 @@
+{
+  "schema": "task",
+  "valid": true,
+  "rule": "TASK-7",
+  "why": "A Task that has outlived three failed Claims and is no longer being granted leases. It still exists, because its condition still holds and nothing a consumer said bears on that — and it is stuck where an operator can see it, with the count beside it, rather than in a queue retrying in silence.",
+  "document": {
+    "id": "task-3",
+    "type": "tech.rowing.fleet.verify-vehicle",
+    "payload": { "vehicle": "ABC-123" },
+    "failedClaims": 3,
+    "lapsedClaims": 1,
+    "claimable": false
+  }
+}

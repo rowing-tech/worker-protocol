@@ -7,11 +7,12 @@ import type { Transcript } from "../transcript.ts";
 /**
  * The `tasks` Capability, as far as reading reaches.
  *
- * Nothing here claims anything. A claim takes an exclusive lease on work somebody else's operators
- * are waiting to have done — the most consequential thing a caller can do to a Worker through this
- * protocol, and the one a verifier has least business doing uninvited. So the nine rules from
- * TASK-9 onward are `H` and wait for an arrangement, and what is checked here is the declaration
- * and the read.
+ * Nothing here claims anything without being told it may. A claim takes an exclusive lease on work
+ * somebody else's operators are waiting to have done — the most consequential thing a caller can do
+ * to a Worker through this protocol, and the one a verifier has least business doing uninvited. So
+ * the declaration and the read are checked unconditionally, and everything from TASK-9 onward waits
+ * for `mayClaim` and a Task named as one that may be taken. `checkClaiming` below is that half, and
+ * it releases every Claim it takes.
  */
 export const CLAIMS = [
   "TASK-1",
@@ -243,12 +244,15 @@ async function checkClaiming(
     }
     return;
   }
-  say("TASK-9", "passes");
-  say(
-    "TASK-12",
-    held.data.task === claimable ? "passes" : "fails",
-    held.data.task === claimable ? undefined : "the Claim names another Task",
-  );
+  // TASK-9: the Claim, carrying its id, the Task it holds and the instant its lease expires. The
+  // Task it holds is this rule's clause, and judging it here is what leaves TASK-12 with its own.
+  if (held.data.task === claimable) say("TASK-9", "passes");
+  else say("TASK-9", "fails", `the Claim names \`${held.data.task}\` and not the Task claimed`);
+
+  // TASK-12: the owner sets the lease, and its expiry travels as an RFC 3339 instant carrying an
+  // offset. That format is what `claim.json` asserts and what parsing it above established — the
+  // duration is deliberately not fixed by this protocol, so there is nothing else here to judge.
+  say("TASK-12", "passes", "the expiry is an RFC 3339 instant with an offset");
 
   // TASK-10: claiming is exclusive, and a second claim of a held Task is refused.
   const second = await post(
@@ -265,22 +269,60 @@ async function checkClaiming(
   if (renewed.status === 200 && again.success) say("TASK-13", "passes");
   else say("TASK-13", "fails", `renewing answered ${renewed.status}`);
 
-  // TASK-16: a Response is two calls and they are not atomic — the Action into the owner, then
-  // the outcome on the Claim. What a check can establish is that the owner accepts them that way.
+  // TASK-16: a Response is two calls, the Action into the owner and THEN the outcome on the Claim,
+  // and they are not atomic. The witness is the owner accepting them as two — so the check sends
+  // two, in that order, and passes on what came back rather than on having been arranged.
+  //
+  // It was once written to pass on the arrangement existing, with no request sent at all. That is
+  // the fault `conformance/README.md` names by name: a check that only knows how to say yes.
   const safe = arrangement.safeAction;
-  if (!mayPerform || safe === undefined) {
-    say("TASK-16", "notExercised", "no Action was named as safe to perform");
+  let responded = false;
+  if (mayPerform && safe !== undefined && arrangement.actionsUrl !== undefined) {
+    const url = `${arrangement.actionsUrl}?action=${encodeURIComponent(safe.name)}`;
+    const body = JSON.stringify(safe.input);
+    let performed = await transcript.send(url, `the Action \`${safe.name}\`, answering the Task`, {
+      method: "POST",
+      body,
+    });
+
+    // ENDP-18: the Action may require an idempotency key, and the Worker says so rather than the
+    // arrangement having to. Asking and then obeying the answer needs no new field from an
+    // operator, and it exercises ENDP-15's declaration from the caller's side.
+    const why = (performed.json as { code?: string } | null)?.code;
+    if (performed.status === 400 && why === "idempotency_key_required") {
+      performed = await transcript.send(url, `the Action \`${safe.name}\`, with a key`, {
+        method: "POST",
+        body,
+        headers: { "idempotency-key": `conformance-response-${Date.now()}` },
+      });
+    }
+
+    if (performed.status >= 400) {
+      say("TASK-16", "fails", `the Action answered ${performed.status}, so no outcome followed it`);
+    } else {
+      responded = true;
+    }
   } else {
-    say("TASK-16", "passes");
+    say("TASK-16", "notExercised", "no Action was named as safe to perform against this Worker");
   }
 
-  // TASK-14: the holder closes its Claim. `released` is the outcome that gives the Task back.
+  // TASK-14: the holder closes its Claim. Where an Action was performed the outcome is `done` and
+  // it is the second half of the Response; otherwise `released`, which gives the Task straight
+  // back and is the outcome that leaves the Worker as it was found.
+  const outcome = responded ? "done" : "released";
   const closed = await post(
-    `?claim=${encodeURIComponent(held.data.id)}&outcome=released`,
-    "releasing the Claim",
+    `?claim=${encodeURIComponent(held.data.id)}&outcome=${outcome}`,
+    responded ? "the outcome on the Claim, after the Action" : "releasing the Claim",
   );
-  if (closed.status >= 200 && closed.status < 300) say("TASK-14", "passes");
+  const accepted = closed.status >= 200 && closed.status < 300;
+  if (accepted) say("TASK-14", "passes");
   else say("TASK-14", "fails", `closing answered ${closed.status}`);
+
+  if (responded) {
+    if (accepted)
+      say("TASK-16", "passes", "the owner took the Action and the outcome as two calls");
+    else say("TASK-16", "fails", `the Action was taken and the outcome answered ${closed.status}`);
+  }
 
   // TASK-17: the Claim id is the fencing token. A call naming one that is no longer the Task's
   // current one is refused — which is a released Claim, a lapsed lease and a reclaimed Task all

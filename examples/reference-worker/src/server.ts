@@ -9,17 +9,18 @@ import { ANSWERS, createTasks, RAISES } from "./tasks.ts";
  *
  * It is not a demo and not a starting point to copy: it exists so that
  * `@worker-protocol/conformance` has something to run against, and every choice in it is made to
- * put a rule within reach of a check. `conformance/verifiability.md` lists nine rules that no tool
- * can observe unless a Worker is *arranged* for them — two credentials for one holder, a boot
- * window left pollable, a condition that will not change — and closing that list is this file's
- * job as it grows.
+ * put a rule within reach of a check. `conformance/verifiability.md` marks twenty-three rules `H`,
+ * meaning no tool observes them unless a Worker is *arranged* for them — two credentials for one
+ * holder, a boot window left pollable, a Task its operators will let go of — and this file is
+ * where that arrangement lives.
  *
  * It lives outside `packages/` deliberately. Nothing under `packages/` may carry behaviour of its
  * own, and this is nothing but behaviour.
  *
  * What it declares, it serves. A Descriptor naming a Capability that answers nothing is a fault in
- * the Descriptor (DESC-18), so this Worker declares `health` because it answers `health`, and
- * declares nothing else.
+ * the Descriptor (DESC-18), so this Worker declares all six — `health`, `metrics`, `actions`,
+ * `tasks`, `alerts` and `events` — because it answers all six. `events` is the one with no address,
+ * which is the single case DESC-22 leaves the shared entry's address optional for.
  */
 
 export type WorkerOptions = {
@@ -237,6 +238,20 @@ export function createWorker(options: WorkerOptions = {}): Server {
       return reject(403, "forbidden", "No.");
     }
 
+    // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot
+    // answer that version refuses the request WHOLE rather than substituting its own. A client
+    // that guesses at a shape it does not know is worse than one that says so, and the caller's
+    // recourse is to re-read the Descriptor, which is where the answer was all along.
+    //
+    // It sits above the POST branches and not below them, because ENDP-6 says `on a request` and
+    // a write is a request. Below, a POST to the Actions or the claim address carrying a version
+    // this Worker cannot answer was PERFORMED — which is the one direction the rule exists to
+    // prevent, on the two addresses where being wrong costs the most.
+    const asked = request.headers["worker-protocol-capability-version"];
+    if (typeof asked === "string" && asked !== "1") {
+      return reject(400, "unsupported_version", "This Worker answers version 1.");
+    }
+
     // ENDP-3: everything that changes state is POST, on an address declared for the purpose. The
     // Actions address and the claim address are the two here that do, and ENDP-2 keeps every
     // other a GET.
@@ -281,15 +296,6 @@ export function createWorker(options: WorkerOptions = {}): Server {
     // ENDP-2 and DESC-5: reading is GET, and a GET changes nothing a later reader could observe.
     if (request.method !== "GET") {
       return reject(404, "not_found", "No such address.");
-    }
-
-    // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot
-    // answer that version refuses the request WHOLE rather than substituting its own. A client
-    // that guesses at a shape it does not know is worse than one that says so, and the caller's
-    // recourse is to re-read the Descriptor, which is where the answer was all along.
-    const asked = request.headers["worker-protocol-capability-version"];
-    if (typeof asked === "string" && asked !== "1") {
-      return reject(400, "unsupported_version", "This Worker answers version 1.");
     }
 
     // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. A filter dropped in

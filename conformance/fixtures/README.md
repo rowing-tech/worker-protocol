@@ -10,7 +10,7 @@ language reads a directory and needs no manifest to keep in step with it:
   "schema": "descriptor",
   "valid": false,
   "rule": "DESC-23",
-  "why": "An edition written `0.01`. Leading zeros are refused so that one edition has one spelling.",
+  "why": "An edition written `0.01`. Leading zeros are refused so one edition has one spelling.",
   "document": { "id": "worker-7f3a", "edition": "0.01", "capabilities": {} }
 }
 ```

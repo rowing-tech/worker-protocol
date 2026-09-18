@@ -14,8 +14,9 @@ import * as z from "zod";
  * The base every schema's `$id` is built on — and NO HOME HAS BEEN CHOSEN.
  *
  * `null` means each `$id` is the bare file name, which identifies a schema within this set and
- * commits the project to no domain. That is the honest state today: nothing is published, no
- * version is tagged, and there are no external consumers.
+ * commits the project to no domain. Edition 0.1 is published and these packages are at 0.1.0, so
+ * the old justification — that nothing was published — has expired; the choice stands on what is
+ * left of it, which is that no home has been chosen and nothing consumes these by URL.
  *
  * A `$id` identifies; it does not have to resolve. Validation works whether or not anything is
  * ever served at it, and relative `$ref`s between these schemas resolve against the document's
@@ -133,11 +134,13 @@ export const address = z
 /**
  * DESC-22 — what a Worker declares about one Capability it implements.
  *
- * Loose on purpose. descriptor.md commits each Capability's own file to extending this entry
- * with what its surface needs — the Actions a Worker accepts, the broker it publishes to — and
- * none of those files is written. Closing this object would forbid the extension the
- * specification promises. The cost is real and is reported: until each Capability file defines
- * its extension, a typo in an entry validates.
+ * Loose on purpose, and the reason has changed since it was written. All six Capability files now
+ * define their extension — `healthEntry`, `metricsEntry`, `actionsEntry`, `alertsEntry`,
+ * `tasksEntry`, `eventsEntry` — so this is no longer holding a door open for something unwritten.
+ * What keeps it loose is that `descriptor.json` still holds its entries as a record of THIS shape
+ * rather than binding each reserved name to its own, so closing it here would refuse every
+ * conformant Descriptor. Tightening that is a breaking change to the normative artifact and is
+ * listed in descriptor.md as the next edition's.
  */
 export const capabilityEntry = z
   .looseObject({
@@ -293,13 +296,6 @@ export const descriptor = z
       "every Worker owes.",
   });
 
-/**
- * ENDP-25, ENDP-26 — the envelope every response that is not a success carries.
- *
- * Loose on purpose, and for a stated reason: endpoints.md records as open whether the envelope
- * carries structured detail beyond these three. Closing it would answer that question by
- * accident, in the artifact prose defers to.
- */
 /**
  * ENDP-25 — the closed code enumeration, split by the class each code carries.
  *
@@ -555,7 +551,7 @@ export const metricsEntry = capabilityEntry
   });
 
 /**
- * MET-13 — an RFC 3339 instant carrying an offset.
+ * An RFC 3339 instant carrying an offset — MET-13, TASK-12 and ALRT-3 all take one.
  *
  * `format` is an annotation in Draft 2020-12 unless a validator opts into format-assertion, so the
  * pattern is what binds. It admits a wrong date — the 31st of February — because a regular
@@ -905,16 +901,11 @@ export const claim = z
     task: z.string().min(1).meta({
       description: "TASK-9. The Task this Claim holds, by the id TASK-7 carries.",
     }),
-    expires: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
-      .meta({
-        format: "date-time",
-        description:
-          "TASK-12. When the owner's lease lapses, as an RFC 3339 instant carrying an offset. " +
-          "TASK-18: a hint about when to RENEW, and never a number a holder does arithmetic on " +
-          "to decide whether it may still act — the owner's clock is the only one that decides.",
-      }),
+    expires: instant(
+      "TASK-12. When the owner's lease lapses, as an RFC 3339 instant carrying an offset. " +
+        "TASK-18: a hint about when to RENEW, and never a number a holder does arithmetic on " +
+        "to decide whether it may still act — the owner's clock is the only one that decides.",
+    ),
   })
   .meta({
     title: "Claim",
@@ -949,16 +940,11 @@ export const alert = z
       description: "ALRT-3. The Worker's own id for this Alert. Opaque to everyone else.",
     }),
     severity: alertSeverity,
-    since: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
-      .meta({
-        format: "date-time",
-        description:
-          "ALRT-3. When the condition began, as an RFC 3339 instant carrying an offset. It is " +
-          "what lets a console tell `this is new` from `this is the same thing as yesterday`, " +
-          "which is most of what dismissal was being asked to do.",
-      }),
+    since: instant(
+      "ALRT-3. When the condition began, as an RFC 3339 instant carrying an offset. It is " +
+        "what lets a console tell `this is new` from `this is the same thing as yesterday`, " +
+        "which is most of what dismissal was being asked to do.",
+    ),
     summary: z
       .string()
       .min(1)

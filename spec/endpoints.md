@@ -214,8 +214,9 @@ state, because a status code is not in the body. The class column is a reading a
 Every code above names a condition some rule already states. None was invented to fill a gap, and
 where the text has not committed to a condition there is deliberately no code for it: `conflict` is
 the only broad one, because ENDP-29 names *a Task already claimed* among its 409s and
-[tasks-and-claims](tasks-and-claims.md) is still `open`. When that file lands it may want a code of
-its own, and the price is stated below.
+[tasks-and-claims](tasks-and-claims.md) had not been written. It has been since, and it wanted no
+code of its own: TASK-10, TASK-11 and TASK-17 all answer `conflict`, which is the same broad
+condition under three names for it. The price below was therefore not spent there.
 
 [actions](actions.md) is the first file to have spent that price. `schema_mismatch` is not
 `malformed_request`, and the difference is what a caller does next: a body that will not parse

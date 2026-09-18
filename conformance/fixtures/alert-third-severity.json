@@ -1,0 +1,13 @@
+{
+  "schema": "alert",
+  "valid": false,
+  "rule": "ALRT-4",
+  "why": "A severity of `info`. Two values and not three, which is the opposite of what health does and is the argument: the only decision an operator takes from this field is whether to look now, and a third value is a place for a Worker to hedge. A protocol that offers a middle value gets middle values.",
+  "document": {
+    "id": "alert-2",
+    "severity": "info",
+    "since": "2026-09-18T04:12:00Z",
+    "summary": "Nothing much.",
+    "actions": []
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "schema": "qualified-name",
+  "valid": true,
+  "rule": "NAME-7",
+  "why": "A DNS name the minting team controls, in reverse label order, with a local part. Reverse order is convention rather than necessity: it puts the organization at the front, so a prefix comparison answers *are these two names from the same team*.",
+  "document": "tech.rowing.fleet.verify-vehicle"
+}

@@ -160,7 +160,7 @@ randomness, or from anywhere else that makes two Workers' ids differ.
 **An Action's name is local to the Worker that declares it**, and NAME-7 does not reach it. A
 consumer learns which Action answers a Task from the Task itself, and posts it to an address that
 same Descriptor gave; both the name and its meaning are resolved inside one document, and two
-Workers declaring `record-verification` are never placed side by side. The same holds for an
+Workers declaring `record-verification` are never placed side by side. The same holds for a
 metric. Whether *health check* names are shared across Workers is open in
 [undecided](../docs/undecided.md), and if they come to be shared they become a fourth crossing name
 and NAME-7 will reach them — by the test, without this file changing.
@@ -284,20 +284,20 @@ is already true.
 
 What a breaking change then costs is already fixed elsewhere and is not repeated here. DESC-9 makes
 a Capability's version a single integer and DESC-29 makes it count breaking changes to that
-Capability, so the number moving *is* the announcement. ENDP-5 puts that version on every response, and ENDP-6 lets a caller
-state the version it expects and be refused whole rather than guessed at. A consumer therefore
-discovers a breaking change on its next call, loudly, with a `400` that names the version — which
-is the discovery this protocol is built to deliver, and it needs nothing from this file.
+Capability, so the number moving *is* the announcement. ENDP-5 puts that version on every response,
+and ENDP-6 lets a caller state the version it expects and be refused whole rather than guessed at. A
+consumer therefore discovers a breaking change on its next call, loudly, with a `400` that names the
+version — which is the discovery this protocol is built to deliver, and it needs nothing from this
+file.
+
+**Whether anyone is told *proactively* when a breaking change lands under a Contract already
+granted was open, and is not any more.** It was parked until [alerts](alerts.md) was written,
+because a notification needs somewhere to arrive and that file was where it would be. It is not: an
+Alert is read by whoever operates a Worker, and a consumer under a Contract is not that party and
+may hold no credential for the address at all. So the loud discovery described above is the whole
+of it. The Contract's own contents are open in [undecided](../docs/undecided.md) besides.
 
 ## Still open here
-
-- Whether anyone is told *proactively* when a breaking change lands under a Contract already
-  granted. This was parked until [alerts](alerts.md) was written, because a notification needs
-  somewhere to arrive and that file was where it would be. It is not: an Alert is read by whoever
-  operates a Worker, and a consumer under a Contract is not that party and may hold no credential
-  for the address at all. So the loud discovery described above is the whole of it, and the
-  question is closed rather than parked. The Contract's own contents are open in
-  [undecided](../docs/undecided.md) besides.
 - Whether a name carries a length bound. Nothing here needs one, and every bound anyone proposed
   would be arbitrary; it is listed only so that its absence is visibly a decision.
 

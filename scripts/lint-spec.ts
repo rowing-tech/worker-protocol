@@ -161,12 +161,20 @@ const sources: { name: string; text: string }[] = [];
 // reach, and it cites one in almost every row — a dangling id there is the same reference to
 // nothing this pass exists to catch. `conformance/fixtures/` is `.json`, and each fixture names
 // the rule it is evidence for, which is a citation like any other.
+//
+// The two `src` directories at the end are scanned for a sharper reason. A check reports against a
+// rule by looking its id up in a map, and an id that is not in the map is silently dropped — the
+// rule vanishes from the report rather than failing loudly, which is the one direction a
+// conformance tool must never fail in. A typo cannot survive being read here.
 for (const dir of [
   "spec",
   "docs",
   "conformance",
   "conformance/fixtures",
   "packages/schemas/src",
+  "packages/conformance/src",
+  "packages/conformance/src/checks",
+  "examples/reference-worker/src",
   ".",
 ]) {
   const abs = join(ROOT, dir);
@@ -248,12 +256,12 @@ console.log(
  * What spec/README.md claims that this script deliberately does not check, because each needs a
  * reader rather than a parser. Naming them here keeps the lint from being read as complete.
  *
- * - "An id is fixed by the edition that publishes it." Nothing here knows which edition published
- *   what, and no edition is published yet. The checks below therefore enforce the post-publication
- *   discipline against the working tree, which is the strict reading: a `Withdrawn` entry is still
- *   required for anything the text has actually retired, and an id is never reused. What the rule
- *   permits and this script cannot reward is editing an unpublished rule in place — which produces
- *   no findings, so nothing has to be taught to allow it.
+ * - "An id is fixed by the edition that publishes it." Edition 0.1 is published, so every id in
+ *   `spec/` is now fixed — but nothing here knows WHICH edition published what, and a rule added
+ *   after 0.1 is not yet fixed by anything. The checks below therefore enforce the
+ *   post-publication discipline against the whole working tree, which is the strict reading and
+ *   errs in the safe direction: a `Withdrawn` entry is required for anything the text has retired,
+ *   and an id is never reused.
  * - "A rule binds when a client and a Worker must agree on it for a call to work; it recommends
  *   when breaking it makes one deployment worse and nobody misreads anything." Which side a given
  *   rule falls on is the judgement the class exists to record. This script checks that every rule

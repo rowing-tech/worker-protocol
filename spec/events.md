@@ -80,7 +80,7 @@ A broker a Worker also uses for its own internal traffic hands every subscriber 
 read, and a subscriber has no way to tell one of those from an event type it simply does not know
 yet. Nothing outside can observe this — a subscriber sees the topic it was given and not the
 Worker's other uses of the same cluster — which puts it in the class
-[spec/README.md](README.md) admits and keeps small. What would be seen, if anything could see it,
+[spec/README.md](README.md) admits. What would be seen, if anything could see it,
 is a consumer's deduplication store filling with ids for documents that were never events.
 
 ## Reaching the broker

@@ -93,9 +93,9 @@ alternative was that a consumer posts a *fact* and the owner maps it to an opera
 decoupled and was never free: it requires a vocabulary of facts that both parties share, which is a
 second declared thing, minted by somebody, compared across Workers — so NAME-7 would reach it, and
 this protocol would be running a registry of fact types it has spent five files refusing to create.
-Naming the Action costs a consumer one string it read out of the Descriptor. Where an owner genuinely
-wants the indirection it can declare an Action that takes a fact, which is the decoupled design
-available to anyone who wants it and imposed on nobody.
+Naming the Action costs a consumer one string it read out of the Descriptor. Where an owner
+genuinely wants the indirection it can declare an Action that takes a fact, which is the decoupled
+design available to anyone who wants it and imposed on nobody.
 
 ## What a performance answers
 
@@ -197,9 +197,12 @@ that writing it is an Action like any other.
 
 ## Still open here
 
-- **How the outcome of an Action that answered `202` reaches anyone.** Every candidate — an event, a
-  Task, a resource to poll — lives in a file that is still `open`, and ACT-11 deliberately defines
-  nothing rather than pre-empt them.
+- **How the outcome of an Action that answered `202` reaches anyone.** It was left open because
+  every candidate lived in a file that was not written; all of them are now, and none of them took
+  it. [events](events.md) publishes Facts with no addressee, so a caller waiting on one particular
+  outcome is not who an event is for. [tasks and claims](tasks-and-claims.md) inverts the direction
+  — a Task is work an owner offers, not a result it owes a caller. So the question survives the
+  reason it was parked for, and ACT-11 still defines nothing rather than inventing a fourth.
 - Whether an Action may be declared with no input at all, or whether the empty object is the
   spelling for that. The schema admits both today and nothing depends on which.
 - Whether this edition reserves any Action name other than `configure`.

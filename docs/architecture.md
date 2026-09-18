@@ -63,7 +63,7 @@ argument earns each of these in turn.
 | **Claim** | One consumer's exclusive lease on a Task. Closes by declaration — `done`, `failed`, `released` — or by expiry, after which the owner reclaims. |
 | **Nudge** | A best-effort notification that there is something to claim. Carries no payload and no guarantee; whoever receives one claims as it would have on its next schedule. Losing one costs latency, never work. |
 | **Response** | What a consumer posts to the owner: the Action performed, and the outcome declared on the Claim. Does not close the Task. |
-| **Event** | A Fact published for anyone to consume, with a shape declared in the Tower. No addressee, no commitment. |
+| **Event** | A Fact published for anyone to consume, with a shape declared in the Worker's own Descriptor. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
 | **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
 | **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, metrics, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
@@ -218,10 +218,11 @@ Every arrow points from whoever initiates to whom it calls.
 ## Two connections, different in kind
 
 **Published Events.** A worker publishes the facts it derives, to a broker, in a standard shape —
-CloudEvents is the candidate. This is broker-agnostic by design: a worker may declare "I publish
-`vehicle-moved` on Azure Event Hub", and the Tower catalogs *that it does, and with what shape*.
-Anyone can subscribe and act on it without knowing how that worker is built. Task and Alert
-lifecycle transitions are events too. The broker carries events and nothing else.
+CloudEvents 1.0 is adopted (EVT-1), and no binding is fixed. This is broker-agnostic by design: a
+worker may declare "I publish `vehicle-moved` on Azure Event Hub", and the Tower catalogs *that it
+does, and with what shape*. Anyone can subscribe and act on it without knowing how that worker is
+built. Task and Alert lifecycle transitions are events too. The broker carries events and nothing
+else.
 
 Subscribing is a long-lived consumer holding a checkpoint — Event Hub speaks AMQP or Kafka, not
 HTTP — and not every platform can hold one. A worker on a platform without an always-on process
@@ -372,8 +373,10 @@ many Claims have failed and how many lapsed without a word, and may stop grantin
 a cap of its own choosing. The Task itself is untouched by any of it — its condition still holds,
 so it still exists. A Task that has outlived several failed Claims is stuck, and that is the point:
 it is stuck where an operator can see it, with the count beside it, rather than in a queue that
-keeps retrying in silence. What the owner raises when it stops granting, and what lets it grant
-again, is for `spec/` to say.
+keeps retrying in silence. What the owner raises when it stops granting is answered in
+[tasks and claims](../spec/tasks-and-claims.md): it says so on the Task itself, under TASK-7's
+`claimable`, rather than leaving a consumer to infer it from a pattern of refusals. What lets it
+grant again is still the owner's.
 
 A **Response** is therefore two things: the Action posted into the owner, and the outcome declared
 on the Claim. It may carry the cost and elapsed time of the execution; what happens to those
@@ -381,9 +384,10 @@ numbers is undecided.
 
 **Alerts** are conditions an operator should see. An Alert may carry Actions; a Task additionally
 requires a Skill and a Claim. A silent vehicle is a Task for whoever can check it; a worker
-whose credentials expire in three days is an Alert for the Tower. Nothing implements them yet, and
-whether they are a surface of their own or Tasks nobody must claim is
-[open](undecided.md).
+whose credentials expire in three days is an Alert for the Tower. Whether they were a surface of
+their own or Tasks nobody must claim was open for a while; [alerts](../spec/alerts.md) answers it
+and says why, and the short version is that folding them into Tasks would have meant a Task type
+carrying an exception to almost every rule in that file.
 
 **Alarms** are something else again: a worker waking *itself* at a future time to re-evaluate.
 They are neither Tasks nor Alerts, and are named here only so nobody calls them either.
@@ -432,10 +436,10 @@ surface like health or metrics; writing stays an Action.
   a credential that was refused. Those are its own facts, and the earlier form of this line — *the
   Tower runs no business logic* — denied them while `spec/` required them. Schedules, derivation
   over a domain, and connections to foreign APIs still live in the workers.
-- **The Tower remembers nothing on a worker's behalf.** A Task's lifecycle belongs to the worker that
-  raised it; settings live in the worker. What the Tower keeps is its own: the registry, which is
-  the dated copy of each Descriptor it last saw; the Contracts; the credentials; and whatever it has
-  concluded about each worker, the phase it puts one in included. The line is ownership and not
+- **The Tower remembers nothing on a worker's behalf.** A Task's lifecycle belongs to the worker
+  that raised it; settings live in the worker. What the Tower keeps is its own: the registry, which
+  is the dated copy of each Descriptor it last saw; the Contracts; the credentials; and whatever it
+  has concluded about each worker, the phase it puts one in included. The line is ownership and not
   volume — nothing it holds is a fact a worker is authoritative over.
 - **Each Worker stays authoritative.** State is read where it lives. A consumer may cache, and owns
   the consequences of caching.
@@ -460,6 +464,6 @@ the Tower brokered — verifies, and posts the Response: the verification, and `
 The app re-evaluates: the vehicle reported again, or a verification is on record, so the condition
 is gone and the Task closes.
 
-The worker owns motion and silence; the app owns trips and the Task; the Tower owns the Contracts and
-watches. Nobody touches another's state.
+The worker owns motion and silence; the app owns trips and the Task; the Tower owns the Contracts
+and watches. Nobody touches another's state.
 

@@ -1,0 +1,18 @@
+{
+  "schema": "tasks-entry",
+  "valid": true,
+  "rule": "TASK-1",
+  "why": "Two addresses, because ENDP-3 puts what changes state on an address declared for the purpose and ENDP-2 keeps a read a read. `raises` is what this Worker asks of others and `answers` is its Skill, which is the unit the Tower catalogs by.",
+  "document": {
+    "version": 1,
+    "address": "../tasks",
+    "claimAddress": "../claims",
+    "raises": {
+      "tech.rowing.fleet.verify-vehicle": {
+        "payload": { "type": "object", "properties": { "vehicle": { "type": "string" } } },
+        "answeredBy": ["record-verification"]
+      }
+    },
+    "answers": ["tech.rowing.pricing.price-a-quote"]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema": "alert",
+  "valid": true,
+  "rule": "ALRT-3",
+  "why": "A condition an operator should see, with the instant it began and the Action offered. The summary is addressed to a person and parsed by nothing; what a program acts on is the severity and the Actions, which are closed vocabularies a console renders without knowing anything about the Worker.",
+  "document": {
+    "id": "alert-1",
+    "severity": "critical",
+    "since": "2026-09-18T04:12:00Z",
+    "summary": "Three Claims on the same Task have failed and no lease is being granted.",
+    "actions": ["configure"]
+  }
+}

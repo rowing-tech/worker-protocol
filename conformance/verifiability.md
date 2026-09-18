@@ -1,9 +1,9 @@
 # Verifiability inventory
 
-Every rule in the ten `draft` files — all of them — classified by what a check would observe. This is the audit
-[spec/README.md](../spec/README.md) demands of itself — *a rule earns its place only if you can name
-what a conformance check would observe when it is broken* — run for the first time, and it is also
-the specification of what `packages/conformance` implements.
+Every rule in the ten `draft` files — all of them — classified by what a check would observe. This
+is the audit [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place only if
+you can name what a conformance check would observe when it is broken* — run for the first time, and
+it is also the specification of what `packages/conformance` implements.
 
 ## The four classes
 
@@ -19,8 +19,8 @@ this document, and separating them moved six rules.
 |---|---|---|
 | **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 82 |
 | **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 23 |
-| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 25 |
-| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; the rest are not on that list, and the register below is where they are counted. | 22 |
+| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 26 |
+| **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 21 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
 ## descriptor.md — 25
@@ -42,7 +42,7 @@ this document, and separating them moved six rules.
 | DESC-16 | P | Binds a verifier |
 | DESC-18 | W | A declared address that answers `404` |
 | DESC-19 | P | Binds a verifier |
-| DESC-20 | N | Admitted exception. A fact inside the Tower |
+| DESC-20 | P | Binds a Tower. It is also unobservable, as every Tower rule is, and the class goes to the SUBJECT: `unverified` is what a report says about a rule whose subject is the Worker, and saying it here would vouch for a party the tool never contacted |
 | DESC-21 | P | Binds a consumer |
 | DESC-22 | W | `capabilities` is a map, each entry carries a version |
 | DESC-23 | W | Exactly one edition, `MAJOR.MINOR`, parses and orders |
@@ -186,11 +186,13 @@ this document, and separating them moved six rules.
 | NAME-4 | N | A Task whose condition nothing outside the Worker can affect is indistinguishable from one whose condition nobody has met yet. The fence is real and only the implementer can see which side of it they are on |
 | NAME-5 | N | The file says it: part of the test needs a person |
 | NAME-6 | N | Same |
-| NAME-7 | W | A Task type and a Skill are both declared in the `tasks` entry now, and both are matched by a party that did not mint them. An event type joins them when `events` lands |
+| NAME-7 | W | A Task type, a Skill and an event type are all declared now, and all three are matched by a party that did not mint them. The `tasks` and `events` entries carry them under a qualified-name key, so the pattern is asserted where they are declared |
 | NAME-8 | N | The file says it: no verifier can report it |
 | NAME-9 | N | Not checkable against one Worker. Needs a corpus |
 
-**No rule in this file is checkable against a Worker without arranging one.**
+**Two rules here are checkable and seven are not**, which is the thinnest showing of any file and is
+a property of the subject: almost everything naming.md decides is about names that are declared and
+then echoed, where no party's correctness turns on the spelling and nothing is left to observe.
 
 ## health.md — 5
 
@@ -231,7 +233,33 @@ this document, and separating them moved six rules.
 exception. Several need buckets to exist before they say anything, which is `not exercised` and not
 a weaker class.
 
-## What this audit found
+## Where this stands
+
+152 rules across ten files, none of them `open`, under edition 0.1. Every rule the register marks
+`W` or `H` has a check in `packages/conformance` that has run against a Worker answering over a
+real socket, so nothing here is a claim about what a check *could* observe and everything is a
+claim about what one did.
+
+What no tool reaches is 47 rules, and the two kinds are not the same thing. Twenty-six bind a
+party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
+specification — and a report calls those *another subject's* because it never contacted whoever
+they oblige. Twenty-one have the Worker as their subject and no witness anywhere, and a report
+calls those *unverified*. Counting either as compliance would be vouching for something nobody
+checked, which is the whole reason this file exists.
+
+`naming.md` has two rules a tool can check — NAME-1 by folding a declared name, NAME-7 now that a
+Task type is a name that actually crosses — and had none until `tasks-and-claims.md` was written.
+`registration.md` has four. Those two files are the thinnest here, and that is a property of their
+subjects rather than a gap: naming is mostly about names nobody types, and registration pushed
+credential lifecycle out to whatever identity provider a deployment already runs.
+
+## What the first pass found, on 2026-09-18
+
+**The numbers below are the state on the day the register was first written, when `spec/` held six
+files and 98 rules.** They are left as they were rather than updated, because what they record is
+an audit — the first time anybody put the question to every rule in turn — and an audit rewritten
+to match today is not a record of anything. The current state is the section above and the tables
+above that, which are gated.
 
 **1. Twenty-one rules bind somebody other than a Worker, and a tool pointed at a base URL reaches
 none of them.** `packages/conformance` is described as *point it at a worker's base URL, get a

@@ -34,9 +34,11 @@ const WRITTEN = new Set(["actions"]);
 export async function callSurfaces(
   surfaces: Surface[],
   descriptorUrl: string,
+  writeAddresses: string[],
   rules: Map<string, Rule>,
   transcript: Transcript,
   credential: string | undefined,
+  mayPerform: boolean,
 ): Promise<Result[]> {
   const results: Result[] = [];
   const say = (id: string, verdict: Result["verdict"], detail?: string) => {
@@ -85,7 +87,7 @@ export async function callSurfaces(
     else say("DESC-18", "fails", missing.join("; "));
   }
 
-  await probeReads(answered, transcript, say);
+  await probeReads(answered, writeAddresses, mayPerform, transcript, say);
 
   if (credential === undefined) {
     // Without one there is nothing to present, and a Worker that reads openly is conformant —
@@ -145,35 +147,84 @@ export async function callSurfaces(
  */
 async function probeReads(
   answered: { capability: string; url: string; body: string }[],
+  writeAddresses: string[],
+  mayPerform: boolean,
   transcript: Transcript,
   say: (id: string, verdict: Result["verdict"], detail?: string) => void,
 ): Promise<void> {
+  // A Worker whose only declared surface is written — a thin proxy that accepts an operation and
+  // passes it on, which DESC-1's argument names as a Worker worth admitting — has nothing to read
+  // twice and nothing to hand an unknown filter to. ENDP-6 is not in that position: it is about a
+  // REQUEST, and a write is one, so it goes on below with whatever write addresses there are.
   if (answered.length === 0) {
-    for (const id of ["ENDP-2", "ENDP-6", "ENDP-24"]) {
-      say(id, "notExercised", "no declared surface answered");
+    for (const id of ["ENDP-2", "ENDP-24"]) {
+      say(id, "notExercised", "no declared surface answered a read");
     }
-    return;
+    if (writeAddresses.length === 0 || !mayPerform) {
+      say("ENDP-6", "notExercised", "no surface was reachable to state a version at");
+      return;
+    }
   }
 
-  // ENDP-2: a GET changes nothing a later reader could observe. As with DESC-5 this is the weakest
-  // form and the honest one — a verifier cannot prove the absence of a side effect, only catch a
-  // Worker whose read has one it shows. A collection is where it would show: listing a Worker's
-  // open Tasks must not consume them.
-  const changed: string[] = [];
+  // ENDP-2: a GET changes nothing a later reader could observe.
+  //
+  // **What is compared is which items came back, not which bytes.** Byte equality was the first
+  // form of this check and it was wrong in a way that only shows against a real Worker: a health
+  // `detail` carrying an observed value, or any surface whose facts moved between two reads,
+  // answers different bytes having changed nothing. Failing that Worker would be this tool
+  // inventing an obligation nobody wrote.
+  //
+  // What the rule is actually about is stated in its own argument: listing a Worker's open Tasks
+  // does not consume them, reading its Alerts does not dismiss them. The witness is items that
+  // were there and are gone, with none arriving — a read that empties what it read. That is not
+  // airtight either, because a Task may close on its own between two calls, and the detail says
+  // what was compared so a reader can weigh it.
+  const items = (payload: string): string[] | null => {
+    try {
+      const parsed = JSON.parse(payload) as { items?: unknown };
+      if (!Array.isArray(parsed.items)) return null;
+      return parsed.items.map((item) =>
+        typeof item === "object" && item !== null && "id" in item
+          ? String((item as { id: unknown }).id)
+          : JSON.stringify(item),
+      );
+    } catch {
+      return null;
+    }
+  };
+
+  const emptied: string[] = [];
+  let collections = 0;
   for (const surface of answered) {
     const again = await transcript.send(
       surface.url,
       `the \`${surface.capability}\` address, again`,
     );
     if (again.status !== 200) {
-      changed.push(`\`${surface.capability}\` answered ${again.status} on a second read`);
+      emptied.push(`\`${surface.capability}\` answered ${again.status} on a second read`);
       continue;
     }
-    if (again.body !== surface.body) changed.push(`\`${surface.capability}\` answered differently`);
+    const before = items(surface.body);
+    const after = items(again.body);
+    if (before === null || after === null) continue;
+    collections += 1;
+
+    const present = new Set(after);
+    const gone = before.filter((id) => !present.has(id));
+    const arrived = after.filter((id) => !new Set(before).has(id));
+    if (gone.length > 0 && arrived.length === 0) {
+      emptied.push(`\`${surface.capability}\` lost ${gone.length} item(s) to being read`);
+    }
   }
 
-  if (changed.length === 0) say("ENDP-2", "passes");
-  else say("ENDP-2", "fails", changed.join("; "));
+  if (answered.length > 0) {
+    if (emptied.length > 0) say("ENDP-2", "fails", emptied.join("; "));
+    else if (collections === 0) {
+      say("ENDP-2", "notExercised", "no declared surface answered a collection to read twice");
+    } else {
+      say("ENDP-2", "passes", "every collection answered the same items on a second read");
+    }
+  }
 
   // ENDP-24: an unrecognized filter parameter is 400, and is never ignored.
   const ignored: string[] = [];
@@ -190,24 +241,50 @@ async function probeReads(
       );
     }
   }
-  if (ignored.length === 0) say("ENDP-24", "passes");
-  else say("ENDP-24", "fails", ignored.join("; "));
+  if (answered.length > 0) {
+    if (ignored.length === 0) say("ENDP-24", "passes");
+    else say("ENDP-24", "fails", ignored.join("; "));
+  }
 
   // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot answer
-  // it refuses the request whole rather than substituting its own. A version no edition will reach
+  // it refuses the request WHOLE rather than substituting its own. A version no edition will reach
   // soon is the only way to ask without a Worker having to cooperate.
+  //
+  // The write addresses are probed too, and they are where the rule matters most: a Worker that
+  // refuses an unanswerable version on a read and PERFORMS one on a write has done the thing the
+  // rule exists to prevent, on the calls where being wrong costs something. They are POSTs, so
+  // they need `mayPerform` — and a Worker that obeys the rule performs nothing, which is why
+  // asking is safe once permission is given.
   const unanswerable: string[] = [];
-  for (const surface of answered) {
+  const probes: { what: string; url: string; init: RequestInit & { permanent?: boolean } }[] = [
+    ...answered.map((surface) => ({
+      what: `\`${surface.capability}\``,
+      url: surface.url,
+      init: { headers: { "worker-protocol-capability-version": "99999" }, permanent: true },
+    })),
+    ...(mayPerform
+      ? writeAddresses.map((url) => ({
+          what: `the write address ${url}`,
+          url,
+          init: {
+            method: "POST",
+            body: "{}",
+            headers: { "worker-protocol-capability-version": "99999" },
+            permanent: true,
+          },
+        }))
+      : []),
+  ];
+
+  for (const probe of probes) {
     const answer = await transcript.send(
-      surface.url,
+      probe.url,
       "a Capability version the Worker cannot answer",
-      { headers: { "worker-protocol-capability-version": "99999" }, permanent: true },
+      probe.init,
     );
     const code = (answer.json as { code?: string } | null)?.code;
     if (answer.status !== 400 || code !== "unsupported_version") {
-      unanswerable.push(
-        `\`${surface.capability}\` answered ${answer.status} with \`${code ?? "no code"}\``,
-      );
+      unanswerable.push(`${probe.what} answered ${answer.status} with \`${code ?? "no code"}\``);
     }
   }
   if (unanswerable.length === 0) say("ENDP-6", "passes");

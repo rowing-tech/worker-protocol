@@ -1,0 +1,7 @@
+{
+  "schema": "metric-bucket",
+  "valid": true,
+  "rule": "MET-15",
+  "why": "A bucket the Worker no longer holds. Null means it cannot say and never means zero; a console draws a gap, and a total that skipped it would be a total over a shorter period than was asked for.",
+  "document": { "start": "2026-06-01T00:00:00Z", "end": "2026-06-02T00:00:00Z", "value": null }
+}

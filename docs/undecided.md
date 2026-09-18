@@ -19,6 +19,10 @@ back — so that when the answer lands, both places know.
   [spec/metrics.md](../spec/metrics.md).
 - **Whether a Task type may belong to several Services, and whether a Service may span workers of
   several teams.**
+- **Whether this protocol names a `contract` dimension for a metric**, so that one name means the
+  same thing across Workers, or leaves each Worker to declare its own. The Worker is authoritative
+  over the value either way — it sees the credential on every request, so it knows which Contract
+  each Claim, Action and Response came under. Listed in [spec/metrics.md](../spec/metrics.md).
 - **Who consolidates the cost and elapsed time a Response carries.** Nothing does today; the
   consumer's own metrics, split by the Contract each Response came under, are the obvious
   candidate. Listed in [spec/metrics.md](../spec/metrics.md).

@@ -96,8 +96,8 @@ is meant.**
 Three rules where there was one, and the split is about what a report can honestly say rather than
 about a change of mind. Only DESC-6 has a witness: a verifier holds the URL it read the Descriptor
 from and compares. The other two are obligations nothing outside can reach — the class
-[spec/README.md](README.md) admits and keeps small, which `conformance/` reports as unverified
-rather than passing silently. Written as one rule they could not be reported separately, so a
+[spec/README.md](README.md) admits, which `conformance/` reports as unverified rather than passing
+silently. Written as one rule they could not be reported separately, so a
 Worker whose id was a hash of its own hostname satisfied the one clause anybody could check and was
 passed on all of them, which is worse than not having checked.
 
@@ -208,12 +208,12 @@ Descriptor.**
 **DESC-13 (required). A client does not present a credential it was granted for this Worker to an
 address on an origin the operator did not record as the Worker's own.**
 
-A map rather than a list, because the alternative could not keep the promise this file makes. The
-question of declaring one Capability twice is [open](../docs/undecided.md), and until it is
-answered the shape forbids it — but a list of entries cannot express that. JSON Schema compares
-whole items for uniqueness, so two entries named `health` at two addresses are distinct items and
-validate cleanly. Keyed by name, the constraint costs nothing and is structural: there is nowhere
-to put the second one.
+A map rather than a list, because the alternative could not keep the promise this file makes.
+Declaring one Capability twice is forbidden, which *One Capability, declared once* below settles and
+argues at length — but a list of entries could not have expressed the constraint either way. JSON
+Schema compares whole items for uniqueness, so two entries named `health` at two addresses are
+distinct items and validate cleanly. Keyed by name, the constraint costs nothing and is structural:
+there is nowhere to put the second one.
 
 The address is optional here and nowhere else. `events` is the reason: what a Worker declares for
 it is the broker it publishes to, and the protocol deliberately names no broker and gives it no
@@ -363,6 +363,15 @@ and stays structural; this section adds no rule, because there is no new violati
 - What a Descriptor says about a Capability that exists but is temporarily not answering — a
   degraded surface as against an undeclared one. Today that is `health`'s to report and the
   Descriptor does not express it.
+- **Whether `schemas/descriptor.json` binds each entry to its own Capability's schema.** It does
+  not today: `capabilities` is a record of the shared entry, so a Descriptor carrying
+  `health: { "version": 1 }` and no address validates against the normative artifact, and HLTH-1
+  and MET-1 are held up by this directory's prose and by a verifier's per-entry parse instead. JSON
+  Schema can express it — the six reserved names under `properties`, each pointing at its own entry
+  schema, the vendor pattern under `patternProperties`, and nothing else allowed — and the reason
+  it is listed rather than done is that it is a **breaking change to a declared schema** under
+  NAME-5: documents the artifact accepts today it would refuse. That is an edition's business and
+  not a correction's, so it belongs to the next one.
 
 ## Withdrawn
 

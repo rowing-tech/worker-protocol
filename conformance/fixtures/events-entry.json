@@ -1,0 +1,17 @@
+{
+  "schema": "events-entry",
+  "valid": true,
+  "rule": "EVT-2",
+  "why": "The one entry with no address, which is the single case DESC-22 leaves it optional for. The broker and the binding are strings nothing here parses, and the window is what a consumer sizes its deduplication store against — `remember forever` being the promise EVT-8 refuses to make.",
+  "document": {
+    "version": 1,
+    "broker": "nats://events.example.com",
+    "binding": "cloudevents/nats-1.0",
+    "events": {
+      "tech.rowing.fleet.vehicle-verified": {
+        "data": { "type": "object", "properties": { "vehicle": { "type": "string" } } }
+      }
+    },
+    "republishWindowSeconds": 3600
+  }
+}

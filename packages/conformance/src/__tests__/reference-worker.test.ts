@@ -167,9 +167,9 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(25);
+    expect(counts.otherSubject).toBe(26);
     // A rule nothing outside can observe is reported rather than counted as passed.
-    expect(counts.unverified).toBe(22);
+    expect(counts.unverified).toBe(21);
     // And the rest is the honest measure of how far this verifier has got.
     expect(counts.passes).toBe(103);
     expect(counts.fails).toBe(1);
@@ -257,6 +257,50 @@ describe("the reference worker, verified", () => {
     } finally {
       await ahead.close();
     }
+  });
+
+  it("catches a Worker that refuses an unanswerable version on a read and performs one on a write", async () => {
+    // ENDP-6 says `on a request`, and a write is one. A Worker that refuses the version it cannot
+    // answer where nothing was at stake and performs it where something was has done exactly what
+    // the rule exists to prevent — so the probe goes to the write addresses too, which is what
+    // needs `mayPerform` and what a Worker obeying the rule performs nothing in response to.
+    const canned: typeof globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      const headers = {
+        "content-type": "application/json",
+        "worker-protocol-edition": "0.1",
+        "worker-protocol-capability-version": "1",
+      };
+      const asked = new Headers(init?.headers).get("worker-protocol-capability-version");
+      const refusal = (code: string) =>
+        new Response(JSON.stringify({ code, message: "no", class: "reject" }), {
+          status: 400,
+          headers,
+        });
+
+      if (String(url).endsWith("/.well-known/worker-protocol")) {
+        if (asked === "99999") return refusal("unsupported_version");
+        return new Response(
+          JSON.stringify({
+            id: "w",
+            edition: "0.1",
+            capabilities: { actions: { version: 1, address: "../actions", actions: {} } },
+          }),
+          { headers },
+        );
+      }
+      // The write address takes the request whatever version it was asked for.
+      return refusal("invalid_parameter");
+    }) as unknown as typeof globalThis.fetch;
+
+    const report = await verify({
+      baseUrl: "https://worker.example.com",
+      mayPerform: true,
+      fetch: canned,
+    });
+    const result = report.results.find((r) => r.rule.id === "ENDP-6");
+
+    expect(result?.verdict).toBe("fails");
+    expect(result?.detail).toContain("write address");
   });
 
   it("attributes a fault to the rule that states the thing it broke", async () => {

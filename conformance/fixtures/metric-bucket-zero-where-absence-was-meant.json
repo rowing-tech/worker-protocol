@@ -1,0 +1,7 @@
+{
+  "schema": "metric-bucket",
+  "valid": true,
+  "rule": "MET-15",
+  "why": "It validates, and that is the point of writing it down. MET-15 separates *nothing happened*, which is a bucket ABSENT from the answer, from *I no longer hold it*, which is a null value — and a Worker that emitted a zero where it meant either has published a number a reader will sum. No schema can catch it: the fixture is evidence of the gap the rule fills rather than of the schema enforcing it.",
+  "document": { "start": "2026-09-01T00:00:00Z", "end": "2026-09-02T00:00:00Z", "value": 0 }
+}

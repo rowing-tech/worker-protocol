@@ -4,6 +4,9 @@
   "type": "module",
   "license": "Apache-2.0",
   "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=23.6"
+  },
   "scripts": {
     "schemas:generate": "node packages/schemas/src/generate.ts",
     "schemas:check": "node packages/schemas/src/generate.ts --check",

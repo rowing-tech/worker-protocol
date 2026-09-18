@@ -170,8 +170,8 @@ special case here would mean guessing which end it meant.
 
 Half-open is what makes two adjacent reads add up. A caller walking a year month by month with
 closed intervals counts every boundary twice, and the error is invisible: the numbers are plausible
-and slightly too large. `[from, to)` is also how the buckets themselves are cut, so a bucket's end is
-the next bucket's start and nothing falls between them.
+and slightly too large. `[from, to)` is also how the buckets themselves are cut, so a bucket's end
+is the next bucket's start and nothing falls between them.
 
 MET-12 is the rule that keeps a value honest. A Worker that answered a partial bucket for an
 interval that started at noon would be reporting half a day under a label that says *day*, and no
@@ -200,8 +200,8 @@ that is zero. A console draws a gap; a total that skips it is a total over a sho
 was asked for, and says so.
 
 Nothing outside the Worker can catch a Worker that discarded a bucket and answered as though it had
-merely been quiet. That is the class of rule [spec/README.md](README.md) admits deliberately and
-keeps small, and `conformance/` reports it unverified rather than passing it silently. What would be
+merely been quiet. That is the class of rule [spec/README.md](README.md) admits deliberately,
+and `conformance/` reports it unverified rather than passing it silently. What would be
 seen, if anything could see it, is a console drawing a zero over a period the Worker cannot account
 for — which is exactly the plausible wrong number this file spends MET-3 preventing elsewhere.
 
@@ -252,9 +252,9 @@ whose values are knowable should declare them.
 down turns one series into one per value, and whether that is a page or a flood depends entirely on
 how many values there are. Over a declared set, a caller knows the number before it asks and a
 Worker knows it before it answers; over a free dimension nobody does, and the Worker would be
-publishing a number of series that nothing bounds. So a free dimension is filtered and never grouped. That
-gives the closed set its second reason to exist and keeps the wire bounded by something a reader can
-see in the Descriptor.
+publishing a number of series that nothing bounds. So a free dimension is filtered and never
+grouped. That gives the closed set its second reason to exist and keeps the wire bounded by
+something a reader can see in the Descriptor.
 
 A free dimension is not a label, and the distinction is what keeps this Capability from turning into
 the time series it is not. What a metric may not do is carry values nobody declared a *name* for —

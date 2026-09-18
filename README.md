@@ -4,7 +4,8 @@ An open specification for workers that can be seen, operated and given work by p
 build them. HTTP and JSON Schema, no runtime.
 
 **Start with [the architecture](docs/architecture.md)** — the model and the reasoning behind it.
-What is open on purpose is in [deliberately undecided](docs/undecided.md).
+What is open on purpose is in [deliberately undecided](docs/undecided.md); what is decided and not
+yet built is in [the roadmap](docs/roadmap.md).
 
 ## What it is
 
@@ -79,10 +80,15 @@ moving — and moving now costs a withdrawal rather than a silent edit.
 What stands behind that: 152 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
 is broken, and every one of the 82 a tool can observe against an ordinary Worker checked by
-[`@worker-protocol/conformance`](packages/conformance) against a Worker answering over a real
-socket. The other 70 are reported rather than passed: 23 need a Worker arranged to be observed, 25
-bind a party who is not a Worker, and 22 have no witness anywhere. A report that counted those as
-compliance would be vouching for something nobody checked.
+[`@worker-protocol/conformance`](packages/conformance) over a real socket. Twenty-three more need a
+Worker *arranged* to be observed — a second credential, a boot window, a Task its operators will let
+go of — and pass when that arrangement is handed to the verifier out of band, as the base URL and
+the credential already are.
+
+The remaining 47 are reported rather than passed, and the two kinds are not the same: 26 bind a
+party who is not a Worker, so this tool never contacted whoever they oblige, and 21 have no witness
+anywhere. A report that counted either as compliance would be vouching for something nobody
+checked.
 
 ## License and name
 

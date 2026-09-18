@@ -1,0 +1,7 @@
+{
+  "schema": "qualified-name",
+  "valid": false,
+  "rule": "NAME-7",
+  "why": "`tech.Rowing.fleet.verify-vehicle`. Lowercase is the one part of this form that is load-bearing rather than conventional: DNS is case-insensitive so `Rowing` and `rowing` are one domain, but NAME-1 compares names byte for byte — so two spellings would be two names for one thing, minted inside one team, with nothing to say they were the same.",
+  "document": "tech.Rowing.fleet.verify-vehicle"
+}

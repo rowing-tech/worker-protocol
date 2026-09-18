@@ -8,7 +8,7 @@ packages:
 # a supply-chain attack on npm is a maintainer account taken over and a malicious version published
 # under a name thousands of projects already trust — and the window that matters is short, because
 # those releases are almost always spotted, reported and pulled within a few days. Waiting is the
-# whole defence. It costs this repository close to nothing: a specification has three dependencies
+# whole defence. It costs this repository close to nothing: this repository has a handful of dependencies
 # that move a few times a year, and none of them is ever needed within a week of its release.
 #
 # When an install fails on this gate, that is the policy working, and there are two honest answers.

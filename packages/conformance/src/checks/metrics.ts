@@ -33,10 +33,11 @@ export const CLAIMS = [
   "MET-19",
   "MET-20",
   "NAME-1",
-  // A metric read is the only collection this edition has, so it is where the two collection rules
-  // are judged. A generic probe cannot construct a valid read for an arbitrary surface — it would
-  // have to know which parameters that surface requires, which is each Capability file's to say —
-  // so the check that already holds a valid page is the one that can judge the envelope it came in.
+  // Judged here because this check already holds a valid page. A generic probe cannot construct a
+  // read for an arbitrary surface — which parameters a surface requires is each Capability file's
+  // to say — and a metric read is the collection that needs the most of them. Tasks and Alerts are
+  // collections too and answer a bare GET, so `checks/surfaces.ts` reaches those; this is the one
+  // that would otherwise go unjudged.
   "ENDP-20",
   "ENDP-23",
 ] as const;

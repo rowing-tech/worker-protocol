@@ -1,0 +1,12 @@
+{
+  "schema": "metrics-entry",
+  "valid": false,
+  "rule": "MET-6",
+  "why": "A fixed offset of `-03:00` where an IANA zone was required. An offset cannot say when a day begins across a daylight-saving transition, which is the whole reason the zone is declared rather than inferred.",
+  "document": {
+    "version": 1,
+    "address": "../metrics",
+    "timeZone": "-03:00",
+    "metrics": {}
+  }
+}

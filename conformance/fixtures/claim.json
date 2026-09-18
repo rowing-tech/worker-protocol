@@ -1,0 +1,7 @@
+{
+  "schema": "claim",
+  "valid": true,
+  "rule": "TASK-9",
+  "why": "One consumer's exclusive lease: its id, the Task it holds, and the instant the owner's lease lapses. The id is TASK-17's fencing token, which is what refuses a stale Response without either party having to agree about the time.",
+  "document": { "id": "claim-1", "task": "task-1", "expires": "2026-09-18T16:00:00Z" }
+}

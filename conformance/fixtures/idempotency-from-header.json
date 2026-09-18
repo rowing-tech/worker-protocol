@@ -1,0 +1,7 @@
+{
+  "schema": "idempotency-declaration",
+  "valid": true,
+  "rule": "ACT-12",
+  "why": "A key read from the `Idempotency-Key` header, with the window ENDP-15 requires. Opaque to the Worker, which records it without parsing it.",
+  "document": { "required": true, "from": "header", "windowSeconds": 3600 }
+}

@@ -24,7 +24,7 @@ export type { Exchange } from "./transcript.ts";
  * `@worker-protocol/conformance` — point it at a Worker's base URL, get a report of what it
  * complies with.
  *
- * Its subject is a Worker and nothing else. Twenty-one rules in `spec/` bind a verifier, a Control
+ * Its subject is a Worker and nothing else. Twenty-six rules in `spec/` bind a verifier, a Control
  * Tower, a consumer, an issuer or the specification itself; this tool reports those as
  * `otherSubject` rather than passing them, because it never contacted the party they oblige.
  * `conformance/verifiability.md` is where that classification is decided and `conformance/
@@ -143,7 +143,26 @@ export async function verify(options: VerifyOptions): Promise<Report> {
 
   if (descriptor.document !== null && descriptor.url !== null) {
     results.push(
-      ...(await callSurfaces(descriptor.surfaces, descriptor.url, byId, tape, options.credential)),
+      ...(await callSurfaces(
+        descriptor.surfaces,
+        descriptor.url,
+        // ENDP-6 is probed on the writes too, and these are the two this protocol has: the
+        // Actions address, and the address a claim is posted to.
+        [
+          descriptor.surfaces.find((s) => s.capability === "actions")?.url,
+          typeof (descriptor.document.capabilities.tasks as { claimAddress?: unknown } | undefined)
+            ?.claimAddress === "string" && descriptor.url !== null
+            ? new URL(
+                (descriptor.document.capabilities.tasks as { claimAddress: string }).claimAddress,
+                descriptor.url,
+              ).toString()
+            : undefined,
+        ].filter((url): url is string => url !== undefined),
+        byId,
+        tape,
+        options.credential,
+        options.mayPerform === true,
+      )),
     );
     const performed = await checkActions(
       descriptor.document.capabilities.actions,
@@ -196,7 +215,12 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       byId,
       attribution,
       tape,
-      options.arrangement ?? {},
+      {
+        ...(options.arrangement ?? {}),
+        // TASK-16 sends the Action and then the outcome, so it needs the address the `actions`
+        // entry declared. `verify` resolves it once rather than every check resolving it again.
+        actionsUrl: descriptor.surfaces.find((s) => s.capability === "actions")?.url ?? undefined,
+      },
       options.mayPerform === true,
     );
     results.push(...claimed.results);
@@ -206,6 +230,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         descriptor.document.capabilities.health,
         descriptor.surfaces.find((s) => s.capability === "health")?.url ?? null,
         byId,
+        attribution,
         tape,
       )),
     );

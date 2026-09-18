@@ -1,14 +1,15 @@
-import { health as healthSchema } from "@worker-protocol/schemas";
+import { healthEntry, health as healthSchema } from "@worker-protocol/schemas";
+import { type Attribution, ruleFor } from "../attribution.ts";
 import type { Result, Rule } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
 /**
  * The `health` Capability.
  *
- * HLTH-4 is absent and will stay absent until the reference Worker is arranged for it: a Worker
- * that has not yet established its state answers `unhealthy`, and the only window in which that is
- * observable is between a process starting and its first evaluation.
- * `conformance/verifiability.md` classifies it `H` for exactly that reason.
+ * HLTH-4 is not here and is not missing: a Worker that has not yet established its state answers
+ * `unhealthy`, and the only window in which that is observable is between a process starting and
+ * its first evaluation. Only whoever started the Worker knows a poll is inside one, so it is
+ * classified `H` and lives in `checks/arranged.ts` with the rest of what an arrangement reaches.
  */
 export const CLAIMS = ["HLTH-1", "HLTH-2", "HLTH-3", "HLTH-5"] as const;
 
@@ -16,6 +17,7 @@ export async function checkHealth(
   entry: Record<string, unknown> | undefined,
   url: string | null,
   rules: Map<string, Rule>,
+  attribution: Attribution,
   transcript: Transcript,
 ): Promise<Result[]> {
   const results: Result[] = [];
@@ -33,10 +35,17 @@ export async function checkHealth(
 
   // HLTH-1: a `health` entry declares an address. A verifier sees this in the Descriptor and fails
   // the Worker without calling anything.
-  if (typeof entry.address !== "string" || entry.address.length === 0) {
-    say("HLTH-1", "fails", "the `health` entry declares no address");
-    for (const id of ["HLTH-2", "HLTH-3", "HLTH-5"]) {
-      say(id, "notExercised", "there is no address to poll");
+  //
+  // It parses `healthEntry` and attributes the issue rather than reaching for `entry.address` by
+  // hand, which is what every other Capability here does. A check that read the shape itself would
+  // be the verifier holding an opinion about a document `schemas/` already describes.
+  const declared = healthEntry.safeParse(entry);
+  if (!declared.success) {
+    const issue = declared.error.issues[0];
+    const id = ruleFor(attribution, "health-entry", issue?.path ?? []) ?? "HLTH-1";
+    say(id, "fails", `${issue?.path.join(".") || "(root)"}: ${issue?.message}`);
+    for (const other of CLAIMS) {
+      if (other !== id) say(other, "notExercised", "the `health` entry did not validate");
     }
     return results;
   }

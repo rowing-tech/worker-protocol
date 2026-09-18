@@ -1,0 +1,7 @@
+{
+  "schema": "idempotency-declaration",
+  "valid": false,
+  "rule": "ACT-12",
+  "why": "`from: \"input\"` with no member named. This is the fixture the union in the schema exists for: written flat, as one object with an optional `member`, this document would validate and leave the Worker with nowhere to read the key from — a caller believing it was protected against a repeat that nothing was recording.",
+  "document": { "required": true, "from": "input", "windowSeconds": 3600 }
+}

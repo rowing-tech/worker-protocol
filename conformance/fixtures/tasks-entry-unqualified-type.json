@@ -1,0 +1,18 @@
+{
+  "schema": "tasks-entry",
+  "valid": false,
+  "rule": "NAME-7",
+  "why": "A Task type of `verify-vehicle`, with no namespace. This is the collision NAME-7 exists to prevent and the one nobody can see: two teams that never spoke both raise it, NAME-1 compares the bytes and they match, and the Tower answers *who answers this Task type* with a consumer that answers the other one.",
+  "document": {
+    "version": 1,
+    "address": "../tasks",
+    "claimAddress": "../claims",
+    "raises": {
+      "verify-vehicle": {
+        "payload": { "type": "object" },
+        "answeredBy": ["record-verification"]
+      }
+    },
+    "answers": []
+  }
+}

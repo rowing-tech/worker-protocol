@@ -1,0 +1,7 @@
+{
+  "schema": "metric-declaration",
+  "valid": false,
+  "rule": "MET-3",
+  "why": "`weekly` where `week` was meant. The five granularities are closed because a console renders a period selector from them, and a Worker whose misspelling validated would publish a period no reader could build a control for.",
+  "document": { "unit": "tasks", "additive": true, "granularities": ["weekly"], "dimensions": {} }
+}

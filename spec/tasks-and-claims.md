@@ -13,9 +13,9 @@ consumes. Everything below exists to keep that true under contention, under fail
 clocks that were never synchronised.
 
 The declaration is [schemas/tasks-entry.json](../schemas/tasks-entry.json), one Task on the wire is
-[schemas/task.json](../schemas/task.json), and a Claim is [schemas/claim.json](../schemas/claim.json).
-What follows is what no schema can state. Rules carry ids and a class; the convention is in
-[spec/README.md](README.md).
+[schemas/task.json](../schemas/task.json), and a Claim is
+[schemas/claim.json](../schemas/claim.json). What follows is what no schema can state. Rules carry
+ids and a class; the convention is in [spec/README.md](README.md).
 
 ## What a Worker declares
 
@@ -90,7 +90,8 @@ pattern of `409`s.
 **TASK-9 (required). A claim is a POST to the claim address naming the Task in `task`. It answers
 the Claim: its id, the Task it holds, and the instant its lease expires.**
 
-**TASK-10 (required). A claim of a Task that is already claimed is `409`, with the code `conflict`.**
+**TASK-10 (required). A claim of a Task that is already claimed is `409`, with the code
+`conflict`.**
 
 **TASK-11 (required). A claim of a Task the Worker will not currently grant a lease on is `409`,
 with the code `conflict`.**

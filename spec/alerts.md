@@ -84,7 +84,9 @@ The instant in ALRT-3 is what makes that bearable rather than merely principled.
 knows when a condition began can sort by it, group by it, and tell *this is new* from *this is the
 same thing as yesterday* — which is most of what dismissal was being asked to do.
 
-## What this file does not fix
+## Who may read them
+
+**ALRT-6 (required). A Worker answers the same Alerts to every caller it authenticates.**
 
 **Reading Alerts needs no Contract, and that settles the second question this file was asked.** A
 Contract is made over a Service — its Events, its Task types, its Actions — and an Alert is none of
@@ -92,11 +94,11 @@ those. The party an Alert is for is whoever operates the Worker, and that relati
 enrollment: REG-21 already has a Worker accept the recorded credential on every address this
 protocol defines, and this is one of them.
 
-**ALRT-6 (required). A Worker answers the same Alerts to every caller it authenticates.**
-
-That is REG-8's reasoning one surface along. A list filtered per reader is a different document to
+ALRT-6 is REG-8's reasoning one surface along. A list filtered per reader is a different document to
 every reader, and an operator comparing notes with a colleague has no way to tell a condition that
 cleared from one they were not shown.
+
+## What this file does not fix
 
 **An Alert is not where a consumer learns that a declared schema changed**, and saying so closes a
 question [naming](naming.md) parked until this file existed. Alerts are read by whoever operates a
