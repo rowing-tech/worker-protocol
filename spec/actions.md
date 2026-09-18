@@ -134,10 +134,11 @@ something nothing here defines.
 operation outlives the call says so in its declaration and answers `202`, and that is the whole of
 what this edition defines: the caller knows it was accepted, and knows it will not learn the outcome
 here. How the outcome arrives — an event, a Task, a Worker the caller polls — is not something this
-file can settle alone, because every candidate lives in a file that is still `open`. Saying `202`
-and stopping is better than inventing a mechanism that [events](events.md) or
-[tasks and claims](tasks-and-claims.md) would then have to live with, and it is listed below so
-that the gap is a decision rather than an omission.
+file can settle alone, because every candidate is a surface another file owns: an event is
+[events](events.md)'s, a Task is [tasks and claims](tasks-and-claims.md)'s, and a resource to poll
+is nothing this protocol defines yet. Saying `202` and stopping is better than inventing a
+mechanism those files would then have to live with, and it is listed below so that the gap is a
+decision rather than an omission.
 
 ## Saying it is the same call again
 
