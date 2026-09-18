@@ -182,7 +182,7 @@ the mismatch, and does not drop the entry.**
 **REG-29 (recommended). A Tower stops presenting that enrollment's credentials at that URL until a
 person resolves the mismatch.**
 
-DESC-6 makes the id the thing a Worker keeps when it moves, and the thing its Contracts hang off. A
+DESC-27 makes the id the thing a Worker keeps when it moves, and the thing its Contracts hang off. A
 URL that starts answering with a different id is therefore not that Worker moving — a move keeps
 the id and changes the URL, which is the opposite event. It is a different Worker at an address the
 first one used to hold, and the causes are ordinary: a path redeployed to something else, a

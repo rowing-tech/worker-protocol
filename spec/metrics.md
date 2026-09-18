@@ -77,8 +77,10 @@ schema asserts the characters a name may use and this rule asserts the rest.
 
 ## Where a period begins and ends
 
-**MET-6 (required). The entry declares one IANA time zone, and every bucket boundary is cut in it.
-A caller with whom the Worker has agreed nothing else receives that calendar.**
+**MET-6 (required). The entry declares one IANA time zone.**
+
+**MET-20 (required). Every bucket boundary is cut in that zone. A caller with whom the Worker has
+agreed nothing else receives that calendar.**
 
 **MET-7 (required). A `week` is an ISO 8601 week, beginning Monday.**
 
@@ -92,7 +94,7 @@ the Descriptor the whole of what *every* Worker owes — including one that publ
 all. If a second surface ever needs a calendar, the declaration moves up, which is what an edition
 is for.
 
-MET-6's second sentence is what a multi-tenant Worker needs. A Worker serving several consumers may
+MET-20's second sentence is what a multi-tenant Worker needs. A Worker serving several consumers may
 have agreed a calendar with one of them — a tenant whose day ends where its own operators say it
 does — and cutting that consumer's buckets in it is a better answer than handing everyone the
 deployment's zone and asking them to re-aggregate, which is the one thing accumulation exists to

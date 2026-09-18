@@ -6,7 +6,7 @@
     "version": {
       "type": "integer",
       "minimum": 1,
-      "description": "DESC-9. A single integer counting breaking changes to this Capability alone. There is no minor version."
+      "description": "DESC-9. A single integer; there is no minor version. DESC-29 makes it count breaking changes to this Capability's own surface alone."
     },
     "address": {
       "type": "string",

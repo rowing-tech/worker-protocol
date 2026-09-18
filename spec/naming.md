@@ -126,7 +126,7 @@ NAME-9 is a different requirement and deliberately not the same rule. A Worker's
 enrollment, which is comparison for identity and not agreement on a vocabulary. So the mechanism is
 free: a name under NAME-7's namespace satisfies NAME-9, and so does a random identifier with no
 structure at all, and this protocol has no reason to prefer either. What it cannot survive is two
-Workers sharing one, because DESC-6 makes the id the thing Contracts hang off and REG-13 makes it
+Workers sharing one, because DESC-27 makes the id the thing Contracts hang off and REG-13 makes it
 the thing a Tower refuses to rebind — both undone at once if the id names two things. Forcing
 reverse-DNS here instead would have forbidden a UUID, which solves the only problem there is.
 
@@ -151,11 +151,11 @@ nothing, imposed on the one kind of name in this protocol that is genuinely priv
 it appears in.
 
 **How a Worker's id is spelled is not fixed either**, and NAME-9 is the whole of what this file
-asks of it. DESC-6 fixes what matters — opaque, stable, unambiguous without ambient context, not
-derived from the URL, surviving a move — and every one of those is a property of the id's
-*behaviour*, not of its characters. DESC-6's phrase *carries whatever scope it needs to be
-unambiguous* is answered by NAME-9 and by nothing narrower: the scope may come from a namespace,
-from randomness, or from anywhere else that makes two Workers' ids differ.
+asks of it. DESC-6, DESC-27 and DESC-28 fix what matters — not the URL, not derived from it,
+surviving a move, opaque, stable, unambiguous without ambient context — and every one of those is a
+property of the id's *behaviour*, not of its characters. DESC-28's *unambiguous without ambient
+context* is answered by NAME-9 and by nothing narrower: the scope may come from a namespace, from
+randomness, or from anywhere else that makes two Workers' ids differ.
 
 **An Action's name is local to the Worker that declares it**, and NAME-7 does not reach it. A
 consumer learns which Action answers a Task from the Task itself, and posts it to an address that
@@ -283,8 +283,8 @@ that the window is *visible* — both names are in the Descriptor while both are
 is already true.
 
 What a breaking change then costs is already fixed elsewhere and is not repeated here. DESC-9 makes
-a Capability's version a single integer counting breaking changes to that Capability, so the number
-moving *is* the announcement. ENDP-5 puts that version on every response, and ENDP-6 lets a caller
+a Capability's version a single integer and DESC-29 makes it count breaking changes to that
+Capability, so the number moving *is* the announcement. ENDP-5 puts that version on every response, and ENDP-6 lets a caller
 state the version it expects and be refused whole rather than guessed at. A consumer therefore
 discovers a breaking change on its next call, loudly, with a `400` that names the version — which
 is the discovery this protocol is built to deliver, and it needs nothing from this file.

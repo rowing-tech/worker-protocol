@@ -57,8 +57,8 @@ Workers that most need to live beside one are the Workers people use.
 
 DESC-26 forbids a second Descriptor and not a second address, and the difference is the whole of
 what the rule is for. A Worker reachable at a vanity hostname and at the address behind a load
-balancer serves the same document at both, and nobody is confused: DESC-6 makes the id the Worker's
-identity, so two addresses answering with one id are one Worker seen twice. What cannot be allowed
+balancer serves the same document at both, and nobody is confused: DESC-28 makes the id unambiguous
+on its own, so two addresses answering with one id are one Worker seen twice. What cannot be allowed
 is a second document — an older copy left at a path somebody forgot, a hand-written one beside the
 generated one — because then two readers hold two answers to the same question and nothing says
 which is the Worker's. The earlier form of this rule forbade the address rather than the
@@ -84,33 +84,46 @@ there is no other source.
 
 ## Identity
 
-**DESC-6 (required). The Worker's id is opaque and stable: it identifies this Worker and no other,
-carries whatever scope it needs to be unambiguous, is not the URL and is not derived from the URL,
-and survives a move.**
+**DESC-6 (required). The Worker's id is not the URL it is served from.**
 
-A Worker that changes host keeps its id and keeps its Contracts. Nothing outside the Descriptor
-supplies context that the id needs in order to mean something: a reader holding the id alone, with
-no knowledge of the deployment it came from, still knows which Worker is meant. An id that is a
-path through a Worker's own internals, or that is only unique within a deployment the reader cannot
-name, is not an id.
+**DESC-27 (required). The id is not derived from the URL, and survives a move: a Worker that
+changes address answers with the id it had.**
 
-*Not derived from the URL* is the clause that does the work, and it is drawn at derivation rather
-than at appearance because derivation is the mechanism that breaks the rest of the rule. An id
-computed from the address — a slug of the hostname, a hash of the base URL, anything read out of
+**DESC-28 (required). The id is opaque and stable, and is unambiguous without ambient context — a
+reader holding the id alone, with no knowledge of the deployment it came from, knows which Worker
+is meant.**
+
+Three rules where there was one, and the split is about what a report can honestly say rather than
+about a change of mind. Only DESC-6 has a witness: a verifier holds the URL it read the Descriptor
+from and compares. The other two are obligations nothing outside can reach — the class
+[spec/README.md](README.md) admits and keeps small, which `conformance/` reports as unverified
+rather than passing silently. Written as one rule they could not be reported separately, so a
+Worker whose id was a hash of its own hostname satisfied the one clause anybody could check and was
+passed on all of them, which is worse than not having checked.
+
+A Worker that changes host keeps its id and keeps its Contracts. An id that is a path through a
+Worker's own internals, or that is only unique within a deployment the reader cannot name, is not
+an id.
+
+*Not derived from the URL* is the clause that does the work in DESC-27, and it is drawn at
+derivation rather than at appearance because derivation is the mechanism that breaks the rest. An
+id computed from the address — a slug of the hostname, a hash of the base URL, anything read out of
 configuration at boot — is an id that is computed again the next time the Worker starts, and a
 Worker that moved starts with a different one. It does not survive the move, and nothing announces
 that it did not: the Descriptor answers cleanly at the new address with an id the Tower has never
-seen, and REG-13 correctly refuses to treat it as the same Worker. The Contracts that DESC-6
+seen, and REG-13 correctly refuses to treat it as the same Worker. The Contracts that DESC-27
 promises would survive are then attached to an id nobody serves. A rule drawn at *looks like a URL*
 would catch the slug and miss the hash, which is the case that fails silently; drawn at derivation
-it catches the mechanism, and the implementer is the one party who knows which it used.
+it catches the mechanism, and the implementer is the one party who knows which it used. The
+mechanism and the consequence share one id because they are one obligation stated twice: no Worker
+breaks either without breaking the other, so nothing could ever report them apart.
 
 How ids are spelled is [naming](naming.md)'s, and it fixes nothing: every property of an id that
-anyone depends on is above, and none of them is a property of its characters. NAME-9 requires only
-that no two Workers share one — which a namespaced name and a random identifier satisfy equally, so
-no spelling follows from it — and NAME-2 forbids reusing a retired one for a different thing. What
-the Tower does when the Descriptor at an enrolled URL answers with an id it has not seen before is
-[registration](registration.md)'s.
+anyone depends on is above, and none of them is a property of its characters. That no two Workers
+share one is NAME-9's, which is also what answers DESC-28's *unambiguous without ambient context* —
+and a namespaced name and a random identifier satisfy it equally, so no spelling follows from it.
+NAME-2 forbids reusing a retired one for a different thing. What the Tower does when the Descriptor
+at an enrolled URL answers with an id it has not seen before is [registration](registration.md)'s.
 
 ## Two versions
 
@@ -126,8 +139,10 @@ a verifier checks against.**
 only adds what a reader holding an earlier MINOR of the same MAJOR may ignore and still be
 correct.**
 
-**DESC-9 (required). A Capability version is a single integer, counting breaking changes to that
-Capability alone. There is no minor version.**
+**DESC-9 (required). A Capability version is a single integer. There is no minor version.**
+
+**DESC-29 (required). That integer counts breaking changes to the Capability's own surface alone,
+and not to what a Worker declares through it.**
 
 The edition is what gets cited — *this Worker speaks worker-protocol 0.1* — and it is what lets a
 new Capability exist at all, because the closed list of Capability names is a property of an
@@ -303,7 +318,7 @@ The question was always asked in service of something else: *so that a consumer 
 older version keeps working while a newer one exists.* That need is real. Declaring the Capability
 twice is the wrong instrument for it, and the reason is what a Capability version actually counts.
 
-DESC-9 makes it a count of breaking changes **to that Capability's own surface** — how Actions are
+DESC-29 makes it a count of breaking changes **to that Capability's own surface** — how Actions are
 declared and posted, how Tasks are claimed, what the health envelope carries. It is not a count of
 breaking changes to the things a Worker declares *through* that surface. An Action's payload schema
 and a Task type's payload are the Worker's own, and this specification does not have a data model.

@@ -10,5 +10,5 @@
     "year"
   ],
   "title": "Metric granularity",
-  "description": "MET-3. The period one bucket covers. MET-6 cuts every boundary in the time zone the entry declares, and MET-7 makes a week the ISO 8601 one, beginning Monday."
+  "description": "MET-3. The period one bucket covers. MET-20 cuts every boundary in the time zone the entry declares, and MET-7 makes a week the ISO 8601 one, beginning Monday."
 }

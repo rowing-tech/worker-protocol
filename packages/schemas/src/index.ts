@@ -136,8 +136,8 @@ export const capabilityEntry = z
       .min(1)
       .meta({
         description:
-          "DESC-9. A single integer counting breaking changes to this Capability alone. " +
-          "There is no minor version.",
+          "DESC-9. A single integer; there is no minor version. DESC-29 makes it count breaking " +
+          "changes to this Capability's own surface alone.",
       }),
     address: address.optional(),
   })
@@ -229,7 +229,7 @@ export const healthEntry = capabilityEntry.extend({ address }).meta({
 });
 
 /**
- * DESC-1, DESC-2, DESC-6, DESC-23, DESC-22 — the document every Worker serves.
+ * DESC-1, DESC-2, DESC-6, DESC-22, DESC-23 — the document every Worker serves.
  *
  * Closed on purpose: the rules above enumerate what a Descriptor carries, and a new top-level
  * member is what an edition is for (DESC-23). A Worker extends its entries, not its Descriptor.
@@ -246,11 +246,12 @@ export const descriptor = z
       .min(1)
       .meta({
         description:
-          "DESC-6. The Worker's own id: opaque, stable, not the URL and not derived from it, " +
-          "and unambiguous without ambient context. NAME-9 requires only that no two Workers " +
-          "share one, which a namespaced name and a random identifier satisfy equally — so no " +
-          "pattern is asserted here on purpose. A schema can assert that it is a non-empty " +
-          "string and no more; the rest of DESC-6 and NAME-9 have no schema witness.",
+          "DESC-6. The Worker's own id, which is not the URL it is served from. DESC-27 adds " +
+          "that it is not derived from that URL and survives a move, and DESC-28 that it is " +
+          "opaque, stable and unambiguous without ambient context. NAME-9 requires only that no " +
+          "two Workers share one, which a namespaced name and a random identifier satisfy " +
+          "equally — so no pattern is asserted here on purpose. A schema can assert that it is a " +
+          "non-empty string and no more; DESC-27, DESC-28 and NAME-9 have no schema witness.",
       }),
     edition: z
       .string()
@@ -406,7 +407,7 @@ export const page = z
 export const metricGranularity = z.enum(["hour", "day", "week", "month", "year"]).meta({
   title: "Metric granularity",
   description:
-    "MET-3. The period one bucket covers. MET-6 cuts every boundary in the time zone the entry " +
+    "MET-3. The period one bucket covers. MET-20 cuts every boundary in the time zone the entry " +
     "declares, and MET-7 makes a week the ISO 8601 one, beginning Monday.",
 });
 
@@ -565,7 +566,7 @@ const instant = (description: string) =>
  */
 export const metricBucket = z
   .strictObject({
-    start: instant("MET-13. Inclusive. MET-6 cuts it in the zone the entry declares."),
+    start: instant("MET-13. Inclusive. MET-20 cuts it in the zone the entry declares."),
     end: instant(
       "MET-13. Exclusive, and carried rather than derived: a day across a daylight-saving " +
         "transition is 23 or 25 hours, and a reader comparing this against its own clock knows " +

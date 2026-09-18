@@ -17,13 +17,13 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 47 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 50 |
 | **H** | Observable only against a Worker arranged to be observed. This is what the reference Worker exists for. | 9 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, or this specification. No tool pointed at a base URL can reach it. | 21 |
-| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; twelve are not on that list. | 15 |
+| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; thirteen are not on that list. | 16 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 6 |
 
-## descriptor.md — 22
+## descriptor.md — 25
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
@@ -31,9 +31,9 @@ this document, and separating them moved six rules.
 | DESC-2 | P | Binds a verifier and a Tower: neither may require a Capability. No Worker witness — a Worker declaring none is the passing case |
 | DESC-3 | W | The route resolves beneath the enrolled base URL, scheme is `https` |
 | DESC-5 | W | GET answers; a second GET answers the same |
-| DESC-6 | N | *Opaque, stable, not derived from the URL, survives a move.* Nothing outside can see derivation, and a move is two deployments. Bundles four obligations under one id |
+| DESC-6 | W | The id compared against the base URL the Descriptor was read from |
 | DESC-8 | W | Every undotted name is in `capability-name.json` |
-| DESC-9 | N | *A single integer* is observable; *counting breaking changes* is not. Two obligations, one id |
+| DESC-9 | W | A single integer, read off the entry |
 | DESC-11 | H | The Worker must declare a Capability whose behaviour is conditional. Every case the text names lives in `actions` |
 | DESC-12 | W | Each address is absolute `https` or resolves relative |
 | DESC-13 | P | Binds a client. Observable only in the client's own behaviour |
@@ -49,6 +49,9 @@ this document, and separating them moved six rules.
 | DESC-24 | N | Binds whoever edits this specification across editions. No single-Worker witness |
 | DESC-25 | P | Binds a verifier |
 | DESC-26 | N | Admitted exception. A second Descriptor at an address nobody enumerated |
+| DESC-27 | N | Derivation is invisible from outside, and a move is two deployments. Split from DESC-6 so that the clause with a witness can be reported on its own |
+| DESC-28 | N | Opacity, stability and freedom from ambient context are properties of an id's behaviour over time, not of the string a reader holds |
+| DESC-29 | N | What a version counts is a claim about the Worker's own history. Split from DESC-9 for the same reason as above |
 
 ## endpoints.md — 26
 
@@ -129,7 +132,7 @@ this document, and separating them moved six rules.
 | HLTH-4 | H | The Worker must leave the window between start and first evaluation pollable |
 | HLTH-5 | W | The health address answers `200` whatever it reports |
 
-## metrics.md — 19
+## metrics.md — 20
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
@@ -138,7 +141,7 @@ this document, and separating them moved six rules.
 | MET-3 | W | Unit, additivity, at least one granularity, from the five |
 | MET-4 | W | Dimensions keyed by name, closed set or none |
 | MET-5 | W | No dimension named `metric`, `granularity`, `from`, `to`, `by` or the cursor parameter. The rule the file says has no schema witness — it has a verifier witness |
-| MET-6 | W | The entry declares one IANA zone; every bucket's start and end land on a boundary cut in it. Two obligations under one id, both observable |
+| MET-6 | W | The entry declares one IANA zone |
 | MET-7 | W | A `week` bucket beginning on a Monday, numbered by ISO 8601 |
 | MET-8 | W | Granularity required where more than one is declared |
 | MET-9 | W | An undeclared metric is `404` + `not_found` |
@@ -152,8 +155,9 @@ this document, and separating them moved six rules.
 | MET-17 | W | A value outside a declared set is `400` + `invalid_parameter` |
 | MET-18 | W | The file names the check: an unfiltered answer smaller than one of its own filtered answers over the same interval, on a metric that only accumulates upward |
 | MET-19 | W | `by` on a free dimension is refused |
+| MET-20 | W | Every bucket's start and end land on a boundary cut in the declared zone. Split from MET-6, whose two halves a report could otherwise only pass or fail together |
 
-**The most checkable file in the specification**: 18 of 19, and the nineteenth is an admitted
+**The most checkable file in the specification**: 19 of 20, and the twentieth is an admitted
 exception. Several need buckets to exist before they say anything, which is `not exercised` and not
 a weaker class.
 
@@ -176,17 +180,20 @@ declared name with a capital in it (NAME-1); a Capability whose behaviour on a c
 everything on this list is a deliberate arrangement rather than a feature anybody would otherwise
 build.
 
-**3. Twelve rules have no witness and are not on the admitted list.** The exception
-[spec/README.md](../spec/README.md) admits names DESC-26 and DESC-20 only. DESC-6, DESC-9, DESC-24,
-REG-24, REG-26, REG-27, REG-33, NAME-2, NAME-5, NAME-6, NAME-8 and NAME-9 are equally unreachable.
-Most already say so in their own prose, which is the obligation met — but the list in the README is
-incomplete, and a reader extracting the bold lines cannot tell.
+**3. Thirteen rules have no witness and are not on the admitted list.** The exception
+[spec/README.md](../spec/README.md) admits names DESC-26 and DESC-20 only. DESC-24, DESC-27,
+DESC-28, DESC-29, REG-24, REG-26, REG-27, REG-33, NAME-2, NAME-5, NAME-6, NAME-8 and NAME-9 are
+equally unreachable. Most already say so in their own prose, which is the obligation met — but the
+list in the README is incomplete, and a reader extracting the bold lines cannot tell. This document
+is the exhaustive register whether or not the README ever becomes one.
 
-**4. Three ids carry more than one obligation.** DESC-6 bundles four, DESC-9 two and MET-6 two,
-against [spec/README.md](../spec/README.md)'s *an id belongs to one independently checkable
-obligation*. MET-6 is the mild case — both halves are observable, so a report is merely coarse. The
-other two are not: one part is structural and checkable, the rest has no witness, and a report can
-only pass or fail the whole thing and will be wrong either way.
+**4. Three ids carried more than one obligation, and have been split.** DESC-6 bundled four,
+DESC-9 two and MET-6 two, against [spec/README.md](../spec/README.md)'s *an id belongs to one
+independently checkable obligation*. DESC-6 now says only that the id is not the URL, which is the
+clause a verifier can reach, and DESC-27 and DESC-28 carry the rest; DESC-9 keeps the integer and
+DESC-29 takes what it counts; MET-6 keeps the declaration and MET-20 takes the cutting. No edition
+is published, so under [spec/README.md](../spec/README.md) each rule was edited in place and
+nothing was withdrawn — which is the cheapest this correction will ever be.
 
 **5. `naming.md` has nothing a tool can check and `registration.md` has three.** Zero and three of
 seventeen. Neither is a defect on its own — naming is largely about names that only exist in `open`
