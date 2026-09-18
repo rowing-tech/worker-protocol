@@ -25,7 +25,7 @@ a version of its own:
 | Capability | File | Subject |
 |---|---|---|
 | `health` | [health.md](health.md) | The answer to a poll: one status, named checks |
-| `indicators` | [indicators.md](indicators.md) | Named quantities over a declared period |
+| `metrics` | [metrics.md](metrics.md) | Named quantities over a declared period |
 | `actions` | [actions.md](actions.md) | Declaring and performing an operation, `configure` and settings included |
 | `alerts` | [alerts.md](alerts.md) | Conditions an operator should see |
 | `tasks` | [tasks-and-claims.md](tasks-and-claims.md) | Exposing Tasks, claiming under a lease, answering |
@@ -134,7 +134,7 @@ so that two files never race for the same one:
 | File | Prefix | File | Prefix |
 |---|---|---|---|
 | [descriptor.md](descriptor.md) | `DESC` | [health.md](health.md) | `HLTH` |
-| [endpoints.md](endpoints.md) | `ENDP` | [indicators.md](indicators.md) | `IND` |
+| [endpoints.md](endpoints.md) | `ENDP` | [metrics.md](metrics.md) | `MET` |
 | [registration.md](registration.md) | `REG` | [actions.md](actions.md) | `ACT` |
 | [naming.md](naming.md) | `NAME` | [alerts.md](alerts.md) | `ALRT` |
 | | | [tasks-and-claims.md](tasks-and-claims.md) | `TASK` |

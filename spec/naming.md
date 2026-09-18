@@ -161,7 +161,7 @@ from randomness, or from anywhere else that makes two Workers' ids differ.
 consumer learns which Action answers a Task from the Task itself, and posts it to an address that
 same Descriptor gave; both the name and its meaning are resolved inside one document, and two
 Workers declaring `record-verification` are never placed side by side. The same holds for an
-indicator. Whether *health check* names are shared across Workers is open in
+metric. Whether *health check* names are shared across Workers is open in
 [undecided](../docs/undecided.md), and if they come to be shared they become a fourth crossing name
 and NAME-7 will reach them — by the test, without this file changing.
 
@@ -178,7 +178,7 @@ mints, and records it here. It imposes none on the names a Worker mints.**
 |---|---|---|
 | A member of a schema in `schemas/` | `camelCase` | `nextCursor`, `capabilities` |
 | An error code | lower `snake_case` | `unprocessable_content`, `idempotency_key_reused` |
-| A reserved Capability name | lowercase, no separator | `health`, `indicators` |
+| A reserved Capability name | lowercase, no separator | `health`, `metrics` |
 
 What binds here is *one per kind*, not which one. A reader who has met `nextCursor` should not have
 to check whether the next schema says `next_cursor`, and the cost of checking is paid on every

@@ -207,7 +207,7 @@ carry a URL that does not exist. The obligation is not softened, only moved — 
 file says whether its entry requires an address, and every Capability answered over HTTP does.
 
 What else an entry carries is the business of that same file — which Actions a Worker accepts,
-which indicators it publishes, which Task types it answers, which events it publishes and to which
+which metrics it publishes, which Task types it answers, which events it publishes and to which
 broker — and each of those files extends
 [schemas/capability-entry.json](../schemas/capability-entry.json) with what its own surface needs.
 This file fixes only the envelope they share.

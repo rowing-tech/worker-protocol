@@ -3,7 +3,7 @@
 > How an organization runs many small systems without a central one owning their data. Each system
 > is a **Worker**: it keeps its own state and stays authoritative over it. What it offers outward is
 > **Events it publishes** through a broker, and a small **Worker API it answers when polled** — a
-> Descriptor of what it implements, then health, indicators, the Actions it accepts, the settings
+> Descriptor of what it implements, then health, metrics, the Actions it accepts, the settings
 > it holds, and the Tasks and Alerts it has raised.
 >
 > One node is not a Worker. The **Control Tower** knows who exists, what each offers and how each
@@ -42,10 +42,10 @@ argument earns each of these in turn.
 |---|---|
 | **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
-| **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, indicators, actions, alerts, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
+| **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, metrics, actions, alerts, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
 | **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; the Capabilities it implements, with the schemas of each and, where one answers over HTTP, its address; and the edition of this protocol it speaks. Everything anyone knows about a Worker before calling it is read from here. |
 | **Control Tower** | The one node that is not a Worker — the Tower, for short: the registry and the operator's console. It catalogs what Workers declare in their Descriptors, brokers the Contracts between them, and polls how each is doing. It runs no business logic and holds no Worker's state. |
-| **Indicator** | A named quantity a Worker exposes over a period it declares — cost, volume, outcomes. Health says whether a Worker works; indicators say whether it is worth running. |
+| **Metric** | A named quantity a Worker exposes over a period it declares, with a unit and no valuation — cost, volume, outcomes. Health says whether a Worker works; metrics say what it did. |
 | **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker that the protocol knows of; whatever else a Worker answers is its own business, and no console, catalog or Contract sees it. |
 | **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Skill it names. Closes only when the condition disappears. |
 | **Skill** | What a Worker or a person knows how to do in its domain, stated as the Task types it answers, each with its payload and response schemas. What a Task requires, and what the Tower catalogs by. |
@@ -55,7 +55,8 @@ argument earns each of these in turn.
 | **Event** | A Fact published for anyone to consume, with a shape declared in the Tower. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
 | **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
-| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, indicators, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
+| **Indicator** | A metric read against a level configured into the Worker, carrying a status beside the value. Crossing the level raises an Alert. Not a Capability of its own: a shape inside metrics. |
+| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, metrics, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
 | **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
 | **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
@@ -139,7 +140,7 @@ flowchart LR
   subgraph tower["The Control Tower — registry & operator console"]
     direction TB
     registry["who exists — descriptors, skills,<br/>services, contracts"]
-    console["operator UI:<br/>health, indicators, alerts,<br/>settings, actions"]
+    console["operator UI:<br/>health, metrics, alerts,<br/>settings, actions"]
   end
   source["Upstream source"]
   caller["Any caller"]
@@ -179,17 +180,37 @@ deduplicates by event id.
 
 **The Worker API.** Everything a worker exposes for reading or acting on, over HTTP and JSON
 Schema: its **Descriptor**, which says which of the rest it serves and where; its **health**, the
-minimal answer to a poll, whose absence is the signal; its
-**indicators**; its **Actions**, each with a schema and an address to post to; its **settings**,
-when it accepts `configure` — read here, written only through that Action; its **Tasks**, exposed
-as current state so a late consumer sees what is open and not only what happened; and its
-**Alerts**. The Tower is one client of this API; other workers are the main ones.
+minimal answer to a poll, whose absence is the signal; its **metrics**; its **Actions**, each with a
+schema and an address to post to; its **settings**, when it accepts `configure` — read here, written
+only through that Action; its **Tasks**, exposed as current state so a late consumer sees what is
+open and not only what happened; and its **Alerts**. The Tower is one client of this API; other
+workers are the main ones.
 
-**Indicators, concretely.** Health says whether a worker works; indicators say whether it is worth
-running. They are few, named, and carry the period they cover — a day, a month — because the
-question they answer is a progression and a cost, not an instant — a recruiting worker's, say:
-tokens consumed, hires resolved, hires failed, how many had to be handed to a person. A worker
-declares which it publishes and what each means.
+**Metrics, concretely.** Health says whether a worker works; metrics say what it did. They are few,
+named, and carry the period they cover — a day, a month — because the question they answer is a
+progression and a cost, not an instant — a recruiting worker's, say: tokens consumed, hires
+resolved, hires failed, how many had to be handed to a person. A worker declares which it publishes
+and what each means. None of them carries a judgment: they are quantities, and a quantity is a fact
+the worker derived and is authoritative over.
+
+**An indicator is a metric read against a level**, and the word is kept for that. Tokens consumed
+over a month is a number; *tokens consumed, against the level somebody set* is the thing that says
+whether the worker is worth running. So a level is configured into the worker, through the one
+mechanism that writes into one — the `configure` Action — and the worker publishes a status beside
+the value, in health's shape, so that a console rendering a check renders an indicator. A value
+outside its level is an Alert: a condition an operator should see, asking no Claim. Reading a
+quantity against a level needs the history behind it, the history is the worker's, and the Tower
+keeps nothing on a worker's behalf — which is why both halves live in the worker.
+
+A Contract is where a level comes from, one step removed: an operator, or the Tower acting on a
+Contract it brokered, writes it in as a setting. The distance is deliberate. A Contract is made over
+a Service and a Service may span several workers, so no one worker's status is the Contract's
+verdict; and a level a consumer agreed to is not a fact the worker derived, so it should arrive as
+something somebody wrote rather than something the worker claims to know. A worker never reads a
+Contract. What it can do is split a metric by the Contract each request came under — it sees the
+credential, so it is authoritative over that — which is what makes any consolidation above it
+possible. Whether a Contract carries service levels at all is [undecided](undecided.md), and
+[spec/metrics.md](../spec/metrics.md) carries the rest of the questions.
 
 **Health, concretely.** The shape is the one the cloud platforms and the IETF health-check draft
 converge on — one top-level status and a map of named checks — with our own three values:
@@ -236,7 +257,7 @@ a route the spec fixes, and it is the first thing anyone reads about it: the Wor
 **Capabilities** it implements, each with the schemas it answers with and, where it answers over
 HTTP, the address it answers at; and its versions.
 
-A Capability is a part of this protocol — health, indicators, actions with settings inside them,
+A Capability is a part of this protocol — health, metrics, actions with settings inside them,
 alerts, tasks, events — and the list is closed; the spec names them. The word follows the
 convention of LSP, MCP and WebDriver, where *capabilities* already means exactly this. A prefix is
 reserved for a Worker to declare something of its own without breaking verification: a verifier
@@ -345,7 +366,7 @@ operate it — same mechanism, no special path.
 Because the Tower keeps no copy, a worker that accepts `configure` also exposes its current settings
 for reading on the Worker API — otherwise the console has no way to show a form with anything in
 it, and the only reader of a worker's configuration would be the worker itself. Reading is a
-surface like health or indicators; writing stays an Action.
+surface like health or metrics; writing stays an Action.
 
 ## The constraints that keep it honest
 
@@ -371,7 +392,7 @@ A telemetry worker on Cloudflare polls a GPS source every minute, derives motion
 — movement, stops — and publishes them as events. It detects silence itself, with its own timer
 over indexed state, and publishes `signal.lost` when a vehicle has gone quiet past a threshold. It
 exposes health to the Tower — whether the GPS source answered, whether the broker took its last
-publish — and indicators over the day: how many vehicles reported, how many fell silent, how many
+publish — and metrics over the day: how many vehicles reported, how many fell silent, how many
 of those came back on their own. It raises no Tasks and does not know who listens.
 
 A fleet operations app on Convex subscribes to those events and derives its own facts: trips, and

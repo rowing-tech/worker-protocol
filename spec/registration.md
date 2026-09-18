@@ -80,7 +80,7 @@ What a Worker answers a caller it cannot read is ENDP-29's — `401`, with the c
 `forbidden`. Both are `reject`: ENDP-28 forbids the caller from retrying either.
 
 A Worker may answer more than REG-21 requires. Nothing here forbids serving a Descriptor, a health
-answer or a set of indicators to a caller presenting nothing at all: a Worker that owns its origin
+answer or a set of metrics to a caller presenting nothing at all: a Worker that owns its origin
 root and serves the well-known URI of RFC 8615 openly is discoverable from a bare hostname, which
 DESC-3 makes possible and which is worth something, at the cost of publishing the address of every
 surface it has. That trade belongs to the Worker.

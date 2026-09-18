@@ -17,7 +17,7 @@ trying.
 
 Two halves, and a worker may implement one or both:
 
-- **Operate.** A worker exposes its health and its indicators, raises alerts, and declares the
+- **Operate.** A worker exposes its health and its metrics, raises alerts, and declares the
   actions it accepts, each with the schema of its input. An operator acts on it from a console
   without knowing what is inside.
 - **Delegate.** A worker takes tasks it did not create, claims one under a lease, and answers.

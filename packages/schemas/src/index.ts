@@ -45,7 +45,7 @@ export const registry = z.registry<{ id: string }>();
  * list a verifier checks an undotted name against. `spec/README.md`'s table is a reading aid.
  */
 export const capabilityName = z
-  .enum(["health", "indicators", "actions", "alerts", "tasks", "events"])
+  .enum(["health", "metrics", "actions", "alerts", "tasks", "events"])
   .meta({
     title: "Capability name",
     description:
@@ -97,7 +97,7 @@ export const qualifiedName = z
       "label order, followed by a local part — `tech.rowing.fleet.verify-vehicle`. At least three " +
       "labels, lowercase. NAME-8 asks that the domain be one you control and no schema can check " +
       "it. This does NOT apply to a name read only inside the Descriptor that declared it: a " +
-      "vendor Capability (DESC-14), an Action, an indicator.",
+      "vendor Capability (DESC-14), an Action, a metric.",
   });
 
 /**

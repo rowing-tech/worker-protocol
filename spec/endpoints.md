@@ -307,7 +307,7 @@ terminates.
 **ENDP-24 (required). An unrecognized filter parameter is `400`, and is never ignored.**
 
 One envelope for every collection is the same purchase as one verb: a client that can page through
-a Worker's Tasks can page through its Alerts and its indicators without being told how, and a
+a Worker's Tasks can page through its Alerts and its metrics without being told how, and a
 verifier checks paging once for the whole protocol rather than once per surface. ENDP-21 keeps that
 cheap. A cursor a caller may construct is a cursor whose format the Worker can never change and
 whose meaning it must honor forever, because somewhere a client is building one out of a timestamp
@@ -328,7 +328,7 @@ That is a good reason and it is not a contract: a Worker that does honor a reque
 its cap, breaks nothing and no caller can tell. It answers to its own operators for the choice.
 
 Filters belong to the surfaces that have them — which Tasks a consumer may claim, which period an
-indicator covers — and each file names its own. ENDP-24 is about the one a Worker does not know,
+metric covers — and each file names its own. ENDP-24 is about the one a Worker does not know,
 and it is strict for a reason: a filter that is dropped silently answers with more than the caller
 asked for, in a shape it will happily parse. A caller that filtered in order to stay inside a
 Contract, or to avoid work it may not take, is handed exactly what it excluded and no sign that

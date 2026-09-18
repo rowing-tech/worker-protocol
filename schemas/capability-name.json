@@ -4,7 +4,7 @@
   "type": "string",
   "enum": [
     "health",
-    "indicators",
+    "metrics",
     "actions",
     "alerts",
     "tasks",

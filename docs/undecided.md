@@ -24,7 +24,13 @@ back — so that when the answer lands, both places know.
   or Tasks nobody must claim. Nothing implements them yet. Listed in
   [spec/alerts.md](../spec/alerts.md).
 - **Who consolidates the cost and elapsed time a Response carries.** Nothing does today; the
-  consumer's own Indicators are the obvious candidate.
+  consumer's own metrics, split by the Contract each Response came under, are the obvious
+  candidate. Listed in [spec/metrics.md](../spec/metrics.md).
+- **Whether a Contract carries service levels**, and how a level agreed over a Service reaches the
+  settings of the Workers behind it. A metric is read against a level configured into the Worker,
+  and a Service may span several Workers, so no one Worker's status is the Contract's verdict. This
+  joins *what a Contract carries beyond credentials*, above. Listed in
+  [spec/metrics.md](../spec/metrics.md).
 - **Whether the consumer names the Action or posts a fact the owner maps to one.** The second is
   more decoupled; the first is simpler.
 - **Whether a stale Response is refused by lease time or by a fencing token.** A precondition
