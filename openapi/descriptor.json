@@ -1,0 +1,214 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "worker-protocol — the Descriptor",
+    "version": "0.1",
+    "description": "The one route this protocol fixes, and the whole of what every Worker owes. Every other address is declared in the document this answers (ENDP-1).",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "{baseUrl}",
+      "description": "DESC-3. The Worker's enrolled base URL: one absolute `https` URL, with or without a path.",
+      "variables": {
+        "baseUrl": {
+          "default": "/",
+          "description": "Read from the Worker's Descriptor and resolved per DESC-12. Never assembled by a caller (ENDP-1). The default is `/` and not a host on purpose: a client that was never given an address should fail at its own origin rather than reach somebody else's."
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/.well-known/worker-protocol": {
+      "get": {
+        "summary": "Read the Descriptor",
+        "description": "DESC-5. Reading a Descriptor is a GET and changes nothing. REG-21 has the Worker accept the credential recorded for it here as on every other address.",
+        "parameters": [
+          {
+            "name": "Worker-Protocol-Capability-Version",
+            "in": "header",
+            "required": false,
+            "description": "ENDP-6. The Capability version the caller expects. A Worker that cannot answer it refuses the request whole with `400` and `unsupported_version`, and never substitutes its own.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DESC-1. The Descriptor.",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/descriptor.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `unsupported_version` (ENDP-6).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `unauthenticated` (REG-3).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `forbidden` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `internal_error` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `unavailable` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

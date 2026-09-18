@@ -48,8 +48,13 @@ export const CLAIMS = [
  * The list is here rather than generated because metrics.md states it in prose and nothing in
  * `schemas/` can: the rule exists precisely because expressing *not one of these names* in a JSON
  * Schema pattern needs a negative lookahead that RE2-backed validators refuse.
+ *
+ * `dimensions` joined the list when `openapi/` gained a parameter of that name to carry the
+ * dimension filters — which is MET-5's own warning arriving: *the list will grow, and when it does
+ * it may strand a Worker that declared the name first.* Nothing declares it today, and this is
+ * where a Worker that did would be told.
  */
-const OWN_PARAMETERS = ["metric", "granularity", "from", "to", "by", "cursor"];
+const OWN_PARAMETERS = ["metric", "granularity", "from", "to", "by", "cursor", "dimensions"];
 
 type Declaration = {
   unit: string;

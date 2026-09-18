@@ -70,6 +70,13 @@ jobs:
       - name: prose holds the line width biome.jsonc states
         run: pnpm prose:lint
 
+      # openapi/ is normative for the surface and is generated AND committed, for the reason
+      # schemas/ is: an artifact derived from a source is only trustworthy if something compares
+      # the two. Its source is packages/schemas/src/surfaces.ts, where every verb, parameter,
+      # header and refusal cites the rule it encodes.
+      - name: openapi/ matches surfaces.ts
+        run: pnpm openapi:check
+
       # The verifier needs the rule universe at runtime and is published to npm, where spec/
       # does not travel with it — so packages/conformance/rules.json is generated AND
       # committed, exactly like schemas/, and for the same reason. This regenerates it from

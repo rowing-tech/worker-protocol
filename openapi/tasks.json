@@ -1,0 +1,233 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "worker-protocol — tasks, the reading address",
+    "version": "0.1",
+    "description": "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "{address}",
+      "description": "TASK-1. The reading address the `tasks` entry declares, resolved per DESC-12. The address a claim is posted to is a different declared address and has its own document.",
+      "variables": {
+        "address": {
+          "default": "/",
+          "description": "Read from the Worker's Descriptor and resolved per DESC-12. Never assembled by a caller (ENDP-1). The default is `/` and not a host on purpose: a client that was never given an address should fail at its own origin rather than reach somebody else's."
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Read the open Tasks",
+        "description": "TASK-5. Listing a Worker's open Tasks does not consume them, which is why this is a GET and why the claim is not (ENDP-2, ENDP-3).",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "TASK-8. One of the Task types the entry declares. A type it does not declare is `400`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "ENDP-21. Opaque, produced only by the Worker, never constructed by a caller. Absent from an answer at the end of the collection.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Worker-Protocol-Capability-Version",
+            "in": "header",
+            "required": false,
+            "description": "ENDP-6. The Capability version the caller expects. A Worker that cannot answer it refuses the request whole with `400` and `unsupported_version`, and never substitutes its own.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "TASK-5. Tasks whose conditions hold, in the shared page envelope.",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/task-page.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `invalid_parameter` (TASK-8), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `unauthenticated` (REG-3).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `forbidden` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `internal_error` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `unavailable` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

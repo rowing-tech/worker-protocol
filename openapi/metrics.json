@@ -1,0 +1,329 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "worker-protocol — metrics",
+    "version": "0.1",
+    "description": "Named quantities accumulated over declared periods. The Descriptor is the catalog: this surface answers values and never lists what exists (MET-2).",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "{address}",
+      "description": "MET-1. The address the `metrics` entry declares, resolved per DESC-12.",
+      "variables": {
+        "address": {
+          "default": "/",
+          "description": "Read from the Worker's Descriptor and resolved per DESC-12. Never assembled by a caller (ENDP-1). The default is `/` and not a host on purpose: a client that was never given an address should fail at its own origin rather than reach somebody else's."
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Read one metric",
+        "description": "MET-8. A read names one metric and answers one series. MET-18: a dimension a read neither fixes nor breaks down by is accumulated over, so an unfiltered answer is the total and never a slice the Worker chose.",
+        "parameters": [
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "description": "MET-8. One of the metrics the entry declares. One not declared is `404`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "description": "MET-8. Required where the metric declares more than one, and omittable where it declares exactly one.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "hour",
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "MET-11. Inclusive. Absent, the start of the current bucket.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "MET-11. Exclusive — the interval is half-open, so two adjacent reads add up. Absent, the instant the Worker answers.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+            }
+          },
+          {
+            "name": "by",
+            "in": "query",
+            "required": false,
+            "description": "MET-19. Break down by a dimension, and only by one that declared its set of values: over a free dimension nothing would bound the number of series.",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$"
+              }
+            }
+          },
+          {
+            "name": "dimensions",
+            "in": "query",
+            "required": false,
+            "description": "MET-16. Each dimension the metric declares, fixed by a parameter named exactly as the dimension. The names are the Worker's own and are read from its Descriptor, so they are not enumerated here. A value outside a declared set is `400`; where a dimension declares no set, any string is accepted and may match nothing.",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "ENDP-21. Opaque, produced only by the Worker, never constructed by a caller. Absent from an answer at the end of the collection.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Worker-Protocol-Capability-Version",
+            "in": "header",
+            "required": false,
+            "description": "ENDP-6. The Capability version the caller expects. A Worker that cannot answer it refuses the request whole with `400` and `unsupported_version`, and never substitutes its own.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MET-14. Buckets ascending by start, in the shared page envelope.",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/metric-page.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `invalid_parameter` (MET-10), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `unauthenticated` (REG-3).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `forbidden` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `not_found` (MET-9).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `internal_error` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "ENDP-25. The shared error envelope, carrying one of: `unavailable` (ENDP-29).",
+            "headers": {
+              "Worker-Protocol-Edition": {
+                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+                }
+              },
+              "Worker-Protocol-Capability-Version": {
+                "description": "ENDP-5. The Capability version that produced this answer.",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/error.json"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

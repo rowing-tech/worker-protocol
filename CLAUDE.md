@@ -12,6 +12,7 @@ pnpm schemas:check        compare schemas/ against the Zod source, byte for byte
 pnpm spec:lint            check the rule-id convention spec/README.md states
 pnpm verifiability:lint   check every rule is classified in conformance/verifiability.md
 pnpm prose:lint           check hand-wrapped Markdown holds the line width biome.jsonc states
+pnpm openapi:check        compare openapi/ against the surface declaration
 pnpm rules:check          compare packages/conformance/rules.json against spec/
 pnpm typecheck            type-check scripts/
 pnpm -r build             compile what each package publishes
@@ -19,7 +20,7 @@ pnpm -r typecheck         type-check every workspace project, generators and tes
 pnpm test                 both suites: the fixtures, and the verifier against the reference worker
 ```
 
-Those ten are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
+Those eleven are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
 they pass, so run them rather than reporting work as done and leaving them to somebody else.
 
 **`pnpm -r build` comes before `pnpm -r typecheck` and the order is not a preference.**
@@ -33,6 +34,7 @@ Three more rewrite a generated artifact from its source and are equally free to 
 
 ```
 pnpm schemas:generate     write schemas/ from the Zod objects in packages/schemas
+pnpm openapi:generate     write openapi/ from packages/schemas/src/surfaces.ts
 pnpm rules:generate       write packages/conformance/rules.json from spec/
 pnpm check:fix            apply biome's formatting and its safe fixes
 ```
@@ -49,13 +51,14 @@ asked, as the user's own instructions say.
 
 ## A generated artifact belongs in the same commit as the source that produces it
 
-Two things here are generated **and** committed, and CI regenerates each in memory and fails when
+Three things here are generated **and** committed, and CI regenerates each in memory and fails when
 what is in the tree differs.
 
 | Artifact | Produced from | Regenerate with |
 |---|---|---|
 | `schemas/` | the Zod objects in `packages/schemas` | `pnpm schemas:generate` |
-| `packages/conformance/rules.json` | `spec/` and `conformance/verifiability.md` | `pnpm rules:generate` |
+| `openapi/` | `packages/schemas/src/surfaces.ts` | `pnpm openapi:generate` |
+| `packages/conformance/rules.json` | `spec/`, `conformance/verifiability.md` and `surfaces.ts` | `pnpm rules:generate` |
 
 Editing a Zod object without regenerating leaves a commit that cannot pass, and the two files then
 disagree about what a Worker must send — with prose deferring to a schema that no longer says what

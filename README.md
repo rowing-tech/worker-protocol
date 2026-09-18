@@ -30,12 +30,21 @@ already known, catalogued and reachable. What it adds afterwards, it adds at its
 
 ## Normative and explanatory
 
-Three layers, and only the first two bind:
+Four layers, and only the first three bind:
 
 - **`schemas/`** is normative for *shape* — what a request and a response carry.
-- **`spec/`** is normative for *behavior* — the endpoints, the lifecycles, the status codes, which
-  no schema can state. Where a sentence there and a schema disagree, the schema wins.
-- **`docs/`** explains why the other two look the way they do, and binds nobody.
+- **`openapi/`** is normative for *the surface* — which verb answers at which declared address,
+  which parameters and headers travel, and which code answers which refusal. Where a sentence in
+  `spec/` and a document here disagree, the document wins, on the same reasoning that has the
+  schema win over prose.
+- **`spec/`** is normative for *behavior* that neither can state — the lifecycles, the ordering,
+  what closes a Task, when a Worker may answer at all.
+- **`docs/`** explains why the other three look the way they do, and binds nobody.
+
+`openapi/` holds one document per declared address rather than per Capability, because an address
+is a *server* to every generator and a path appended to one is an address somebody assembled —
+which ENDP-1 says no reader does. `tasks` therefore has two. `events` has none: it travels over a
+broker this protocol declines to name, so there is no call to describe.
 
 Every section of `spec/` carries a maturity marker, so that implementing this in parts is a fact
 you can read rather than a negotiation:
@@ -53,6 +62,7 @@ A worker states which sections it implements, and the conformance tool reports t
 ```
 spec/            the normative prose: endpoints, lifecycles, envelopes — one file per subject
 schemas/         the JSON Schemas, generated and versioned here — the normative artifact
+openapi/         one document per declared address, generated from the surface declaration
 conformance/     fixtures independent of any language, and the register of what a check can reach
 packages/
   schemas/       the Zod objects that generate schemas/

@@ -187,8 +187,14 @@ when an envelope is present and parses; the status code wins when it is not; and
 be classified by neither is `reject`.**
 
 The codes, and the status each one is answered with — which is the half of ENDP-26 no schema can
-state, because a status code is not in the body. The class column is a reading aid;
-[schemas/error.json](../schemas/error.json) is normative and carries the class with the code.
+state, because a status code is not in the body.
+
+**This table is a reading aid.** [schemas/error.json](../schemas/error.json) is normative for the
+code and the class it carries, and [openapi/](../openapi/) is normative for the status, generated
+from the surface declaration in `packages/schemas/src/surfaces.ts`. It is written out here because
+the argument beneath each code — why `502` and `504` are two of them, why `schema_mismatch` is not
+`malformed_request` — is worth a reader's time, and because a reader without a toolchain, whom
+`schemas/` exists to serve, would otherwise not be able to read the vocabulary at all.
 
 | Code | Status | Class | The condition, and the rule that already commits to it |
 |---|---|---|---|

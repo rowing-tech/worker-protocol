@@ -1,5 +1,6 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { CODES } from "../../schemas/src/surfaces.ts";
 import type { Rule } from "./report.ts";
 
 /**
@@ -82,28 +83,20 @@ if (missing.length > 0) {
 rules.sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }));
 
 /**
- * ENDP-26: a code fixes one status and one class.
+ * ENDP-25, ENDP-26 — the closed code vocabulary, with the status each code is answered with.
  *
- * `schemas/error.json` carries the code with its class, which is half of it; the status a code is
- * answered with is not in the body and no schema can assert it, so endpoints.md holds that half in
- * a table. It is read from there rather than copied into the verifier, because a hand-written copy
- * of a normative table is a second source that drifts — the failure `schemas/` is generated to
- * avoid, one document along.
+ * Read from `surfaces.ts` rather than parsed out of a Markdown table with a regular expression.
+ * `schemas/error.json` carries the code with its class, which is the half a schema can assert; the
+ * status is not in the body, and it now lives beside the rest of the surface instead of in prose
+ * that a script had to scrape. `spec/endpoints.md` keeps the table as a reading aid and says so.
+ *
+ * The import is a relative path into the other package's SOURCE, which is deliberate and narrow:
+ * this file is toolchain, never reaches `dist/`, and reading the built package instead would make
+ * `pnpm rules:check` depend on a build that CI runs two steps later.
  */
-const endpoints = await readFile(join(SPEC, "endpoints.md"), "utf8");
-const codes: { code: string; status: number; class: "reject" | "retry" }[] = [];
-for (const [, code, status, klass] of endpoints.matchAll(
-  /^\| `([a-z_]+)` \| `(\d{3})` \| `(reject|retry)` \|/gm,
-)) {
-  codes.push({ code, status: Number(status), class: klass as "reject" | "retry" });
-}
-
-if (codes.length === 0) {
-  console.error("spec/endpoints.md holds no code table, or it no longer has the expected shape.");
-  process.exit(1);
-}
-
-codes.sort((a, b) => a.code.localeCompare(b.code));
+const codes = [...CODES]
+  .map(({ code, status, class: klass }) => ({ code, status, class: klass }))
+  .sort((a, b) => a.code.localeCompare(b.code));
 
 /**
  * Which rule a failure at a given place in a document belongs to.
