@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { DECLARATIONS as ACTIONS, createActions } from "./actions.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
 
 /**
@@ -49,7 +50,11 @@ export function createWorker(options: WorkerOptions = {}): Server {
     descriptor: `${base}.well-known/worker-protocol`,
     health: `${base}health`,
     metrics: `${base}metrics`,
+    actions: `${base}actions`,
+    settings: `${base}settings`,
   };
+
+  const actions = createActions();
 
   const descriptor = {
     id,
@@ -74,6 +79,10 @@ export function createWorker(options: WorkerOptions = {}): Server {
         timeZone: TIME_ZONE,
         metrics: DECLARATIONS,
       },
+      // ACT-1: one address for the Capability, and the Actions this Worker accepts keyed by name.
+      // ACT-5 names the Action in a parameter there rather than in a path segment, so no reader
+      // ever assembles an address.
+      actions: { version: 1, address: "../actions", actions: ACTIONS },
     },
   };
 
@@ -103,7 +112,14 @@ export function createWorker(options: WorkerOptions = {}): Server {
 
     const query = new URL(request.url ?? "/", "http://worker.invalid").searchParams;
 
-    if (path !== routes.descriptor && path !== routes.health && path !== routes.metrics) {
+    const known = [
+      routes.descriptor,
+      routes.health,
+      routes.metrics,
+      routes.actions,
+      routes.settings,
+    ];
+    if (!known.includes(path)) {
       // REG-7: a Worker does not answer 404 in place of 401 on an address it serves — and this is
       // the converse, an address it genuinely does not serve.
       return reject(404, "not_found", "No such address.");
@@ -116,6 +132,35 @@ export function createWorker(options: WorkerOptions = {}): Server {
       if (presented !== `Bearer ${options.credential}`) {
         return reject(401, "unauthenticated", "No.");
       }
+    }
+
+    // ENDP-3: everything that changes state is POST, on an address declared for the purpose. The
+    // Actions address is the only one here that does, and ENDP-2 keeps every other a GET.
+    if (path === routes.actions) {
+      if (request.method !== "POST") {
+        return reject(404, "not_found", "No such address.");
+      }
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        const key = request.headers["idempotency-key"];
+        const answer = actions.perform(
+          query.get("action"),
+          Buffer.concat(chunks).toString("utf8"),
+          typeof key === "string" ? key : undefined,
+        );
+        if ("code" in answer) {
+          return send(answer.status, {
+            code: answer.code,
+            message: answer.message,
+            class: "reject",
+          });
+        }
+        // ACT-10, ACT-11: `200` with the declared result, `204` where none is declared, `202`
+        // where the Action said it does not finish here.
+        return send(answer.status, answer.body);
+      });
+      return;
     }
 
     // ENDP-2 and DESC-5: reading is GET, and a GET changes nothing a later reader could observe.
@@ -131,6 +176,9 @@ export function createWorker(options: WorkerOptions = {}): Server {
     if (typeof asked === "string" && asked !== "1") {
       return reject(400, "unsupported_version", "This Worker answers version 1.");
     }
+
+    // ACT-15: a GET of the reading address answers a document `configure` would accept.
+    if (path === routes.settings) return send(200, actions.settings());
 
     // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. A filter dropped in
     // silence answers with MORE than the caller asked for, in a shape it will happily parse — and

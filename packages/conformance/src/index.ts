@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Attribution } from "./attribution.ts";
+import { checkActions } from "./checks/actions.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkHealth } from "./checks/health.ts";
@@ -33,6 +34,15 @@ export type VerifyOptions = {
   baseUrl: string;
   /** Presented as `Authorization: Bearer <token>` (REG-3). */
   credential?: string;
+  /**
+   * Whether the verifier may POST to this Worker.
+   *
+   * Every surface but `actions` is read, and a read establishes what it establishes and leaves the
+   * Worker as it found it. An Action is an operation somebody's operators chose to expose, so the
+   * default is `false`: a tool pointed at a Worker to inspect it does not perform work on it
+   * uninvited, and the rules that need a POST report `notExercised` with that as the reason.
+   */
+  mayPerform?: boolean;
   /** For tests and for a caller that needs its own agent. Defaults to the global `fetch`. */
   fetch?: typeof globalThis.fetch;
 };
@@ -52,11 +62,26 @@ export async function verify(options: VerifyOptions): Promise<Report> {
 
   const descriptor = await readDescriptor(options.baseUrl, byId, attribution, tape);
   const results: Result[] = [...descriptor.results];
+  // Addresses a Capability declares INSIDE its own entry rather than beside it — `configure`'s
+  // reading address is the first. ENDP-1 judges what the verifier called against what the
+  // Descriptor declared, so an address it could not see would read as the Worker's fault.
+  const nested: string[] = [];
 
   if (descriptor.document !== null && descriptor.url !== null) {
     results.push(
       ...(await callSurfaces(descriptor.surfaces, descriptor.url, byId, tape, options.credential)),
     );
+    const performed = await checkActions(
+      descriptor.document.capabilities.actions,
+      descriptor.surfaces.find((s) => s.capability === "actions")?.url ?? null,
+      descriptor.url,
+      byId,
+      attribution,
+      tape,
+      options.mayPerform === true,
+    );
+    results.push(...performed.results);
+    nested.push(...performed.addresses);
     results.push(
       ...(await checkMetrics(
         descriptor.document.capabilities.metrics,
@@ -81,6 +106,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   const declared = new Set([
     ...(descriptor.url === null ? [] : [descriptor.url]),
     ...descriptor.surfaces.map((s) => s.url),
+    ...nested,
   ]);
   results.push(...judgeTranscript(tape.exchanges, codes, declared, byId));
 

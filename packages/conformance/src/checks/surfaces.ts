@@ -19,6 +19,18 @@ export const CLAIMS = [
 
 export type Surface = { capability: string; url: string };
 
+/**
+ * Capabilities whose surface is written rather than read.
+ *
+ * DESC-18's witness is a declared address answering `404`, and this sweep finds it with a GET —
+ * which is the right question for every surface but one. ENDP-3 puts everything that changes state
+ * behind a POST, so the Actions address answers `404` to a GET while serving perfectly well, and a
+ * check that read that as an undeclared surface would fail a conformant Worker on the one
+ * Capability that does anything. `checks/actions.ts` judges that address instead, with the POST it
+ * had to ask permission for.
+ */
+const WRITTEN = new Set(["actions"]);
+
 export async function callSurfaces(
   surfaces: Surface[],
   descriptorUrl: string,
@@ -41,6 +53,7 @@ export async function callSurfaces(
   const answered: { capability: string; url: string; body: string }[] = [];
 
   for (const surface of surfaces) {
+    if (WRITTEN.has(surface.capability)) continue;
     let answer: Awaited<ReturnType<Transcript["send"]>>;
     try {
       answer = await transcript.send(surface.url, `the \`${surface.capability}\` address`);

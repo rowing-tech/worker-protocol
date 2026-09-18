@@ -11,7 +11,6 @@ import { type Exchange, isJson } from "../transcript.ts";
  */
 export const CLAIMS = [
   "ENDP-1",
-  "ENDP-3",
   "ENDP-4",
   "ENDP-5",
   "ENDP-19",
@@ -110,12 +109,6 @@ export function judgeTranscript(
     }
   }
 
-  // ENDP-3: everything that changes state is POST, on an address declared for the purpose. No
-  // surface this protocol defines changes state until `actions` lands, so there is nothing to
-  // observe — which is `notExercised` and not a pass. A verifier that counted an absent surface as
-  // compliance would be vouching for code nobody has written.
-  say("ENDP-3", "notExercised", "no surface this protocol defines changes state until `actions`");
-
   // ENDP-19 recommends that a Worker cap the page size rather than negotiating it. The witness is
   // a collection longer than the cap, which is a cursor coming back; short of that there is
   // nothing to see, and a Worker whose collections all fit in one page has not been observed
@@ -128,7 +121,7 @@ export function judgeTranscript(
   else say("ENDP-19", "notExercised", "no collection was long enough to be capped");
 
   for (const id of CLAIMS) {
-    if (id === "ENDP-3" || id === "ENDP-19") continue;
+    if (id === "ENDP-19") continue;
     const why = failures.get(id);
     if (why === undefined) say(id, "passes");
     else say(id, "fails", why.length === 1 ? why[0] : `${why.length} responses: ${why[0]}, …`);

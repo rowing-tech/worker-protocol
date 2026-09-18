@@ -37,7 +37,7 @@ describe("the reference worker, verified", () => {
   });
 
   it("reads the Descriptor and reports on every rule in the specification", async () => {
-    const report = await verify({ baseUrl: worker.url, credential: "a-token" });
+    const report = await verify({ baseUrl: worker.url, credential: "a-token", mayPerform: true });
 
     expect(report.edition).toBe("0.1");
 
@@ -48,7 +48,7 @@ describe("the reference worker, verified", () => {
   });
 
   it("passes every rule it judges but DESC-3, which the harness cannot satisfy", async () => {
-    const report = await verify({ baseUrl: worker.url, credential: "a-token" });
+    const report = await verify({ baseUrl: worker.url, credential: "a-token", mayPerform: true });
 
     // Derived from the report rather than restated here. A hand-written list of the rules this
     // verifier judges is a second source that drifts, and it drifts SILENTLY: a check added
@@ -64,41 +64,19 @@ describe("the reference worker, verified", () => {
     expect(failing).toEqual(["DESC-3"]);
   });
 
-  it("judges every rule a tool can observe, but the two nothing has yet provoked", async () => {
-    const report = await verify({ baseUrl: worker.url, credential: "a-token" });
+  it("judges every rule a tool can observe but the one nothing has provoked", async () => {
+    const report = await verify({ baseUrl: worker.url, credential: "a-token", mayPerform: true });
 
     const observable = report.results.filter((r) => r.rule.reach === "W");
     const unexercised = observable
       .filter((r) => r.verdict === "notExercised")
       .map((r) => r.rule.id);
 
-    // Two kinds of entry, and the list is pinned so that a NEW one is visible rather than quiet.
-    //
-    // ENDP-3 and ENDP-19 have no witness against this Worker at all: nothing here changes state
-    // until it serves `actions`, and every collection fits in one page. Those are honest gaps.
-    //
-    // The rest are a debt with a date on it. spec/actions.md was drafted before its checks were
-    // written and before the reference Worker served an `actions` surface, so ten ACT rules and
-    // the three that actions unblocked — DESC-11, ENDP-15, ENDP-18 — are observable and not yet
-    // observed. This assertion failing was how that landed: it is derived from the report, so a
-    // rule that becomes observable without a check cannot slip past.
-    expect(unexercised).toEqual([
-      "ACT-1",
-      "ACT-2",
-      "ACT-3",
-      "ACT-4",
-      "ACT-6",
-      "ACT-7",
-      "ACT-8",
-      "ACT-12",
-      "ACT-13",
-      "ACT-15",
-      "DESC-11",
-      "ENDP-3",
-      "ENDP-15",
-      "ENDP-18",
-      "ENDP-19",
-    ]);
+    // ENDP-19's witness is a collection longer than a Worker's page cap, and every collection here
+    // fits in one page. It is an honest gap rather than a missing check, and pinning the list is
+    // what makes a NEW one visible: a rule that becomes observable without a check joins this
+    // array and fails the test, which is how the actions draft announced its own debt.
+    expect(unexercised).toEqual(["ENDP-19"]);
   });
 
   it("resolves a declared address against the Descriptor's route, not the base URL", async () => {
@@ -108,30 +86,54 @@ describe("the reference worker, verified", () => {
     // which is the case an absolute `/health` would have got wrong.
     const mounted = await start({ credential: "a-token", basePath: "/fleet/" });
     try {
-      const report = await verify({ baseUrl: mounted.url, credential: "a-token" });
+      const report = await verify({
+        baseUrl: mounted.url,
+        credential: "a-token",
+        mayPerform: true,
+      });
       const verdict = (id: string) => report.results.find((r) => r.rule.id === id)?.verdict;
       expect(verdict("DESC-18")).toBe("passes");
       expect(verdict("HLTH-5")).toBe("passes");
+      expect(verdict("ACT-15")).toBe("passes");
     } finally {
       await mounted.close();
     }
   });
 
   it("says which kind of silence every unclaimed rule is", async () => {
-    const report = await verify({ baseUrl: worker.url, credential: "a-token" });
+    const report = await verify({ baseUrl: worker.url, credential: "a-token", mayPerform: true });
     const counts = tally(report.results);
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
     expect(counts.otherSubject).toBe(21);
     // A rule nothing outside can observe is reported rather than counted as passed.
-    expect(counts.unverified).toBe(16);
+    expect(counts.unverified).toBe(17);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(47);
+    expect(counts.passes).toBe(60);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
     );
+  });
+
+  it("does not POST to a Worker it was not given permission to perform on", async () => {
+    // Every other surface in this protocol is read, and a read leaves the Worker as it found it.
+    // An Action is an operation somebody's operators chose to expose, so the default is that a
+    // tool pointed at a Worker to inspect it does not perform work on it uninvited.
+    const report = await verify({ baseUrl: worker.url, credential: "a-token" });
+    const result = (id: string) => report.results.find((r) => r.rule.id === id);
+
+    for (const id of ["ACT-6", "ACT-7", "ACT-8", "ENDP-3", "ENDP-18"]) {
+      expect(result(id)?.verdict, `${id} should not have been exercised`).toBe("notExercised");
+      expect(result(id)?.detail).toContain("not permitted to POST");
+    }
+
+    // What the Descriptor alone establishes is judged either way: asking permission costs the
+    // rules that need a request, and none of the ones that need only the document.
+    for (const id of ["ACT-1", "ACT-2", "ACT-3", "ACT-4", "ACT-12", "ACT-15", "ENDP-15"]) {
+      expect(result(id)?.verdict, `${id} needs no POST`).toBe("passes");
+    }
   });
 
   it("attributes a fault to the rule that states the thing it broke", async () => {

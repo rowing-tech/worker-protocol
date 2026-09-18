@@ -17,10 +17,10 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 63 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 62 |
 | **H** | Observable only against a Worker arranged to be observed. This is what the reference Worker exists for. | 15 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, or this specification. No tool pointed at a base URL can reach it. | 21 |
-| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; thirteen are not on that list. | 16 |
+| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; fourteen are not on that list. | 17 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 2 |
 
 ## descriptor.md — 25
@@ -122,7 +122,7 @@ this document, and separating them moved six rules.
 | ACT-10 | H | Needs a performance that succeeds |
 | ACT-11 | H | Needs an Action that declares it does not complete, and a performance of it |
 | ACT-12 | W | The idempotency declaration ENDP-15 requires, read off the entry |
-| ACT-13 | W | An Action named `configure`, read off the entry |
+| ACT-13 | N | A Worker that declares `configure` meaning something else is indistinguishable from one that means this. What a name is reserved FOR has no witness; what a Worker must then serve does, and that is ACT-15's |
 | ACT-14 | H | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
 | ACT-15 | W | A GET of the declared reading address answers a document `configure` would accept |
 
