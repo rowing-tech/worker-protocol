@@ -12,6 +12,7 @@
     "schemas:check": "node packages/schemas/src/generate.ts --check",
     "spec:lint": "node scripts/lint-spec.ts",
     "verifiability:lint": "node scripts/lint-verifiability.ts",
+    "prose:lint": "node scripts/lint-prose.ts",
     "rules:generate": "node packages/conformance/src/generate-rules.ts",
     "rules:check": "node packages/conformance/src/generate-rules.ts --check",
     "typecheck": "tsc -p tsconfig.json",

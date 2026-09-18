@@ -11,6 +11,7 @@ pnpm check                write formatting and lint, from biome.jsonc
 pnpm schemas:check        compare schemas/ against the Zod source, byte for byte
 pnpm spec:lint            check the rule-id convention spec/README.md states
 pnpm verifiability:lint   check every rule is classified in conformance/verifiability.md
+pnpm prose:lint           check hand-wrapped Markdown holds the line width biome.jsonc states
 pnpm rules:check          compare packages/conformance/rules.json against spec/
 pnpm typecheck            type-check scripts/
 pnpm -r build             compile what each package publishes
@@ -18,7 +19,7 @@ pnpm -r typecheck         type-check every workspace project, generators and tes
 pnpm test                 both suites: the fixtures, and the verifier against the reference worker
 ```
 
-Those nine are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
+Those ten are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
 they pass, so run them rather than reporting work as done and leaving them to somebody else.
 
 **`pnpm -r build` comes before `pnpm -r typecheck` and the order is not a preference.**

@@ -63,6 +63,13 @@ jobs:
       - name: every rule is classified by what a check would observe
         run: pnpm verifiability:lint
 
+      # biome.jsonc excludes every .md on purpose, and says why: the prose is the artifact and its
+      # line breaks were chosen. That left the width it states a convention with nothing behind
+      # it, and lines over it sat in spec/ unnoticed. This holds hand-wrapped Markdown to the same
+      # lineWidth the code is held to, read from biome.jsonc so the number lives in one place.
+      - name: prose holds the line width biome.jsonc states
+        run: pnpm prose:lint
+
       # The verifier needs the rule universe at runtime and is published to npm, where spec/
       # does not travel with it — so packages/conformance/rules.json is generated AND
       # committed, exactly like schemas/, and for the same reason. This regenerates it from
