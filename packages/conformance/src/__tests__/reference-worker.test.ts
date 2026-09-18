@@ -43,13 +43,33 @@ const ARRANGEMENT = {
   mayClaim: true,
   claimableTask: "task-1",
   unclaimableTask: "task-3",
+  // What no Worker has by accident: a second credential live beside the first, one that
+  // authenticates and carries no right, settings its operators will let go of, and an event it
+  // already published — because a verifier holds no broker and will never see one itself.
+  secondCredential: "b-token",
+  unprivilegedCredential: "c-token",
+  replaceableSettings: true,
+  publishedEvent: {
+    specversion: "1.0",
+    id: "e-1",
+    source: "tech.rowing.worker-protocol.reference",
+    type: "tech.rowing.worker-protocol.vehicle-verified",
+    data: { vehicle: "ABC-123" },
+  },
 };
 
 describe("the reference worker, verified", () => {
   let worker: Awaited<ReturnType<typeof start>>;
 
   beforeAll(async () => {
-    worker = await start({ credential: "a-token" });
+    worker = await start({
+      credential: "a-token",
+      secondCredential: "b-token",
+      unprivilegedCredential: "c-token",
+      // TASK-6: the second credential covers one Task and the first covers all of them, so the
+      // two lists differ and filtering is something a check can actually see happen.
+      visibleTasks: { "b-token": ["task-1"] },
+    });
   });
 
   afterAll(async () => {
@@ -151,7 +171,7 @@ describe("the reference worker, verified", () => {
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(22);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(96);
+    expect(counts.passes).toBe(103);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -198,6 +218,25 @@ describe("the reference worker, verified", () => {
     // And nothing that needed only a POST is held back by the missing arrangement.
     for (const id of ["ACT-6", "ACT-7", "ACT-8", "ENDP-3", "ENDP-18", "REG-31"]) {
       expect(result(id)?.verdict, id).toBe("passes");
+    }
+  });
+
+  it("catches a Worker that answers `healthy` before it has established its state", async () => {
+    // HLTH-4's window is between a process starting and its first evaluation, and only whoever
+    // started it knows a poll is inside one — which is why it is the one arrangement that is a
+    // fact about the moment rather than about the Worker.
+    const booting = await start({ credential: "a-token", readyAfterMs: 10_000 });
+    try {
+      const report = await verify({
+        baseUrl: booting.url,
+        credential: "a-token",
+        arrangement: { justStarted: true },
+      });
+      expect(report.results.find((r) => r.rule.id === "HLTH-4")?.verdict).toBe("passes");
+      // And the summary it gives meanwhile is the one HLTH-4 requires, not a default.
+      expect(report.results.find((r) => r.rule.id === "HLTH-3")?.verdict).toBe("passes");
+    } finally {
+      await booting.close();
     }
   });
 

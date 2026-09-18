@@ -35,6 +35,31 @@ export type WorkerOptions = {
   basePath?: string;
   /** Presented as `Authorization: Bearer <token>` (REG-3). Omitted, the Worker reads openly. */
   credential?: string;
+  /**
+   * A second credential for the same holder, live at the same time (REG-28).
+   *
+   * Without it rotation is a flag day: the old credential stops working at the instant the new one
+   * starts, and every caller holding the old one fails in the window between. Comparing against
+   * two secrets instead of one is the cheapest version that works.
+   */
+  secondCredential?: string;
+  /**
+   * A credential this Worker authenticates and that carries no right here (REG-32).
+   *
+   * It exists so that two refusals can be compared. A refusal that explained itself would be an
+   * oracle: a caller told *that key is expired* has learned the key exists.
+   */
+  unprivilegedCredential?: string;
+  /**
+   * How long before this Worker has established its state (HLTH-4).
+   *
+   * A process that has just started has checked nothing, and `healthy` is a claim it has no basis
+   * for — it is reporting a default. The one window in which a Worker is most likely to be broken
+   * is the window it would otherwise report itself best in.
+   */
+  readyAfterMs?: number;
+  /** Which Tasks each credential covers, for TASK-6. A credential absent from it covers all. */
+  visibleTasks?: Record<string, string[]>;
 };
 
 const DEFAULTS = {
@@ -128,7 +153,16 @@ export function createWorker(options: WorkerOptions = {}): Server {
   // HLTH-2: one status for the Worker and a map of named checks. This Worker depends on nothing,
   // so the map is empty and its summary is the whole of what it has to say — which health.md says
   // is conformant rather than a placeholder.
-  const health = { status: "healthy", checks: {} };
+  //
+  // HLTH-4: until it has established its state it answers `unhealthy`, never `healthy`. Answering
+  // `unhealthy` costs nothing, because ENDP-29 classes the condition `retry` and a poller comes
+  // round again.
+  const started = Date.now();
+  const readyAfter = options.readyAfterMs ?? 0;
+  const health = () =>
+    Date.now() - started < readyAfter
+      ? { status: "unhealthy", checks: {} }
+      : { status: "healthy", checks: {} };
 
   return createServer((request, response) => {
     const path = new URL(request.url ?? "/", "http://worker.invalid").pathname;
@@ -181,12 +215,26 @@ export function createWorker(options: WorkerOptions = {}): Server {
     }
 
     // REG-21: the Worker accepts the credential recorded for it on every address this protocol
-    // defines, the Descriptor's route included. REG-32: the refusal distinguishes nothing.
-    if (options.credential !== undefined) {
-      const presented = request.headers.authorization;
-      if (presented !== `Bearer ${options.credential}`) {
-        return reject(401, "unauthenticated", "No.");
-      }
+    // defines, the Descriptor's route included. REG-28: more than one valid credential for one
+    // holder is live at a time, so replacing one is an overlap and not an outage.
+    const presented = request.headers.authorization;
+    const accepted = [options.credential, options.secondCredential, options.unprivilegedCredential]
+      .filter((token): token is string => token !== undefined)
+      .map((token) => `Bearer ${token}`);
+
+    if (options.credential !== undefined && !accepted.includes(presented ?? "")) {
+      // REG-32: the refusal distinguishes nothing. Not which credential, not which scope, not
+      // which address would have changed the answer — a refusal that explains itself is an oracle.
+      return reject(401, "unauthenticated", "No.");
+    }
+
+    // A credential this Worker reads and that carries no right here. `403` and not `401`, because
+    // ENDP-29 divides them at whether the credential could be READ, and this one could.
+    if (
+      options.unprivilegedCredential !== undefined &&
+      presented === `Bearer ${options.unprivilegedCredential}`
+    ) {
+      return reject(403, "forbidden", "No.");
     }
 
     // ENDP-3: everything that changes state is POST, on an address declared for the purpose. The
@@ -266,9 +314,12 @@ export function createWorker(options: WorkerOptions = {}): Server {
     // ALRT-2: the Alerts whose conditions hold, in the page envelope of ENDP-20.
     if (path === routes.alerts) return send(200, alerts());
 
-    // TASK-5: the Tasks whose conditions hold, in the page envelope of ENDP-20.
+    // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers. The
+    // owner filters rather than the consumer discarding, because a list showing every Task to
+    // every holder of any Contract is a disclosure the owner cannot take back.
     if (path === routes.tasks) {
-      const answer = tasks.read(query);
+      const token = (presented ?? "").replace(/^Bearer /, "");
+      const answer = tasks.read(query, options.visibleTasks?.[token]);
       if ("code" in answer) {
         return send(answer.status, { code: answer.code, message: answer.message, class: "reject" });
       }
@@ -294,7 +345,7 @@ export function createWorker(options: WorkerOptions = {}): Server {
 
     // HLTH-5: the health address answers 200 whatever it reports. A response that is not 200 means
     // the Worker did not answer, not that it is unwell.
-    return send(200, health);
+    return send(200, health());
   });
 }
 

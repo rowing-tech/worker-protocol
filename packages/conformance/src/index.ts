@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Attribution } from "./attribution.ts";
 import { checkActions } from "./checks/actions.ts";
 import { checkAlerts } from "./checks/alerts.ts";
+import { checkArranged } from "./checks/arranged.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkEvents } from "./checks/events.ts";
@@ -84,6 +85,19 @@ export type Arrangement = {
   claimableTask?: string;
   /** A Task the Worker is not currently granting leases on (TASK-11). */
   unclaimableTask?: string;
+  /** A second credential issued to the same holder (REG-8, REG-28, ALRT-6, TASK-6). */
+  secondCredential?: string;
+  /** A credential the Worker authenticates and that carries no right here (REG-32). */
+  unprivilegedCredential?: string;
+  /** That this Worker was started moments ago, so HLTH-4's window is still open. */
+  justStarted?: boolean;
+  /** That the operators will let the verifier write this Worker's settings back (ACT-14). */
+  replaceableSettings?: boolean;
+  /** An event this Worker published, since a verifier holds no broker and sees none (EVT-1). */
+  publishedEvent?: unknown;
+  /** Resolved by `verify` and not by a caller: the addresses the arranged checks need. */
+  healthUrl?: string;
+  actionsUrl?: string;
 };
 
 type Universe = { rules: Rule[]; codes: Code[]; attribution: Attribution };
@@ -170,6 +184,43 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       ...(await checkHealth(
         descriptor.document.capabilities.health,
         descriptor.surfaces.find((s) => s.capability === "health")?.url ?? null,
+        byId,
+        tape,
+      )),
+    );
+  }
+
+  if (descriptor.document !== null) {
+    const surface = (name: string) =>
+      descriptor.surfaces.find((s) => s.capability === name)?.url ?? null;
+    const configure = (
+      descriptor.document.capabilities.actions as
+        | { actions?: Record<string, { readAddress?: string }> }
+        | undefined
+    )?.actions?.configure?.readAddress;
+
+    results.push(
+      ...(await checkArranged(
+        {
+          descriptorUrl: descriptor.url,
+          alertsUrl: surface("alerts"),
+          tasksUrl: surface("tasks"),
+          settingsUrl:
+            configure === undefined || descriptor.url === null
+              ? null
+              : new URL(configure, descriptor.url).toString(),
+          workerId: descriptor.document.id,
+          eventTypes: Object.keys(
+            (descriptor.document.capabilities.events as { events?: Record<string, unknown> })
+              ?.events ?? {},
+          ),
+        },
+        {
+          ...(options.arrangement ?? {}),
+          healthUrl: surface("health") ?? undefined,
+          actionsUrl: surface("actions") ?? undefined,
+        },
+        options.mayPerform === true,
         byId,
         tape,
       )),

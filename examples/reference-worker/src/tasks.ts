@@ -96,7 +96,7 @@ export function createTasks() {
 
   return {
     /** TASK-5, TASK-8 — a read of what is open. */
-    read(query: URLSearchParams): Refusal | Answer {
+    read(query: URLSearchParams, covers?: string[]): Refusal | Answer {
       // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. This surface takes
       // one filter and the cursor of ENDP-20, so everything else is a parameter it cannot know.
       for (const key of query.keys()) {
@@ -111,7 +111,10 @@ export function createTasks() {
         // will not accept — MET-10's division rather than MET-9's.
         return reject(400, "invalid_parameter", `No Task type named ${type} is declared.`);
       }
-      const matching = open().filter((task) => type === null || task.type === type);
+      const matching = open()
+        .filter((task) => type === null || task.type === type)
+        // TASK-6: only what this credential covers. Absent, it covers everything.
+        .filter((task) => covers === undefined || covers.includes(task.id));
 
       // ENDP-19 recommends that a Worker CAP the page size rather than negotiating it, and ENDP-31
       // makes the caller read how many items it received rather than how many it asked for. The
