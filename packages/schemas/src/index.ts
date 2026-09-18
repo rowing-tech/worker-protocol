@@ -29,6 +29,17 @@ import * as z from "zod";
  */
 export const SCHEMA_ID_BASE: string | null = null;
 
+/**
+ * DESC-23 — the edition of worker-protocol these schemas encode.
+ *
+ * It is not this package's version and cannot be read off it. A package version is SemVer and
+ * describes the package; an edition is `MAJOR.MINOR` and describes the protocol, and the two move
+ * for different reasons — a Zod major, a type made more precise, a build fixed, none of which is a
+ * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
+ * two numbers agreeing today is a coincidence rather than a rule.
+ */
+export const EDITION = "0.1";
+
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
   SCHEMA_ID_BASE === null ? `${name}.json` : `${SCHEMA_ID_BASE}/${name}.json`;

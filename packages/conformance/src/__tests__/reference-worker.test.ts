@@ -240,6 +240,25 @@ describe("the reference worker, verified", () => {
     }
   });
 
+  it("verifies nothing against a Worker whose edition it does not hold", async () => {
+    // DESC-25 binds a verifier, and publishing edition 0.1 is what made it ours to obey. A tool
+    // that met an edition it could not read and failed the Worker for it would be blaming a party
+    // for what is the reader's problem — so it verifies nothing and says which of the two is
+    // behind, which is a sentence an operator can act on.
+    const ahead = await start({ edition: "9.0" });
+    try {
+      const report = await verify({ baseUrl: ahead.url });
+
+      expect(report.older).toBe(true);
+      expect(report.edition).toBe("9.0");
+      expect(report.verifierEdition).toBe("0.1");
+      expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
+      expect(report.results[0]?.detail).toContain("holds edition 0.1");
+    } finally {
+      await ahead.close();
+    }
+  });
+
   it("attributes a fault to the rule that states the thing it broke", async () => {
     // Not "the Descriptor is invalid". An operator cannot act on that, and two very different
     // faults read identically — which is what the ids exist to prevent.

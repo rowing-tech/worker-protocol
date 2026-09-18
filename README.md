@@ -67,8 +67,22 @@ does not say, the package has become the standard and the text has started to ro
 
 ## Status
 
-Draft. Nothing is frozen and no version is published. Until the first version is tagged, read no
-section as `stable` whatever its marker says.
+**Edition 0.1.** Every rule carries an id, and from this edition on those ids are fixed: a rewrite
+that could change a verdict takes a new one and withdraws the old, so a conformance report stays
+true however long after it was produced somebody reads it.
+
+Every file in `spec/` is `draft` rather than `stable`, and that is a statement about shape and not
+about trust. Each still carries a `Still open here` section, which is what `stable` would have to
+be empty of. What `draft` means here is what the table above says: shaped and implementable, still
+moving — and moving now costs a withdrawal rather than a silent edit.
+
+What stands behind that: 152 rules, every one classified in
+[conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
+is broken, and every one of the 82 a tool can observe against an ordinary Worker checked by
+[`@worker-protocol/conformance`](packages/conformance) against a Worker answering over a real
+socket. The other 70 are reported rather than passed: 23 need a Worker arranged to be observed, 25
+bind a party who is not a Worker, and 22 have no witness anywhere. A report that counted those as
+compliance would be vouching for something nobody checked.
 
 ## License and name
 

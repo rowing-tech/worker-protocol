@@ -1,6 +1,7 @@
 {
   "name": "@worker-protocol/conformance",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "workerProtocolEdition": "0.1",
   "description": "Point it at a Worker's base URL, get a report of what it complies with",
   "license": "Apache-2.0",
   "type": "module",

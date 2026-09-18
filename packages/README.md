@@ -37,6 +37,13 @@ two numbers being independent: the edition has no PATCH, because
 construction changes no verdict. One rule keeps the two honest: **a release that changes which
 edition a package encodes is never a PATCH.**
 
-Nothing declares an edition yet. `spec/` is `draft`, no version is tagged, and `0.1` appears in the
-text only as an illustration of what a citation looks like — so `@worker-protocol/schemas` sits at
-`0.0.0` and encodes no edition. The declaration lands when the first edition does.
+Both packages now declare `"workerProtocolEdition": "0.1"`, and `@worker-protocol/schemas` exports
+it as `EDITION` so a consumer can read it without parsing a manifest.
+
+**The two `0.1`s in that sentence are unrelated, and the coincidence is worth naming rather than
+leaving to be noticed.** The package version moved from `0.0.0` to `0.1.0` because the rule above
+says a release that changes which edition a package encodes is never a PATCH, and `0.1.0` is the
+smallest number that obeys it. The edition is `0.1` because it is the first. They agree today and
+will diverge at the next release of either — a Zod major, a type made more precise, a build fixed,
+none of which is a change to the protocol. Reading one off the other is the mistake this section
+exists to prevent, and it is never more tempting than on the day they happen to match.

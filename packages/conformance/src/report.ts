@@ -48,6 +48,17 @@ export type Report = {
   baseUrl: string;
   /** The edition the Descriptor declared, or null where none could be read. */
   edition: string | null;
+  /**
+   * The edition this verifier holds.
+   *
+   * DESC-25 binds a verifier rather than a Worker, and publishing an edition is what made it ours
+   * to obey: a tool that does not hold the declared MAJOR verifies nothing and says it is the one
+   * that is behind. A report that left this out would leave a reader unable to tell a Worker that
+   * failed from a verifier that could not read it.
+   */
+  verifierEdition: string;
+  /** Set where DESC-25 stopped the run: this verifier is older than the Worker. */
+  older?: true;
   results: Result[];
 };
 

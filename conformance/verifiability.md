@@ -47,7 +47,7 @@ this document, and separating them moved six rules.
 | DESC-22 | W | `capabilities` is a map, each entry carries a version |
 | DESC-23 | W | Exactly one edition, `MAJOR.MINOR`, parses and orders |
 | DESC-24 | N | Binds whoever edits this specification across editions. No single-Worker witness |
-| DESC-25 | P | Binds a verifier |
+| DESC-25 | P | Binds a verifier, and `packages/conformance` now obeys it: it carries the edition it holds on every report, and stops the run when it does not hold the declared MAJOR. Publishing edition 0.1 is what made this rule ours rather than somebody else's |
 | DESC-26 | N | Admitted exception. A second Descriptor at an address nobody enumerated |
 | DESC-27 | N | Derivation is invisible from outside, and a move is two deployments. Split from DESC-6 so that the clause with a witness can be reported on its own |
 | DESC-28 | N | Opacity, stability and freedom from ambient context are properties of an id's behaviour over time, not of the string a reader holds |

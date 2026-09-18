@@ -1,6 +1,7 @@
 {
   "name": "@worker-protocol/schemas",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "workerProtocolEdition": "0.1",
   "description": "The Zod objects that generate the worker-protocol JSON Schemas, and the way to consume them from TypeScript",
   "license": "Apache-2.0",
   "type": "module",

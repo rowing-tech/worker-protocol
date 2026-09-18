@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { EDITION } from "@worker-protocol/schemas";
 import type { Attribution } from "./attribution.ts";
 import { checkActions } from "./checks/actions.ts";
 import { checkAlerts } from "./checks/alerts.ts";
@@ -114,6 +115,26 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   const tape = transcript(options.fetch ?? globalThis.fetch, options.credential);
 
   const descriptor = await readDescriptor(options.baseUrl, byId, attribution, tape);
+
+  // DESC-25: a verifier that does not hold the declared edition's MAJOR verifies NOTHING and
+  // reports that it is older than the Worker — rather than failing a Worker for a surface added
+  // after this tool was built. The ordering DESC-23 fixes is what lets it say `older` rather than
+  // merely `unrecognised`, and that is the difference between telling an operator to upgrade the
+  // verifier and leaving the Worker under suspicion for what is the reader's problem.
+  const declaredMajor = descriptor.document?.edition.split(".")[0];
+  if (declaredMajor !== undefined && declaredMajor !== EDITION.split(".")[0]) {
+    return {
+      baseUrl: options.baseUrl,
+      edition: descriptor.document?.edition ?? null,
+      verifierEdition: EDITION,
+      older: true,
+      results: all.map((rule) => ({
+        rule,
+        verdict: "notExercised" as const,
+        detail: `this verifier holds edition ${EDITION} and the Worker declares ${descriptor.document?.edition}`,
+      })),
+    };
+  }
   const results: Result[] = [...descriptor.results];
   // Addresses a Capability declares INSIDE its own entry rather than beside it — `configure`'s
   // reading address is the first. ENDP-1 judges what the verifier called against what the
@@ -250,6 +271,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   return {
     baseUrl: options.baseUrl,
     edition: descriptor.document?.edition ?? null,
+    verifierEdition: EDITION,
     results: complete,
   };
 }

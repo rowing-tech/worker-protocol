@@ -175,13 +175,17 @@ break — an author would have to know what had been pushed where in order to kn
 allowed to fix a typo. An edition is a deliberate act with a number on it, it is already the thing
 a Worker declares and a report names, and nobody reaches it by accident.
 
-Today no edition is published: the repository README says to read no section as `stable` whatever
-its marker says, so every id in this directory is still editable in place. The `Withdrawn` lists
-these files already carry are not obligations under this rule — they record changes that *stand*,
-and the reasoning behind them is worth a reader's time. A change that is reverted before
-publication leaves no trace at all, because there is nothing left to record: an entry saying a rule
-was replaced by one that says the same thing is not history, it is a reader wondering what they
-missed.
+**Edition 0.1 is published, so every id below is now fixed.** Until it was, a rule could be
+reworded, narrowed, widened or reclassified in place and nothing was owed to anybody; from here a
+rewrite that could change a verdict costs a withdrawal and a new number, permanently. That is the
+whole of what publishing bought and the whole of what it cost, and it was worth taking at this
+point rather than later for a reason that is about evidence: every rule in this directory that any
+tool can observe now has a check that has run against a live Worker, which is the strongest
+statement available that the ones being frozen say what their authors meant.
+
+The `Withdrawn` lists these files already carry predate the edition and are not obligations under
+this rule — they record changes that *stand*, and the reasoning behind them is worth a reader's
+time. What they show is the discipline working before it was owed.
 
 So, once an edition has published an id:
 
