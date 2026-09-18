@@ -12,39 +12,46 @@ Nothing here is normative, and nothing here is a commitment about *when*.
 
 ## Per-language SDKs
 
-**Decided 2026-09-18. Three of its four decisions are built and have left this entry; what is
-below is the fourth.** The surface is declared in `packages/schemas/src/surfaces.ts`, `openapi/`
-is generated from it and compared in CI, and that directory is normative for the surface — the
-reasoning for each now sits in the file that implements it, which is where an argument belongs
-once there is something for it to argue about. `README.md` carries the layer table,
-`spec/endpoints.md` says its code table is a reading aid, and `packages/conformance` reads the
-code-to-status mapping from `surfaces.ts` rather than scraping prose.
+**Decided 2026-09-18, and revised the same day.** Most of it is built and has left this entry; the
+reasoning for each built piece now sits in the file that implements it, which is where an argument
+belongs once there is something for it to argue about. The surface is declared as Hono routes in
+`packages/hono/src/surfaces.ts`, `openapi/` is generated from them and compared in CI, that
+directory is normative for the surface (`README.md` carries the layer table and
+`spec/endpoints.md` says its code table is a reading aid), and `@worker-protocol/hono` is the
+TypeScript SDK: the routes, an interface a Worker author implements, and `mount()` over it. Why the
+routes are the source rather than data of this repository's own, and why TypeScript lives here
+rather than in a repository of its own, are argued at the top of `surfaces.ts` and in
+`packages/README.md`. What is below is the part that is not built: every other language.
 
-**One repository per language, certified by conformance.** This repository publishes artifacts and
-the verifier, and `packages/` keeps carrying no behaviour of its own. Each SDK is a repository —
-`worker-protocol-python`, `worker-protocol-dotnet`, and so on — that generates its models and
-clients from `openapi/` pinned to an edition, adds a thin hand-written layer (reading and resolving
-the Descriptor, the interface a Worker author implements and its server adapter, the claim → action
-→ outcome flow for a consumer), ships its own reference Worker, and runs
-`@worker-protocol/conformance` against that Worker in its CI. The conformance report is what ties
-the repositories together: an SDK is right because its reference Worker passes, not because
-somebody read the prose carefully.
+**One repository per language, certified by conformance.** This repository publishes artifacts,
+the verifier and the TypeScript SDK. Each other SDK is a repository — `worker-protocol-python`,
+`worker-protocol-dotnet`, and so on — that generates its models and clients from `openapi/` pinned
+to an edition, adds a thin hand-written layer (reading and resolving the Descriptor, the interface
+a Worker author implements and its server adapter, the claim → action → outcome flow for a
+consumer), ships its own reference Worker, and runs `@worker-protocol/conformance` against that
+Worker in its CI. The conformance report is what ties the repositories together: an SDK is right
+because its reference Worker passes, not because somebody read the prose carefully. What
+`packages/hono` carries for TypeScript is the model for that layer in every other language.
 
 **Rejected, and why:**
 
 - *All SDKs inside this repository under `sdk/`.* One commit would move every SDK, at the cost of
   several toolchains in one checkout and a README that has to explain why `sdk/` carries behaviour
-  when `packages/` may not.
+  when `packages/` may not. TypeScript is the exception because its routes are also the source of
+  the normative artifact, which is an argument no other language has.
 - *Generated code only, no idiomatic layer.* Resolving the Descriptor, the claim flow and the error
   envelope are exactly what an SDK exists to give, and every consumer would rewrite them.
+- *A second generator turning a live Descriptor into a per-Worker OpenAPI.* Not needed: a Worker
+  that mounts `@worker-protocol/hono` asks its own app for its document and gets its own Actions
+  and Task payloads in it. Other languages get the same from their own frameworks or not at all,
+  and that is a question for each of them.
 
 **Still open:**
 
 - Which languages first.
-- Whether a second generator turns a *live* Descriptor into a per-Worker OpenAPI for its own Action
-  inputs and Task payloads, which `openapi/` cannot describe because they are the Worker's.
-- Whether `examples/reference-worker` moves to a TypeScript SDK repository once one exists, or
-  stays here as the fixture `packages/conformance` tests against.
+- Whether `mount()` also carries the claim → action → outcome flow for a consumer, or that is a
+  second export, `consume()`, built on a generated client. The TypeScript answer would be the model
+  for the other languages.
 
 **Lands in:** a repository per language, each pinned to an edition and each running the verifier
 against its own reference Worker in CI.

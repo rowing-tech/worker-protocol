@@ -1,7 +1,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CODES, SURFACES } from "../surfaces.ts";
+import { CODES } from "../codes.ts";
+import { SURFACES } from "../surfaces.ts";
 
 /**
  * Structural checks over `openapi/`.

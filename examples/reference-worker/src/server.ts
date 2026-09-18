@@ -1,4 +1,7 @@
 import { createServer, type Server } from "node:http";
+import { getRequestListener } from "@hono/node-server";
+import { mount, type Worker } from "@worker-protocol/hono";
+import { Hono } from "hono";
 import { DECLARATIONS as ACTIONS, createActions } from "./actions.ts";
 import { alerts } from "./alerts.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
@@ -14,13 +17,15 @@ import { ANSWERS, createTasks, RAISES } from "./tasks.ts";
  * holder, a boot window left pollable, a Task its operators will let go of — and this file is
  * where that arrangement lives.
  *
- * It lives outside `packages/` deliberately. Nothing under `packages/` may carry behaviour of its
- * own, and this is nothing but behaviour.
+ * It is `mount()` from `@worker-protocol/hono` over an implementation of `Worker`, and that is the
+ * shape a real Worker on Hono has. What is here is only what the protocol leaves to the Worker:
+ * which credentials are good, how it is doing, what it counts, what it does, what it has raised.
+ * Every address, header and refusal the protocol fixes is `mount()`'s, so a rule about one of
+ * those passing here is a rule passing for every Worker that mounts the same package — which is
+ * what makes the verifier's report against this file worth something to a Worker that is not it.
  *
- * What it declares, it serves. A Descriptor naming a Capability that answers nothing is a fault in
- * the Descriptor (DESC-18), so this Worker declares all six — `health`, `metrics`, `actions`,
- * `tasks`, `alerts` and `events` — because it answers all six. `events` is the one with no address,
- * which is the single case DESC-22 leaves the shared entry's address optional for.
+ * It lives outside `packages/` because what it holds is arrangement: Actions, Tasks and metrics
+ * chosen so that a check can observe a rule, and nothing anybody would build for use.
  */
 
 export type WorkerOptions = {
@@ -63,296 +68,109 @@ export type WorkerOptions = {
   visibleTasks?: Record<string, string[]>;
 };
 
-const DEFAULTS = {
-  id: "tech.rowing.worker-protocol.reference",
-  edition: "0.1",
-  basePath: "/",
-} as const;
+const DEFAULT_ID = "tech.rowing.worker-protocol.reference";
 
-export function createWorker(options: WorkerOptions = {}): Server {
-  const id = options.id ?? DEFAULTS.id;
-  const edition = options.edition ?? DEFAULTS.edition;
-  const base = (options.basePath ?? DEFAULTS.basePath).replace(/\/*$/, "/");
-
-  const routes = {
-    descriptor: `${base}.well-known/worker-protocol`,
-    health: `${base}health`,
-    metrics: `${base}metrics`,
-    actions: `${base}actions`,
-    settings: `${base}settings`,
-    alerts: `${base}alerts`,
-    tasks: `${base}tasks`,
-    claims: `${base}claims`,
-  };
-
+/** The Worker, as `@worker-protocol/hono` sees it: what only this Worker knows. */
+export function referenceWorker(options: WorkerOptions = {}): Worker {
   const actions = createActions();
   const tasks = createTasks();
 
-  const descriptor = {
-    id,
-    edition,
-    capabilities: {
-      // DESC-12: a relative reference, resolved against the URL the Descriptor was read from. It
-      // is the shape a Worker that does not know its own public address can always produce.
-      //
-      // `../health` and not `health`, and the difference is a trap worth naming because the first
-      // implementation of this rule fell into it. The base for resolution is the Descriptor's own
-      // route — `<base>/.well-known/worker-protocol` — so a bare `health` resolves under
-      // `.well-known/`, which is not where any Worker serves anything. Climbing one segment lands
-      // it beside the base URL, and keeps doing so when the Worker is mounted under a path: with
-      // basePath `/fleet/` the Descriptor is at `/fleet/.well-known/worker-protocol` and this
-      // resolves to `/fleet/health`, which an absolute `/health` would have got wrong.
-      health: { version: 1, address: "../health" },
-      // MET-1, MET-2, MET-6: the address, the calendar every boundary is cut in, and the whole
-      // catalog of what this Worker publishes. The surface itself never lists what exists.
-      metrics: {
-        version: 1,
-        address: "../metrics",
-        timeZone: TIME_ZONE,
-        metrics: DECLARATIONS,
-      },
-      // ACT-1: one address for the Capability, and the Actions this Worker accepts keyed by name.
-      // ACT-5 names the Action in a parameter there rather than in a path segment, so no reader
-      // ever assembles an address.
-      actions: { version: 1, address: "../actions", actions: ACTIONS },
-      // TASK-1: two addresses, because ENDP-3 puts what changes state on an address declared for
-      // the purpose and ENDP-2 keeps a read a read — listing open Tasks must not consume them.
-      // ALRT-1: an address and nothing else. What a Worker raises an Alert about is its own
-      // business, so there is no catalog to declare.
-      alerts: { version: 1, address: "../alerts" },
-      // EVT-2: no address at all, which is the one case DESC-22 leaves the shared entry's address
-      // optional for. An event travels over a broker, and this Worker's is named and not parsed.
-      events: {
-        version: 1,
-        broker: "nats://events.invalid",
-        binding: "cloudevents/nats-1.0",
-        events: {
-          "tech.rowing.worker-protocol.vehicle-verified": {
-            data: {
-              type: "object",
-              properties: { vehicle: { type: "string" } },
-              required: ["vehicle"],
-              additionalProperties: false,
-            },
-          },
-        },
-        // EVT-8: what a consumer sizes its deduplication store against. An hour, declared,
-        // because `remember forever` is not implementable and a consumer that forgot too early
-        // would process an event twice while believing it was protected.
-        republishWindowSeconds: 3600,
-      },
-      tasks: {
-        version: 1,
-        address: "../tasks",
-        claimAddress: "../claims",
-        raises: RAISES,
-        answers: ANSWERS,
-      },
-    },
-  };
-
-  // HLTH-2: one status for the Worker and a map of named checks. This Worker depends on nothing,
-  // so the map is empty and its summary is the whole of what it has to say — which health.md says
-  // is conformant rather than a placeholder.
-  //
   // HLTH-4: until it has established its state it answers `unhealthy`, never `healthy`. Answering
   // `unhealthy` costs nothing, because ENDP-29 classes the condition `retry` and a poller comes
-  // round again.
+  // round again. HLTH-2: this Worker depends on nothing, so the map of checks is empty and its
+  // summary is the whole of what it has to say — which health.md says is conformant.
   const started = Date.now();
   const readyAfter = options.readyAfterMs ?? 0;
-  const health = () =>
-    Date.now() - started < readyAfter
-      ? { status: "unhealthy", checks: {} }
-      : { status: "healthy", checks: {} };
 
-  return createServer((request, response) => {
-    const path = new URL(request.url ?? "/", "http://worker.invalid").pathname;
+  // REG-28: more than one valid credential for one holder at a time, so replacing one is an
+  // overlap and not an outage. Built once; it is asked on every request to every address.
+  const good = new Set(
+    [options.credential, options.secondCredential].filter((t): t is string => t !== undefined),
+  );
 
-    const send = (status: number, body: unknown) => {
-      // ENDP-5: what produced this answer, on EVERY protocol response — including the ones that
-      // carry nothing, because a caller reading a version it did not expect re-reads the
-      // Descriptor whatever the status was.
-      const headers: Record<string, string> = {
-        "worker-protocol-edition": edition,
-        "worker-protocol-capability-version": "1",
-      };
+  return {
+    id: options.id ?? DEFAULT_ID,
+    edition: options.edition,
 
-      // ACT-10 and ACT-11 answer `204` and `202` with no body, and no body means none — not the
-      // four bytes `null`, which is a JSON document saying something. A content type is a claim
-      // about a body, so a response without one makes no claim.
-      if (body === null) {
-        response.writeHead(status, headers);
-        response.end();
-        return;
-      }
+    // REG-21 on every address. `403` for the credential this Worker reads and that carries no
+    // right, because ENDP-29 divides `401` from `403` at whether it could be READ.
+    authenticate: (token) => {
+      if (options.credential === undefined) return "accepted";
+      if (token !== undefined && token === options.unprivilegedCredential) return "forbidden";
+      return token !== undefined && good.has(token) ? "accepted" : "unauthenticated";
+    },
 
-      // ENDP-4: JSON, UTF-8.
-      headers["content-type"] = "application/json; charset=utf-8";
-      response.writeHead(status, headers);
-      response.end(JSON.stringify(body));
-    };
+    health: () =>
+      Date.now() - started < readyAfter
+        ? { status: "unhealthy", checks: {} }
+        : { status: "healthy", checks: {} },
 
-    // ENDP-25: every response that is not a success carries the shared envelope, with the class
-    // the code carries rather than one chosen beside it.
-    const reject = (status: number, code: string, message: string) =>
-      send(status, { code, message, class: "reject" });
+    // MET-1, MET-2, MET-6: the calendar every boundary is cut in, and the whole catalog of what
+    // this Worker publishes. The surface itself never lists what exists.
+    metrics: {
+      timeZone: TIME_ZONE,
+      metrics: DECLARATIONS,
+      read: (query) => read(query, Date.now()),
+    },
 
-    const query = new URL(request.url ?? "/", "http://worker.invalid").searchParams;
+    // ACT-1: the Actions this Worker accepts, keyed by name. `mount()` writes the reading address
+    // of `configure` into the declaration, because it is `mount()` that serves it (ACT-15).
+    actions: {
+      actions: ACTIONS,
+      perform: actions.perform,
+      settings: actions.settings,
+    },
 
-    const known = [
-      routes.descriptor,
-      routes.health,
-      routes.metrics,
-      routes.actions,
-      routes.settings,
-      routes.tasks,
-      routes.claims,
-      routes.alerts,
-    ];
-    if (!known.includes(path)) {
-      // REG-7: a Worker does not answer 404 in place of 401 on an address it serves — and this is
-      // the converse, an address it genuinely does not serve.
-      return reject(404, "not_found", "No such address.");
-    }
+    // TASK-6: only what the credential covers. The owner filters rather than the consumer
+    // discarding, because a list showing every Task to every holder of any Contract is a
+    // disclosure the owner cannot take back.
+    tasks: {
+      raises: RAISES,
+      answers: ANSWERS,
+      read: (query, token) => tasks.read(query, options.visibleTasks?.[token ?? ""]),
+      write: tasks.write,
+    },
 
-    // REG-21: the Worker accepts the credential recorded for it on every address this protocol
-    // defines, the Descriptor's route included. REG-28: more than one valid credential for one
-    // holder is live at a time, so replacing one is an overlap and not an outage.
-    const presented = request.headers.authorization;
-    const accepted = [options.credential, options.secondCredential, options.unprivilegedCredential]
-      .filter((token): token is string => token !== undefined)
-      .map((token) => `Bearer ${token}`);
+    alerts,
 
-    if (options.credential !== undefined && !accepted.includes(presented ?? "")) {
-      // REG-32: the refusal distinguishes nothing. Not which credential, not which scope, not
-      // which address would have changed the answer — a refusal that explains itself is an oracle.
-      return reject(401, "unauthenticated", "No.");
-    }
+    // EVT-2: no address at all, which is the one case DESC-22 leaves the shared entry's address
+    // optional for. An event travels over a broker, and this Worker's is named and not parsed.
+    events: {
+      broker: "nats://events.invalid",
+      binding: "cloudevents/nats-1.0",
+      events: {
+        "tech.rowing.worker-protocol.vehicle-verified": {
+          data: {
+            type: "object",
+            properties: { vehicle: { type: "string" } },
+            required: ["vehicle"],
+            additionalProperties: false,
+          },
+        },
+      },
+      // EVT-8: what a consumer sizes its deduplication store against. An hour, declared, because
+      // `remember forever` is not implementable and a consumer that forgot too early would process
+      // an event twice while believing it was protected.
+      republishWindowSeconds: 3600,
+    },
+  };
+}
 
-    // A credential this Worker reads and that carries no right here. `403` and not `401`, because
-    // ENDP-29 divides them at whether the credential could be READ, and this one could.
-    if (
-      options.unprivilegedCredential !== undefined &&
-      presented === `Bearer ${options.unprivilegedCredential}`
-    ) {
-      return reject(403, "forbidden", "No.");
-    }
+/** The Worker as a Node server, mounted at `basePath`, for a test to listen on a socket. */
+export function createWorker(options: WorkerOptions = {}): Server {
+  const mounted = mount(referenceWorker(options));
+  const base = (options.basePath ?? "").replace(/\/*$/, "");
+  if (base === "") return createServer(getRequestListener(mounted.fetch));
 
-    // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot
-    // answer that version refuses the request WHOLE rather than substituting its own. A client
-    // that guesses at a shape it does not know is worse than one that says so, and the caller's
-    // recourse is to re-read the Descriptor, which is where the answer was all along.
-    //
-    // It sits above the POST branches and not below them, because ENDP-6 says `on a request` and
-    // a write is a request. Below, a POST to the Actions or the claim address carrying a version
-    // this Worker cannot answer was PERFORMED — which is the one direction the rule exists to
-    // prevent, on the two addresses where being wrong costs the most.
-    const asked = request.headers["worker-protocol-capability-version"];
-    if (typeof asked === "string" && asked !== "1") {
-      return reject(400, "unsupported_version", "This Worker answers version 1.");
-    }
-
-    // ENDP-3: everything that changes state is POST, on an address declared for the purpose. The
-    // Actions address and the claim address are the two here that do, and ENDP-2 keeps every
-    // other a GET.
-    if (path === routes.claims) {
-      if (request.method !== "POST") {
-        return reject(404, "not_found", "No such address.");
-      }
-      const answer = tasks.write(query);
-      if ("code" in answer) {
-        return send(answer.status, { code: answer.code, message: answer.message, class: "reject" });
-      }
-      return send(answer.status, answer.body);
-    }
-
-    if (path === routes.actions) {
-      if (request.method !== "POST") {
-        return reject(404, "not_found", "No such address.");
-      }
-      const chunks: Buffer[] = [];
-      request.on("data", (chunk: Buffer) => chunks.push(chunk));
-      request.on("end", () => {
-        const key = request.headers["idempotency-key"];
-        const answer = actions.perform(
-          query.get("action"),
-          Buffer.concat(chunks).toString("utf8"),
-          typeof key === "string" ? key : undefined,
-        );
-        if ("code" in answer) {
-          return send(answer.status, {
-            code: answer.code,
-            message: answer.message,
-            class: "reject",
-          });
-        }
-        // ACT-10, ACT-11: `200` with the declared result, `204` where none is declared, `202`
-        // where the Action said it does not finish here.
-        return send(answer.status, answer.body);
-      });
-      return;
-    }
-
-    // ENDP-2 and DESC-5: reading is GET, and a GET changes nothing a later reader could observe.
-    if (request.method !== "GET") {
-      return reject(404, "not_found", "No such address.");
-    }
-
-    // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. A filter dropped in
-    // silence answers with MORE than the caller asked for, in a shape it will happily parse — and
-    // a caller that filtered in order to stay inside a Contract is handed exactly what it
-    // excluded, with no sign that anything happened.
-    //
-    // It sits HERE, above every surface branch, rather than beside the ones it applies to. Put
-    // next to a branch it protects only the branches somebody remembered, and a surface added
-    // later silently ignores what it is handed — which is how `/settings` came to be unguarded
-    // until this was moved. `metrics` and `tasks` are excluded because they take parameters of
-    // their own and check them where they know what they mean.
-    if (path !== routes.metrics && path !== routes.tasks) {
-      for (const key of query.keys()) {
-        return reject(400, "unknown_filter", `This address takes no parameter named ${key}.`);
-      }
-    }
-
-    // ACT-15: a GET of the reading address answers a document `configure` would accept.
-    if (path === routes.settings) return send(200, actions.settings());
-
-    // ALRT-2: the Alerts whose conditions hold, in the page envelope of ENDP-20.
-    if (path === routes.alerts) return send(200, alerts());
-
-    // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers. The
-    // owner filters rather than the consumer discarding, because a list showing every Task to
-    // every holder of any Contract is a disclosure the owner cannot take back.
-    if (path === routes.tasks) {
-      const token = (presented ?? "").replace(/^Bearer /, "");
-      const answer = tasks.read(query, options.visibleTasks?.[token]);
-      if ("code" in answer) {
-        return send(answer.status, { code: answer.code, message: answer.message, class: "reject" });
-      }
-      return send(answer.status, answer.body);
-    }
-
-    if (path === routes.descriptor) return send(200, descriptor);
-
-    if (path === routes.metrics) {
-      const answer = read(query, Date.now());
-      if ("status" in answer) {
-        // ENDP-26: the code fixes the status and the class, and this Worker answers the status
-        // that code names rather than choosing one beside it.
-        const retry = answer.status >= 500 || answer.status === 408 || answer.status === 429;
-        return send(answer.status, {
-          code: answer.code,
-          message: answer.message,
-          class: retry ? "retry" : "reject",
-        });
-      }
-      return send(200, answer);
-    }
-
-    // HLTH-5: the health address answers 200 whatever it reports. A response that is not 200 means
-    // the Worker did not answer, not that it is unwell.
-    return send(200, health());
-  });
+  // Under a path, exactly as an application that already owns the root would mount it (DESC-3).
+  // The addresses in the Descriptor are relative and climb one segment, so they resolve beside
+  // the base URL wherever that is — which is the case an absolute `/health` would have got wrong.
+  // Outside the path nothing is served, and the refusal is the Worker's own so that it carries
+  // the envelope and the headers like every other answer.
+  const app = new Hono()
+    .route(base, mounted)
+    .notFound(() => mounted.fetch(new Request("http://worker.invalid/none")));
+  return createServer(getRequestListener(app.fetch));
 }
 
 /** `node examples/reference-worker/src/server.ts` runs it on 8787, or on `PORT`. */

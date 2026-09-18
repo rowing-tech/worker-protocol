@@ -16,7 +16,7 @@ export function alerts() {
     items: [
       {
         id: "alert-1",
-        severity: "warning",
+        severity: "warning" as const,
         since: began(30),
         summary: "The credential recorded for this Worker expires in three days.",
         // ALRT-7: by the name the `actions` entry holds it under, and nothing else — the schema is
@@ -25,7 +25,7 @@ export function alerts() {
       },
       {
         id: "alert-2",
-        severity: "critical",
+        severity: "critical" as const,
         since: began(2),
         summary: "Three Claims on the same Task have failed and no lease is being granted.",
         actions: [],

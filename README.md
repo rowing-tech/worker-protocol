@@ -66,15 +66,20 @@ openapi/         one document per declared address, generated from the surface d
 conformance/     fixtures independent of any language, and the register of what a check can reach
 packages/
   schemas/       the Zod objects that generate schemas/
+  hono/          the surface as Hono routes, which generate openapi/, and mount() over them
   conformance/   the verifier: point it at a worker, get a report of what it complies with
 examples/
   reference-worker/  a worker that conforms, built so the verifier has something to check
-docs/            the architecture narrative, and what is deliberately undecided
+docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```
 
 Nothing in `packages/` may carry behavior of its own: everything there is derivable from the
 schemas and verifiable against the fixtures. The day a package does something the specification
-does not say, the package has become the standard and the text has started to rot.
+does not say, the package has become the standard and the text has started to rot. `mount()` in
+`packages/hono` is the one thing here that answers a request, and its standing is the verifier's:
+it is derived from the surface declaration beside it, and `@worker-protocol/conformance` running
+against a Worker built on it is what vouches for it. It carries what every conformant Worker owes
+and nothing the specification leaves to a Worker.
 
 ## Status
 

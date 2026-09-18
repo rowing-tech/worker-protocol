@@ -12,29 +12,30 @@ pnpm schemas:check        compare schemas/ against the Zod source, byte for byte
 pnpm spec:lint            check the rule-id convention spec/README.md states
 pnpm verifiability:lint   check every rule is classified in conformance/verifiability.md
 pnpm prose:lint           check hand-wrapped Markdown holds the line width biome.jsonc states
-pnpm openapi:check        compare openapi/ against the surface declaration
 pnpm rules:check          compare packages/conformance/rules.json against spec/
 pnpm typecheck            type-check scripts/
 pnpm -r build             compile what each package publishes
+pnpm openapi:check        compare openapi/ against the routes in packages/hono, byte for byte
 pnpm -r typecheck         type-check every workspace project, generators and tests included
-pnpm test                 both suites: the fixtures, and the verifier against the reference worker
+pnpm test                 all three suites: the fixtures, openapi/, and the verifier against the
+                          reference worker
 ```
 
 Those eleven are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
 they pass, so run them rather than reporting work as done and leaving them to somebody else.
 
-**`pnpm -r build` comes before `pnpm -r typecheck` and the order is not a preference.**
-`@worker-protocol/conformance` imports `@worker-protocol/schemas`, whose types live in a `dist/`
-that does not exist on a clean checkout until the build runs. The other way round it fails with
-`Cannot find module` — and it fails only in CI, because a working tree already holds a `dist/` from
-an earlier build. If you are chasing a failure that will not reproduce locally, delete both `dist/`
-directories first.
+**`pnpm -r build` comes before `pnpm openapi:check` and `pnpm -r typecheck`, and the order is not a
+preference.** `@worker-protocol/conformance` and `@worker-protocol/hono` both import
+`@worker-protocol/schemas`, whose code and types live in a `dist/` that does not exist on a clean
+checkout until the build runs. The other way round either fails with `Cannot find module` — and
+fails only in CI, because a working tree already holds a `dist/` from an earlier build. If you are
+chasing a failure that will not reproduce locally, delete every `dist/` directory first.
 
 Three more rewrite a generated artifact from its source and are equally free to run:
 
 ```
 pnpm schemas:generate     write schemas/ from the Zod objects in packages/schemas
-pnpm openapi:generate     write openapi/ from packages/schemas/src/surfaces.ts
+pnpm openapi:generate     write openapi/ from the routes in packages/hono/src/surfaces.ts
 pnpm rules:generate       write packages/conformance/rules.json from spec/
 pnpm check:fix            apply biome's formatting and its safe fixes
 ```
@@ -57,8 +58,8 @@ what is in the tree differs.
 | Artifact | Produced from | Regenerate with |
 |---|---|---|
 | `schemas/` | the Zod objects in `packages/schemas` | `pnpm schemas:generate` |
-| `openapi/` | `packages/schemas/src/surfaces.ts` | `pnpm openapi:generate` |
-| `packages/conformance/rules.json` | `spec/`, `conformance/verifiability.md` and `surfaces.ts` | `pnpm rules:generate` |
+| `openapi/` | the Hono routes in `packages/hono/src/surfaces.ts` | `pnpm openapi:generate` |
+| `packages/conformance/rules.json` | `spec/`, `conformance/verifiability.md` and `packages/hono/src/codes.ts` | `pnpm rules:generate` |
 
 Editing a Zod object without regenerating leaves a commit that cannot pass, and the two files then
 disagree about what a Worker must send — with prose deferring to a schema that no longer says what

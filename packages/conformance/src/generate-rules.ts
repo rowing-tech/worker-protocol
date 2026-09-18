@@ -1,6 +1,6 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { CODES } from "../../schemas/src/surfaces.ts";
+import { CODES } from "../../hono/src/codes.ts";
 import type { Rule } from "./report.ts";
 
 /**
@@ -85,14 +85,16 @@ rules.sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }));
 /**
  * ENDP-25, ENDP-26 — the closed code vocabulary, with the status each code is answered with.
  *
- * Read from `surfaces.ts` rather than parsed out of a Markdown table with a regular expression.
- * `schemas/error.json` carries the code with its class, which is the half a schema can assert; the
- * status is not in the body, and it now lives beside the rest of the surface instead of in prose
- * that a script had to scrape. `spec/endpoints.md` keeps the table as a reading aid and says so.
+ * Read from `packages/hono/src/codes.ts` rather than parsed out of a Markdown table with a regular
+ * expression. `schemas/error.json` carries the code with its class, which is the half a schema can
+ * assert; the status is not in the body, and it now lives beside the rest of the surface instead of
+ * in prose that a script had to scrape. `spec/endpoints.md` keeps the table as a reading aid and
+ * says so.
  *
  * The import is a relative path into the other package's SOURCE, which is deliberate and narrow:
  * this file is toolchain, never reaches `dist/`, and reading the built package instead would make
- * `pnpm rules:check` depend on a build that CI runs two steps later.
+ * `pnpm rules:check` depend on a build that CI runs two steps later. `codes.ts` imports nothing,
+ * so this pulls no web framework into the rule universe.
  */
 const codes = [...CODES]
   .map(({ code, status, class: klass }) => ({ code, status, class: klass }))

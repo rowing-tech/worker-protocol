@@ -6,10 +6,14 @@ complying, and proving that you comply.
 | Package | What it is |
 |---|---|
 | `schemas` | `@worker-protocol/schemas` — the Zod objects that generate `schemas/`, so an implementer never retypes the specification |
+| `hono` | `@worker-protocol/hono` — the surface as Hono routes, which generate `openapi/`; and `mount()`, which a Worker on Hono mounts to get every address, header and refusal the protocol fixes |
 | `conformance` | `@worker-protocol/conformance` — point it at a worker's base URL, get a report of what it complies with |
 
-Both are derivable from the specification and verifiable against the fixtures. Convenience for an
-implementer belongs here; behavior belongs in `spec/`.
+All three are derivable from the specification and verifiable against the fixtures or the
+verifier. Convenience for an implementer belongs here; behavior belongs in `spec/`. `hono` is the
+one TypeScript SDK and lives here rather than in a repository of its own, because the routes it
+exports are also the source `openapi/` is generated from, and the declaration that generates the
+normative artifact does not leave the repository that publishes it.
 
 ## A package version is not an edition
 
@@ -37,8 +41,8 @@ two numbers being independent: the edition has no PATCH, because
 construction changes no verdict. One rule keeps the two honest: **a release that changes which
 edition a package encodes is never a PATCH.**
 
-Both packages now declare `"workerProtocolEdition": "0.1"`, and `@worker-protocol/schemas` exports
-it as `EDITION` so a consumer can read it without parsing a manifest.
+All three packages declare `"workerProtocolEdition": "0.1"`, and `@worker-protocol/schemas`
+exports it as `EDITION` so a consumer can read it without parsing a manifest.
 
 **The two `0.1`s in that sentence are unrelated, and the coincidence is worth naming rather than
 leaving to be noticed.** The package version moved from `0.0.0` to `0.1.0` because the rule above

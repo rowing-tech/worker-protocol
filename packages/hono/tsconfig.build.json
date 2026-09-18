@@ -1,0 +1,12 @@
+{
+  "//": "Emits only what @worker-protocol/hono publishes. generate-openapi.ts is toolchain and never reaches dist/. rewriteRelativeImportExtensions is what lets the source import `./surfaces.ts` — the spelling Node's native type stripping needs to run the generator directly — and still emit `./surfaces.js`.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/index.ts"]
+}

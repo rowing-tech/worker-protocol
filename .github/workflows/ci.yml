@@ -70,13 +70,6 @@ jobs:
       - name: prose holds the line width biome.jsonc states
         run: pnpm prose:lint
 
-      # openapi/ is normative for the surface and is generated AND committed, for the reason
-      # schemas/ is: an artifact derived from a source is only trustworthy if something compares
-      # the two. Its source is packages/schemas/src/surfaces.ts, where every verb, parameter,
-      # header and refusal cites the rule it encodes.
-      - name: openapi/ matches surfaces.ts
-        run: pnpm openapi:check
-
       # The verifier needs the rule universe at runtime and is published to npm, where spec/
       # does not travel with it — so packages/conformance/rules.json is generated AND
       # committed, exactly like schemas/, and for the same reason. This regenerates it from
@@ -108,6 +101,15 @@ jobs:
       - name: build what the packages publish
         run: pnpm -r build
 
+      # openapi/ is normative for the surface and is generated AND committed, for the reason
+      # schemas/ is: an artifact derived from a source is only trustworthy if something compares
+      # the two. Its source is the Hono routes in packages/hono/src/surfaces.ts, where every verb,
+      # parameter, header and refusal cites the rule it encodes — and those routes are built on the
+      # Zod objects @worker-protocol/schemas publishes, which is why this step sits AFTER the build
+      # and not beside schemas:check where it would read more naturally.
+      - name: openapi/ matches surfaces.ts
+        run: pnpm openapi:check
+
       # EVERY file under each project's src/, generators and tests included. The builds above
       # compile only what a package publishes, so without this step a generator — the one kind
       # of code here that can corrupt a normative artifact — would never be checked. It is
@@ -116,10 +118,12 @@ jobs:
       - name: type-check every workspace project
         run: pnpm -r typecheck
 
-      # Two suites. packages/schemas runs conformance/fixtures/ against the Zod objects —
+      # Three suites. packages/schemas runs conformance/fixtures/ against the Zod objects —
       # documents against schemas, the half of conformance that needs no Worker, and a verdict
       # about the normative artifact because schemas:check above already proved the two agree.
-      # packages/conformance starts examples/reference-worker over a real socket and verifies
-      # it, which is the half that does.
+      # packages/hono checks the shape of openapi/ — one server per document, every $ref
+      # resolving, every refusal status in the vocabulary. packages/conformance starts
+      # examples/reference-worker, which is mount() from packages/hono over an arranged
+      # implementation, over a real socket and verifies it, which is the half that needs one.
       - name: conformance
         run: pnpm test

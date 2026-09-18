@@ -1,13 +1,14 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { EDITION } from "./index.ts";
-import { CODES, RESPONSE_HEADERS, SURFACES, type Surface } from "./surfaces.ts";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { EDITION } from "@worker-protocol/schemas";
+import { SURFACES, type Surface } from "./surfaces.ts";
 
 /**
- * Generates `openapi/` from `surfaces.ts`, or checks that what is committed matches.
+ * Generates `openapi/` from the routes in `surfaces.ts`, or checks that what is committed matches.
  *
- *   node packages/schemas/src/generate-openapi.ts            writes
- *   node packages/schemas/src/generate-openapi.ts --check    compares, exits 1 on any difference
+ *   node packages/hono/src/generate-openapi.ts            writes
+ *   node packages/hono/src/generate-openapi.ts --check    compares, exits 1 on any difference
  *
  * The check exists for the reason `schemas:check` exists: a generated artifact nobody compares is a
  * claim nobody verifies. `openapi/` is normative for the surface, so a copy in the tree that no
@@ -19,91 +20,112 @@ import { CODES, RESPONSE_HEADERS, SURFACES, type Surface } from "./surfaces.ts";
  * and every document's path is `/` except the Descriptor's, whose route is the one this protocol
  * fixes.
  *
+ * **The library emits, this file normalises.** `@hono/zod-openapi` produces the document from the
+ * same route objects `mount()` serves, which is the point of declaring the surface as routes. What
+ * it emits is then rebuilt into one fixed shape — key order, no empty `components` or `webhooks`,
+ * no description repeated inside a parameter's schema, and every `#/components/schemas/x` turned
+ * into `../schemas/x.json` so that nothing here retypes a schema. Byte-for-byte comparison in CI is
+ * only meaningful over a shape this repository controls, and a library's key order is not that.
+ *
  * Nothing here decides anything. Every field comes from `surfaces.ts`, which cites a rule for each.
  */
 
 const OUT_DIR = join(import.meta.dirname, "..", "..", "..", "openapi");
 
-const statusOf = new Map(CODES.map((c) => [c.code, c.status]));
+type Json = Record<string, unknown>;
 
-/** A parameter as OpenAPI states one. The `in` and the schema come straight from the declaration. */
-const parameter = (p: (typeof SURFACES)[number]["operations"][number]["parameters"][number]) => ({
-  name: p.name,
-  in: p.in,
-  required: p.required,
-  description: `${p.rule}. ${p.description}`,
-  ...(p.style === undefined ? {} : { style: p.style }),
-  ...(p.explode === undefined ? {} : { explode: p.explode }),
-  schema: p.schema,
-});
-
-/** `../schemas/x.json` — relative, so nothing here needs a host and nothing is retyped. */
-const ref = (schema: string) => ({ $ref: `../schemas/${schema}.json` });
-
-const responseHeaders = Object.fromEntries(
-  RESPONSE_HEADERS.map((h) => [
-    h.name,
-    { description: `${h.rule}. ${h.description}`, required: h.required, schema: h.schema },
-  ]),
-);
-
-function operation(op: Surface["operations"][number]) {
-  // One response per distinct status. Several codes share a status — ENDP-26 forbids one code
-  // under two statuses, not two codes under one — so the description names which may arrive.
-  const byStatus = new Map<number, string[]>();
-  for (const refusal of op.refusals) {
-    if (statusOf.get(refusal.code) !== refusal.status) {
-      console.error(
-        `surfaces.ts: ${refusal.code} is declared ${refusal.status} here and ` +
-          `${statusOf.get(refusal.code)} in CODES. ENDP-26 fixes one status per code.`,
-      );
-      process.exit(1);
+/** `#/components/schemas/x` → `../schemas/x.json`, everywhere. Components are named by file. */
+const externalise = (node: unknown): unknown => {
+  if (Array.isArray(node)) return node.map(externalise);
+  if (node === null || typeof node !== "object") return node;
+  const out: Json = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "$ref" && typeof value === "string") {
+      out.$ref = value.replace(/^#\/components\/schemas\/(.+)$/, "../schemas/$1.json");
+    } else {
+      out[key] = externalise(value);
     }
-    const codes = byStatus.get(refusal.status) ?? [];
-    codes.push(`\`${refusal.code}\` (${refusal.rule})`);
-    byStatus.set(refusal.status, codes);
   }
+  return out;
+};
 
-  const responses: Record<string, unknown> = {};
-  for (const answer of op.answers) {
-    responses[String(answer.status)] = {
-      description: `${answer.rule}. ${answer.description}`,
-      headers: responseHeaders,
-      ...(answer.schema === null
-        ? {}
-        : { content: { "application/json": { schema: ref(answer.schema) } } }),
-    };
-  }
-  for (const [status, codes] of [...byStatus].sort(([a], [b]) => a - b)) {
-    responses[String(status)] = {
-      description: `ENDP-25. The shared error envelope, carrying one of: ${codes.join(", ")}.`,
-      headers: responseHeaders,
-      content: { "application/json": { schema: ref("error") } },
-    };
-  }
-
+/** One parameter, in the order `openapi/` has always written it. */
+function parameter(p: Json): Json {
+  const schema = { ...(p.schema as Json) };
+  // The library copies the description onto the schema too, and a schema shared with `schemas/`
+  // brings its title along; the parameter is described once, here, and the schema is only a shape.
+  delete schema.description;
+  delete schema.title;
   return {
-    summary: op.summary,
-    description: `${op.rule}. ${op.description}`,
-    ...(op.parameters.length === 0 ? {} : { parameters: op.parameters.map(parameter) }),
-    ...(op.requestBody === undefined
-      ? {}
-      : {
-          requestBody: {
-            required: true,
-            description: `${op.requestBody.rule}. ${op.requestBody.description}`,
-            content: {
-              "application/json":
-                op.requestBody.schema === null ? {} : { schema: ref(op.requestBody.schema) },
-            },
-          },
-        }),
-    responses,
+    name: p.name,
+    in: p.in,
+    required: p.required,
+    description: p.description,
+    ...(p.style === undefined ? {} : { style: p.style }),
+    ...(p.explode === undefined ? {} : { explode: p.explode }),
+    schema,
   };
 }
 
-function document(surface: Surface) {
+function response(r: Json): Json {
   return {
+    description: r.description,
+    headers: r.headers,
+    ...(r.content === undefined ? {} : { content: r.content }),
+  };
+}
+
+function operation(op: Json): Json {
+  const body = op.requestBody as Json | undefined;
+  return {
+    summary: op.summary,
+    description: op.description,
+    ...(op.parameters === undefined
+      ? {}
+      : { parameters: (op.parameters as Json[]).map(parameter) }),
+    ...(body === undefined
+      ? {}
+      : {
+          requestBody: {
+            required: body.required,
+            description: body.description,
+            content: Object.fromEntries(
+              Object.entries(body.content as Record<string, Json>).map(([type, media]) => [
+                type,
+                // A body with no schema is the Worker's own (ACT-2), and `{}` says so more plainly
+                // than an empty schema that every reader has to recognise as meaning the same.
+                Object.keys(media.schema as object).length === 0 ? {} : media,
+              ]),
+            ),
+          },
+        }),
+    responses: Object.fromEntries(
+      Object.entries(op.responses as Record<string, Json>).map(([status, r]) => [
+        status,
+        response(r),
+      ]),
+    ),
+  };
+}
+
+function document(surface: Surface): Json {
+  const app = new OpenAPIHono();
+  // A document needs the route and nothing behind it; the handler is never called.
+  app.openapi(surface.route, (() => undefined) as never);
+
+  const emitted = app.getOpenAPI31Document({
+    openapi: "3.1.0",
+    info: { title: surface.title, version: EDITION },
+  }) as unknown as { paths: Record<string, Record<string, Json>> };
+
+  const paths: Json = {};
+  for (const [path, byMethod] of Object.entries(emitted.paths)) {
+    paths[path] = Object.fromEntries(
+      Object.entries(byMethod).map(([method, op]) => [method, operation(op)]),
+    );
+  }
+
+  return externalise({
     openapi: "3.1.0",
     info: {
       title: surface.title,
@@ -135,12 +157,8 @@ function document(surface: Surface) {
         },
       },
     ],
-    paths: {
-      [surface.path]: Object.fromEntries(
-        surface.operations.map((op) => [op.method, operation(op)]),
-      ),
-    },
-  };
+    paths,
+  }) as Json;
 }
 
 const files = new Map<string, string>();
@@ -181,7 +199,7 @@ if (process.argv.includes("--check")) {
   for (const name of orphans) differences.push(`${name}: not produced by surfaces.ts`);
 
   if (differences.length > 0) {
-    console.error("openapi/ does not match packages/schemas/src/surfaces.ts:\n");
+    console.error("openapi/ does not match packages/hono/src/surfaces.ts:\n");
     for (const line of differences) console.error(`  ${line}`);
     console.error("\nRun `pnpm openapi:generate` and commit the result.");
     process.exit(1);

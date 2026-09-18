@@ -9,13 +9,17 @@
  * `conformance/verifiability.md` already owes.
  */
 
+import type { Refusal } from "@worker-protocol/hono";
+import { INSTANT, type metricDeclaration, type metricPage } from "@worker-protocol/schemas";
+import type * as z from "zod";
+
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 export const TIME_ZONE = "UTC";
 
 /** MET-2, MET-3, MET-4 — what the Descriptor declares, and the whole catalog of what exists. */
-export const DECLARATIONS = {
+export const DECLARATIONS: Record<string, z.infer<typeof metricDeclaration>> = {
   "tasks-resolved": {
     unit: "tasks",
     // MET-3: tasks resolved over two days is the sum of the two, so a console may derive a coarser
@@ -38,7 +42,7 @@ export const DECLARATIONS = {
     granularities: ["day"],
     dimensions: {},
   },
-} as const;
+};
 
 type Event = { at: number; metric: string; taskType: string; tenant: string; value: number };
 
@@ -101,8 +105,7 @@ function bucketEnd(start: number, granularity: string): number {
 
 const rfc3339 = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export type Refusal = { status: number; code: string; message: string };
-export type Answer = { items: unknown[] };
+export type Answer = z.infer<typeof metricPage>;
 
 /**
  * One read. MET-8 through MET-19, and ENDP-24 for a parameter this surface does not know.
@@ -113,50 +116,43 @@ export type Answer = { items: unknown[] };
 const OWN_PARAMETERS = new Set(["metric", "granularity", "from", "to", "by", "cursor"]);
 
 export function read(query: URLSearchParams, now: number): Refusal | Answer {
-  const reject = (status: number, code: string, message: string): Refusal => ({
-    status,
-    code,
-    message,
-  });
+  const reject = (code: Refusal["code"], message: string): Refusal => ({ code, message });
 
   // MET-8: a read names one metric. MET-9: one the entry does not declare is 404.
   const name = query.get("metric");
   if (name === null) {
-    return reject(400, "invalid_parameter", "A read names one metric.");
+    return reject("invalid_parameter", "A read names one metric.");
   }
-  const declaration = (
-    DECLARATIONS as Record<string, (typeof DECLARATIONS)[keyof typeof DECLARATIONS]>
-  )[name];
+  const declaration = DECLARATIONS[name];
   if (declaration === undefined) {
-    return reject(404, "not_found", `No metric named ${name} is declared.`);
+    return reject("not_found", `No metric named ${name} is declared.`);
   }
 
   // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. A filter dropped in
   // silence answers with more than the caller asked for, in a shape it will happily parse.
-  const dimensions = declaration.dimensions as Record<string, { values?: readonly string[] }>;
+  const { dimensions, granularities } = declaration;
   for (const key of query.keys()) {
     if (OWN_PARAMETERS.has(key)) continue;
     if (key in dimensions) continue;
-    return reject(400, "unknown_filter", `This metric declares no dimension named ${key}.`);
+    return reject("unknown_filter", `This metric declares no dimension named ${key}.`);
   }
 
   // MET-8, MET-10: the granularity is named where the metric declares more than one, and may be
   // omitted where it declares exactly one.
-  const granularities = declaration.granularities as readonly string[];
   const asked = query.get("granularity");
   if (asked === null && granularities.length > 1) {
-    return reject(400, "invalid_parameter", "This metric declares more than one granularity.");
+    return reject("invalid_parameter", "This metric declares more than one granularity.");
   }
   const granularity = asked ?? granularities[0];
-  if (!granularities.includes(granularity)) {
-    return reject(400, "invalid_parameter", `This metric does not accumulate by ${granularity}.`);
+  if (!(granularities as string[]).includes(granularity)) {
+    return reject("invalid_parameter", `This metric does not accumulate by ${granularity}.`);
   }
 
   // MET-11: `from` and `to` are RFC 3339 instants carrying an offset, and the interval is
   // half-open. Absent, `from` is the start of the current bucket and `to` is now.
   const instant = (raw: string | null): number | null => {
     if (raw === null) return null;
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) {
+    if (!INSTANT.test(raw)) {
       return Number.NaN;
     }
     return Date.parse(raw);
@@ -164,7 +160,7 @@ export function read(query: URLSearchParams, now: number): Refusal | Answer {
   const from = instant(query.get("from"));
   const to = instant(query.get("to"));
   if (Number.isNaN(from) || Number.isNaN(to)) {
-    return reject(400, "invalid_parameter", "`from` and `to` are RFC 3339 instants.");
+    return reject("invalid_parameter", "`from` and `to` are RFC 3339 instants.");
   }
   const start = from ?? bucketStart(now, granularity);
   const end = to ?? now;
@@ -175,14 +171,10 @@ export function read(query: URLSearchParams, now: number): Refusal | Answer {
   for (const dimension of by) {
     const declared = dimensions[dimension];
     if (declared === undefined) {
-      return reject(400, "unknown_filter", `This metric declares no dimension named ${dimension}.`);
+      return reject("unknown_filter", `This metric declares no dimension named ${dimension}.`);
     }
     if (declared.values === undefined) {
-      return reject(
-        400,
-        "invalid_parameter",
-        `${dimension} declares no set of values to group by.`,
-      );
+      return reject("invalid_parameter", `${dimension} declares no set of values to group by.`);
     }
   }
 
@@ -194,7 +186,7 @@ export function read(query: URLSearchParams, now: number): Refusal | Answer {
     const value = query.get(dimension);
     if (value === null) continue;
     if (declared.values !== undefined && !declared.values.includes(value)) {
-      return reject(400, "invalid_parameter", `${dimension} does not take the value ${value}.`);
+      return reject("invalid_parameter", `${dimension} does not take the value ${value}.`);
     }
     fixed[dimension] = value;
   }

@@ -1,0 +1,35 @@
+{
+  "name": "@worker-protocol/hono",
+  "version": "0.1.0",
+  "workerProtocolEdition": "0.1",
+  "description": "The protocol's surface as Hono routes, and mount(): a Worker author implements an interface and gets every address, header and refusal this protocol fixes",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "1.6.3",
+    "@worker-protocol/schemas": "workspace:*",
+    "hono": "4.13.7",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  }
+}

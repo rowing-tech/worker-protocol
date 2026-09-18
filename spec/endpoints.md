@@ -191,7 +191,7 @@ state, because a status code is not in the body.
 
 **This table is a reading aid.** [schemas/error.json](../schemas/error.json) is normative for the
 code and the class it carries, and [openapi/](../openapi/) is normative for the status, generated
-from the surface declaration in `packages/schemas/src/surfaces.ts`. It is written out here because
+from the Hono routes in `packages/hono/src/surfaces.ts`. It is written out here because
 the argument beneath each code — why `502` and `504` are two of them, why `schema_mismatch` is not
 `malformed_request` — is worth a reader's time, and because a reader without a toolchain, whom
 `schemas/` exists to serve, would otherwise not be able to read the vocabulary at all.

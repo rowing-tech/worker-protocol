@@ -433,6 +433,12 @@ export const metricGranularity = z.enum(["hour", "day", "week", "month", "year"]
  * MET-17 refuses a value outside it, and MET-19 grants the dimension the right to be broken down
  * by — a free dimension is filtered and never grouped, because nothing would bound the answer.
  */
+/**
+ * MET-5, MET-16 — the characters a dimension name may use: what a query parameter needs, and no
+ * more. Shared between the declaration, the bucket and the `by` parameter so the three agree.
+ */
+export const DIMENSION_NAME = /^[A-Za-z0-9_-]+$/;
+
 export const metricDimension = z
   .strictObject({
     values: z
@@ -487,7 +493,7 @@ export const metricDeclaration = z
           "for anything not listed here, and MET-8 lets a read omit the granularity where this " +
           "carries exactly one.",
       }),
-    dimensions: z.record(z.string().regex(/^[A-Za-z0-9_-]+$/), metricDimension).meta({
+    dimensions: z.record(z.string().regex(DIMENSION_NAME), metricDimension).meta({
       description:
         "MET-4. Keyed by dimension name. The pattern asserts only what the transport needs, " +
         "because MET-16 spells the name into a query parameter; NAME-3 imposes no convention on " +
@@ -558,11 +564,10 @@ export const metricsEntry = capabilityEntry
  * expression that ruled those out would be unreadable, and a Worker that emits one has a bug no
  * schema was going to find.
  */
+export const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
 const instant = (description: string) =>
-  z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
-    .meta({ format: "date-time", description });
+  z.string().regex(INSTANT).meta({ format: "date-time", description });
 
 /**
  * MET-12, MET-13, MET-15, MET-19 — one bucket.
@@ -593,7 +598,7 @@ export const metricBucket = z
           "absent from the answer instead.",
       }),
     dimensions: z
-      .record(z.string().regex(/^[A-Za-z0-9_-]+$/), z.string())
+      .record(z.string().regex(DIMENSION_NAME), z.string())
       .optional()
       .meta({
         description:

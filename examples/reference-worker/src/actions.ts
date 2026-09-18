@@ -7,6 +7,10 @@
  * this one declares what `conformance/verifiability.md` says nothing can otherwise observe.
  */
 
+import type { Answer, Refusal } from "@worker-protocol/hono";
+import type { actionDeclaration } from "@worker-protocol/schemas";
+import type * as z from "zod";
+
 /** ACT-14: the Worker's complete settings document. A performance replaces what it holds. */
 export type Settings = { label: string; pollSeconds: number };
 
@@ -23,7 +27,7 @@ const settingsSchema = {
 } as const;
 
 /** ACT-1 through ACT-4, ACT-12 and ACT-15 — what the Descriptor declares about each Action. */
-export const DECLARATIONS = {
+export const DECLARATIONS: Record<string, z.infer<typeof actionDeclaration>> = {
   // ACT-13: the one Action name this edition reserves, and ACT-15 the reading address without
   // which a console renders an empty form and an operator replaces what they did not remember.
   configure: {
@@ -70,10 +74,7 @@ export const DECLARATIONS = {
     // will not learn the outcome from the answer.
     completesWithinCall: false,
   },
-} as const;
-
-export type Refusal = { status: number; code: string; message: string };
-export type Performance = { status: number; body: unknown };
+};
 
 /**
  * The state this Worker holds, so that `configure` has something to replace and a reading address
@@ -82,29 +83,22 @@ export type Performance = { status: number; body: unknown };
 export function createActions() {
   let settings: Settings = { ...INITIAL };
   /** ENDP-16: the outcome recorded against a key, for as long as the declared window. */
-  const recorded = new Map<string, { body: string; answer: Performance }>();
+  const recorded = new Map<string, { body: string; answer: Answer }>();
 
-  const reject = (status: number, code: string, message: string): Refusal => ({
-    status,
-    code,
-    message,
-  });
+  const reject = (code: Refusal["code"], message: string): Refusal => ({ code, message });
 
   return {
     settings: () => settings,
 
     /** ACT-5 through ACT-11 — one performance. */
-    perform(name: string | null, raw: string, key: string | undefined): Refusal | Performance {
-      // ACT-7: a request that names no Action has not said what it wants, which is a parameter
-      // fault and nothing to do with whether the Worker could have done it.
-      if (name === null) {
-        return reject(400, "invalid_parameter", "A request names one Action.");
-      }
+    perform(name: string, raw: string, key: string | undefined): Refusal | Answer {
+      // ACT-7, a request naming no Action, never reaches here: `mount()` refuses it on the route's
+      // own declaration, which is what declaring the surface as routes buys.
 
       // ACT-6: an Action the entry does not declare is a resource that does not exist.
-      const declaration = (DECLARATIONS as Record<string, { idempotency?: unknown }>)[name];
+      const declaration = DECLARATIONS[name];
       if (declaration === undefined) {
-        return reject(404, "not_found", `No Action named ${name} is declared.`);
+        return reject("not_found", `No Action named ${name} is declared.`);
       }
 
       // ENDP-18: a required key that is absent is `400`. Checked before the body, because an
@@ -112,21 +106,21 @@ export function createActions() {
       // it — which is the whole of what the guarantee is worth.
       const wantsKey = declaration.idempotency !== undefined;
       if (wantsKey && key === undefined) {
-        return reject(400, "idempotency_key_required", "This Action requires an Idempotency-Key.");
+        return reject("idempotency_key_required", "This Action requires an Idempotency-Key.");
       }
 
       let input: unknown;
       try {
         input = JSON.parse(raw);
       } catch {
-        return reject(400, "malformed_request", "The body did not parse.");
+        return reject("malformed_request", "The body did not parse.");
       }
 
       // ACT-8: an input that does not match the Action's declared schema. This Worker validates
       // only as far as the shapes it declared need, which is enough to be checked and is not a
       // JSON Schema implementation — nothing in this protocol asks a Worker to be one.
       const fault = mismatch(name, input);
-      if (fault !== null) return reject(400, "schema_mismatch", fault);
+      if (fault !== null) return reject("schema_mismatch", fault);
 
       if (wantsKey && key !== undefined) {
         const held = recorded.get(key);
@@ -134,7 +128,7 @@ export function createActions() {
         // repeat under the same key is not a second performance — the recorded outcome comes back.
         if (held !== undefined) {
           if (held.body !== raw) {
-            return reject(409, "idempotency_key_reused", "That key was used with another body.");
+            return reject("idempotency_key_reused", "That key was used with another body.");
           }
           return held.answer;
         }
@@ -150,7 +144,7 @@ export function createActions() {
       );
 
       if (wantsKey && key !== undefined && !("code" in answer)) {
-        recorded.set(key, { body: raw, answer: answer as Performance });
+        recorded.set(key, { body: raw, answer: answer as Answer });
       }
       return answer;
     },
@@ -188,7 +182,7 @@ function run(
   input: unknown,
   read: () => Settings,
   write: (next: Settings) => void,
-): Refusal | Performance {
+): Refusal | Answer {
   const body = input as Record<string, unknown>;
 
   if (name === "configure") {
@@ -206,7 +200,7 @@ function run(
     // ACT-9: schema-valid, and refused on this Worker's own rules. ENDP-12's second half, and the
     // one case a verifier cannot provoke without a Worker built to offer it.
     if ((body.amount as number) <= 0) {
-      return { status: 422, code: "unprocessable_content", message: "An amount is positive." };
+      return { code: "unprocessable_content", message: "An amount is positive." };
     }
     return { status: 200, body: { quote: (body.amount as number) * 1.21 } };
   }
