@@ -72,6 +72,26 @@ describe("the reference worker, verified", () => {
       "HLTH-2",
       "HLTH-3",
       "HLTH-5",
+      // The `metrics` Capability, the most checkable file in the specification.
+      "MET-1",
+      "MET-2",
+      "MET-3",
+      "MET-4",
+      "MET-5",
+      "MET-6",
+      "MET-7",
+      "MET-8",
+      "MET-9",
+      "MET-10",
+      "MET-11",
+      "MET-12",
+      "MET-13",
+      "MET-14",
+      "MET-16",
+      "MET-17",
+      "MET-18",
+      "MET-19",
+      "MET-20",
       // Judged over every response the run provoked.
       "ENDP-1",
       "ENDP-4",
@@ -116,7 +136,7 @@ describe("the reference worker, verified", () => {
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(16);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(23);
+    expect(counts.passes).toBe(42);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -190,6 +210,48 @@ describe("the reference worker, verified", () => {
 
     expect(result?.verdict).toBe("fails");
     expect(result?.detail).toContain("acme..billing");
+  });
+
+  it("names MET-5 for a dimension named after a parameter of a read", async () => {
+    // MET-5 has no schema witness — excluding a word list needs a negative lookahead that
+    // RE2-backed validators refuse — so it is one of the rules a verifier exists to carry. A
+    // dimension called `from` would be unreachable: the Worker could never tell the filter from
+    // the parameter that bounds the interval.
+    const canned: typeof globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          id: "w",
+          edition: "0.1",
+          capabilities: {
+            metrics: {
+              version: 1,
+              address: "../metrics",
+              timeZone: "UTC",
+              metrics: {
+                "tasks-resolved": {
+                  unit: "tasks",
+                  additive: true,
+                  granularities: ["day"],
+                  dimensions: { from: {} },
+                },
+              },
+            },
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+            "worker-protocol-edition": "0.1",
+            "worker-protocol-capability-version": "1",
+          },
+        },
+      )) as unknown as typeof globalThis.fetch;
+
+    const report = await verify({ baseUrl: "https://worker.example.com", fetch: canned });
+    const result = report.results.find((r) => r.rule.id === "MET-5");
+
+    expect(result?.verdict).toBe("fails");
+    expect(result?.detail).toContain("from");
   });
 
   it("fails DESC-1 when the credential is refused, and judges nothing else on the document", async () => {

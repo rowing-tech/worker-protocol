@@ -4,6 +4,7 @@ import type { Attribution } from "./attribution.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkHealth } from "./checks/health.ts";
+import { checkMetrics } from "./checks/metrics.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
 import { type Report, type Result, type Rule, unclaimed } from "./report.ts";
 import { transcript } from "./transcript.ts";
@@ -55,6 +56,15 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   if (descriptor.document !== null && descriptor.url !== null) {
     results.push(
       ...(await callSurfaces(descriptor.surfaces, descriptor.url, byId, tape, options.credential)),
+    );
+    results.push(
+      ...(await checkMetrics(
+        descriptor.document.capabilities.metrics,
+        descriptor.surfaces.find((s) => s.capability === "metrics")?.url ?? null,
+        byId,
+        attribution,
+        tape,
+      )),
     );
     results.push(
       ...(await checkHealth(

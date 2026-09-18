@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
 
 /**
  * A Worker that conforms, built to be checked.
@@ -47,6 +48,7 @@ export function createWorker(options: WorkerOptions = {}): Server {
   const routes = {
     descriptor: `${base}.well-known/worker-protocol`,
     health: `${base}health`,
+    metrics: `${base}metrics`,
   };
 
   const descriptor = {
@@ -64,6 +66,14 @@ export function createWorker(options: WorkerOptions = {}): Server {
       // basePath `/fleet/` the Descriptor is at `/fleet/.well-known/worker-protocol` and this
       // resolves to `/fleet/health`, which an absolute `/health` would have got wrong.
       health: { version: 1, address: "../health" },
+      // MET-1, MET-2, MET-6: the address, the calendar every boundary is cut in, and the whole
+      // catalog of what this Worker publishes. The surface itself never lists what exists.
+      metrics: {
+        version: 1,
+        address: "../metrics",
+        timeZone: TIME_ZONE,
+        metrics: DECLARATIONS,
+      },
     },
   };
 
@@ -91,7 +101,7 @@ export function createWorker(options: WorkerOptions = {}): Server {
     const reject = (status: number, code: string, message: string) =>
       send(status, { code, message, class: "reject" });
 
-    if (path !== routes.descriptor && path !== routes.health) {
+    if (path !== routes.descriptor && path !== routes.health && path !== routes.metrics) {
       // REG-7: a Worker does not answer 404 in place of 401 on an address it serves — and this is
       // the converse, an address it genuinely does not serve.
       return reject(404, "not_found", "No such address.");
@@ -112,6 +122,22 @@ export function createWorker(options: WorkerOptions = {}): Server {
     }
 
     if (path === routes.descriptor) return send(200, descriptor);
+
+    if (path === routes.metrics) {
+      const query = new URL(request.url ?? "/", "http://worker.invalid").searchParams;
+      const answer = read(query, Date.now());
+      if ("status" in answer) {
+        // ENDP-26: the code fixes the status and the class, and this Worker answers the status
+        // that code names rather than choosing one beside it.
+        const retry = answer.status >= 500 || answer.status === 408 || answer.status === 429;
+        return send(answer.status, {
+          code: answer.code,
+          message: answer.message,
+          class: retry ? "retry" : "reject",
+        });
+      }
+      return send(200, answer);
+    }
 
     // HLTH-5: the health address answers 200 whatever it reports. A response that is not 200 means
     // the Worker did not answer, not that it is unwell.

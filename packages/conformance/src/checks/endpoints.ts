@@ -31,6 +31,20 @@ export function judgeTranscript(
     return results;
   }
 
+  /**
+   * ENDP-1 is about an address, not about a URL.
+   *
+   * A read carries its parameters in the query string — MET-16 spells a dimension into one — and
+   * comparing whole URLs would report every filtered read as an undeclared address. What the
+   * Descriptor declares is where a surface answers; what a caller puts after the `?` is the
+   * question it asks there, and each surface's own file says which parameters those are.
+   */
+  const address = (url: string) => {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  };
+  const addresses = new Set([...declared].map(address));
+
   const byCode = new Map(codes.map((c) => [c.code, c]));
   const failures = new Map<string, string[]>();
   const fail = (id: string, why: string) => {
@@ -45,7 +59,7 @@ export function judgeTranscript(
     // ENDP-1: every address other than the Descriptor's own route is declared in the Descriptor.
     // The verifier can only judge its own behaviour here: it reaches an address because it read
     // one, so what this establishes is that nothing it called was undeclared.
-    if (!declared.has(exchange.url)) {
+    if (!addresses.has(address(exchange.url))) {
       fail("ENDP-1", `${where} — an address the Descriptor did not declare`);
     }
 
