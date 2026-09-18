@@ -52,10 +52,12 @@ A worker states which sections it implements, and the conformance tool reports t
 ```
 spec/            the normative prose: endpoints, lifecycles, envelopes — one file per subject
 schemas/         the JSON Schemas, generated and versioned here — the normative artifact
-conformance/     request/response fixtures, independent of any language
+conformance/     fixtures independent of any language, and the register of what a check can reach
 packages/
   schemas/       the Zod objects that generate schemas/
   conformance/   the verifier: point it at a worker, get a report of what it complies with
+examples/
+  reference-worker/  a worker that conforms, built so the verifier has something to check
 docs/            the architecture narrative, and what is deliberately undecided
 ```
 

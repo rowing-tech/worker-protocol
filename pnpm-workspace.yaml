@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - examples/*
 
 # Refuse any package version published less than seven days ago (10080 minutes).
 #

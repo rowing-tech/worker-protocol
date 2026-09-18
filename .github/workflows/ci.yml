@@ -63,25 +63,36 @@ jobs:
       - name: every rule is classified by what a check would observe
         run: pnpm verifiability:lint
 
-      # Covers scripts/ and then EVERY file under packages/schemas/src, generator included.
+      # The verifier needs the rule universe at runtime and is published to npm, where spec/
+      # does not travel with it — so packages/conformance/rules.json is generated AND
+      # committed, exactly like schemas/, and for the same reason. This regenerates it from
+      # spec/ and conformance/verifiability.md in memory and compares.
+      - name: packages/conformance/rules.json matches spec/
+        run: pnpm rules:check
+
+      # Covers scripts/ only. Each workspace project carries its own tsconfig and is checked
+      # by the step below.
       - name: type-check repository tooling
         run: pnpm typecheck
 
-      # Covers EVERY file under packages/schemas/src, generator included. The build below
-      # compiles only what the package publishes, so without this step the generator — the one
-      # piece of code here that can corrupt the normative artifact — would never be checked.
-      - name: type-check @worker-protocol/schemas
-        run: pnpm -C packages/schemas typecheck
+      # EVERY file under each project's src/, generators and tests included. The builds below
+      # compile only what a package publishes, so without this step a generator — the one kind
+      # of code here that can corrupt a normative artifact — would never be checked. It is
+      # `-r` rather than a step per project on purpose: a project added without a check is the
+      # gap this repository keeps finding, and `-r` cannot have one.
+      - name: type-check every workspace project
+        run: pnpm -r typecheck
 
-      # Proves the published entry points compile and that the declarations @worker-protocol
-      # /schemas ships are the ones the source describes.
-      - name: build @worker-protocol/schemas
-        run: pnpm -C packages/schemas build
+      # Proves the published entry points compile and that the declarations each package ships
+      # are the ones its source describes. pnpm orders these by dependency, so schemas builds
+      # before conformance, which needs its types.
+      - name: build what the packages publish
+        run: pnpm -r build
 
-      # Runs conformance/fixtures/ against the Zod objects. Because schemas:check above
-      # already proves those objects and the generated JSON Schemas agree byte for byte, a
-      # verdict reached here is a verdict about the normative artifact. This is the half of
-      # conformance that needs no Worker answering over HTTP; conformance/verifiability.md
-      # records which rules the other half reaches.
-      - name: conformance fixtures
+      # Two suites. packages/schemas runs conformance/fixtures/ against the Zod objects —
+      # documents against schemas, the half of conformance that needs no Worker, and a verdict
+      # about the normative artifact because schemas:check above already proved the two agree.
+      # packages/conformance starts examples/reference-worker over a real socket and verifies
+      # it, which is the half that does.
+      - name: conformance
         run: pnpm test

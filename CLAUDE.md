@@ -7,24 +7,26 @@ only read the tree or rewrite a generated artifact from its source; none of them
 or touches anything outside this checkout.
 
 ```
-pnpm check                          biome: formatting and lint
-pnpm schemas:check                  compare schemas/ against the Zod source, byte for byte
-pnpm spec:lint                      check the rule-id convention spec/README.md states
-pnpm verifiability:lint             check every rule is classified in conformance/verifiability.md
-pnpm typecheck                      type-check scripts/
-pnpm -C packages/schemas typecheck  type-check every file under packages/schemas/src
-pnpm -C packages/schemas build      compile what the package publishes
-pnpm test                           run conformance/fixtures/ against the Zod objects
+pnpm check                write formatting and lint, from biome.jsonc
+pnpm schemas:check        compare schemas/ against the Zod source, byte for byte
+pnpm spec:lint            check the rule-id convention spec/README.md states
+pnpm verifiability:lint   check every rule is classified in conformance/verifiability.md
+pnpm rules:check          compare packages/conformance/rules.json against spec/
+pnpm typecheck            type-check scripts/
+pnpm -r typecheck         type-check every workspace project, generators and tests included
+pnpm -r build             compile what each package publishes
+pnpm test                 both suites: the fixtures, and the verifier against the reference worker
 ```
 
-Those eight are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
+Those nine are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
 they pass, so run them rather than reporting work as done and leaving them to somebody else.
 
-Two more rewrite a generated artifact from its source and are equally free to run:
+Three more rewrite a generated artifact from its source and are equally free to run:
 
 ```
-pnpm schemas:generate           write schemas/ from the Zod objects in packages/schemas
-pnpm check:fix                  apply biome's formatting and its safe fixes
+pnpm schemas:generate     write schemas/ from the Zod objects in packages/schemas
+pnpm rules:generate       write packages/conformance/rules.json from spec/
+pnpm check:fix            apply biome's formatting and its safe fixes
 ```
 
 **`pnpm check:fix` is the only one of these that edits a file somebody wrote by hand**, so read what
@@ -37,10 +39,22 @@ generator, or to reflow a paragraph somebody argued over.
 Git commands are a separate question and this file does not widen them: stage and commit only when
 asked, as the user's own instructions say.
 
-## A change under `packages/schemas` is not finished until `schemas/` is regenerated
+## A generated artifact belongs in the same commit as the source that produces it
 
-`schemas/` is the normative artifact and it is generated **and** committed, so CI regenerates it in
-memory and fails when what is in the tree differs. Editing a Zod object without running
-`pnpm schemas:generate` leaves a commit that cannot pass, and the two files then disagree about
-what a Worker must send — with prose deferring to a schema that no longer says what anybody wrote.
-The generated files belong in the same commit as the source that produces them.
+Two things here are generated **and** committed, and CI regenerates each in memory and fails when
+what is in the tree differs.
+
+| Artifact | Produced from | Regenerate with |
+|---|---|---|
+| `schemas/` | the Zod objects in `packages/schemas` | `pnpm schemas:generate` |
+| `packages/conformance/rules.json` | `spec/` and `conformance/verifiability.md` | `pnpm rules:generate` |
+
+Editing a Zod object without regenerating leaves a commit that cannot pass, and the two files then
+disagree about what a Worker must send — with prose deferring to a schema that no longer says what
+anybody wrote. Writing a rule without regenerating leaves a verifier whose universe is missing it,
+which is a report that is silent about an obligation rather than wrong about one, and therefore
+worse.
+
+Both are committed rather than built on demand for the same reason: `schemas/` is the normative
+artifact and has to be readable by somebody who will never run this toolchain, and `rules.json`
+travels inside a published npm package where `spec/` does not follow it.

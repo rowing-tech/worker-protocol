@@ -1,0 +1,20 @@
+{
+  "name": "@worker-protocol/reference-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Worker that conforms, built so that @worker-protocol/conformance has something to check",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/server.ts",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "node src/server.ts"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "typescript": "7.0.2"
+  }
+}

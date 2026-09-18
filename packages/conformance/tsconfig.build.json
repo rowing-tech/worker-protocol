@@ -1,0 +1,12 @@
+{
+  "//": "Emits only what @worker-protocol/conformance publishes. generate-rules.ts is toolchain and never reaches dist/. rewriteRelativeImportExtensions is what lets the source import `./report.ts` — the spelling Node's native type stripping needs to run generate-rules.ts directly — and still emit `./report.js`.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/index.ts"]
+}

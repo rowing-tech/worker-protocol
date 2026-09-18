@@ -1,0 +1,14 @@
+{
+  "//": "Type-checks the example. It emits nothing and is never published: it runs through Node's native type stripping, which is also how a reader is meant to try it.",
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src"]
+}

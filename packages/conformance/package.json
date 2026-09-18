@@ -1,0 +1,33 @@
+{
+  "name": "@worker-protocol/conformance",
+  "version": "0.0.0",
+  "description": "Point it at a Worker's base URL, get a report of what it complies with",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "rules.json"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@worker-protocol/schemas": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "@worker-protocol/reference-worker": "workspace:*",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  }
+}

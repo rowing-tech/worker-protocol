@@ -179,6 +179,34 @@ importers:
         specifier: 5.0.0
         version: 5.0.0(@types/node@26.5.1)(vite@8.3.0(@types/node@26.5.1))
 
+  examples/reference-worker:
+    devDependencies:
+      '@types/node':
+        specifier: 26.5.1
+        version: 26.5.1
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/conformance:
+    dependencies:
+      '@worker-protocol/schemas':
+        specifier: workspace:*
+        version: link:../schemas
+    devDependencies:
+      '@types/node':
+        specifier: 26.5.1
+        version: 26.5.1
+      '@worker-protocol/reference-worker':
+        specifier: workspace:*
+        version: link:../../examples/reference-worker
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.0
+        version: 5.0.0(@types/node@26.5.1)(vite@8.3.0(@types/node@26.5.1))
+
   packages/schemas:
     dependencies:
       zod:
