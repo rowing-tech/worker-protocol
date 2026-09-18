@@ -28,8 +28,6 @@ back — so that when the answer lands, both places know.
 - **Who consolidates the cost and elapsed time a Response carries.** Nothing does today; the
   consumer's own metrics, split by the Contract each Response came under, are the obvious
   candidate. Listed in [spec/metrics.md](../spec/metrics.md).
-- **Whether the consumer names the Action or posts a fact the owner maps to one.** The second is
-  more decoupled; the first is simpler.
 - **Whether a stale Response is refused by lease time or by a fencing token.** A precondition
   checked at write time needs no sweep.
 - **Whether a Task and its Claims travel as one resource or two** on the Worker API. Listed in

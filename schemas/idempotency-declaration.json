@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idempotency-declaration.json",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "description": "ENDP-18. Whether a key is required. A required key that is absent is `400`; an Action that declares none is at-least-once under retry."
+        },
+        "from": {
+          "type": "string",
+          "const": "header",
+          "description": "ENDP-15. The key arrives in `Idempotency-Key`. It is opaque, and the Worker records it without parsing it."
+        },
+        "windowSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "ENDP-15, ENDP-16. How long the Worker answers the recorded outcome for a repeat. Declared because the guarantee is worthless without it: no Worker remembers forever, and one that has forgotten performs the Action again while the caller still believes it is protected."
+        }
+      },
+      "required": [
+        "required",
+        "from",
+        "windowSeconds"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "from": {
+          "type": "string",
+          "const": "input",
+          "description": "ACT-12. The key is a named member of the input. A payload that already carries its own identity needs no second key beside it, and the member is the Worker's own data."
+        },
+        "member": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ACT-12. Which member of the input the Worker reads the key from."
+        },
+        "windowSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "required",
+        "from",
+        "member",
+        "windowSeconds"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "title": "Idempotency declaration",
+  "description": "ACT-12. Carried in an Action's entry, because a caller decides whether it can retry safely BEFORE it sends anything. This is DESC-11's first case."
+}

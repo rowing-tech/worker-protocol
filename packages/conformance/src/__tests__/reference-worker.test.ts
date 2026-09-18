@@ -72,11 +72,33 @@ describe("the reference worker, verified", () => {
       .filter((r) => r.verdict === "notExercised")
       .map((r) => r.rule.id);
 
-    // ENDP-3 has no witness until `actions` gives this protocol a surface that changes state, and
-    // ENDP-19's is a collection longer than a Worker's page cap. Both are honest gaps rather than
-    // missing checks, and pinning them here is what makes a NEW gap visible: a W rule that stops
-    // being judged joins this list and fails the test.
-    expect(unexercised).toEqual(["ENDP-3", "ENDP-19"]);
+    // Two kinds of entry, and the list is pinned so that a NEW one is visible rather than quiet.
+    //
+    // ENDP-3 and ENDP-19 have no witness against this Worker at all: nothing here changes state
+    // until it serves `actions`, and every collection fits in one page. Those are honest gaps.
+    //
+    // The rest are a debt with a date on it. spec/actions.md was drafted before its checks were
+    // written and before the reference Worker served an `actions` surface, so ten ACT rules and
+    // the three that actions unblocked — DESC-11, ENDP-15, ENDP-18 — are observable and not yet
+    // observed. This assertion failing was how that landed: it is derived from the report, so a
+    // rule that becomes observable without a check cannot slip past.
+    expect(unexercised).toEqual([
+      "ACT-1",
+      "ACT-2",
+      "ACT-3",
+      "ACT-4",
+      "ACT-6",
+      "ACT-7",
+      "ACT-8",
+      "ACT-12",
+      "ACT-13",
+      "ACT-15",
+      "DESC-11",
+      "ENDP-3",
+      "ENDP-15",
+      "ENDP-18",
+      "ENDP-19",
+    ]);
   });
 
   it("resolves a declared address against the Descriptor's route, not the base URL", async () => {

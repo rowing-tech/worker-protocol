@@ -38,8 +38,9 @@ schema wins — see [descriptor.md](descriptor.md).
 The four cross-cutting files are `draft`: they were answered first because every other file leans
 on them — the Descriptor route, the addresses, the versioning rule, the error envelope, how either
 side of a call proves who it is, and how a name is compared and what a schema change breaks.
-[health.md](health.md) and [metrics.md](metrics.md) are `draft` too, and are the Capabilities
-answered so far. The rest are `open`: their subjects are settled, their answers are not.
+[health.md](health.md), [metrics.md](metrics.md) and [actions.md](actions.md) are `draft` too,
+and are the Capabilities answered so far — the two halves of *operate* that are read, and the one
+that does something. The rest are `open`: their subjects are settled, their answers are not.
 
 ## What this specification does not define
 

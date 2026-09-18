@@ -308,6 +308,7 @@ export const rejectCodes = [
   "conflict",
   "idempotency_key_reused",
   "unprocessable_content",
+  "schema_mismatch",
 ] as const;
 
 export const retryCodes = [
@@ -616,6 +617,127 @@ export const metricPage = page
       "protocol.",
   });
 
+/**
+ * ACT-12 — the declaration ENDP-15 requires of an Action that takes an idempotency key.
+ *
+ * A union rather than one object with an optional member, on the same reasoning that makes `error`
+ * a union: written flat, `from: "input"` with no member named would validate cleanly and leave the
+ * Worker with nowhere to read the key from. The two branches make the half-set state unspellable.
+ */
+export const idempotencyDeclaration = z
+  .union([
+    z.strictObject({
+      required: z.boolean().meta({
+        description:
+          "ENDP-18. Whether a key is required. A required key that is absent is `400`; an Action " +
+          "that declares none is at-least-once under retry.",
+      }),
+      from: z.literal("header").meta({
+        description:
+          "ENDP-15. The key arrives in `Idempotency-Key`. It is opaque, and the Worker records " +
+          "it without parsing it.",
+      }),
+      windowSeconds: z
+        .number()
+        .int()
+        .min(1)
+        .meta({
+          description:
+            "ENDP-15, ENDP-16. How long the Worker answers the recorded outcome for a repeat. " +
+            "Declared because the guarantee is worthless without it: no Worker remembers forever, " +
+            "and one that has forgotten performs the Action again while the caller still believes " +
+            "it is protected.",
+        }),
+    }),
+    z.strictObject({
+      required: z.boolean(),
+      from: z.literal("input").meta({
+        description:
+          "ACT-12. The key is a named member of the input. A payload that already carries its " +
+          "own identity needs no second key beside it, and the member is the Worker's own data.",
+      }),
+      member: z.string().min(1).meta({
+        description: "ACT-12. Which member of the input the Worker reads the key from.",
+      }),
+      windowSeconds: z.number().int().min(1),
+    }),
+  ])
+  .meta({
+    title: "Idempotency declaration",
+    description:
+      "ACT-12. Carried in an Action's entry, because a caller decides whether it can retry " +
+      "safely BEFORE it sends anything. This is DESC-11's first case.",
+  });
+
+/**
+ * ACT-2, ACT-3, ACT-4 — what a Worker declares about one Action.
+ *
+ * Closed: these rules enumerate the declaration, and a member added later is what an edition is
+ * for. The schemas INSIDE it are the Worker's own and are not constrained here — this protocol has
+ * no data model, and an Action's input is exactly where that matters most.
+ */
+export const actionDeclaration = z
+  .strictObject({
+    input: z.looseObject({}).meta({
+      description:
+        "ACT-2. The JSON Schema of this Action's input, and the whole of what a caller sends. A " +
+        "console renders a form from it without having been told anything else about the Worker.",
+    }),
+    result: z
+      .looseObject({})
+      .optional()
+      .meta({
+        description:
+          "ACT-3. The JSON Schema of what a performance answers, absent where it answers nothing. " +
+          "ACT-10 draws `200` and `204` at exactly this.",
+      }),
+    completesWithinCall: z.boolean().meta({
+      description:
+        "ACT-4. Declared rather than discovered, because a caller decides whether it can wait " +
+        "before it sends. ACT-11: one that does not answers `202` with no body.",
+    }),
+    idempotency: idempotencyDeclaration.optional().meta({
+      description: "ACT-12, ENDP-15. Absent where the Action takes no key.",
+    }),
+    readAddress: address.optional().meta({
+      description:
+        "ACT-15. Where a GET answers a document this Action would accept. Required of " +
+        "`configure` and optional for every other Action — which is a condition on the KEY an " +
+        "entry is held under, and so a rule rather than a shape.",
+    }),
+  })
+  .meta({
+    title: "Action declaration",
+    description:
+      "ACT-2. One Action, held under its name in the `actions` entry. The name is the Worker's " +
+      "own: NAME-7 does not reach it, because it is resolved inside the Descriptor that " +
+      "declared it. `configure` is the one name ACT-13 reserves.",
+  });
+
+/**
+ * ACT-1 — the `actions` Capability entry.
+ *
+ * The address is required, as HLTH-1 and MET-1 require it, because this Capability is answered
+ * over HTTP. One address for the Capability and a parameter naming the Action, which is the shape
+ * `metrics` already uses — actions.md argues the two alternatives down at length.
+ */
+export const actionsEntry = capabilityEntry
+  .extend({
+    address,
+    actions: z.record(z.string().min(1), actionDeclaration).meta({
+      description:
+        "ACT-1. Every Action the Worker accepts, keyed by name. An Action not here is `404` " +
+        "under ACT-6. The key carries no pattern: it travels as the VALUE of the `action` " +
+        "parameter and is percent-encoded like any other.",
+    }),
+  })
+  .meta({
+    title: "Actions capability entry",
+    description:
+      "ACT-1. The shared Capability entry with the address required, and the Actions this Worker " +
+      "accepts. The Descriptor is the catalog: the surface performs and never lists what exists.",
+  });
+
 registry.add(capabilityName, { id: "capability-name" });
 registry.add(qualifiedName, { id: "qualified-name" });
 registry.add(healthStatus, { id: "health-status" });
@@ -631,3 +753,6 @@ registry.add(metricPage, { id: "metric-page" });
 registry.add(descriptor, { id: "descriptor" });
 registry.add(error, { id: "error" });
 registry.add(page, { id: "page" });
+registry.add(idempotencyDeclaration, { id: "idempotency-declaration" });
+registry.add(actionDeclaration, { id: "action-declaration" });
+registry.add(actionsEntry, { id: "actions-entry" });

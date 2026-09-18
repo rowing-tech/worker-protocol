@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "actions-entry.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "DESC-9. A single integer; there is no minor version. DESC-29 makes it count breaking changes to this Capability's own surface alone."
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+    },
+    "actions": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "action-declaration.json"
+      },
+      "description": "ACT-1. Every Action the Worker accepts, keyed by name. An Action not here is `404` under ACT-6. The key carries no pattern: it travels as the VALUE of the `action` parameter and is percent-encoded like any other."
+    }
+  },
+  "required": [
+    "version",
+    "address",
+    "actions"
+  ],
+  "additionalProperties": {},
+  "title": "Actions capability entry",
+  "description": "ACT-1. The shared Capability entry with the address required, and the Actions this Worker accepts. The Descriptor is the catalog: the surface performs and never lists what exists."
+}

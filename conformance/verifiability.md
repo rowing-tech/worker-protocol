@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the six `draft` files, classified by what a check would observe. This is the audit
+Every rule in the seven `draft` files, classified by what a check would observe. This is the audit
 [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place only if you can name
 what a conformance check would observe when it is broken* — run for the first time, and it is also
 the specification of what `packages/conformance` implements.
@@ -17,11 +17,11 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 50 |
-| **H** | Observable only against a Worker arranged to be observed. This is what the reference Worker exists for. | 9 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 63 |
+| **H** | Observable only against a Worker arranged to be observed. This is what the reference Worker exists for. | 15 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, or this specification. No tool pointed at a base URL can reach it. | 21 |
 | **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; thirteen are not on that list. | 16 |
-| **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 6 |
+| **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 2 |
 
 ## descriptor.md — 25
 
@@ -34,7 +34,7 @@ this document, and separating them moved six rules.
 | DESC-6 | W | The id compared against the base URL the Descriptor was read from |
 | DESC-8 | W | Every undotted name is in `capability-name.json` |
 | DESC-9 | W | A single integer, read off the entry |
-| DESC-11 | H | The Worker must declare a Capability whose behaviour is conditional. Every case the text names lives in `actions` |
+| DESC-11 | W | The condition, read off the entry. ACT-12 is the first case and gives it a shape, so this no longer needs a Worker arranged for it |
 | DESC-12 | W | Each address is absolute `https` or resolves relative |
 | DESC-13 | P | Binds a client. Observable only in the client's own behaviour |
 | DESC-14 | W | Dotted vs undotted, read off the declaration |
@@ -67,10 +67,10 @@ this document, and separating them moved six rules.
 | ENDP-12 | H | The Worker must offer an address that parses a body and refuses it on its content |
 | ENDP-13 | P | Binds a caller |
 | ENDP-14 | P | Binds a caller |
-| ENDP-15 | — | `actions` is `open` |
-| ENDP-16 | — | `actions` is `open` |
-| ENDP-17 | — | `actions` is `open` |
-| ENDP-18 | — | `actions` is `open` |
+| ENDP-15 | W | The declaration itself, read off an Action's entry; ACT-12 gives it a shape |
+| ENDP-16 | H | Needs a performance, repeated under the same key, against a Worker that offers one that is safe to perform |
+| ENDP-17 | H | Needs one performance to record a key, then a second body under it |
+| ENDP-18 | W | An Action that requires a key, posted without one, is `400` and performs nothing |
 | ENDP-19 | W | Recommended. A collection longer than the cap answers a capped page |
 | ENDP-20 | W | Every list answers the page envelope |
 | ENDP-21 | P | *Opaque* is unfalsifiable from outside; *never constructed by a caller* binds the caller |
@@ -105,6 +105,26 @@ this document, and separating them moved six rules.
 | REG-31 | H | Recommended. The Worker must serve a state-changing address, which today means `actions` |
 | REG-32 | H | Recommended. A credential must exist that authenticates and lacks a right, so two refusals can be compared |
 | REG-33 | N | Who issued a credential is not in the credential |
+
+## actions.md — 15
+
+| Rule | Class | What a check observes, or why nothing does |
+|---|---|---|
+| ACT-1 | W | The `actions` entry carries an address and a map of Actions |
+| ACT-2 | W | Each Action carries the schema of its input |
+| ACT-3 | W | Each Action says what it answers on success |
+| ACT-4 | W | Each Action says whether it completes within the call |
+| ACT-5 | H | A successful POST *performs* something. Only a Worker arranged with an Action that is safe to perform can be asked, which is why this is the one rule about performing that a verifier may not provoke on its own |
+| ACT-6 | W | An Action name no entry declares is `404` + `not_found`, and nothing is performed |
+| ACT-7 | W | A request naming no Action is `400` + `invalid_parameter`, and nothing is performed |
+| ACT-8 | W | An input no declared schema could accept is `400` + `schema_mismatch`, and nothing is performed |
+| ACT-9 | H | The Worker must offer an input that is schema-valid and that it refuses on its own rules |
+| ACT-10 | H | Needs a performance that succeeds |
+| ACT-11 | H | Needs an Action that declares it does not complete, and a performance of it |
+| ACT-12 | W | The idempotency declaration ENDP-15 requires, read off the entry |
+| ACT-13 | W | An Action named `configure`, read off the entry |
+| ACT-14 | H | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
+| ACT-15 | W | A GET of the declared reading address answers a document `configure` would accept |
 
 ## naming.md — 9
 

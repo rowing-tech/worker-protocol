@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "action-declaration.json",
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "description": "ACT-2. The JSON Schema of this Action's input, and the whole of what a caller sends. A console renders a form from it without having been told anything else about the Worker."
+    },
+    "result": {
+      "description": "ACT-3. The JSON Schema of what a performance answers, absent where it answers nothing. ACT-10 draws `200` and `204` at exactly this.",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
+    "completesWithinCall": {
+      "type": "boolean",
+      "description": "ACT-4. Declared rather than discovered, because a caller decides whether it can wait before it sends. ACT-11: one that does not answers `202` with no body."
+    },
+    "idempotency": {
+      "description": "ACT-12, ENDP-15. Absent where the Action takes no key.",
+      "$ref": "idempotency-declaration.json"
+    },
+    "readAddress": {
+      "description": "ACT-15. Where a GET answers a document this Action would accept. Required of `configure` and optional for every other Action — which is a condition on the KEY an entry is held under, and so a rule rather than a shape.",
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference"
+    }
+  },
+  "required": [
+    "input",
+    "completesWithinCall"
+  ],
+  "additionalProperties": false,
+  "title": "Action declaration",
+  "description": "ACT-2. One Action, held under its name in the `actions` entry. The name is the Worker's own: NAME-7 does not reach it, because it is resolved inside the Descriptor that declared it. `configure` is the one name ACT-13 reserves."
+}

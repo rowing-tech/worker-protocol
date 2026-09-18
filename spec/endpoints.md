@@ -148,7 +148,7 @@ the class named beside it. This protocol does not fix the status of a success.**
 
 | Status | Class | What it means |
 |---|---|---|
-| `400` | `reject` | The request could not be understood: unparseable body, wrong content type, missing or malformed parameter, a version the Worker does not answer, a required idempotency key absent |
+| `400` | `reject` | The request could not be understood: unparseable body, wrong content type, missing or malformed parameter, a body that does not match a declared schema, a version the Worker does not answer, a required idempotency key absent |
 | `401` | `reject` | No credential, or one the Worker cannot read |
 | `403` | `reject` | The credential is understood and does not carry the right — a scope it lacks, a Contract it is not covered by |
 | `404` | `reject` | No such address, or no such resource |
@@ -193,6 +193,7 @@ state, because a status code is not in the body. The class column is a reading a
 | Code | Status | Class | The condition, and the rule that already commits to it |
 |---|---|---|---|
 | `malformed_request` | `400` | `reject` | A body that will not parse, or a content type that is not `application/json` — ENDP-4, ENDP-29 |
+| `schema_mismatch` | `400` | `reject` | A body that parses and does not match the schema the surface declared — ACT-8 |
 | `invalid_parameter` | `400` | `reject` | A parameter missing or malformed — ENDP-29 |
 | `unknown_filter` | `400` | `reject` | A filter parameter the Worker does not recognize — ENDP-24 |
 | `unsupported_version` | `400` | `reject` | A requested Capability version the Worker cannot answer — ENDP-6 |
@@ -215,6 +216,14 @@ where the text has not committed to a condition there is deliberately no code fo
 the only broad one, because ENDP-29 names *a Task already claimed* among its 409s and
 [tasks-and-claims](tasks-and-claims.md) is still `open`. When that file lands it may want a code of
 its own, and the price is stated below.
+
+[actions](actions.md) is the first file to have spent that price. `schema_mismatch` is not
+`malformed_request`, and the difference is what a caller does next: a body that will not parse
+at all is a serializer bug in the caller, and a body that parses and does not match is a caller
+built against a declaration that has since moved — it re-reads the Descriptor, which is where
+the answer is, and ENDP-5's headers already told it the version changed. One code for both
+would have sent every caller to the wrong half of its own code, which is ENDP-12's argument
+one layer down.
 
 **Closing the vocabulary costs something, and it was taken knowingly: a new code now requires a new
 edition.** A caller validating against `error.json` refuses a code that file does not list, which

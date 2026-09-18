@@ -18,7 +18,8 @@
             "not_found",
             "conflict",
             "idempotency_key_reused",
-            "unprocessable_content"
+            "unprocessable_content",
+            "schema_mismatch"
           ],
           "description": "ENDP-25. A code naming a condition this request will meet again (ENDP-28). endpoints.md gives the status each is answered with."
         },

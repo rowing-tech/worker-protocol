@@ -2,6 +2,96 @@
   "$comment": "Generated from spec/ and conformance/verifiability.md by packages/conformance/src/generate-rules.ts. Do not edit: run `pnpm rules:generate`.",
   "rules": [
     {
+      "id": "ACT-1",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-2",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-3",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-4",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-5",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-6",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-7",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-8",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-9",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-10",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-11",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-12",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-13",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-14",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-15",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
       "id": "DESC-1",
       "file": "descriptor.md",
       "class": "required",
@@ -47,7 +137,7 @@
       "id": "DESC-11",
       "file": "descriptor.md",
       "class": "required",
-      "reach": "H"
+      "reach": "W"
     },
     {
       "id": "DESC-12",
@@ -215,25 +305,25 @@
       "id": "ENDP-15",
       "file": "endpoints.md",
       "class": "required",
-      "reach": "—"
+      "reach": "W"
     },
     {
       "id": "ENDP-16",
       "file": "endpoints.md",
       "class": "required",
-      "reach": "—"
+      "reach": "H"
     },
     {
       "id": "ENDP-17",
       "file": "endpoints.md",
       "class": "required",
-      "reach": "—"
+      "reach": "H"
     },
     {
       "id": "ENDP-18",
       "file": "endpoints.md",
       "class": "required",
-      "reach": "—"
+      "reach": "W"
     },
     {
       "id": "ENDP-19",
@@ -666,6 +756,11 @@
       "class": "retry"
     },
     {
+      "code": "schema_mismatch",
+      "status": 400,
+      "class": "reject"
+    },
+    {
       "code": "unauthenticated",
       "status": 401,
       "class": "reject"
@@ -702,6 +797,32 @@
     }
   ],
   "attribution": {
+    "action-declaration": {
+      "": "ACT-2",
+      "completesWithinCall": "ACT-4",
+      "idempotency": "ACT-12",
+      "idempotency/from": "ENDP-15",
+      "idempotency/member": "ACT-12",
+      "idempotency/required": "ENDP-18",
+      "input": "ACT-2",
+      "readAddress": "ACT-15",
+      "result": "ACT-3"
+    },
+    "actions-entry": {
+      "": "ACT-1",
+      "actions": "ACT-1",
+      "actions/*": "ACT-2",
+      "actions/*/completesWithinCall": "ACT-4",
+      "actions/*/idempotency": "ACT-12",
+      "actions/*/idempotency/from": "ENDP-15",
+      "actions/*/idempotency/member": "ACT-12",
+      "actions/*/idempotency/required": "ENDP-18",
+      "actions/*/input": "ACT-2",
+      "actions/*/readAddress": "ACT-15",
+      "actions/*/result": "ACT-3",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
     "capability-entry": {
       "": "DESC-22",
       "address": "DESC-12",
@@ -740,6 +861,12 @@
       "checks/*/detail": "HLTH-2",
       "checks/*/status": "HLTH-2",
       "status": "HLTH-2"
+    },
+    "idempotency-declaration": {
+      "": "ACT-12",
+      "from": "ENDP-15",
+      "member": "ACT-12",
+      "required": "ENDP-18"
     },
     "metric-bucket": {
       "": "MET-13",
