@@ -111,8 +111,22 @@ export function createTasks() {
         // will not accept — MET-10's division rather than MET-9's.
         return reject(400, "invalid_parameter", `No Task type named ${type} is declared.`);
       }
-      const items = open().filter((task) => type === null || task.type === type);
-      return { status: 200, body: { items } };
+      const matching = open().filter((task) => type === null || task.type === type);
+
+      // ENDP-19 recommends that a Worker CAP the page size rather than negotiating it, and ENDP-31
+      // makes the caller read how many items it received rather than how many it asked for. The
+      // cap is two so that this Worker's own three Tasks actually page — a cap nothing ever
+      // reaches is a cap nobody has seen work.
+      const CAP = 2;
+      const from = Number(query.get("cursor") ?? "0");
+      const items = matching.slice(from, from + CAP);
+      const next = from + CAP;
+
+      // ENDP-20: the cursor is absent at the end of the collection — absent, not null. ENDP-21: it
+      // is opaque, produced only here, and never constructed by a caller.
+      return next < matching.length
+        ? { status: 200, body: { items, nextCursor: String(next) } }
+        : { status: 200, body: { items } };
     },
 
     /** TASK-9 to TASK-14, TASK-17 — everything that changes a Claim. */

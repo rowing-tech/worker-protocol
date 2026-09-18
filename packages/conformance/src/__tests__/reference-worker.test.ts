@@ -37,6 +37,12 @@ const ARRANGEMENT = {
   safeAction: { name: "record-verification", input: { vehicle: "ABC-123", verified: true } },
   refusedInput: { name: "price-quote", input: { amount: -1 } },
   asyncAction: { name: "rebuild-index", input: {} },
+  // Claiming is a consent of its own: performing an Action does something to the Worker, and
+  // claiming takes work away from whoever would otherwise have taken it. Every Claim the verifier
+  // takes it releases again, so the Worker is left as it was found.
+  mayClaim: true,
+  claimableTask: "task-1",
+  unclaimableTask: "task-3",
 };
 
 describe("the reference worker, verified", () => {
@@ -101,14 +107,11 @@ describe("the reference worker, verified", () => {
       .filter((r) => r.verdict === "notExercised")
       .map((r) => r.rule.id);
 
-    // ENDP-19's witness is a collection longer than a Worker's page cap, and every collection
-    // here fits in one page: an honest gap rather than a missing check.
-    //
-    // This list has now been wrong twice, both times on purpose. It is derived from the report, so
-    // a rule that becomes observable without a check joins it and fails — which is how the actions
-    // draft and then the tasks draft each announced their own debt without anybody having to
-    // remember to look, and how each one came off again when the checks landed.
-    expect(unexercised).toEqual(["ENDP-19"]);
+    // Empty, and that is the point this whole exercise was for: every rule a tool can observe
+    // against an ordinary Worker has a check that has actually run against one. The assertion
+    // stays derived rather than deleted, because what it is now guarding is the opposite of what
+    // it guarded before — not a debt to pay down, but a state to keep.
+    expect(unexercised).toEqual([]);
   });
 
   it("resolves a declared address against the Descriptor's route, not the base URL", async () => {
@@ -148,7 +151,7 @@ describe("the reference worker, verified", () => {
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(22);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(87);
+    expect(counts.passes).toBe(96);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,

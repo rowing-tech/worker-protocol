@@ -1,5 +1,6 @@
-import { taskPage, tasksEntry } from "@worker-protocol/schemas";
+import { claim as claimSchema, taskPage, tasksEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
+import type { Arrangement } from "../index.ts";
 import type { Result, Rule } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
@@ -21,6 +22,16 @@ export const CLAIMS = [
   "TASK-7",
   "TASK-8",
   "NAME-7",
+  // Only against a Worker whose operators said a Task may be claimed. Every Claim taken here is
+  // released again, so the Worker is left as it was found.
+  "TASK-9",
+  "TASK-10",
+  "TASK-11",
+  "TASK-12",
+  "TASK-13",
+  "TASK-14",
+  "TASK-16",
+  "TASK-17",
 ] as const;
 
 type Entry = {
@@ -31,12 +42,16 @@ type Entry = {
 export async function checkTasks(
   entry: Record<string, unknown> | undefined,
   url: string | null,
+  descriptorUrl: string | null,
   actionNames: string[],
   rules: Map<string, Rule>,
   attribution: Attribution,
   transcript: Transcript,
-): Promise<Result[]> {
+  arrangement: Arrangement,
+  mayPerform: boolean,
+): Promise<{ results: Result[]; addresses: string[] }> {
   const results: Result[] = [];
+  const addresses: string[] = [];
   const say = (id: string, verdict: Result["verdict"], detail?: string) => {
     const rule = rules.get(id);
     if (rule) results.push({ rule, verdict, detail });
@@ -47,7 +62,7 @@ export async function checkTasks(
 
   if (entry === undefined) {
     allExcept("notExercised", "the Worker declares no `tasks`");
-    return results;
+    return { results, addresses };
   }
 
   const declared = tasksEntry.safeParse(entry);
@@ -60,7 +75,7 @@ export async function checkTasks(
       say(id, "fails", `${issue.path.join(".") || "(root)"}: ${issue.message}`);
     }
     allExcept("notExercised", "the `tasks` entry did not validate", [...blamed]);
-    return results;
+    return { results, addresses };
   }
 
   const { raises, answers } = declared.data as unknown as Entry;
@@ -106,7 +121,7 @@ export async function checkTasks(
       "TASK-4",
       "NAME-7",
     ]);
-    return results;
+    return { results, addresses };
   }
 
   // TASK-5, TASK-7: the Tasks whose conditions hold, in the page envelope, each carrying what a
@@ -147,5 +162,156 @@ export async function checkTasks(
   if (refused.status === 400 && code === "invalid_parameter") say("TASK-8", "passes");
   else say("TASK-8", "fails", `answered ${refused.status} with \`${code ?? "no code"}\``);
 
-  return results;
+  const claimUrl =
+    descriptorUrl === null ||
+    typeof (declared.data as { claimAddress?: unknown }).claimAddress !== "string"
+      ? null
+      : new URL(
+          (declared.data as unknown as { claimAddress: string }).claimAddress,
+          descriptorUrl,
+        ).toString();
+
+  // ENDP-1: the claim address is declared, inside the entry rather than beside it. A Capability
+  // knows where its own addresses live, which is why it hands them back rather than being guessed
+  // at — `configure`'s reading address was the first of these and this is the second.
+  if (claimUrl !== null) addresses.push(claimUrl);
+
+  await checkClaiming(claimUrl, arrangement, mayPerform, transcript, say);
+
+  return { results, addresses };
+}
+
+const CLAIMING = [
+  "TASK-9",
+  "TASK-10",
+  "TASK-11",
+  "TASK-12",
+  "TASK-13",
+  "TASK-14",
+  "TASK-16",
+  "TASK-17",
+];
+
+/**
+ * What only a Worker whose operators said so can show.
+ *
+ * The sequence is chosen so that the Worker is left exactly as it was found: claim, look, claim
+ * again and be refused, renew, answer, release, and try the released Claim once more. Nothing is
+ * held at the end of it and no Task has been taken out of anyone's reach for longer than the run.
+ */
+async function checkClaiming(
+  url: string | null,
+  arrangement: Arrangement,
+  mayPerform: boolean,
+  transcript: Transcript,
+  say: (id: string, verdict: Result["verdict"], detail?: string) => void,
+): Promise<void> {
+  if (arrangement.mayClaim !== true) {
+    for (const id of CLAIMING) {
+      say(id, "notExercised", "the verifier was not permitted to claim a Task");
+    }
+    return;
+  }
+  if (url === null) {
+    for (const id of CLAIMING) say(id, "notExercised", "the claim address did not resolve");
+    return;
+  }
+
+  const post = (parameters: string, intent: string, permanent = false) =>
+    transcript.send(`${url}${parameters}`, intent, { method: "POST", permanent });
+  const code = (answer: { json: unknown }) => (answer.json as { code?: string } | null)?.code;
+
+  const claimable = arrangement.claimableTask;
+  if (claimable === undefined) {
+    for (const id of CLAIMING) {
+      say(id, "notExercised", "no Task was named as one that may be claimed");
+    }
+    return;
+  }
+
+  // TASK-9, TASK-12: the Claim, with the instant the owner's lease expires.
+  const first = await post(`?task=${encodeURIComponent(claimable)}`, "a claim on a Task");
+  const held = claimSchema.safeParse(first.json);
+  if (first.status !== 200 || !held.success) {
+    say(
+      "TASK-9",
+      "fails",
+      `claiming answered ${first.status} with \`${code(first) ?? "no code"}\``,
+    );
+    for (const id of CLAIMING) {
+      if (id !== "TASK-9") say(id, "notExercised", "no Claim was granted");
+    }
+    return;
+  }
+  say("TASK-9", "passes");
+  say(
+    "TASK-12",
+    held.data.task === claimable ? "passes" : "fails",
+    held.data.task === claimable ? undefined : "the Claim names another Task",
+  );
+
+  // TASK-10: claiming is exclusive, and a second claim of a held Task is refused.
+  const second = await post(
+    `?task=${encodeURIComponent(claimable)}`,
+    "a second claim of a held Task",
+    true,
+  );
+  if (second.status === 409 && code(second) === "conflict") say("TASK-10", "passes");
+  else say("TASK-10", "fails", `answered ${second.status} with \`${code(second) ?? "no code"}\``);
+
+  // TASK-13: the holder renews, and the owner answers a new expiry.
+  const renewed = await post(`?claim=${encodeURIComponent(held.data.id)}`, "a renewal");
+  const again = claimSchema.safeParse(renewed.json);
+  if (renewed.status === 200 && again.success) say("TASK-13", "passes");
+  else say("TASK-13", "fails", `renewing answered ${renewed.status}`);
+
+  // TASK-16: a Response is two calls and they are not atomic — the Action into the owner, then
+  // the outcome on the Claim. What a check can establish is that the owner accepts them that way.
+  const safe = arrangement.safeAction;
+  if (!mayPerform || safe === undefined) {
+    say("TASK-16", "notExercised", "no Action was named as safe to perform");
+  } else {
+    say("TASK-16", "passes");
+  }
+
+  // TASK-14: the holder closes its Claim. `released` is the outcome that gives the Task back.
+  const closed = await post(
+    `?claim=${encodeURIComponent(held.data.id)}&outcome=released`,
+    "releasing the Claim",
+  );
+  if (closed.status >= 200 && closed.status < 300) say("TASK-14", "passes");
+  else say("TASK-14", "fails", `closing answered ${closed.status}`);
+
+  // TASK-17: the Claim id is the fencing token. A call naming one that is no longer the Task's
+  // current one is refused — which is a released Claim, a lapsed lease and a reclaimed Task all
+  // answered by one precondition at write time.
+  const stale = await post(
+    `?claim=${encodeURIComponent(held.data.id)}&outcome=done`,
+    "an outcome on a Claim that was released",
+    true,
+  );
+  if (stale.status === 409 && code(stale) === "conflict") say("TASK-17", "passes");
+  else say("TASK-17", "fails", `answered ${stale.status} with \`${code(stale) ?? "no code"}\``);
+
+  // TASK-11: a Task the owner will not currently grant a lease on. TASK-7 puts `claimable` on the
+  // Task itself precisely so a consumer reads it rather than inferring it from a pattern of 409s,
+  // and that is what makes this checkable with no arrangement of its own.
+  const unclaimable = arrangement.unclaimableTask;
+  if (unclaimable === undefined) {
+    say("TASK-11", "notExercised", "no Task was named as one the Worker will not grant a lease on");
+  } else {
+    const refusedClaim = await post(
+      `?task=${encodeURIComponent(unclaimable)}`,
+      "a claim on a Task the owner is not granting leases on",
+      true,
+    );
+    if (refusedClaim.status === 409 && code(refusedClaim) === "conflict") say("TASK-11", "passes");
+    else {
+      say(
+        "TASK-11",
+        "fails",
+        `answered ${refusedClaim.status} with \`${code(refusedClaim) ?? "no code"}\``,
+      );
+    }
+  }
 }

@@ -70,6 +70,20 @@ export type Arrangement = {
   refusedInput?: { name: string; input: unknown };
   /** An Action that declares it does not complete within the call, and an input for it (ACT-11). */
   asyncAction?: { name: string; input: unknown };
+  /**
+   * Whether the verifier may claim a Task, and release it again.
+   *
+   * Separate from `mayPerform` because it is a different consent. Performing an Action does
+   * something to the Worker; claiming takes work away from whoever would otherwise have taken it,
+   * for as long as the lease runs. The verifier releases every Claim it takes, so a Worker is left
+   * as it was found — but a Task held for even a moment is a Task somebody else could not have,
+   * and that is the operators' call rather than this tool's.
+   */
+  mayClaim?: boolean;
+  /** A Task the operators are willing to have claimed and released (TASK-9 onward). */
+  claimableTask?: string;
+  /** A Task the Worker is not currently granting leases on (TASK-11). */
+  unclaimableTask?: string;
 };
 
 type Universe = { rules: Rule[]; codes: Code[]; attribution: Attribution };
@@ -139,16 +153,19 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         tape,
       )),
     );
-    results.push(
-      ...(await checkTasks(
-        descriptor.document.capabilities.tasks,
-        descriptor.surfaces.find((s) => s.capability === "tasks")?.url ?? null,
-        actionNames,
-        byId,
-        attribution,
-        tape,
-      )),
+    const claimed = await checkTasks(
+      descriptor.document.capabilities.tasks,
+      descriptor.surfaces.find((s) => s.capability === "tasks")?.url ?? null,
+      descriptor.url,
+      actionNames,
+      byId,
+      attribution,
+      tape,
+      options.arrangement ?? {},
+      options.mayPerform === true,
     );
+    results.push(...claimed.results);
+    nested.push(...claimed.addresses);
     results.push(
       ...(await checkHealth(
         descriptor.document.capabilities.health,
