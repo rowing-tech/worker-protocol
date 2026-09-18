@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alert.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ALRT-3. The Worker's own id for this Alert. Opaque to everyone else."
+    },
+    "severity": {
+      "$ref": "alert-severity.json"
+    },
+    "since": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+      "format": "date-time",
+      "description": "ALRT-3. When the condition began, as an RFC 3339 instant carrying an offset. It is what lets a console tell `this is new` from `this is the same thing as yesterday`, which is most of what dismissal was being asked to do."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ALRT-3. Human-readable, and parsed by nothing. The reader this surface exists for is a person looking at a console; what a program acts on is the severity and the Actions."
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "ALRT-3, ALRT-7. The Actions this Alert offers, by the names the Worker's own `actions` entry holds them under. May be empty. Names and not schemas, because the schema is already in that entry and a second copy is a second thing to keep in step."
+    }
+  },
+  "required": [
+    "id",
+    "severity",
+    "since",
+    "summary",
+    "actions"
+  ],
+  "additionalProperties": false,
+  "title": "Alert",
+  "description": "ALRT-3. One condition an operator should see, while it holds."
+}

@@ -22,9 +22,6 @@ back — so that when the answer lands, both places know.
   [spec/metrics.md](../spec/metrics.md).
 - **Whether a Task type may belong to several Services, and whether a Service may span workers of
   several teams.**
-- **Whether Alerts need a Contract to be read** — and whether Alerts are a distinct surface at all,
-  or Tasks nobody must claim. Nothing implements them yet. Listed in
-  [spec/alerts.md](../spec/alerts.md).
 - **Who consolidates the cost and elapsed time a Response carries.** Nothing does today; the
   consumer's own metrics, split by the Contract each Response came under, are the obvious
   candidate. Listed in [spec/metrics.md](../spec/metrics.md).

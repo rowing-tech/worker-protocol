@@ -146,9 +146,9 @@ describe("the reference worker, verified", () => {
     // passed by a tool that only ever contacted the Worker.
     expect(counts.otherSubject).toBe(22);
     // A rule nothing outside can observe is reported rather than counted as passed.
-    expect(counts.unverified).toBe(20);
+    expect(counts.unverified).toBe(21);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(78);
+    expect(counts.passes).toBe(83);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,

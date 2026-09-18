@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the eight `draft` files, classified by what a check would observe. This is the audit
+Every rule in the nine `draft` files, classified by what a check would observe. This is the audit
 [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place only if you can name
 what a conformance check would observe when it is broken* — run for the first time, and it is also
 the specification of what `packages/conformance` implements.
@@ -17,10 +17,10 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 73 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 21 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 78 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 22 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, or this specification. No tool pointed at a base URL can reach it. | 22 |
-| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; the rest are not on that list, and the register below is where they are counted. | 20 |
+| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; the rest are not on that list, and the register below is where they are counted. | 21 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
 ## descriptor.md — 25
@@ -149,6 +149,18 @@ this document, and separating them moved six rules.
 | TASK-17 | H | Needs a Claim that is no longer the Task's current one |
 | TASK-18 | P | Binds a holder: it is the consumer that must not do arithmetic against a clock the owner never saw. Which clock decided is not a fact on the wire |
 | TASK-19 | N | Recommended. What a nudge IS has no witness: an owner notifying by some other means is indistinguishable from one that does not notify at all |
+
+## alerts.md — 7
+
+| Rule | Class | What a check observes, or why nothing does |
+|---|---|---|
+| ALRT-1 | W | The `alerts` entry carries an address |
+| ALRT-2 | W | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
+| ALRT-3 | W | Each Alert carries its id, severity, the instant it began, a summary and its Actions |
+| ALRT-4 | W | Every severity is one of the two |
+| ALRT-5 | N | An Alert that disappears may have had its condition stop holding, or may have been dismissed by somebody the verifier never saw. Nothing outside can tell — which is the same shape as TASK-15 and the same reason it matters |
+| ALRT-6 | H | Two credentials must exist before two lists can be compared |
+| ALRT-7 | W | Every Action an Alert offers is one the Worker's own `actions` entry accepts. An agreement between two entries, which no schema reaches |
 
 ## naming.md — 9
 

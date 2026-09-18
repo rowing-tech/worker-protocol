@@ -912,6 +912,80 @@ export const claim = z
       "lapsing, and closing it never closes the Task.",
   });
 
+/**
+ * ALRT-4 — the two severities, and the only two.
+ *
+ * The contrast with `healthStatus` is the argument rather than an inconsistency. `degraded` earns
+ * a third value there because a Worker working with one dependency down has a real state with no
+ * honest spelling in two. Here the only decision an operator takes is whether to look now, and a
+ * third value would be a place to hedge rather than a state anybody needed to express.
+ */
+export const alertSeverity = z.enum(["warning", "critical"]).meta({
+  title: "Alert severity",
+  description: "ALRT-4. Whether an operator should look now or look later.",
+});
+
+/**
+ * ALRT-3 — one Alert.
+ *
+ * It carries no status and nothing anybody declared about it, for the reason a Task does not: an
+ * Alert exists while its condition holds and ends when it stops (ALRT-5), so there is no state for
+ * a reader to interpret and no dismissal for anyone to record.
+ */
+export const alert = z
+  .strictObject({
+    id: z.string().min(1).meta({
+      description: "ALRT-3. The Worker's own id for this Alert. Opaque to everyone else.",
+    }),
+    severity: alertSeverity,
+    since: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
+      .meta({
+        format: "date-time",
+        description:
+          "ALRT-3. When the condition began, as an RFC 3339 instant carrying an offset. It is " +
+          "what lets a console tell `this is new` from `this is the same thing as yesterday`, " +
+          "which is most of what dismissal was being asked to do.",
+      }),
+    summary: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "ALRT-3. Human-readable, and parsed by nothing. The reader this surface exists for is a " +
+          "person looking at a console; what a program acts on is the severity and the Actions.",
+      }),
+    actions: z.array(z.string().min(1)).meta({
+      description:
+        "ALRT-3, ALRT-7. The Actions this Alert offers, by the names the Worker's own `actions` " +
+        "entry holds them under. May be empty. Names and not schemas, because the schema is " +
+        "already in that entry and a second copy is a second thing to keep in step.",
+    }),
+  })
+  .meta({
+    title: "Alert",
+    description: "ALRT-3. One condition an operator should see, while it holds.",
+  });
+
+/** ALRT-2 — what a read answers: the page envelope with its items narrowed to Alerts. */
+export const alertPage = page
+  .extend({
+    items: z.array(alert).meta({ description: "ALRT-2. The Alerts whose conditions hold." }),
+  })
+  .meta({
+    title: "Alert page",
+    description: "ALRT-2. One page of Alerts, in the envelope ENDP-20 fixes for every collection.",
+  });
+
+/** ALRT-1 — the `alerts` Capability entry. The address is required: this is answered over HTTP. */
+export const alertsEntry = capabilityEntry.extend({ address }).meta({
+  title: "Alerts capability entry",
+  description:
+    "ALRT-1. The shared Capability entry with the address required. Nothing else: what a Worker " +
+    "raises an Alert about is its own business, so there is no catalog to declare.",
+});
+
 registry.add(capabilityName, { id: "capability-name" });
 registry.add(qualifiedName, { id: "qualified-name" });
 registry.add(healthStatus, { id: "health-status" });
@@ -936,3 +1010,7 @@ registry.add(tasksEntry, { id: "tasks-entry" });
 registry.add(task, { id: "task" });
 registry.add(taskPage, { id: "task-page" });
 registry.add(claim, { id: "claim" });
+registry.add(alertSeverity, { id: "alert-severity" });
+registry.add(alert, { id: "alert" });
+registry.add(alertPage, { id: "alert-page" });
+registry.add(alertsEntry, { id: "alerts-entry" });

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Attribution } from "./attribution.ts";
 import { checkActions } from "./checks/actions.ts";
+import { checkAlerts } from "./checks/alerts.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkHealth } from "./checks/health.ts";
@@ -123,6 +124,16 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           | { actions?: Record<string, unknown> }
           | undefined
       )?.actions ?? {},
+    );
+    results.push(
+      ...(await checkAlerts(
+        descriptor.document.capabilities.alerts,
+        descriptor.surfaces.find((s) => s.capability === "alerts")?.url ?? null,
+        actionNames,
+        byId,
+        attribution,
+        tape,
+      )),
     );
     results.push(
       ...(await checkTasks(

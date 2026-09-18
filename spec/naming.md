@@ -292,11 +292,12 @@ is the discovery this protocol is built to deliver, and it needs nothing from th
 ## Still open here
 
 - Whether anyone is told *proactively* when a breaking change lands under a Contract already
-  granted, or whether the loud discovery described above is the whole of it. **This is deliberately
-  parked rather than merely unanswered**: the loud discovery is held to be sufficient until
-  something shows it is not, and the question is not reopened before [alerts](alerts.md) is
-  written, because a notification needs somewhere to arrive and that file is where it would be. The
-  Contract's own contents are open in [undecided](../docs/undecided.md) besides.
+  granted. This was parked until [alerts](alerts.md) was written, because a notification needs
+  somewhere to arrive and that file was where it would be. It is not: an Alert is read by whoever
+  operates a Worker, and a consumer under a Contract is not that party and may hold no credential
+  for the address at all. So the loud discovery described above is the whole of it, and the
+  question is closed rather than parked. The Contract's own contents are open in
+  [undecided](../docs/undecided.md) besides.
 - Whether a name carries a length bound. Nothing here needs one, and every bound anyone proposed
   would be arbitrary; it is listed only so that its absence is visibly a decision.
 

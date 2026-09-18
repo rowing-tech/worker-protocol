@@ -92,6 +92,48 @@
       "reach": "W"
     },
     {
+      "id": "ALRT-1",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ALRT-2",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ALRT-3",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ALRT-4",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ALRT-5",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "ALRT-6",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ALRT-7",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
       "id": "DESC-1",
       "file": "descriptor.md",
       "class": "required",
@@ -934,6 +976,26 @@
       "actions/*/input": "ACT-2",
       "actions/*/readAddress": "ACT-15",
       "actions/*/result": "ACT-3",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "alert-page": {
+      "": "ALRT-2",
+      "items": "ALRT-2",
+      "nextCursor": "ENDP-21"
+    },
+    "alert-severity": {
+      "": "ALRT-4"
+    },
+    "alert": {
+      "": "ALRT-3",
+      "id": "ALRT-3",
+      "severity": "ALRT-4",
+      "since": "ALRT-3",
+      "summary": "ALRT-3"
+    },
+    "alerts-entry": {
+      "": "ALRT-1",
       "address": "DESC-12",
       "version": "DESC-9"
     },

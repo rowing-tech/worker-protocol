@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alert-severity.json",
+  "type": "string",
+  "enum": [
+    "warning",
+    "critical"
+  ],
+  "title": "Alert severity",
+  "description": "ALRT-4. Whether an operator should look now or look later."
+}

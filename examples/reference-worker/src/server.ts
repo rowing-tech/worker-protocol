@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { DECLARATIONS as ACTIONS, createActions } from "./actions.ts";
+import { alerts } from "./alerts.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
 import { ANSWERS, createTasks, RAISES } from "./tasks.ts";
 
@@ -53,6 +54,7 @@ export function createWorker(options: WorkerOptions = {}): Server {
     metrics: `${base}metrics`,
     actions: `${base}actions`,
     settings: `${base}settings`,
+    alerts: `${base}alerts`,
     tasks: `${base}tasks`,
     claims: `${base}claims`,
   };
@@ -89,6 +91,9 @@ export function createWorker(options: WorkerOptions = {}): Server {
       actions: { version: 1, address: "../actions", actions: ACTIONS },
       // TASK-1: two addresses, because ENDP-3 puts what changes state on an address declared for
       // the purpose and ENDP-2 keeps a read a read — listing open Tasks must not consume them.
+      // ALRT-1: an address and nothing else. What a Worker raises an Alert about is its own
+      // business, so there is no catalog to declare.
+      alerts: { version: 1, address: "../alerts" },
       tasks: {
         version: 1,
         address: "../tasks",
@@ -146,6 +151,7 @@ export function createWorker(options: WorkerOptions = {}): Server {
       routes.settings,
       routes.tasks,
       routes.claims,
+      routes.alerts,
     ];
     if (!known.includes(path)) {
       // REG-7: a Worker does not answer 404 in place of 401 on an address it serves — and this is
@@ -217,8 +223,27 @@ export function createWorker(options: WorkerOptions = {}): Server {
       return reject(400, "unsupported_version", "This Worker answers version 1.");
     }
 
+    // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. A filter dropped in
+    // silence answers with MORE than the caller asked for, in a shape it will happily parse — and
+    // a caller that filtered in order to stay inside a Contract is handed exactly what it
+    // excluded, with no sign that anything happened.
+    //
+    // It sits HERE, above every surface branch, rather than beside the ones it applies to. Put
+    // next to a branch it protects only the branches somebody remembered, and a surface added
+    // later silently ignores what it is handed — which is how `/settings` came to be unguarded
+    // until this was moved. `metrics` and `tasks` are excluded because they take parameters of
+    // their own and check them where they know what they mean.
+    if (path !== routes.metrics && path !== routes.tasks) {
+      for (const key of query.keys()) {
+        return reject(400, "unknown_filter", `This address takes no parameter named ${key}.`);
+      }
+    }
+
     // ACT-15: a GET of the reading address answers a document `configure` would accept.
     if (path === routes.settings) return send(200, actions.settings());
+
+    // ALRT-2: the Alerts whose conditions hold, in the page envelope of ENDP-20.
+    if (path === routes.alerts) return send(200, alerts());
 
     // TASK-5: the Tasks whose conditions hold, in the page envelope of ENDP-20.
     if (path === routes.tasks) {
@@ -227,17 +252,6 @@ export function createWorker(options: WorkerOptions = {}): Server {
         return send(answer.status, { code: answer.code, message: answer.message, class: "reject" });
       }
       return send(answer.status, answer.body);
-    }
-
-    // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. A filter dropped in
-    // silence answers with MORE than the caller asked for, in a shape it will happily parse — and
-    // a caller that filtered in order to stay inside a Contract is handed exactly what it
-    // excluded, with no sign that anything happened. The Descriptor route and `health` take no
-    // parameters at all, so every one they receive is unrecognized.
-    if (path !== routes.metrics && path !== routes.tasks) {
-      for (const key of query.keys()) {
-        return reject(400, "unknown_filter", `This address takes no parameter named ${key}.`);
-      }
     }
 
     if (path === routes.descriptor) return send(200, descriptor);
