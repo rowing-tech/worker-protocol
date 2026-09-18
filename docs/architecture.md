@@ -159,6 +159,28 @@ Teams also talk about a Service — an issue raised against it, a question about
 for. A Tower may host that conversation; the protocol does not see it, and it is neither a Task
 nor an Alert.
 
+A worker's **lifecycle** is the same kind of thing, and it is worth saying so rather than leaving
+the silence to be read as an oversight. Preparing, active, retired — whatever phases a Tower names
+— are qualifications a Tower keeps about a worker, put there by an operator or worked out from what
+the Tower already holds. A worker declares no phase, the Descriptor carries none, and no file in
+`spec/` defines one.
+
+It sits with the Tower because enrolling is already a human act: somebody forms an opinion about a
+worker by writing its URL down, retiring is the symmetric act, and *not yet* is the same person
+saying the opinion is not formed. That is an opinion held about a worker, not a fact the worker
+owns, and the worker has no use for it. A declared phase was considered and buys little. Two
+workers running side by side while one replaces the other is already what a Service does — both
+stand behind it, Contracts reach both, and metrics let an operator compare them. Telling a retired
+worker from a dead one cannot rest on a declaration anyway, since a worker that dies declares
+nothing and somebody has to go and look either way. And what only the worker can do while it
+retires — stop granting Claims, drain what it holds — is its own business, seen through `tasks` and
+`health` without needing a name.
+
+What does cross into the protocol is narrower than it looks, and two thirds of it is already
+answered: HLTH-4 says what a worker answers before it has established its state, and NAME-2 forbids
+reusing a retired worker's id for a different thing. What is left open is what becomes of a Contract
+granted over a worker that is being retired, which belongs with the rest of what a Contract carries.
+
 A **Service** is a name a team publishes over things workers already offer — these events, these
 Task types, these Actions — and answers for. It is the unit a Contract is made over, never a unit
 of execution: nothing is requested from a Service, and nothing flows through it. Using one means
@@ -411,9 +433,10 @@ surface like health or metrics; writing stays an Action.
   Tower runs no business logic* — denied them while `spec/` required them. Schedules, derivation
   over a domain, and connections to foreign APIs still live in the workers.
 - **The Tower remembers nothing on a worker's behalf.** A Task's lifecycle belongs to the worker that
-  raised it; settings live in the worker. The Tower keeps its own management state — the registry,
-  which is the dated copy of each Descriptor it last saw; the Contracts; the credentials — and
-  that is all it keeps.
+  raised it; settings live in the worker. What the Tower keeps is its own: the registry, which is
+  the dated copy of each Descriptor it last saw; the Contracts; the credentials; and whatever it has
+  concluded about each worker, the phase it puts one in included. The line is ownership and not
+  volume — nothing it holds is a fact a worker is authoritative over.
 - **Each Worker stays authoritative.** State is read where it lives. A consumer may cache, and owns
   the consequences of caching.
 - **Ownership is strict.** Facts belong to whoever derived them, events to whoever published them,
