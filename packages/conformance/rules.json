@@ -613,5 +613,92 @@
       "class": "recommended",
       "reach": "N"
     }
+  ],
+  "codes": [
+    {
+      "code": "conflict",
+      "status": 409,
+      "class": "reject"
+    },
+    {
+      "code": "forbidden",
+      "status": 403,
+      "class": "reject"
+    },
+    {
+      "code": "idempotency_key_required",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "idempotency_key_reused",
+      "status": 409,
+      "class": "reject"
+    },
+    {
+      "code": "internal_error",
+      "status": 500,
+      "class": "retry"
+    },
+    {
+      "code": "invalid_parameter",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "malformed_request",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "not_found",
+      "status": 404,
+      "class": "reject"
+    },
+    {
+      "code": "rate_limited",
+      "status": 429,
+      "class": "retry"
+    },
+    {
+      "code": "request_timeout",
+      "status": 408,
+      "class": "retry"
+    },
+    {
+      "code": "unauthenticated",
+      "status": 401,
+      "class": "reject"
+    },
+    {
+      "code": "unavailable",
+      "status": 503,
+      "class": "retry"
+    },
+    {
+      "code": "unknown_filter",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "unprocessable_content",
+      "status": 422,
+      "class": "reject"
+    },
+    {
+      "code": "unsupported_version",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "upstream_error",
+      "status": 502,
+      "class": "retry"
+    },
+    {
+      "code": "upstream_timeout",
+      "status": 504,
+      "class": "retry"
+    }
   ]
 }

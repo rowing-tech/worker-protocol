@@ -19,7 +19,7 @@ const start = (options: Parameters<typeof createWorker>[0] = {}) =>
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address() as AddressInfo;
       resolve({
-        url: `http://127.0.0.1:${port}`,
+        url: `http://127.0.0.1:${port}${options.basePath ?? ""}`,
         close: () => new Promise<void>((done) => server.close(() => done())),
       });
     });
@@ -47,15 +47,40 @@ describe("the reference worker, verified", () => {
     expect(report.results.length).toBeGreaterThan(100);
   });
 
-  it("passes the Descriptor rules and fails DESC-3, which the harness cannot satisfy", async () => {
+  it("passes every rule it claims but DESC-3, which the harness cannot satisfy", async () => {
     const report = await verify({ baseUrl: worker.url, credential: "a-token" });
     const verdict = (id: string) => report.results.find((r) => r.rule.id === id)?.verdict;
 
-    for (const id of ["DESC-1", "DESC-5", "DESC-6", "DESC-8", "DESC-9", "DESC-12", "DESC-14"]) {
-      expect(verdict(id), `${id} should pass`).toBe("passes");
-    }
-    expect(verdict("DESC-22")).toBe("passes");
-    expect(verdict("DESC-23")).toBe("passes");
+    const claimed = [
+      // The Descriptor document alone.
+      "DESC-1",
+      "DESC-5",
+      "DESC-6",
+      "DESC-8",
+      "DESC-9",
+      "DESC-12",
+      "DESC-14",
+      "DESC-22",
+      "DESC-23",
+      // What calling each declared address establishes.
+      "DESC-18",
+      "REG-3",
+      "REG-7",
+      "REG-21",
+      // The `health` Capability.
+      "HLTH-1",
+      "HLTH-2",
+      "HLTH-3",
+      "HLTH-5",
+      // Judged over every response the run provoked.
+      "ENDP-1",
+      "ENDP-4",
+      "ENDP-5",
+      "ENDP-25",
+      "ENDP-26",
+      "ENDP-29",
+    ];
+    for (const id of claimed) expect(verdict(id), `${id} should pass`).toBe("passes");
 
     // DESC-3 fixes `https`, and this test reaches the Worker over a loopback socket in plaintext.
     // The verdict is correct and the fault is the harness's: a Worker is not conformant at an
@@ -63,6 +88,22 @@ describe("the reference worker, verified", () => {
     // localhost, because a verifier that quietly excused a rule would be deciding something the
     // specification did not.
     expect(verdict("DESC-3")).toBe("fails");
+  });
+
+  it("resolves a declared address against the Descriptor's route, not the base URL", async () => {
+    // DESC-12 resolves a relative reference against `<base>/.well-known/worker-protocol`, so a
+    // bare `health` lands under `.well-known/` where nothing is served. The reference Worker
+    // declares `../health` and this is what holds it to it — under a path as well as at the root,
+    // which is the case an absolute `/health` would have got wrong.
+    const mounted = await start({ credential: "a-token", basePath: "/fleet/" });
+    try {
+      const report = await verify({ baseUrl: mounted.url, credential: "a-token" });
+      const verdict = (id: string) => report.results.find((r) => r.rule.id === id)?.verdict;
+      expect(verdict("DESC-18")).toBe("passes");
+      expect(verdict("HLTH-5")).toBe("passes");
+    } finally {
+      await mounted.close();
+    }
   });
 
   it("says which kind of silence every unclaimed rule is", async () => {
@@ -75,11 +116,28 @@ describe("the reference worker, verified", () => {
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(16);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(9);
+    expect(counts.passes).toBe(23);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
     );
+  });
+
+  it("attributes a fault to the rule that states the thing it broke", async () => {
+    // Not "the Descriptor is invalid". An operator cannot act on that, and two very different
+    // faults read identically — which is what the ids exist to prevent.
+    const broken = await start({ edition: "banana" });
+    try {
+      const report = await verify({ baseUrl: broken.url });
+      const result = report.results.find((r) => r.rule.id === "DESC-23");
+
+      expect(result?.verdict).toBe("fails");
+      expect(result?.detail).toContain("edition");
+      // And nothing the broken document could not support is claimed as passing.
+      expect(report.results.find((r) => r.rule.id === "DESC-8")?.verdict).toBe("notExercised");
+    } finally {
+      await broken.close();
+    }
   });
 
   it("fails DESC-1 when the credential is refused, and judges nothing else on the document", async () => {

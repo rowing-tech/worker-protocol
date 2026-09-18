@@ -55,7 +55,15 @@ export function createWorker(options: WorkerOptions = {}): Server {
     capabilities: {
       // DESC-12: a relative reference, resolved against the URL the Descriptor was read from. It
       // is the shape a Worker that does not know its own public address can always produce.
-      health: { version: 1, address: "health" },
+      //
+      // `../health` and not `health`, and the difference is a trap worth naming because the first
+      // implementation of this rule fell into it. The base for resolution is the Descriptor's own
+      // route — `<base>/.well-known/worker-protocol` — so a bare `health` resolves under
+      // `.well-known/`, which is not where any Worker serves anything. Climbing one segment lands
+      // it beside the base URL, and keeps doing so when the Worker is mounted under a path: with
+      // basePath `/fleet/` the Descriptor is at `/fleet/.well-known/worker-protocol` and this
+      // resolves to `/fleet/health`, which an absolute `/health` would have got wrong.
+      health: { version: 1, address: "../health" },
     },
   };
 
