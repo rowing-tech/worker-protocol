@@ -23,6 +23,10 @@ Two halves, and a worker may implement one or both:
 - **Delegate.** A worker takes tasks it did not create, claims one under a lease, and answers.
   Whoever raised the task never names who will do it.
 
+A worker may also implement neither and still be one. The descriptor is the whole floor: everything
+above it is declared or left out freely, and a worker that serves a descriptor and nothing else is
+already known, catalogued and reachable. What it adds afterwards, it adds at its own pace.
+
 ## Normative and explanatory
 
 Three layers, and only the first two bind:

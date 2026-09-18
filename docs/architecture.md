@@ -11,7 +11,7 @@
 > to use another's work, and then the work runs without it — as aircraft already cleared keep
 > flying when the tower goes quiet.
 >
-> Three principles drive the shape:
+> Four principles drive the shape:
 >
 > 1. **Each Worker owns its state.** Nothing replicates into a privileged owner. A worker that
 >    consumes another's events derives its own facts from them and raises its own Tasks; nobody
@@ -28,6 +28,13 @@
 >    what it observed is its own, exactly as a worker's facts are its own — REG-24 is where the
 >    invariant binds, by forbidding an owner to call the Tower in order to validate a Contract's
 >    credential.
+> 4. **A Descriptor is the whole floor, and everything above it is optional.** Capabilities are
+>    declared or left out freely, in any combination including none. A worker that serves only a
+>    Descriptor is enrolled, catalogued and reachable, and nothing beyond that is a condition of
+>    being known — so a worker joins with what it already has, and is seen further as it offers
+>    more: monitored once it declares `health`, measured once it declares `metrics`, given work
+>    once it declares `tasks`. Conformance is whether a worker can be read and believed, never
+>    whether it is worth enrolling.
 >
 > **This document is the reasoning, not the normative text.** It explains why the protocol is
 > shaped the way it is; `spec/` and `schemas/` say what a worker must do. Nothing here is closed:
@@ -203,7 +210,8 @@ deduplicates by event id.
 
 **The Worker API.** Everything a worker exposes for reading or acting on, over HTTP and JSON
 Schema: its **Descriptor**, which says which of the rest it serves and where; its **health**, the
-minimal answer to a poll, whose absence is the signal; its **metrics**; its **Actions**, each with a
+cheapest surface to poll and optional like the rest, since a Descriptor that stops answering carries
+the same fact; its **metrics**; its **Actions**, each with a
 schema and an address to post to; its **settings**, when it accepts `configure` — read here, written
 only through that Action; its **Tasks**, exposed as current state so a late consumer sees what is
 open and not only what happened; and its **Alerts**. The Tower is one client of this API; other
