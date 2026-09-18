@@ -1,0 +1,13 @@
+{
+  "schema": "health",
+  "valid": true,
+  "rule": "HLTH-3",
+  "why": "A summary of `degraded` over a check that is not healthy. HLTH-3 forbids `healthy` here and says nothing about the choice between `degraded` and `unhealthy`, which is the judgement the third value exists to carry.",
+  "document": {
+    "status": "degraded",
+    "checks": {
+      "postgres": { "status": "healthy" },
+      "upstream-pricing": { "status": "unhealthy", "detail": "no answer in 30s" }
+    }
+  }
+}

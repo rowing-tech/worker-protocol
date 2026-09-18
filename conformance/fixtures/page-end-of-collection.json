@@ -1,0 +1,9 @@
+{
+  "schema": "page",
+  "valid": true,
+  "rule": "ENDP-20",
+  "why": "The last page of a collection. The cursor is absent, which is how a caller learns it has reached the end.",
+  "document": {
+    "items": []
+  }
+}

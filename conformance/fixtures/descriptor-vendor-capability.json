@@ -1,0 +1,14 @@
+{
+  "schema": "descriptor",
+  "valid": true,
+  "rule": "DESC-14",
+  "why": "A Capability the Worker defines itself. The dot is the whole of the syntax, and DESC-15 has a verifier ignore a dotted name it does not know rather than fail the Worker for it.",
+  "document": {
+    "id": "worker-7f3a",
+    "edition": "0.1",
+    "capabilities": {
+      "health": { "version": 1, "address": "/health" },
+      "acme.billing": { "version": 2, "address": "/acme/billing" }
+    }
+  }
+}

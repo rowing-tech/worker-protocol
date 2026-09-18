@@ -48,8 +48,7 @@ export const capabilityName = z
   .enum(["health", "metrics", "actions", "alerts", "tasks", "events"])
   .meta({
     title: "Capability name",
-    description:
-      "DESC-8. The Capability names the current edition of worker-protocol defines.",
+    description: "DESC-8. The Capability names the current edition of worker-protocol defines.",
   });
 
 /**
@@ -174,11 +173,14 @@ export const healthStatus = z.enum(["healthy", "degraded", "unhealthy"]).meta({
 export const healthCheck = z
   .looseObject({
     status: healthStatus,
-    detail: z.string().optional().meta({
-      description:
-        "HLTH-2. Short, human-readable, addressed to whoever is looking. Not addressed to a " +
-        "program: nothing in this protocol parses it.",
-    }),
+    detail: z
+      .string()
+      .optional()
+      .meta({
+        description:
+          "HLTH-2. Short, human-readable, addressed to whoever is looking. Not addressed to a " +
+          "program: nothing in this protocol parses it.",
+      }),
   })
   .meta({
     title: "Health check",
@@ -218,15 +220,13 @@ export const health = z
  * optional. This is the extension DESC-22 promises each Capability's own file will define, and it
  * is the first one.
  */
-export const healthEntry = capabilityEntry
-  .extend({ address })
-  .meta({
-    title: "Health capability entry",
-    description:
-      "HLTH-1. The shared Capability entry with the address required, because `health` is " +
-      "answered over HTTP. DESC-22 makes the address optional in the shared entry only so that " +
-      "`events`, answered over a broker, can be declared at all.",
-  });
+export const healthEntry = capabilityEntry.extend({ address }).meta({
+  title: "Health capability entry",
+  description:
+    "HLTH-1. The shared Capability entry with the address required, because `health` is " +
+    "answered over HTTP. DESC-22 makes the address optional in the shared entry only so that " +
+    "`events`, answered over a broker, can be declared at all.",
+});
 
 /**
  * DESC-1, DESC-2, DESC-6, DESC-23, DESC-22 — the document every Worker serves.
@@ -265,13 +265,11 @@ export const descriptor = z
           "zeros are refused so that one edition has one spelling and string equality agrees " +
           "with numeric comparison.",
       }),
-    capabilities: z
-      .record(z.union([capabilityName, vendorCapabilityName]), capabilityEntry)
-      .meta({
-        description:
-          "DESC-2. Any combination, including none. Keyed by Capability name, which is what " +
-          "makes a Capability declared at most once — the question descriptor.md leaves open.",
-      }),
+    capabilities: z.record(z.union([capabilityName, vendorCapabilityName]), capabilityEntry).meta({
+      description:
+        "DESC-2. Any combination, including none. Keyed by Capability name, which is what " +
+        "makes a Capability declared at most once — the question descriptor.md leaves open.",
+    }),
   })
   .meta({
     title: "Descriptor",
@@ -405,14 +403,12 @@ export const page = z
  * duration would make that a free-text box. It is also where accumulation stops being a time
  * series, which is the distinction this Capability rests on.
  */
-export const metricGranularity = z
-  .enum(["hour", "day", "week", "month", "year"])
-  .meta({
-    title: "Metric granularity",
-    description:
-      "MET-3. The period one bucket covers. MET-6 cuts every boundary in the time zone the entry " +
-      "declares, and MET-7 makes a week the ISO 8601 one, beginning Monday.",
-  });
+export const metricGranularity = z.enum(["hour", "day", "week", "month", "year"]).meta({
+  title: "Metric granularity",
+  description:
+    "MET-3. The period one bucket covers. MET-6 cuts every boundary in the time zone the entry " +
+    "declares, and MET-7 makes a week the ISO 8601 one, beginning Monday.",
+});
 
 /**
  * MET-4 — one dimension a metric is broken down by, held under its name.
@@ -575,12 +571,15 @@ export const metricBucket = z
         "transition is 23 or 25 hours, and a reader comparing this against its own clock knows " +
         "whether the bucket is still accumulating without holding a calendar.",
     ),
-    value: z.number().nullable().meta({
-      description:
-        "MET-13, MET-15. What the Worker accumulated over the period. Null means the Worker no " +
-        "longer holds this bucket and never means zero; a bucket it accumulated nothing in is " +
-        "absent from the answer instead.",
-    }),
+    value: z
+      .number()
+      .nullable()
+      .meta({
+        description:
+          "MET-13, MET-15. What the Worker accumulated over the period. Null means the Worker no " +
+          "longer holds this bucket and never means zero; a bucket it accumulated nothing in is " +
+          "absent from the answer instead.",
+      }),
     dimensions: z
       .record(z.string().regex(/^[A-Za-z0-9_-]+$/), z.string())
       .optional()

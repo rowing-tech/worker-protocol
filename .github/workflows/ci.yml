@@ -32,6 +32,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Formatting and lint, from biome.jsonc. It runs FIRST because it is the cheapest
+      # step here and the only one whose failure a developer fixes with one command —
+      # `pnpm check:fix`. Note what it deliberately does not touch: schemas/, whose bytes
+      # belong to the generator checked below, and every .md file, which is the artifact
+      # this repository publishes rather than code it formats.
+      - name: formatting and lint
+        run: pnpm check
+
       # The reason schemas/ is generated AND committed. This regenerates from the Zod
       # source in memory and compares byte for byte against what is in the tree, naming
       # the files that differ. A generated artifact nobody compares is a claim nobody
@@ -45,6 +53,15 @@ jobs:
       # "spec is invalid" would be the same mistake the ids exist to fix.
       - name: spec/ holds the rule-id convention
         run: pnpm spec:lint
+
+      # spec/README.md says a rule earns its place only if you can name what a conformance
+      # check would observe when it is broken. conformance/verifiability.md is where that
+      # answer is written down, one row per rule, and this is what keeps the two in step: a
+      # rule added without a row fails here, at the moment somebody is still holding the
+      # reasoning that would produce one. It also compares the inventory's own counts
+      # against the rows beneath them, for the same reason schemas/ is regenerated above.
+      - name: every rule is classified by what a check would observe
+        run: pnpm verifiability:lint
 
       # Covers scripts/ and then EVERY file under packages/schemas/src, generator included.
       - name: type-check repository tooling
@@ -60,3 +77,11 @@ jobs:
       # /schemas ships are the ones the source describes.
       - name: build @worker-protocol/schemas
         run: pnpm -C packages/schemas build
+
+      # Runs conformance/fixtures/ against the Zod objects. Because schemas:check above
+      # already proves those objects and the generated JSON Schemas agree byte for byte, a
+      # verdict reached here is a verdict about the normative artifact. This is the half of
+      # conformance that needs no Worker answering over HTTP; conformance/verifiability.md
+      # records which rules the other half reaches.
+      - name: conformance fixtures
+        run: pnpm test

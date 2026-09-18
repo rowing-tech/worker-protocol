@@ -1,0 +1,10 @@
+{
+  "schema": "page",
+  "valid": false,
+  "rule": "ENDP-20",
+  "why": "A cursor sent as null at the end of a collection. ENDP-20 says absent, and absent is not null: a caller testing for the member's presence and one testing its value would reach different conclusions about the same page.",
+  "document": {
+    "items": [],
+    "nextCursor": null
+  }
+}

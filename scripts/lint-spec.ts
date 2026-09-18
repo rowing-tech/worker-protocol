@@ -70,7 +70,10 @@ for (const file of files) {
   }
 
   // spec/README.md: "One file per subject, each opening with its maturity marker."
-  const marker = text.split("\n").slice(0, 6).find((l) => /^`(stable|draft|open)`$/.test(l.trim()));
+  const marker = text
+    .split("\n")
+    .slice(0, 6)
+    .find((l) => /^`(stable|draft|open)`$/.test(l.trim()));
   const markerValue = marker ? marker.trim().replaceAll("`", "") : null;
   if (!markerValue) {
     report(file, "-", "marker", `no maturity marker (one of ${MARKERS.join(", ")}) near the top`);
@@ -95,10 +98,7 @@ for (const file of files) {
   // with an id and goes straight to its sentence carries neither marker, and the convention has no
   // default: an author who meant `recommended` and wrote nothing would otherwise have published an
   // obligation, which is the one direction this must never fail in.
-  const unclassed = new RegExp(
-    `\\*\\*${prefix}-(\\d+)(?! \\((?:required|recommended)\\))`,
-    "g",
-  );
+  const unclassed = new RegExp(`\\*\\*${prefix}-(\\d+)(?! \\((?:required|recommended)\\))`, "g");
   for (const m of body.matchAll(unclassed)) {
     const rest = body.slice(m.index + m[0].length);
     if (!rest.startsWith(".") && !rest.startsWith("*")) continue;
@@ -202,7 +202,12 @@ for (const p of parsed) {
   );
   for (const m of p.body.matchAll(stray)) {
     if (!prefixes.includes(m[1])) continue;
-    report(p.file, `${m[1]}-${m[2]}`, "prefix", `defined in spec/${p.file}, whose prefix is ${p.prefix}`);
+    report(
+      p.file,
+      `${m[1]}-${m[2]}`,
+      "prefix",
+      `defined in spec/${p.file}, whose prefix is ${p.prefix}`,
+    );
   }
 }
 

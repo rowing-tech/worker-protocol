@@ -1,0 +1,19 @@
+{
+  "schema": "descriptor",
+  "valid": true,
+  "rule": "DESC-22",
+  "why": "Capabilities keyed by name, each entry carrying its own version and address. The two addresses show DESC-12's pair: one relative reference resolved against the Descriptor's URL, one absolute https URL on another origin.",
+  "document": {
+    "id": "tech.rowing.fleet.dispatcher",
+    "edition": "0.1",
+    "capabilities": {
+      "health": { "version": 1, "address": "/worker-protocol/health" },
+      "metrics": {
+        "version": 1,
+        "address": "https://metrics.example.com/fleet/worker-protocol/metrics",
+        "timeZone": "America/Montevideo",
+        "metrics": {}
+      }
+    }
+  }
+}

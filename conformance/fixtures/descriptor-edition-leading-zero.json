@@ -1,0 +1,11 @@
+{
+  "schema": "descriptor",
+  "valid": false,
+  "rule": "DESC-23",
+  "why": "An edition written `0.01`. Leading zeros are refused so that one edition has one spelling and string equality agrees with the numeric comparison DESC-25 spends.",
+  "document": {
+    "id": "worker-7f3a",
+    "edition": "0.01",
+    "capabilities": {}
+  }
+}

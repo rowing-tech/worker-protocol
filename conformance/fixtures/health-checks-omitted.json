@@ -1,0 +1,9 @@
+{
+  "schema": "health",
+  "valid": false,
+  "rule": "HLTH-2",
+  "why": "`checks` omitted rather than empty. The answer carries a status and a map, and a reader that must handle both an absent member and an empty one is handling two shapes where the protocol promised one.",
+  "document": {
+    "status": "healthy"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "descriptor",
+  "valid": true,
+  "rule": "DESC-2",
+  "why": "A Worker that declares no Capability at all. DESC-1 makes the Descriptor the whole of what every Worker owes and DESC-2 admits the empty combination, so this document is the protocol's floor and has to validate.",
+  "document": {
+    "id": "b8f1c0d2-3a4e-4b5c-9d6e-7f8091a2b3c4",
+    "edition": "0.1",
+    "capabilities": {}
+  }
+}

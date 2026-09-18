@@ -1,0 +1,10 @@
+{
+  "schema": "health",
+  "valid": false,
+  "rule": "HLTH-2",
+  "why": "A fourth status value. Both statuses are drawn from the same three, and a vocabulary a console can extend is a vocabulary no console can render.",
+  "document": {
+    "status": "ok",
+    "checks": {}
+  }
+}

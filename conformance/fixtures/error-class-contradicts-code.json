@@ -1,0 +1,11 @@
+{
+  "schema": "error",
+  "valid": false,
+  "rule": "ENDP-26",
+  "why": "`not_found` sent with a class of `retry`. This is the fixture the union in the schema exists for: written as one object with two independent fields, this document would validate cleanly and defeat the whole purpose of the class — a caller would back off and repeat a request that will never succeed.",
+  "document": {
+    "code": "not_found",
+    "message": "No metric by that name is declared.",
+    "class": "retry"
+  }
+}

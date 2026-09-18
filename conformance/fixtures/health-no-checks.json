@@ -1,0 +1,10 @@
+{
+  "schema": "health",
+  "valid": true,
+  "rule": "HLTH-2",
+  "why": "A Worker with no dependency worth reporting on. `checks` is required and empty rather than omitted, so that every reader parses one shape; health.md says a Worker that reports no checks at all is conformant and its summary is then the whole of what it has to say.",
+  "document": {
+    "status": "healthy",
+    "checks": {}
+  }
+}

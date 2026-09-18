@@ -8,10 +8,17 @@
     "schemas:generate": "node packages/schemas/src/generate.ts",
     "schemas:check": "node packages/schemas/src/generate.ts --check",
     "spec:lint": "node scripts/lint-spec.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "verifiability:lint": "node scripts/lint-verifiability.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "pnpm -r test",
+    "check": "biome check",
+    "check:fix": "biome check --write",
+    "format": "biome format --write"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.12",
     "@types/node": "26.5.1",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
   }
 }

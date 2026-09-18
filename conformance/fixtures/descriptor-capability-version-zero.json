@@ -1,0 +1,13 @@
+{
+  "schema": "descriptor",
+  "valid": false,
+  "rule": "DESC-9",
+  "why": "A Capability version of 0. The version counts breaking changes to that Capability and a declared surface has had at least one edition of itself, so the count starts at 1.",
+  "document": {
+    "id": "worker-7f3a",
+    "edition": "0.1",
+    "capabilities": {
+      "health": { "version": 0, "address": "/health" }
+    }
+  }
+}

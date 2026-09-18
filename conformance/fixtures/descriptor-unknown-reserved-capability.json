@@ -1,0 +1,13 @@
+{
+  "schema": "descriptor",
+  "valid": false,
+  "rule": "DESC-8",
+  "why": "An undotted name this edition does not define. DESC-14 reserves every undotted name to the edition, so `telemetry` is not a vendor Capability the reader may ignore — it is a claim to something that does not exist, and DESC-16 fails the Worker for it.",
+  "document": {
+    "id": "worker-7f3a",
+    "edition": "0.1",
+    "capabilities": {
+      "telemetry": { "version": 1, "address": "/telemetry" }
+    }
+  }
+}

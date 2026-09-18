@@ -1,0 +1,11 @@
+{
+  "schema": "descriptor",
+  "valid": false,
+  "rule": "DESC-23",
+  "why": "An edition written as SemVer. DESC-23 fixes two components, and descriptor.md argues at length that a PATCH would name the one kind of change that by construction changes no verdict.",
+  "document": {
+    "id": "worker-7f3a",
+    "edition": "1.2.3",
+    "capabilities": {}
+  }
+}

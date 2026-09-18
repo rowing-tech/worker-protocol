@@ -1,0 +1,13 @@
+{
+  "schema": "descriptor",
+  "valid": false,
+  "rule": "DESC-12",
+  "why": "An absolute address over plaintext. DESC-3 fixes the scheme because a bearer token read off the wire is the whole of the access it grants, and a Worker reachable over http has published its Tower's credential to the path between them.",
+  "document": {
+    "id": "worker-7f3a",
+    "edition": "0.1",
+    "capabilities": {
+      "health": { "version": 1, "address": "http://example.com/health" }
+    }
+  }
+}

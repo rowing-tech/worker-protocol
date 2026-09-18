@@ -1,0 +1,11 @@
+{
+  "schema": "error",
+  "valid": true,
+  "rule": "ENDP-25",
+  "why": "The envelope every response that is not a success carries: a code from the closed enumeration, a human-readable message, and the class the code carries.",
+  "document": {
+    "code": "not_found",
+    "message": "No metric by that name is declared.",
+    "class": "reject"
+  }
+}
