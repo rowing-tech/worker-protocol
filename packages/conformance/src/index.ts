@@ -7,6 +7,7 @@ import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkHealth } from "./checks/health.ts";
 import { checkMetrics } from "./checks/metrics.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
+import { checkTasks } from "./checks/tasks.ts";
 import { type Report, type Result, type Rule, unclaimed } from "./report.ts";
 import { transcript } from "./transcript.ts";
 
@@ -109,6 +110,25 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       ...(await checkMetrics(
         descriptor.document.capabilities.metrics,
         descriptor.surfaces.find((s) => s.capability === "metrics")?.url ?? null,
+        byId,
+        attribution,
+        tape,
+      )),
+    );
+    // TASK-2 is an agreement between two entries rather than a shape inside one, so the tasks
+    // check is handed the Action names the `actions` entry holds.
+    const actionNames = Object.keys(
+      (
+        descriptor.document.capabilities.actions as
+          | { actions?: Record<string, unknown> }
+          | undefined
+      )?.actions ?? {},
+    );
+    results.push(
+      ...(await checkTasks(
+        descriptor.document.capabilities.tasks,
+        descriptor.surfaces.find((s) => s.capability === "tasks")?.url ?? null,
+        actionNames,
         byId,
         attribution,
         tape,

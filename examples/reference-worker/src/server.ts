@@ -1,6 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { DECLARATIONS as ACTIONS, createActions } from "./actions.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
+import { ANSWERS, createTasks, RAISES } from "./tasks.ts";
 
 /**
  * A Worker that conforms, built to be checked.
@@ -52,9 +53,12 @@ export function createWorker(options: WorkerOptions = {}): Server {
     metrics: `${base}metrics`,
     actions: `${base}actions`,
     settings: `${base}settings`,
+    tasks: `${base}tasks`,
+    claims: `${base}claims`,
   };
 
   const actions = createActions();
+  const tasks = createTasks();
 
   const descriptor = {
     id,
@@ -83,6 +87,15 @@ export function createWorker(options: WorkerOptions = {}): Server {
       // ACT-5 names the Action in a parameter there rather than in a path segment, so no reader
       // ever assembles an address.
       actions: { version: 1, address: "../actions", actions: ACTIONS },
+      // TASK-1: two addresses, because ENDP-3 puts what changes state on an address declared for
+      // the purpose and ENDP-2 keeps a read a read — listing open Tasks must not consume them.
+      tasks: {
+        version: 1,
+        address: "../tasks",
+        claimAddress: "../claims",
+        raises: RAISES,
+        answers: ANSWERS,
+      },
     },
   };
 
@@ -131,6 +144,8 @@ export function createWorker(options: WorkerOptions = {}): Server {
       routes.metrics,
       routes.actions,
       routes.settings,
+      routes.tasks,
+      routes.claims,
     ];
     if (!known.includes(path)) {
       // REG-7: a Worker does not answer 404 in place of 401 on an address it serves — and this is
@@ -148,7 +163,19 @@ export function createWorker(options: WorkerOptions = {}): Server {
     }
 
     // ENDP-3: everything that changes state is POST, on an address declared for the purpose. The
-    // Actions address is the only one here that does, and ENDP-2 keeps every other a GET.
+    // Actions address and the claim address are the two here that do, and ENDP-2 keeps every
+    // other a GET.
+    if (path === routes.claims) {
+      if (request.method !== "POST") {
+        return reject(404, "not_found", "No such address.");
+      }
+      const answer = tasks.write(query);
+      if ("code" in answer) {
+        return send(answer.status, { code: answer.code, message: answer.message, class: "reject" });
+      }
+      return send(answer.status, answer.body);
+    }
+
     if (path === routes.actions) {
       if (request.method !== "POST") {
         return reject(404, "not_found", "No such address.");
@@ -193,12 +220,21 @@ export function createWorker(options: WorkerOptions = {}): Server {
     // ACT-15: a GET of the reading address answers a document `configure` would accept.
     if (path === routes.settings) return send(200, actions.settings());
 
+    // TASK-5: the Tasks whose conditions hold, in the page envelope of ENDP-20.
+    if (path === routes.tasks) {
+      const answer = tasks.read(query);
+      if ("code" in answer) {
+        return send(answer.status, { code: answer.code, message: answer.message, class: "reject" });
+      }
+      return send(answer.status, answer.body);
+    }
+
     // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. A filter dropped in
     // silence answers with MORE than the caller asked for, in a shape it will happily parse — and
     // a caller that filtered in order to stay inside a Contract is handed exactly what it
     // excluded, with no sign that anything happened. The Descriptor route and `health` take no
     // parameters at all, so every one they receive is unrecognized.
-    if (path !== routes.metrics) {
+    if (path !== routes.metrics && path !== routes.tasks) {
       for (const key of query.keys()) {
         return reject(400, "unknown_filter", `This address takes no parameter named ${key}.`);
       }

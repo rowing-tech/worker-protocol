@@ -101,26 +101,14 @@ describe("the reference worker, verified", () => {
       .filter((r) => r.verdict === "notExercised")
       .map((r) => r.rule.id);
 
-    // ENDP-19's witness is a collection longer than a Worker's page cap, and every collection here
-    // fits in one page: an honest gap rather than a missing check.
+    // ENDP-19's witness is a collection longer than a Worker's page cap, and every collection
+    // here fits in one page: an honest gap rather than a missing check.
     //
-    // The rest are a debt with a date on it. spec/tasks-and-claims.md was drafted before its
-    // checks were written and before the reference Worker served a `tasks` surface, so seven TASK
-    // rules and NAME-7 — which that draft unblocked, by giving this protocol its first name that
-    // crosses between Workers — are observable and not yet observed. This assertion is derived
-    // from the report precisely so a rule cannot become observable in silence, and it has now
-    // announced two drafts' worth of debt without anybody having to remember to look.
-    expect(unexercised).toEqual([
-      "ENDP-19",
-      "NAME-7",
-      "TASK-1",
-      "TASK-2",
-      "TASK-3",
-      "TASK-4",
-      "TASK-5",
-      "TASK-7",
-      "TASK-8",
-    ]);
+    // This list has now been wrong twice, both times on purpose. It is derived from the report, so
+    // a rule that becomes observable without a check joins it and fails — which is how the actions
+    // draft and then the tasks draft each announced their own debt without anybody having to
+    // remember to look, and how each one came off again when the checks landed.
+    expect(unexercised).toEqual(["ENDP-19"]);
   });
 
   it("resolves a declared address against the Descriptor's route, not the base URL", async () => {
@@ -160,7 +148,7 @@ describe("the reference worker, verified", () => {
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(20);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(70);
+    expect(counts.passes).toBe(78);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
