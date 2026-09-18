@@ -53,14 +53,25 @@ broken.** Not *how* the check reaches it — what it would see. A rule whose vio
 like compliance from every vantage point outside the implementation is not an obligation; it is an
 opinion with an id, and it will condition somebody's code for no return.
 
-That test admits one exception on purpose, and the exception has to stay small. A few rules have a
-violation that is real and nameable but that nothing outside can reach: DESC-26, where a second
-differing Descriptor at some address nobody enumerated is exactly the fault, and DESC-20, where
-what a Tower dropped from its catalog is a fact inside the Tower. Those are legal, and
-`conformance/` reports them as **unverified** rather than passing them silently, because a check
-that quietly counts them as passed is the same false claim a generated artifact nobody compares
-would be. A rule in this class has to say what would be seen if anyone could see it. A rule that
-cannot even do that has failed the test outright and does not belong here.
+That test admits one exception on purpose. Some rules have a violation that is real and nameable
+but that nothing outside can reach: DESC-26, where a second differing Descriptor at some address
+nobody enumerated is exactly the fault, and DESC-20, where what a Tower dropped from its catalog is
+a fact inside the Tower. Those two are named here because they are the clearest shape of it — the
+fault is precise, and the only party who could observe it is the one committing it. Rules in this
+class are legal, and `conformance/` reports them as **unverified** rather than passing them
+silently, because a check that quietly counts them as passed is the same false claim a generated
+artifact nobody compares would be. A rule in this class has to say what would be seen if anyone
+could see it. A rule that cannot even do that has failed the test outright and does not belong
+here.
+
+**How many there are is a fact rather than an impression, and it is kept in one place.**
+[conformance/verifiability.md](../conformance/verifiability.md) classifies every rule in this
+directory by what a check would observe; `pnpm verifiability:lint` fails when a rule is added
+without a row, and the rules in this class are the ones it marks `N`. This paragraph used to say
+the exception *had to stay small* and named two. The register, the first time anybody put the
+question to every rule in turn, found sixteen. Whether that is too many is worth arguing about, and
+the argument is now possible — which is the point of the count living somewhere gated rather than
+in a sentence here that would drift the moment a rule was written.
 
 Named non-goals, each settled by work already done rather than asserted in advance:
 

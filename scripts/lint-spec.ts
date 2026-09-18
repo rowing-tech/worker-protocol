@@ -157,7 +157,18 @@ for (const p of parsed) {
 // spec/README.md: "that list is the only place a withdrawn id is written" — and a cited id that
 // was never issued is a reference to nothing.
 const sources: { name: string; text: string }[] = [];
-for (const dir of ["spec", "docs", "packages/schemas/src", "."]) {
+// `conformance/` is scanned because verifiability.md is the register of which rules a check can
+// reach, and it cites one in almost every row — a dangling id there is the same reference to
+// nothing this pass exists to catch. `conformance/fixtures/` is `.json`, and each fixture names
+// the rule it is evidence for, which is a citation like any other.
+for (const dir of [
+  "spec",
+  "docs",
+  "conformance",
+  "conformance/fixtures",
+  "packages/schemas/src",
+  ".",
+]) {
   const abs = join(ROOT, dir);
   let entries: string[];
   try {
@@ -166,7 +177,7 @@ for (const dir of ["spec", "docs", "packages/schemas/src", "."]) {
     continue;
   }
   for (const entry of entries) {
-    if (!/\.(md|ts)$/.test(entry)) continue;
+    if (!/\.(md|ts|json)$/.test(entry)) continue;
     sources.push({ name: join(dir, entry), text: await readFile(join(abs, entry), "utf8") });
   }
 }
