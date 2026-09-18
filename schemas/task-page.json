@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task-page.json",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "task.json"
+      },
+      "description": "TASK-5. The Tasks whose conditions hold."
+    },
+    "nextCursor": {
+      "description": "ENDP-21. Opaque to the caller, produced only by the Worker, never constructed. A string because a caller sends it back as a request parameter. ENDP-20: absent at the end of the collection — absent, not null.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "title": "Task page",
+  "description": "TASK-5. One page of Tasks, in the envelope ENDP-20 fixes for every collection."
+}

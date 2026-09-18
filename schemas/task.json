@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "TASK-7. The owner's own id for this Task, which a claim names under TASK-9. Opaque to everyone else."
+    },
+    "type": {
+      "description": "TASK-7, TASK-4. One of the types the entry declares under `raises`.",
+      "$ref": "qualified-name.json"
+    },
+    "payload": {
+      "description": "TASK-7. Against the schema that type declared. The Worker's own shape."
+    },
+    "failedClaims": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "TASK-7. How many Claims on this Task were closed `failed`. Failure is counted over Claims and never over the condition, so this number never removes a Task."
+    },
+    "lapsedClaims": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "TASK-7. How many Claims lapsed without a word. A Task that has outlived several is stuck where an operator can see it, which is the point of carrying the count at all."
+    },
+    "claimable": {
+      "type": "boolean",
+      "description": "TASK-7, TASK-11. Whether the owner will grant a lease on this Task now. An owner that has stopped granting says so here rather than leaving a consumer to infer it from a pattern of 409s."
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "payload",
+    "failedClaims",
+    "lapsedClaims",
+    "claimable"
+  ],
+  "additionalProperties": false,
+  "title": "Task",
+  "description": "TASK-7. One Task whose condition holds. TASK-5 answers these in the page envelope of ENDP-20."
+}

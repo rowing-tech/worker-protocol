@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tasks-entry.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "DESC-9. A single integer; there is no minor version. DESC-29 makes it count breaking changes to this Capability's own surface alone."
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+    },
+    "claimAddress": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "TASK-1, TASK-9. Where a claim, a renewal and an outcome are posted."
+    },
+    "raises": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "qualified-name.json"
+      },
+      "additionalProperties": {
+        "$ref": "task-type-declaration.json"
+      },
+      "description": "TASK-2. Every Task type this Worker raises. A Worker that raises none declares an empty map rather than omitting it, so that every reader parses one shape."
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "$ref": "qualified-name.json"
+      },
+      "description": "TASK-3. The Task types this Worker answers, which IS its Skill — the unit of discovery the Tower catalogs by. May be empty: a Worker that raises Tasks and answers none is the ordinary case rather than the exception."
+    }
+  },
+  "required": [
+    "version",
+    "address",
+    "claimAddress",
+    "raises",
+    "answers"
+  ],
+  "additionalProperties": {},
+  "title": "Tasks capability entry",
+  "description": "TASK-1. The shared Capability entry with both addresses required, what this Worker raises and what it answers."
+}

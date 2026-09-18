@@ -738,6 +738,180 @@ export const actionsEntry = capabilityEntry
       "accepts. The Descriptor is the catalog: the surface performs and never lists what exists.",
   });
 
+/**
+ * TASK-14 — how a Claim closes by declaration. The fourth way it closes is by lapsing, which is
+ * not an outcome anybody declares and so is not one of these.
+ */
+export const claimOutcome = z.enum(["done", "failed", "released"]).meta({
+  title: "Claim outcome",
+  description:
+    "TASK-14. What a holder declares when it closes its Claim. TASK-15: none of them closes the " +
+    "TASK — a Task closes when its condition stops holding, which no party declares.",
+});
+
+/**
+ * TASK-2, TASK-3 — one Task type a Worker raises.
+ *
+ * The Actions named here are the OWNER's own, declared in its `actions` entry: a Response is an
+ * Action posted into the owner (TASK-16), so the closed list is a list of names that entry holds.
+ */
+export const taskTypeDeclaration = z
+  .strictObject({
+    payload: z.looseObject({}).meta({
+      description:
+        "TASK-2. The JSON Schema of this Task type's payload. The Worker's own — this protocol " +
+        "has no data model — and what a consumer renders or validates against.",
+    }),
+    answeredBy: z
+      .array(z.string().min(1))
+      .min(1)
+      .meta({
+        description:
+          "TASK-2. The closed list of Actions that may answer a Task of this type, by the names " +
+          "the Worker's own `actions` entry holds them under. A closed list and not an " +
+          "instruction: the owner names what would answer, never who.",
+      }),
+  })
+  .meta({
+    title: "Task type declaration",
+    description:
+      "TASK-2. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched " +
+      "by a party that did not mint it.",
+  });
+
+/**
+ * TASK-1, TASK-2, TASK-3 — the `tasks` Capability entry.
+ *
+ * Two addresses, because ENDP-3 puts what changes state on an address declared for the purpose and
+ * ENDP-2 keeps a read a read: listing open Tasks must not consume them, and claiming one takes an
+ * exclusive lease and could never be a GET.
+ */
+export const tasksEntry = capabilityEntry
+  .extend({
+    address,
+    claimAddress: address.meta({
+      description: "TASK-1, TASK-9. Where a claim, a renewal and an outcome are posted.",
+    }),
+    raises: z.record(qualifiedName, taskTypeDeclaration).meta({
+      description:
+        "TASK-2. Every Task type this Worker raises. A Worker that raises none declares an empty " +
+        "map rather than omitting it, so that every reader parses one shape.",
+    }),
+    answers: z.array(qualifiedName).meta({
+      description:
+        "TASK-3. The Task types this Worker answers, which IS its Skill — the unit of discovery " +
+        "the Tower catalogs by. May be empty: a Worker that raises Tasks and answers none is the " +
+        "ordinary case rather than the exception.",
+    }),
+  })
+  .meta({
+    title: "Tasks capability entry",
+    description:
+      "TASK-1. The shared Capability entry with both addresses required, what this Worker raises " +
+      "and what it answers.",
+  });
+
+/**
+ * TASK-7 — one Task on the wire.
+ *
+ * It carries no status and nothing anybody declared about it. A Task exists while its condition
+ * holds and disappears when it stops (TASK-15), so there is no state for a reader to interpret;
+ * what a reader needs is what it is, what it would take to answer it, and whether it is worth
+ * trying now.
+ */
+export const task = z
+  .strictObject({
+    id: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "TASK-7. The owner's own id for this Task, which a claim names under TASK-9. Opaque to " +
+          "everyone else.",
+      }),
+    type: qualifiedName.meta({
+      description: "TASK-7, TASK-4. One of the types the entry declares under `raises`.",
+    }),
+    payload: z.unknown().meta({
+      description: "TASK-7. Against the schema that type declared. The Worker's own shape.",
+    }),
+    failedClaims: z
+      .number()
+      .int()
+      .min(0)
+      .meta({
+        description:
+          "TASK-7. How many Claims on this Task were closed `failed`. Failure is counted over " +
+          "Claims and never over the condition, so this number never removes a Task.",
+      }),
+    lapsedClaims: z
+      .number()
+      .int()
+      .min(0)
+      .meta({
+        description:
+          "TASK-7. How many Claims lapsed without a word. A Task that has outlived several is " +
+          "stuck where an operator can see it, which is the point of carrying the count at all.",
+      }),
+    claimable: z.boolean().meta({
+      description:
+        "TASK-7, TASK-11. Whether the owner will grant a lease on this Task now. An owner that " +
+        "has stopped granting says so here rather than leaving a consumer to infer it from a " +
+        "pattern of 409s.",
+    }),
+  })
+  .meta({
+    title: "Task",
+    description:
+      "TASK-7. One Task whose condition holds. TASK-5 answers these in the page envelope of " +
+      "ENDP-20.",
+  });
+
+/** TASK-5 — what a read answers: the shared page envelope with its items narrowed to Tasks. */
+export const taskPage = page
+  .extend({
+    items: z.array(task).meta({ description: "TASK-5. The Tasks whose conditions hold." }),
+  })
+  .meta({
+    title: "Task page",
+    description: "TASK-5. One page of Tasks, in the envelope ENDP-20 fixes for every collection.",
+  });
+
+/**
+ * TASK-9, TASK-12 — one Claim.
+ *
+ * The id is the fencing token of TASK-17: a Response names the Claim it was performed under, and
+ * the owner checks at write time whether that Claim is still the Task's current one. A lapsed
+ * lease, a released Claim and a Task reclaimed by somebody else are then one check rather than
+ * three, and none of them needs two clocks to agree.
+ */
+export const claim = z
+  .strictObject({
+    id: z.string().min(1).meta({
+      description:
+        "TASK-9, TASK-17. What a renewal and an outcome name, and what refuses a stale Response.",
+    }),
+    task: z.string().min(1).meta({
+      description: "TASK-9. The Task this Claim holds, by the id TASK-7 carries.",
+    }),
+    expires: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
+      .meta({
+        format: "date-time",
+        description:
+          "TASK-12. When the owner's lease lapses, as an RFC 3339 instant carrying an offset. " +
+          "TASK-18: a hint about when to RENEW, and never a number a holder does arithmetic on " +
+          "to decide whether it may still act — the owner's clock is the only one that decides.",
+      }),
+  })
+  .meta({
+    title: "Claim",
+    description:
+      "TASK-9. One consumer's exclusive lease on a Task. Closes by declaration (TASK-14) or by " +
+      "lapsing, and closing it never closes the Task.",
+  });
+
 registry.add(capabilityName, { id: "capability-name" });
 registry.add(qualifiedName, { id: "qualified-name" });
 registry.add(healthStatus, { id: "health-status" });
@@ -756,3 +930,9 @@ registry.add(page, { id: "page" });
 registry.add(idempotencyDeclaration, { id: "idempotency-declaration" });
 registry.add(actionDeclaration, { id: "action-declaration" });
 registry.add(actionsEntry, { id: "actions-entry" });
+registry.add(claimOutcome, { id: "claim-outcome" });
+registry.add(taskTypeDeclaration, { id: "task-type-declaration" });
+registry.add(tasksEntry, { id: "tasks-entry" });
+registry.add(task, { id: "task" });
+registry.add(taskPage, { id: "task-page" });
+registry.add(claim, { id: "claim" });

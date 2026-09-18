@@ -28,10 +28,6 @@ back — so that when the answer lands, both places know.
 - **Who consolidates the cost and elapsed time a Response carries.** Nothing does today; the
   consumer's own metrics, split by the Contract each Response came under, are the obvious
   candidate. Listed in [spec/metrics.md](../spec/metrics.md).
-- **Whether a stale Response is refused by lease time or by a fencing token.** A precondition
-  checked at write time needs no sweep.
-- **Whether a Task and its Claims travel as one resource or two** on the Worker API. Listed in
-  [spec/tasks-and-claims.md](../spec/tasks-and-claims.md).
 - **Whether a person's cross-owner work list is the Tower's or a Worker's.** A teams app is one
   answer; the console is another.
 - **How much the protocol recognizes about Workers that talk to people**, beyond what it recognizes

@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the seven `draft` files, classified by what a check would observe. This is the audit
+Every rule in the eight `draft` files, classified by what a check would observe. This is the audit
 [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place only if you can name
 what a conformance check would observe when it is broken* — run for the first time, and it is also
 the specification of what `packages/conformance` implements.
@@ -17,11 +17,11 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 65 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 12 |
-| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, or this specification. No tool pointed at a base URL can reach it. | 21 |
-| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; fourteen are not on that list. | 17 |
-| **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 2 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 73 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 21 |
+| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, or this specification. No tool pointed at a base URL can reach it. | 22 |
+| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; the rest are not on that list, and the register below is where they are counted. | 20 |
+| **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
 ## descriptor.md — 25
 
@@ -126,6 +126,30 @@ this document, and separating them moved six rules.
 | ACT-14 | H | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
 | ACT-15 | W | A GET of the declared reading address answers a document `configure` would accept |
 
+## tasks-and-claims.md — 19
+
+| Rule | Class | What a check observes, or why nothing does |
+|---|---|---|
+| TASK-1 | W | The entry carries a reading address and a claim address |
+| TASK-2 | W | Every Task type it raises, with a payload schema and a non-empty list of answering Actions |
+| TASK-3 | W | The Task types it answers, read off the entry |
+| TASK-4 | W | Every Task type name is a qualified name |
+| TASK-5 | W | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
+| TASK-6 | H | Two credentials covering different Tasks must exist before two lists can be compared |
+| TASK-7 | W | Each Task carries its id, type, payload, both counts and whether it may be claimed |
+| TASK-8 | W | A type the entry does not declare is `400` + `invalid_parameter`, and nothing is claimed |
+| TASK-9 | H | Claiming takes an exclusive lease, which is work done to somebody's Worker. It needs a Task the operators said may be claimed |
+| TASK-10 | H | Needs a Task already held, which means claiming one first |
+| TASK-11 | H | The Worker must offer a Task it will not currently grant a lease on |
+| TASK-12 | H | The expiry is on a Claim, and there is no Claim without claiming |
+| TASK-13 | H | Needs a Claim to renew |
+| TASK-14 | H | Needs a Claim to close |
+| TASK-15 | N | A Task that disappears as a Claim closes may have had its condition stop holding at that moment for reasons of its own. Nothing outside can tell the two apart — which is exactly why the rule matters |
+| TASK-16 | H | Needs a Claim and an Action, posted separately, to see that the owner accepts them that way |
+| TASK-17 | H | Needs a Claim that is no longer the Task's current one |
+| TASK-18 | P | Binds a holder: it is the consumer that must not do arithmetic against a clock the owner never saw. Which clock decided is not a fact on the wire |
+| TASK-19 | N | Recommended. What a nudge IS has no witness: an owner notifying by some other means is indistinguishable from one that does not notify at all |
+
 ## naming.md — 9
 
 | Rule | Class | What a check observes, or why nothing does |
@@ -133,10 +157,10 @@ this document, and separating them moved six rules.
 | NAME-1 | W | Any declared name carrying an uppercase letter — a dimension, an Action, a metric — sent back folded and expected not to match. A Worker whose declarations are all lowercase exercises nothing, which is `not exercised` and not a weaker class |
 | NAME-2 | N | The file says it: this protocol has no mechanism that would catch it |
 | NAME-3 | P | Recommended. Binds this specification, not a Worker |
-| NAME-4 | — | `tasks` and `alerts` are `open`; there is no surface to expose an Alarm on |
+| NAME-4 | N | A Task whose condition nothing outside the Worker can affect is indistinguishable from one whose condition nobody has met yet. The fence is real and only the implementer can see which side of it they are on |
 | NAME-5 | N | The file says it: part of the test needs a person |
 | NAME-6 | N | Same |
-| NAME-7 | — | The three names that cross — Task type, Skill, event type — all live in `open` files. Nothing serves one today |
+| NAME-7 | W | A Task type and a Skill are both declared in the `tasks` entry now, and both are matched by a party that did not mint them. An event type joins them when `events` lands |
 | NAME-8 | N | The file says it: no verifier can report it |
 | NAME-9 | N | Not checkable against one Worker. Needs a corpus |
 

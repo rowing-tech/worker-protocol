@@ -102,10 +102,25 @@ describe("the reference worker, verified", () => {
       .map((r) => r.rule.id);
 
     // ENDP-19's witness is a collection longer than a Worker's page cap, and every collection here
-    // fits in one page. It is an honest gap rather than a missing check, and pinning the list is
-    // what makes a NEW one visible: a rule that becomes observable without a check joins this
-    // array and fails the test, which is how the actions draft announced its own debt.
-    expect(unexercised).toEqual(["ENDP-19"]);
+    // fits in one page: an honest gap rather than a missing check.
+    //
+    // The rest are a debt with a date on it. spec/tasks-and-claims.md was drafted before its
+    // checks were written and before the reference Worker served a `tasks` surface, so seven TASK
+    // rules and NAME-7 — which that draft unblocked, by giving this protocol its first name that
+    // crosses between Workers — are observable and not yet observed. This assertion is derived
+    // from the report precisely so a rule cannot become observable in silence, and it has now
+    // announced two drafts' worth of debt without anybody having to remember to look.
+    expect(unexercised).toEqual([
+      "ENDP-19",
+      "NAME-7",
+      "TASK-1",
+      "TASK-2",
+      "TASK-3",
+      "TASK-4",
+      "TASK-5",
+      "TASK-7",
+      "TASK-8",
+    ]);
   });
 
   it("resolves a declared address against the Descriptor's route, not the base URL", async () => {
@@ -141,9 +156,9 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(21);
+    expect(counts.otherSubject).toBe(22);
     // A rule nothing outside can observe is reported rather than counted as passed.
-    expect(counts.unverified).toBe(17);
+    expect(counts.unverified).toBe(20);
     // And the rest is the honest measure of how far this verifier has got.
     expect(counts.passes).toBe(70);
     expect(counts.fails).toBe(1);

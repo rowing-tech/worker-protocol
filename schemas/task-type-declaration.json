@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task-type-declaration.json",
+  "type": "object",
+  "properties": {
+    "payload": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "description": "TASK-2. The JSON Schema of this Task type's payload. The Worker's own — this protocol has no data model — and what a consumer renders or validates against."
+    },
+    "answeredBy": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "TASK-2. The closed list of Actions that may answer a Task of this type, by the names the Worker's own `actions` entry holds them under. A closed list and not an instruction: the owner names what would answer, never who."
+    }
+  },
+  "required": [
+    "payload",
+    "answeredBy"
+  ],
+  "additionalProperties": false,
+  "title": "Task type declaration",
+  "description": "TASK-2. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched by a party that did not mint it."
+}
