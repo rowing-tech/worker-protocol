@@ -43,8 +43,30 @@ export type VerifyOptions = {
    * uninvited, and the rules that need a POST report `notExercised` with that as the reason.
    */
   mayPerform?: boolean;
+  /**
+   * What the Worker's operators arranged so that a rule with no ordinary witness can be observed.
+   *
+   * `conformance/verifiability.md` classes a rule `H` when nothing a tool can do to an unarranged
+   * Worker will ever see a violation — a performance that succeeds, an input refused on content, a
+   * second credential. The arrangement cannot come from the protocol, because putting test
+   * scaffolding into a Descriptor would make every Worker in the network carry it. So it arrives
+   * the way the base URL and the credential do: out of band, from the person who set it up.
+   *
+   * Anything not arranged reports `notExercised` naming what was missing, which is a gap somebody
+   * can close rather than a verdict.
+   */
+  arrangement?: Arrangement;
   /** For tests and for a caller that needs its own agent. Defaults to the global `fetch`. */
   fetch?: typeof globalThis.fetch;
+};
+
+export type Arrangement = {
+  /** An Action that is safe to perform, and an input its declared schema accepts. */
+  safeAction?: { name: string; input: unknown };
+  /** An input that is schema-valid and that the Worker refuses on its own rules (ACT-9). */
+  refusedInput?: { name: string; input: unknown };
+  /** An Action that declares it does not complete within the call, and an input for it (ACT-11). */
+  asyncAction?: { name: string; input: unknown };
 };
 
 type Universe = { rules: Rule[]; codes: Code[]; attribution: Attribution };
@@ -79,6 +101,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       attribution,
       tape,
       options.mayPerform === true,
+      options.arrangement ?? {},
     );
     results.push(...performed.results);
     nested.push(...performed.addresses);

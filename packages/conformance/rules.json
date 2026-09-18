@@ -281,7 +281,7 @@
       "id": "ENDP-11",
       "file": "endpoints.md",
       "class": "required",
-      "reach": "H"
+      "reach": "W"
     },
     {
       "id": "ENDP-12",
@@ -551,7 +551,7 @@
       "id": "NAME-1",
       "file": "naming.md",
       "class": "required",
-      "reach": "H"
+      "reach": "W"
     },
     {
       "id": "NAME-2",
@@ -689,7 +689,7 @@
       "id": "REG-31",
       "file": "registration.md",
       "class": "recommended",
-      "reach": "H"
+      "reach": "W"
     },
     {
       "id": "REG-32",

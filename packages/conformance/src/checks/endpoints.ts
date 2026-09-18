@@ -11,6 +11,7 @@ import { type Exchange, isJson } from "../transcript.ts";
  */
 export const CLAIMS = [
   "ENDP-1",
+  "ENDP-11",
   "ENDP-4",
   "ENDP-5",
   "ENDP-19",
@@ -72,11 +73,18 @@ export function judgeTranscript(
     }
 
     // ENDP-4: bodies and responses are JSON, UTF-8, `application/json`.
-    if (!isJson(exchange.headers)) {
-      const got = exchange.headers.get("content-type") ?? "(none)";
-      fail("ENDP-4", `${where} — content-type ${got}`);
-    } else if (exchange.body.length > 0 && exchange.json === null) {
-      fail("ENDP-4", `${where} — said application/json and did not parse`);
+    //
+    // A response with no body is not judged, and that is the rule read as written rather than a
+    // concession. A content type is a claim ABOUT a body; ACT-10 and ACT-11 have a Worker answer
+    // `204` and `202` with none, and requiring one there would be this verifier inventing an
+    // obligation out of a sentence that constrains bodies.
+    if (exchange.body.length > 0) {
+      if (!isJson(exchange.headers)) {
+        const got = exchange.headers.get("content-type") ?? "(none)";
+        fail("ENDP-4", `${where} — content-type ${got}`);
+      } else if (exchange.json === null) {
+        fail("ENDP-4", `${where} — said application/json and did not parse`);
+      }
     }
 
     // ENDP-5: every protocol response carries both headers, stating what produced it.
@@ -109,6 +117,22 @@ export function judgeTranscript(
     }
   }
 
+  // ENDP-11: a Worker does not answer 5xx for a condition that will not change. A bad body
+  // answered with a 500 is an instruction to redeliver an unusable payload forever, and the
+  // sender will comply. The witness is ordinarily out of reach — nothing outside can tell a
+  // transient fault from a permanent one — but the verifier knows which of its OWN requests were
+  // deliberately and permanently wrong, because it made them that way.
+  const permanent = exchanges.filter((exchange) => exchange.permanent);
+  const wrongly = permanent.filter((exchange) => exchange.status >= 500);
+  if (permanent.length === 0) {
+    say("ENDP-11", "notExercised", "the run provoked no condition that will not change");
+  } else if (wrongly.length === 0) {
+    say("ENDP-11", "passes");
+  } else {
+    const first = wrongly[0];
+    say("ENDP-11", "fails", `${first.intent} answered ${first.status}`);
+  }
+
   // ENDP-19 recommends that a Worker cap the page size rather than negotiating it. The witness is
   // a collection longer than the cap, which is a cursor coming back; short of that there is
   // nothing to see, and a Worker whose collections all fit in one page has not been observed
@@ -121,7 +145,7 @@ export function judgeTranscript(
   else say("ENDP-19", "notExercised", "no collection was long enough to be capped");
 
   for (const id of CLAIMS) {
-    if (id === "ENDP-19") continue;
+    if (id === "ENDP-11" || id === "ENDP-19") continue;
     const why = failures.get(id);
     if (why === undefined) say(id, "passes");
     else say(id, "fails", why.length === 1 ? why[0] : `${why.length} responses: ${why[0]}, …`);

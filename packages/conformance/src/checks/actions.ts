@@ -1,5 +1,6 @@
 import { actionsEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
+import type { Arrangement } from "../index.ts";
 import type { Result, Rule } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
@@ -32,6 +33,15 @@ export const CLAIMS = [
   "ENDP-3",
   "ENDP-15",
   "ENDP-18",
+  "REG-31",
+  // Only observable against a Worker whose operators arranged one, and said so.
+  "ACT-5",
+  "ACT-9",
+  "ACT-10",
+  "ACT-11",
+  "ENDP-12",
+  "ENDP-16",
+  "ENDP-17",
 ] as const;
 
 type Declaration = {
@@ -50,6 +60,7 @@ export async function checkActions(
   attribution: Attribution,
   transcript: Transcript,
   mayPerform: boolean,
+  arrangement: Arrangement,
 ): Promise<{ results: Result[]; addresses: string[] }> {
   const results: Result[] = [];
   const addresses: string[] = [];
@@ -146,19 +157,37 @@ export async function checkActions(
   }
 
   if (!mayPerform) {
-    for (const id of ["ACT-6", "ACT-7", "ACT-8", "ENDP-3", "ENDP-18"]) {
+    for (const id of [
+      "ACT-6",
+      "ACT-7",
+      "ACT-8",
+      "ENDP-3",
+      "ENDP-18",
+      "REG-31",
+      "ACT-5",
+      "ACT-9",
+      "ACT-10",
+      "ACT-11",
+      "ENDP-12",
+      "ENDP-16",
+      "ENDP-17",
+    ]) {
       say(id, "notExercised", "the verifier was not permitted to POST to this Worker");
     }
     return { results, addresses };
   }
 
-  const post = (parameters: string, body: string, intent: string, headers?: HeadersInit) =>
-    transcript.send(`${url}${parameters}`, intent, { method: "POST", body, headers });
+  const post = (
+    parameters: string,
+    body: string,
+    intent: string,
+    extra: { headers?: HeadersInit; permanent?: boolean } = {},
+  ) => transcript.send(`${url}${parameters}`, intent, { method: "POST", body, ...extra });
 
   const code = (answer: { json: unknown }) => (answer.json as { code?: string } | null)?.code;
 
   // ACT-7: a request naming no Action has not said what it wants, which is a parameter fault.
-  const unnamed = await post("", "{}", "a POST naming no Action");
+  const unnamed = await post("", "{}", "a POST naming no Action", { permanent: true });
   if (unnamed.status === 400 && code(unnamed) === "invalid_parameter") say("ACT-7", "passes");
   else say("ACT-7", "fails", `answered ${unnamed.status} with \`${code(unnamed) ?? "no code"}\``);
 
@@ -174,12 +203,31 @@ export async function checkActions(
     say("ENDP-3", "fails", `a GET of the Actions address answered ${asRead.status}`);
   else say("ENDP-3", "fails", "the Actions address does not answer a POST");
 
+  // REG-31 recommends a credential on every address that changes state. A write accepted from the
+  // world is an operation performed by anyone who asks — and this protocol has published the
+  // address and the schema of every one of them in the Descriptor, which is the hard half of the
+  // attacker's work already done. It recommends rather than binds because it is advice about a
+  // deployment's exposure: every call to a Worker that ignores it still succeeds.
+  const uncredentialed = await transcript.send(
+    `${url}?action=${encodeURIComponent(Object.keys(actions)[0] ?? "x")}`,
+    "a POST with no credential at all",
+    {
+      method: "POST",
+      body: "[]",
+      headers: { authorization: "" },
+      permanent: true,
+    },
+  );
+  if (uncredentialed.status === 401 || uncredentialed.status === 403) say("REG-31", "passes");
+  else say("REG-31", "fails", `a POST with no credential answered ${uncredentialed.status}`);
+
   // ACT-6: an Action the entry does not declare is a resource that does not exist, and nothing is
   // performed on the way to finding that out.
   const absent = await post(
     "?action=no-such-action-b7d2",
     "{}",
     "an Action the entry does not declare",
+    { permanent: true },
   );
   if (absent.status === 404 && code(absent) === "not_found") say("ACT-6", "passes");
   else say("ACT-6", "fails", `answered ${absent.status} with \`${code(absent) ?? "no code"}\``);
@@ -199,6 +247,7 @@ export async function checkActions(
     `?action=${encodeURIComponent(name)}`,
     "[]",
     "an input no schema could accept",
+    { permanent: true },
   );
   if (mismatched.status === 400 && code(mismatched) === "schema_mismatch") say("ACT-8", "passes");
   else
@@ -219,6 +268,7 @@ export async function checkActions(
       `?action=${encodeURIComponent(keyed)}`,
       "[]",
       "an Action that requires a key, with none",
+      { permanent: true },
     );
     if (without.status === 400 && code(without) === "idempotency_key_required") {
       say("ENDP-18", "passes");
@@ -227,5 +277,130 @@ export async function checkActions(
     }
   }
 
+  await checkArranged(actions, arrangement, mismatched.status, post, say);
+
   return { results, addresses };
+}
+
+/**
+ * The rules that need a Worker arranged for them, and told to the verifier.
+ *
+ * Every probe above is refused by design and performs nothing. These are the opposite: they ask a
+ * Worker to actually do something, so they need TWO consents — `mayPerform`, and an operator
+ * naming which Action is safe. Without both, each reports what was missing.
+ */
+async function checkArranged(
+  actions: Record<string, Declaration>,
+  arrangement: Arrangement,
+  mismatchedStatus: number,
+  post: (
+    parameters: string,
+    body: string,
+    intent: string,
+    extra?: { headers?: HeadersInit; permanent?: boolean },
+  ) => Promise<{ status: number; body: string; json: unknown }>,
+  say: (id: string, verdict: "passes" | "fails" | "notExercised", detail?: string) => void,
+): Promise<void> {
+  const code = (answer: { json: unknown }) => (answer.json as { code?: string } | null)?.code;
+  const query = (name: string) => `?action=${encodeURIComponent(name)}`;
+
+  // ACT-5 and ACT-10: a performance that succeeds, answering `200` with the declared result or
+  // `204` where the Action declares none.
+  const safe = arrangement.safeAction;
+  if (safe === undefined) {
+    for (const id of ["ACT-5", "ACT-10", "ENDP-16", "ENDP-17"]) {
+      say(id, "notExercised", "no Action was named as safe to perform");
+    }
+  } else {
+    const declaration = actions[safe.name];
+    const key = declaration?.idempotency !== undefined ? `conformance-${Date.now()}` : undefined;
+    const headers = key === undefined ? undefined : { "idempotency-key": key };
+    const body = JSON.stringify(safe.input);
+    const done = await post(query(safe.name), body, `the Action \`${safe.name}\``, { headers });
+
+    const wantsResult = declaration?.result !== undefined;
+    if (done.status === 200 || done.status === 204) {
+      say("ACT-5", "passes");
+      if (wantsResult && done.status === 200) say("ACT-10", "passes");
+      else if (!wantsResult && done.status === 204) say("ACT-10", "passes");
+      else {
+        const expected = wantsResult ? "200 with its result" : "204";
+        say(
+          "ACT-10",
+          "fails",
+          `it declares ${wantsResult ? "a result" : "none"} and answered ${done.status}, not ${expected}`,
+        );
+      }
+    } else {
+      say("ACT-5", "fails", `answered ${done.status} with \`${code(done) ?? "no code"}\``);
+      say("ACT-10", "notExercised", "the performance did not succeed");
+    }
+
+    if (key === undefined) {
+      for (const id of ["ENDP-16", "ENDP-17"]) {
+        say(id, "notExercised", `\`${safe.name}\` declares no idempotency key`);
+      }
+    } else {
+      // ENDP-16: within the window, a repeat under the same key is not a second performance — the
+      // Worker answers the outcome it recorded.
+      const again = await post(query(safe.name), body, "the same Action under the same key", {
+        headers,
+      });
+      if (again.status === done.status && again.body === done.body) say("ENDP-16", "passes");
+      else say("ENDP-16", "fails", `the repeat answered ${again.status}, not the recorded outcome`);
+
+      // ENDP-17: a key reused with a different body is `409`. Only the caller can tell a retry
+      // from a genuine repeat, and this is the Worker refusing to guess.
+      const other = JSON.stringify({ ...(safe.input as object), "conformance-probe": true });
+      const reused = await post(query(safe.name), other, "the same key with another body", {
+        headers,
+        permanent: true,
+      });
+      if (reused.status === 409) say("ENDP-17", "passes");
+      else say("ENDP-17", "fails", `answered ${reused.status}, not 409`);
+    }
+  }
+
+  // ACT-9 and ENDP-12: an input that matches the schema and that the Worker will not accept on its
+  // own rules. ENDP-12 needs BOTH halves — a 400 for a body it could not read and a 422 for one it
+  // read and refused — and the 400 came from the schema-mismatch probe above.
+  const refused = arrangement.refusedInput;
+  if (refused === undefined) {
+    say("ACT-9", "notExercised", "no input was named that this Worker refuses on its own rules");
+    say("ENDP-12", "notExercised", "nothing provoked a 422 to compare against the 400");
+  } else {
+    const answer = await post(
+      query(refused.name),
+      JSON.stringify(refused.input),
+      `\`${refused.name}\` with an input it refuses`,
+      { permanent: true },
+    );
+    if (answer.status === 422 && code(answer) === "unprocessable_content") {
+      say("ACT-9", "passes");
+      if (mismatchedStatus === 400) say("ENDP-12", "passes");
+      else say("ENDP-12", "fails", `an unreadable body answered ${mismatchedStatus}, not 400`);
+    } else {
+      say("ACT-9", "fails", `answered ${answer.status} with \`${code(answer) ?? "no code"}\``);
+      say("ENDP-12", "notExercised", "no 422 was provoked");
+    }
+  }
+
+  // ACT-11: an Action that declares it does not complete within the call answers `202` and no
+  // body. The declaration is read from the Descriptor, so a Worker that named the wrong Action
+  // here fails on what it itself declared.
+  const async = arrangement.asyncAction;
+  if (async === undefined) {
+    say("ACT-11", "notExercised", "no Action was named that does not complete within the call");
+  } else if (actions[async.name]?.completesWithinCall !== false) {
+    say("ACT-11", "fails", `\`${async.name}\` declares that it DOES complete within the call`);
+  } else {
+    const answer = await post(
+      query(async.name),
+      JSON.stringify(async.input),
+      `\`${async.name}\`, which does not complete within the call`,
+    );
+    if (answer.status === 202 && answer.body.length === 0) say("ACT-11", "passes");
+    else if (answer.status !== 202) say("ACT-11", "fails", `answered ${answer.status}, not 202`);
+    else say("ACT-11", "fails", "answered 202 with a body");
+  }
 }

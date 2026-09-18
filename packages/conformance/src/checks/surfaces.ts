@@ -115,9 +115,7 @@ export async function callSurfaces(
     probe = await transcript.send(
       descriptorUrl,
       "the Descriptor with a credential it never issued",
-      {
-        headers: { authorization: `Bearer ${wrong}` },
-      },
+      { headers: { authorization: `Bearer ${wrong}` }, permanent: true },
     );
   } catch {
     say("REG-7", "notExercised", "the Descriptor route could not be reached a second time");
@@ -182,7 +180,9 @@ async function probeReads(
   for (const surface of answered) {
     const probed = new URL(surface.url);
     probed.searchParams.set("no-such-filter-8e31", "1");
-    const answer = await transcript.send(probed.toString(), "a filter the Worker cannot know");
+    const answer = await transcript.send(probed.toString(), "a filter the Worker cannot know", {
+      permanent: true,
+    });
     const code = (answer.json as { code?: string } | null)?.code;
     if (answer.status !== 400 || code !== "unknown_filter") {
       ignored.push(
@@ -201,9 +201,7 @@ async function probeReads(
     const answer = await transcript.send(
       surface.url,
       "a Capability version the Worker cannot answer",
-      {
-        headers: { "worker-protocol-capability-version": "99999" },
-      },
+      { headers: { "worker-protocol-capability-version": "99999" }, permanent: true },
     );
     const code = (answer.json as { code?: string } | null)?.code;
     if (answer.status !== 400 || code !== "unsupported_version") {

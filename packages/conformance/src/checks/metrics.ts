@@ -32,6 +32,7 @@ export const CLAIMS = [
   "MET-18",
   "MET-19",
   "MET-20",
+  "NAME-1",
   // A metric read is the only collection this edition has, so it is where the two collection rules
   // are judged. A generic probe cannot construct a valid read for an arbitrary surface — it would
   // have to know which parameters that surface requires, which is each Capability file's to say —
@@ -185,6 +186,7 @@ export async function checkMetrics(
   const absent = await transcript.send(
     readUrl({ metric: "no-such-metric-a4f1c7", granularity }),
     "a metric the entry does not declare",
+    { permanent: true },
   );
   const absentCode = (absent.json as { code?: string } | null)?.code;
   if (absent.status === 404 && absentCode === "not_found") say("MET-9", "passes");
@@ -195,6 +197,7 @@ export async function checkMetrics(
   const wrongGrain = await transcript.send(
     readUrl({ metric: name, granularity: "fortnight" }),
     "a granularity the metric does not declare",
+    { permanent: true },
   );
   const wrongCode = (wrongGrain.json as { code?: string } | null)?.code;
   if (wrongGrain.status === 400 && wrongCode === "invalid_parameter") say("MET-10", "passes");
@@ -369,12 +372,35 @@ export async function checkMetrics(
     const bad = await transcript.send(
       readUrl({ metric: name, granularity, [dimension]: "no-such-value-9c2e" }),
       "a dimension value outside the declared set",
+      { permanent: true },
     );
     const code = (bad.json as { code?: string } | null)?.code;
     if (bad.status === 400 && code === "invalid_parameter") say("MET-17", "passes");
     else say("MET-17", "fails", `answered ${bad.status} with \`${code ?? "no code"}\``);
   } else {
     say("MET-17", "notExercised", "no dimension declares a closed set of values");
+  }
+
+  // NAME-1: two names are the same name when their bytes are identical — no case folding, no
+  // normalisation, no trimming. Its witness is any declared name carrying an uppercase letter,
+  // sent back folded where the Worker matches names: a dimension whose parameter is `taskType`
+  // must not answer to `tasktype`. A Worker that folds passes every test anybody writes until the
+  // day somebody declares a name with a capital in it, which is exactly why this is worth a check.
+  const foldable = Object.keys(declaration.dimensions).find((d) => d !== d.toLowerCase());
+  if (foldable === undefined) {
+    say("NAME-1", "notExercised", "no declared dimension name carries an uppercase letter");
+  } else {
+    const folded = await transcript.send(
+      readUrl({ metric: name, granularity, [foldable.toLowerCase()]: "anything" }),
+      "a declared dimension name, folded to lowercase",
+      { permanent: true },
+    );
+    const code = (folded.json as { code?: string } | null)?.code;
+    if (folded.status === 400 && code === "unknown_filter") {
+      say("NAME-1", "passes");
+    } else {
+      say("NAME-1", "fails", `\`${foldable.toLowerCase()}\` was matched against \`${foldable}\``);
+    }
   }
 
   // MET-16 and MET-18: a dimension is fixed with a parameter of its own name, and one a read

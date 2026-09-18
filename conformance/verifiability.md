@@ -17,8 +17,8 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 62 |
-| **H** | Observable only against a Worker arranged to be observed. This is what the reference Worker exists for. | 15 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 65 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 12 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, or this specification. No tool pointed at a base URL can reach it. | 21 |
 | **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; fourteen are not on that list. | 17 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 2 |
@@ -63,7 +63,7 @@ this document, and separating them moved six rules.
 | ENDP-4 | W | `application/json`, UTF-8, parses |
 | ENDP-5 | W | Both headers on every response. Cheapest strong check in the protocol |
 | ENDP-6 | W | Send an unanswerable Capability version, expect `400` + `unsupported_version` |
-| ENDP-11 | H | The Worker must offer a condition that will not change and can be induced |
+| ENDP-11 | W | Judged over the transcript. Every probe this verifier sends is deliberately and permanently wrong — an Action no entry declares, a filter no surface knows, a credential never issued — so a `5xx` to any of them is the rule broken, and no arrangement is needed to provoke one |
 | ENDP-12 | H | The Worker must offer an address that parses a body and refuses it on its content |
 | ENDP-13 | P | Binds a caller |
 | ENDP-14 | P | Binds a caller |
@@ -102,7 +102,7 @@ this document, and separating them moved six rules.
 | REG-28 | H | Recommended. Two credentials must be issued to one holder, both live at once |
 | REG-29 | P | Binds a Tower |
 | REG-30 | P | Binds a Tower |
-| REG-31 | H | Recommended. The Worker must serve a state-changing address, which today means `actions` |
+| REG-31 | W | Recommended. A POST to the Actions address with no credential. `actions` gives this rule the state-changing address it was waiting for |
 | REG-32 | H | Recommended. A credential must exist that authenticates and lacks a right, so two refusals can be compared |
 | REG-33 | N | Who issued a credential is not in the credential |
 
@@ -130,7 +130,7 @@ this document, and separating them moved six rules.
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
-| NAME-1 | H | The Worker must declare a name with a capital in it; the check then sends the folded form and expects it not to match |
+| NAME-1 | W | Any declared name carrying an uppercase letter — a dimension, an Action, a metric — sent back folded and expected not to match. A Worker whose declarations are all lowercase exercises nothing, which is `not exercised` and not a weaker class |
 | NAME-2 | N | The file says it: this protocol has no mechanism that would catch it |
 | NAME-3 | P | Recommended. Binds this specification, not a Worker |
 | NAME-4 | — | `tasks` and `alerts` are `open`; there is no surface to expose an Alarm on |

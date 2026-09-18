@@ -25,6 +25,20 @@ const start = (options: Parameters<typeof createWorker>[0] = {}) =>
     });
   });
 
+/**
+ * What this Worker's operators would tell a verifier, if it had any.
+ *
+ * `conformance/verifiability.md` classes a rule `H` when nothing a tool can do to an UNARRANGED
+ * Worker will ever see a violation. The arrangement cannot come from the protocol — test
+ * scaffolding in a Descriptor would be carried by every Worker in the network — so it arrives out
+ * of band, the way the base URL and the credential do.
+ */
+const ARRANGEMENT = {
+  safeAction: { name: "record-verification", input: { vehicle: "ABC-123", verified: true } },
+  refusedInput: { name: "price-quote", input: { amount: -1 } },
+  asyncAction: { name: "rebuild-index", input: {} },
+};
+
 describe("the reference worker, verified", () => {
   let worker: Awaited<ReturnType<typeof start>>;
 
@@ -37,7 +51,12 @@ describe("the reference worker, verified", () => {
   });
 
   it("reads the Descriptor and reports on every rule in the specification", async () => {
-    const report = await verify({ baseUrl: worker.url, credential: "a-token", mayPerform: true });
+    const report = await verify({
+      baseUrl: worker.url,
+      credential: "a-token",
+      mayPerform: true,
+      arrangement: ARRANGEMENT,
+    });
 
     expect(report.edition).toBe("0.1");
 
@@ -48,7 +67,12 @@ describe("the reference worker, verified", () => {
   });
 
   it("passes every rule it judges but DESC-3, which the harness cannot satisfy", async () => {
-    const report = await verify({ baseUrl: worker.url, credential: "a-token", mayPerform: true });
+    const report = await verify({
+      baseUrl: worker.url,
+      credential: "a-token",
+      mayPerform: true,
+      arrangement: ARRANGEMENT,
+    });
 
     // Derived from the report rather than restated here. A hand-written list of the rules this
     // verifier judges is a second source that drifts, and it drifts SILENTLY: a check added
@@ -65,7 +89,12 @@ describe("the reference worker, verified", () => {
   });
 
   it("judges every rule a tool can observe but the one nothing has provoked", async () => {
-    const report = await verify({ baseUrl: worker.url, credential: "a-token", mayPerform: true });
+    const report = await verify({
+      baseUrl: worker.url,
+      credential: "a-token",
+      mayPerform: true,
+      arrangement: ARRANGEMENT,
+    });
 
     const observable = report.results.filter((r) => r.rule.reach === "W");
     const unexercised = observable
@@ -90,6 +119,7 @@ describe("the reference worker, verified", () => {
         baseUrl: mounted.url,
         credential: "a-token",
         mayPerform: true,
+        arrangement: ARRANGEMENT,
       });
       const verdict = (id: string) => report.results.find((r) => r.rule.id === id)?.verdict;
       expect(verdict("DESC-18")).toBe("passes");
@@ -101,7 +131,12 @@ describe("the reference worker, verified", () => {
   });
 
   it("says which kind of silence every unclaimed rule is", async () => {
-    const report = await verify({ baseUrl: worker.url, credential: "a-token", mayPerform: true });
+    const report = await verify({
+      baseUrl: worker.url,
+      credential: "a-token",
+      mayPerform: true,
+      arrangement: ARRANGEMENT,
+    });
     const counts = tally(report.results);
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
@@ -110,7 +145,7 @@ describe("the reference worker, verified", () => {
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(17);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(60);
+    expect(counts.passes).toBe(70);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -133,6 +168,30 @@ describe("the reference worker, verified", () => {
     // rules that need a request, and none of the ones that need only the document.
     for (const id of ["ACT-1", "ACT-2", "ACT-3", "ACT-4", "ACT-12", "ACT-15", "ENDP-15"]) {
       expect(result(id)?.verdict, `${id} needs no POST`).toBe("passes");
+    }
+  });
+
+  it("reports what an arrangement was missing rather than a verdict", async () => {
+    // A rule with no ordinary witness is not failed for want of scaffolding. Permitted to perform
+    // but told nothing, the verifier says which arrangement each rule was waiting for — a gap
+    // somebody can close, and not a claim about the Worker.
+    const report = await verify({
+      baseUrl: worker.url,
+      credential: "a-token",
+      mayPerform: true,
+    });
+    const result = (id: string) => report.results.find((r) => r.rule.id === id);
+
+    for (const id of ["ACT-5", "ACT-10", "ENDP-16", "ENDP-17"]) {
+      expect(result(id)?.verdict, id).toBe("notExercised");
+      expect(result(id)?.detail).toContain("safe to perform");
+    }
+    expect(result("ACT-9")?.detail).toContain("refuses on its own rules");
+    expect(result("ACT-11")?.detail).toContain("does not complete within the call");
+
+    // And nothing that needed only a POST is held back by the missing arrangement.
+    for (const id of ["ACT-6", "ACT-7", "ACT-8", "ENDP-3", "ENDP-18", "REG-31"]) {
+      expect(result(id)?.verdict, id).toBe("passes");
     }
   });
 

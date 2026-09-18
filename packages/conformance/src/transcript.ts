@@ -20,12 +20,27 @@ export type Exchange = {
   json: unknown;
   /** What the verifier was doing, for a report that has to say why a response was provoked. */
   intent: string;
+  /**
+   * Whether the verifier knows this request is wrong in a way that will not change.
+   *
+   * ENDP-11 forbids a `5xx` for a condition that will not change, and its witness is ordinarily
+   * out of reach: nothing outside a Worker can tell a transient fault from a permanent one. But a
+   * verifier holds one fact nobody else does — it knows which of its own requests were deliberately
+   * and permanently wrong, because it made them that way. An Action no entry declares will never
+   * exist; a filter no surface knows will never be recognised; a credential never issued will
+   * never be accepted. A `5xx` to any of those is the rule broken, with no arrangement needed.
+   */
+  permanent: boolean;
 };
 
 export type Transcript = {
   exchanges: Exchange[];
   /** Performs a request, records it, and returns it. A network failure throws, as fetch does. */
-  send: (url: string, intent: string, init?: RequestInit) => Promise<Exchange>;
+  send: (
+    url: string,
+    intent: string,
+    init?: RequestInit & { permanent?: boolean },
+  ) => Promise<Exchange>;
 };
 
 export type Sender = typeof globalThis.fetch;
@@ -44,7 +59,8 @@ export function transcript(send: Sender, credential?: string): Transcript {
         headers.set("authorization", `Bearer ${credential}`);
       }
 
-      const response = await send(url, { ...init, headers, redirect: "manual" });
+      const { permanent = false, ...request } = init;
+      const response = await send(url, { ...request, headers, redirect: "manual" });
       const body = await response.text();
 
       let json: unknown = null;
@@ -62,6 +78,7 @@ export function transcript(send: Sender, credential?: string): Transcript {
         body,
         json,
         intent,
+        permanent,
       };
       exchanges.push(exchange);
       return exchange;

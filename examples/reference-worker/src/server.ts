@@ -95,14 +95,27 @@ export function createWorker(options: WorkerOptions = {}): Server {
     const path = new URL(request.url ?? "/", "http://worker.invalid").pathname;
 
     const send = (status: number, body: unknown) => {
-      const payload = JSON.stringify(body);
-      response.writeHead(status, {
-        // ENDP-4: JSON, UTF-8. ENDP-5: what produced this answer, on every protocol response.
-        "content-type": "application/json; charset=utf-8",
+      // ENDP-5: what produced this answer, on EVERY protocol response — including the ones that
+      // carry nothing, because a caller reading a version it did not expect re-reads the
+      // Descriptor whatever the status was.
+      const headers: Record<string, string> = {
         "worker-protocol-edition": edition,
         "worker-protocol-capability-version": "1",
-      });
-      response.end(payload);
+      };
+
+      // ACT-10 and ACT-11 answer `204` and `202` with no body, and no body means none — not the
+      // four bytes `null`, which is a JSON document saying something. A content type is a claim
+      // about a body, so a response without one makes no claim.
+      if (body === null) {
+        response.writeHead(status, headers);
+        response.end();
+        return;
+      }
+
+      // ENDP-4: JSON, UTF-8.
+      headers["content-type"] = "application/json; charset=utf-8";
+      response.writeHead(status, headers);
+      response.end(JSON.stringify(body));
     };
 
     // ENDP-25: every response that is not a success carries the shared envelope, with the class
