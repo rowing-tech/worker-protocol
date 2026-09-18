@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "events-entry.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "DESC-9. A single integer; there is no minor version. DESC-29 makes it count breaking changes to this Capability's own surface alone."
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+    },
+    "broker": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EVT-2. Where this Worker publishes, named however its operators name it. Nothing here parses it — this protocol names no broker, exactly as it parses no metric unit."
+    },
+    "binding": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EVT-2. Which CloudEvents binding the attributes are laid out under. Not fixed and not parsed: a binding is a property of a transport, and fixing one would mean naming a broker or publishing a list of the ones somebody had thought of."
+    },
+    "events": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "qualified-name.json"
+      },
+      "additionalProperties": {
+        "$ref": "event-type-declaration.json"
+      },
+      "description": "EVT-3. Every event type this Worker publishes, keyed by name."
+    },
+    "republishWindowSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "EVT-8. How long this Worker may publish the same `source` and `id` again. A consumer that remembers them for at least this long sees each event once. Declared because `remember forever` is not implementable, and a consumer that forgot too early would process an event twice while believing it was protected — the same reasoning that has ENDP-15 declare an idempotency window."
+    }
+  },
+  "required": [
+    "version",
+    "broker",
+    "binding",
+    "events",
+    "republishWindowSeconds"
+  ],
+  "additionalProperties": {},
+  "title": "Events capability entry",
+  "description": "EVT-2. The shared Capability entry with NO address, the broker and binding this Worker publishes under, what it publishes, and how long it may republish one."
+}

@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the nine `draft` files, classified by what a check would observe. This is the audit
+Every rule in the ten `draft` files — all of them — classified by what a check would observe. This is the audit
 [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place only if you can name
 what a conformance check would observe when it is broken* — run for the first time, and it is also
 the specification of what `packages/conformance` implements.
@@ -17,10 +17,10 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 78 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 22 |
-| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, or this specification. No tool pointed at a base URL can reach it. | 22 |
-| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; the rest are not on that list, and the register below is where they are counted. | 21 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 82 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 23 |
+| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 25 |
+| **N** | No witness anywhere. Three are the exception [spec/README.md](../spec/README.md) admits; the rest are not on that list, and the register below is where they are counted. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
 ## descriptor.md — 25
@@ -161,6 +161,20 @@ this document, and separating them moved six rules.
 | ALRT-5 | N | An Alert that disappears may have had its condition stop holding, or may have been dismissed by somebody the verifier never saw. Nothing outside can tell — which is the same shape as TASK-15 and the same reason it matters |
 | ALRT-6 | H | Two credentials must exist before two lists can be compared |
 | ALRT-7 | W | Every Action an Alert offers is one the Worker's own `actions` entry accepts. An agreement between two entries, which no schema reaches |
+
+## events.md — 9
+
+| Rule | Class | What a check observes, or why nothing does |
+|---|---|---|
+| EVT-1 | H | The verifier holds no broker and sees no event. An arrangement would have to hand it one the Worker published |
+| EVT-2 | W | The entry declares a broker and a binding |
+| EVT-3 | W | Every event type it publishes, each with the schema of its data |
+| EVT-4 | W | Every event type name is a qualified name |
+| EVT-5 | P | Binds the Tower, which brokers the Contract, and states a negative about what does NOT travel here |
+| EVT-6 | P | Recommended. Binds a consumer, about a component this protocol does not see |
+| EVT-7 | P | Binds a subscriber — a party this protocol does not otherwise name, sitting between two that both did everything right |
+| EVT-8 | W | The republish window, read off the entry |
+| EVT-9 | N | A subscriber sees the topic it was given and not the Worker's other uses of the same cluster. What would be seen, if anything could, is a deduplication store filling with ids for documents that were never events |
 
 ## naming.md — 9
 

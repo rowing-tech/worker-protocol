@@ -986,6 +986,71 @@ export const alertsEntry = capabilityEntry.extend({ address }).meta({
     "raises an Alert about is its own business, so there is no catalog to declare.",
 });
 
+/** EVT-3 — one event type a Worker publishes. */
+export const eventTypeDeclaration = z
+  .strictObject({
+    data: z.looseObject({}).meta({
+      description:
+        "EVT-3. The JSON Schema of this event type's data — the `data` of the CloudEvents " +
+        "envelope EVT-1 fixes. The Worker's own shape: this protocol has no data model.",
+    }),
+  })
+  .meta({
+    title: "Event type declaration",
+    description:
+      "EVT-3. One event type, held under a qualified name (EVT-4, NAME-7) because a subscriber " +
+      "matches it against what it decided to consume, having never met the team that minted it.",
+  });
+
+/**
+ * EVT-2, EVT-3, EVT-8 — the `events` Capability entry.
+ *
+ * The one entry with NO address, which is the single reason DESC-22 leaves the address optional in
+ * the shared entry at all. An event travels over a broker this protocol declines to name, and a
+ * Worker with no HTTP surface for it would otherwise have had to invent a URL that does not exist.
+ */
+export const eventsEntry = capabilityEntry
+  .extend({
+    broker: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "EVT-2. Where this Worker publishes, named however its operators name it. Nothing here " +
+          "parses it — this protocol names no broker, exactly as it parses no metric unit.",
+      }),
+    binding: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "EVT-2. Which CloudEvents binding the attributes are laid out under. Not fixed and not " +
+          "parsed: a binding is a property of a transport, and fixing one would mean naming a " +
+          "broker or publishing a list of the ones somebody had thought of.",
+      }),
+    events: z.record(qualifiedName, eventTypeDeclaration).meta({
+      description: "EVT-3. Every event type this Worker publishes, keyed by name.",
+    }),
+    republishWindowSeconds: z
+      .number()
+      .int()
+      .min(1)
+      .meta({
+        description:
+          "EVT-8. How long this Worker may publish the same `source` and `id` again. A consumer " +
+          "that remembers them for at least this long sees each event once. Declared because " +
+          "`remember forever` is not implementable, and a consumer that forgot too early would " +
+          "process an event twice while believing it was protected — the same reasoning that has " +
+          "ENDP-15 declare an idempotency window.",
+      }),
+  })
+  .meta({
+    title: "Events capability entry",
+    description:
+      "EVT-2. The shared Capability entry with NO address, the broker and binding this Worker " +
+      "publishes under, what it publishes, and how long it may republish one.",
+  });
+
 registry.add(capabilityName, { id: "capability-name" });
 registry.add(qualifiedName, { id: "qualified-name" });
 registry.add(healthStatus, { id: "health-status" });
@@ -1014,3 +1079,5 @@ registry.add(alertSeverity, { id: "alert-severity" });
 registry.add(alert, { id: "alert" });
 registry.add(alertPage, { id: "alert-page" });
 registry.add(alertsEntry, { id: "alerts-entry" });
+registry.add(eventTypeDeclaration, { id: "event-type-declaration" });
+registry.add(eventsEntry, { id: "events-entry" });

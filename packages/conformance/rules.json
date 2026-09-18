@@ -440,6 +440,60 @@
       "reach": "P"
     },
     {
+      "id": "EVT-1",
+      "file": "events.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "EVT-2",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "EVT-3",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "EVT-4",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "EVT-5",
+      "file": "events.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "EVT-6",
+      "file": "events.md",
+      "class": "recommended",
+      "reach": "P"
+    },
+    {
+      "id": "EVT-7",
+      "file": "events.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "EVT-8",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "EVT-9",
+      "file": "events.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
       "id": "HLTH-1",
       "file": "health.md",
       "class": "required",
@@ -1029,6 +1083,21 @@
       "class": "ENDP-26",
       "code": "ENDP-25",
       "message": "ENDP-25"
+    },
+    "event-type-declaration": {
+      "": "EVT-3",
+      "data": "EVT-3"
+    },
+    "events-entry": {
+      "": "EVT-2",
+      "address": "DESC-12",
+      "binding": "EVT-2",
+      "broker": "EVT-2",
+      "events": "EVT-3",
+      "events/*": "EVT-3",
+      "events/*/data": "EVT-3",
+      "republishWindowSeconds": "EVT-8",
+      "version": "DESC-9"
     },
     "health-entry": {
       "": "HLTH-1",

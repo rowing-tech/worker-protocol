@@ -38,10 +38,12 @@ schema wins — see [descriptor.md](descriptor.md).
 The four cross-cutting files are `draft`: they were answered first because every other file leans
 on them — the Descriptor route, the addresses, the versioning rule, the error envelope, how either
 side of a call proves who it is, and how a name is compared and what a schema change breaks.
+Every other file is `draft` too, which is to say **no file here is `open` any more**:
 [health.md](health.md), [metrics.md](metrics.md), [actions.md](actions.md),
-[tasks-and-claims.md](tasks-and-claims.md) and [alerts.md](alerts.md) are `draft` too — the whole
-of *operate*, the whole of *delegate*, and the conditions an operator should see.
-[events.md](events.md) is the last `open` file: its subject is settled, its answers are not.
+[tasks-and-claims.md](tasks-and-claims.md), [alerts.md](alerts.md) and [events.md](events.md) —
+the whole of *operate*, the whole of *delegate*, the conditions an operator should see, and the
+Facts a Worker publishes to nobody in particular. What remains open is written inside each file,
+under `Still open here`, and in [deliberately undecided](../docs/undecided.md).
 
 ## What this specification does not define
 

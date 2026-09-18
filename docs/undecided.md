@@ -9,9 +9,6 @@ behind it. Until then, the protocol is silent, and where it is silent the option
 that a `spec/` file already lists among what it will answer says which file, and the file points
 back — so that when the answer lands, both places know.
 
-- **Whether the event envelope is CloudEvents**, and if so in which version and which binding.
-  It is the candidate and nothing more; until it is settled, nobody knows where the id they must
-  deduplicate by lives. Listed in [spec/events.md](../spec/events.md).
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers. Listed in [spec/health.md](../spec/health.md).
 - **Who verifies that a worker answers the Task types it declares.** The Control Tower at

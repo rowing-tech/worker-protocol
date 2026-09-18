@@ -5,6 +5,7 @@ import { checkActions } from "./checks/actions.ts";
 import { checkAlerts } from "./checks/alerts.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
+import { checkEvents } from "./checks/events.ts";
 import { checkHealth } from "./checks/health.ts";
 import { checkMetrics } from "./checks/metrics.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
@@ -125,6 +126,9 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           | undefined
       )?.actions ?? {},
     );
+    // `events` has no address by design (DESC-22), so this check sends nothing and takes no
+    // transcript. It is the only Capability a verifier judges entirely from the Descriptor.
+    results.push(...checkEvents(descriptor.document.capabilities.events, byId, attribution));
     results.push(
       ...(await checkAlerts(
         descriptor.document.capabilities.alerts,

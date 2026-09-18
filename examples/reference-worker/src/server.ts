@@ -94,6 +94,27 @@ export function createWorker(options: WorkerOptions = {}): Server {
       // ALRT-1: an address and nothing else. What a Worker raises an Alert about is its own
       // business, so there is no catalog to declare.
       alerts: { version: 1, address: "../alerts" },
+      // EVT-2: no address at all, which is the one case DESC-22 leaves the shared entry's address
+      // optional for. An event travels over a broker, and this Worker's is named and not parsed.
+      events: {
+        version: 1,
+        broker: "nats://events.invalid",
+        binding: "cloudevents/nats-1.0",
+        events: {
+          "tech.rowing.worker-protocol.vehicle-verified": {
+            data: {
+              type: "object",
+              properties: { vehicle: { type: "string" } },
+              required: ["vehicle"],
+              additionalProperties: false,
+            },
+          },
+        },
+        // EVT-8: what a consumer sizes its deduplication store against. An hour, declared,
+        // because `remember forever` is not implementable and a consumer that forgot too early
+        // would process an event twice while believing it was protected.
+        republishWindowSeconds: 3600,
+      },
       tasks: {
         version: 1,
         address: "../tasks",

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event-type-declaration.json",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {},
+      "description": "EVT-3. The JSON Schema of this event type's data — the `data` of the CloudEvents envelope EVT-1 fixes. The Worker's own shape: this protocol has no data model."
+    }
+  },
+  "required": [
+    "data"
+  ],
+  "additionalProperties": false,
+  "title": "Event type declaration",
+  "description": "EVT-3. One event type, held under a qualified name (EVT-4, NAME-7) because a subscriber matches it against what it decided to consume, having never met the team that minted it."
+}
