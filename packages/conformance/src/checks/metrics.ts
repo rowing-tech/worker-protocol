@@ -32,6 +32,12 @@ export const CLAIMS = [
   "MET-18",
   "MET-19",
   "MET-20",
+  // A metric read is the only collection this edition has, so it is where the two collection rules
+  // are judged. A generic probe cannot construct a valid read for an arbitrary surface — it would
+  // have to know which parameters that surface requires, which is each Capability file's to say —
+  // so the check that already holds a valid page is the one that can judge the envelope it came in.
+  "ENDP-20",
+  "ENDP-23",
 ] as const;
 
 /**
@@ -241,6 +247,27 @@ export async function checkMetrics(
   }
   const buckets = page.data.items;
   say("MET-13", "passes");
+
+  // ENDP-20: every surface that answers a list answers it in the shared page envelope. `metricPage`
+  // narrows that envelope's items, which is the narrowing ENDP-20 says each surface performs, so
+  // the page having validated above is the witness.
+  say("ENDP-20", "passes");
+
+  // ENDP-23: a collection declares an order and holds it, so that paging terminates. The witness
+  // is an unchanged read answering the same items in the same order — a collection whose order
+  // moves between two reads has none for a cursor to resume from.
+  const repeated = await transcript.send(
+    readUrl({ metric: name, granularity, from: iso(now - span), to: iso(now + 3_600_000) }),
+    "the same read again, to see whether the order holds",
+  );
+  const second = metricPage.safeParse(repeated.json);
+  if (!second.success) {
+    say("ENDP-23", "notExercised", "the repeated read did not validate");
+  } else if (JSON.stringify(second.data.items) !== JSON.stringify(buckets)) {
+    say("ENDP-23", "fails", "an unchanged read answered its buckets in a different order");
+  } else {
+    say("ENDP-23", "passes");
+  }
 
   if (buckets.length === 0) {
     allExcept("notExercised", "the Worker has accumulated nothing over the last month", [

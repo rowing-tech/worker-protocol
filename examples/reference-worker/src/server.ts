@@ -101,6 +101,8 @@ export function createWorker(options: WorkerOptions = {}): Server {
     const reject = (status: number, code: string, message: string) =>
       send(status, { code, message, class: "reject" });
 
+    const query = new URL(request.url ?? "/", "http://worker.invalid").searchParams;
+
     if (path !== routes.descriptor && path !== routes.health && path !== routes.metrics) {
       // REG-7: a Worker does not answer 404 in place of 401 on an address it serves — and this is
       // the converse, an address it genuinely does not serve.
@@ -121,10 +123,29 @@ export function createWorker(options: WorkerOptions = {}): Server {
       return reject(404, "not_found", "No such address.");
     }
 
+    // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot
+    // answer that version refuses the request WHOLE rather than substituting its own. A client
+    // that guesses at a shape it does not know is worse than one that says so, and the caller's
+    // recourse is to re-read the Descriptor, which is where the answer was all along.
+    const asked = request.headers["worker-protocol-capability-version"];
+    if (typeof asked === "string" && asked !== "1") {
+      return reject(400, "unsupported_version", "This Worker answers version 1.");
+    }
+
+    // ENDP-24: an unrecognized filter parameter is 400 and is never ignored. A filter dropped in
+    // silence answers with MORE than the caller asked for, in a shape it will happily parse — and
+    // a caller that filtered in order to stay inside a Contract is handed exactly what it
+    // excluded, with no sign that anything happened. The Descriptor route and `health` take no
+    // parameters at all, so every one they receive is unrecognized.
+    if (path !== routes.metrics) {
+      for (const key of query.keys()) {
+        return reject(400, "unknown_filter", `This address takes no parameter named ${key}.`);
+      }
+    }
+
     if (path === routes.descriptor) return send(200, descriptor);
 
     if (path === routes.metrics) {
-      const query = new URL(request.url ?? "/", "http://worker.invalid").searchParams;
       const answer = read(query, Date.now());
       if ("status" in answer) {
         // ENDP-26: the code fixes the status and the class, and this Worker answers the status

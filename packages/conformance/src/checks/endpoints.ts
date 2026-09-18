@@ -9,7 +9,16 @@ import { type Exchange, isJson } from "../transcript.ts";
  * exchange can break: ENDP-26 forbids one code arriving under two statuses, which is a fact about
  * a set. A check that asked it inside one surface would be asking a question it could not answer.
  */
-export const CLAIMS = ["ENDP-1", "ENDP-4", "ENDP-5", "ENDP-25", "ENDP-26", "ENDP-29"] as const;
+export const CLAIMS = [
+  "ENDP-1",
+  "ENDP-3",
+  "ENDP-4",
+  "ENDP-5",
+  "ENDP-19",
+  "ENDP-25",
+  "ENDP-26",
+  "ENDP-29",
+] as const;
 
 /** The status and class each code fixes, generated from endpoints.md into rules.json (ENDP-26). */
 export type Code = { code: string; status: number; class: "reject" | "retry" };
@@ -101,7 +110,25 @@ export function judgeTranscript(
     }
   }
 
+  // ENDP-3: everything that changes state is POST, on an address declared for the purpose. No
+  // surface this protocol defines changes state until `actions` lands, so there is nothing to
+  // observe — which is `notExercised` and not a pass. A verifier that counted an absent surface as
+  // compliance would be vouching for code nobody has written.
+  say("ENDP-3", "notExercised", "no surface this protocol defines changes state until `actions`");
+
+  // ENDP-19 recommends that a Worker cap the page size rather than negotiating it. The witness is
+  // a collection longer than the cap, which is a cursor coming back; short of that there is
+  // nothing to see, and a Worker whose collections all fit in one page has not been observed
+  // either following it or not.
+  const capped = exchanges.some((exchange) => {
+    const cursor = (exchange.json as { nextCursor?: unknown } | null)?.nextCursor;
+    return typeof cursor === "string" && cursor.length > 0;
+  });
+  if (capped) say("ENDP-19", "passes");
+  else say("ENDP-19", "notExercised", "no collection was long enough to be capped");
+
   for (const id of CLAIMS) {
+    if (id === "ENDP-3" || id === "ENDP-19") continue;
     const why = failures.get(id);
     if (why === undefined) say(id, "passes");
     else say(id, "fails", why.length === 1 ? why[0] : `${why.length} responses: ${why[0]}, …`);

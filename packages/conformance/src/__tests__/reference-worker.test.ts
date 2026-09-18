@@ -47,67 +47,36 @@ describe("the reference worker, verified", () => {
     expect(report.results.length).toBeGreaterThan(100);
   });
 
-  it("passes every rule it claims but DESC-3, which the harness cannot satisfy", async () => {
+  it("passes every rule it judges but DESC-3, which the harness cannot satisfy", async () => {
     const report = await verify({ baseUrl: worker.url, credential: "a-token" });
-    const verdict = (id: string) => report.results.find((r) => r.rule.id === id)?.verdict;
 
-    const claimed = [
-      // The Descriptor document alone.
-      "DESC-1",
-      "DESC-5",
-      "DESC-6",
-      "DESC-8",
-      "DESC-9",
-      "DESC-12",
-      "DESC-14",
-      "DESC-22",
-      "DESC-23",
-      // What calling each declared address establishes.
-      "DESC-18",
-      "REG-3",
-      "REG-7",
-      "REG-21",
-      // The `health` Capability.
-      "HLTH-1",
-      "HLTH-2",
-      "HLTH-3",
-      "HLTH-5",
-      // The `metrics` Capability, the most checkable file in the specification.
-      "MET-1",
-      "MET-2",
-      "MET-3",
-      "MET-4",
-      "MET-5",
-      "MET-6",
-      "MET-7",
-      "MET-8",
-      "MET-9",
-      "MET-10",
-      "MET-11",
-      "MET-12",
-      "MET-13",
-      "MET-14",
-      "MET-16",
-      "MET-17",
-      "MET-18",
-      "MET-19",
-      "MET-20",
-      // Judged over every response the run provoked.
-      "ENDP-1",
-      "ENDP-4",
-      "ENDP-5",
-      "ENDP-25",
-      "ENDP-26",
-      "ENDP-29",
-    ];
-    for (const id of claimed) expect(verdict(id), `${id} should pass`).toBe("passes");
+    // Derived from the report rather than restated here. A hand-written list of the rules this
+    // verifier judges is a second source that drifts, and it drifts SILENTLY: a check added
+    // without touching the list leaves the test passing while asserting less, which is a gate that
+    // only knows how to say yes — the thing this repository objects to everywhere else.
+    const failing = report.results.filter((r) => r.verdict === "fails").map((r) => r.rule.id);
 
     // DESC-3 fixes `https`, and this test reaches the Worker over a loopback socket in plaintext.
     // The verdict is correct and the fault is the harness's: a Worker is not conformant at an
     // address nobody may send it a credential to. The tool is not taught an exception for
     // localhost, because a verifier that quietly excused a rule would be deciding something the
     // specification did not.
-    expect(verdict("DESC-3")).toBe("fails");
+    expect(failing).toEqual(["DESC-3"]);
+  });
+
+  it("judges every rule a tool can observe, but the two nothing has yet provoked", async () => {
+    const report = await verify({ baseUrl: worker.url, credential: "a-token" });
+
+    const observable = report.results.filter((r) => r.rule.reach === "W");
+    const unexercised = observable
+      .filter((r) => r.verdict === "notExercised")
+      .map((r) => r.rule.id);
+
+    // ENDP-3 has no witness until `actions` gives this protocol a surface that changes state, and
+    // ENDP-19's is a collection longer than a Worker's page cap. Both are honest gaps rather than
+    // missing checks, and pinning them here is what makes a NEW gap visible: a W rule that stops
+    // being judged joins this list and fails the test.
+    expect(unexercised).toEqual(["ENDP-3", "ENDP-19"]);
   });
 
   it("resolves a declared address against the Descriptor's route, not the base URL", async () => {
@@ -136,7 +105,7 @@ describe("the reference worker, verified", () => {
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(16);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(42);
+    expect(counts.passes).toBe(47);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,

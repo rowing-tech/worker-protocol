@@ -7,7 +7,15 @@ import type { Transcript } from "../transcript.ts";
  * DESC-18 is here rather than beside the Descriptor because its witness is a declared address
  * answering `404`, which needs the call the Descriptor check deliberately does not make.
  */
-export const CLAIMS = ["DESC-18", "REG-3", "REG-7", "REG-21"] as const;
+export const CLAIMS = [
+  "DESC-18",
+  "REG-3",
+  "REG-7",
+  "REG-21",
+  "ENDP-2",
+  "ENDP-6",
+  "ENDP-24",
+] as const;
 
 export type Surface = { capability: string; url: string };
 
@@ -30,6 +38,7 @@ export async function callSurfaces(
 
   const missing: string[] = [];
   const refused: string[] = [];
+  const answered: { capability: string; url: string; body: string }[] = [];
 
   for (const surface of surfaces) {
     let answer: Awaited<ReturnType<Transcript["send"]>>;
@@ -52,12 +61,18 @@ export async function callSurfaces(
     if (answer.status === 401 || answer.status === 403) {
       refused.push(`\`${surface.capability}\` at ${surface.url} answered ${answer.status}`);
     }
+
+    if (answer.status === 200) {
+      answered.push({ capability: surface.capability, url: surface.url, body: answer.body });
+    }
   }
 
   if (surfaces.length > 0) {
     if (missing.length === 0) say("DESC-18", "passes");
     else say("DESC-18", "fails", missing.join("; "));
   }
+
+  await probeReads(answered, transcript, say);
 
   if (credential === undefined) {
     // Without one there is nothing to present, and a Worker that reads openly is conformant —
@@ -107,4 +122,83 @@ export async function callSurfaces(
   }
 
   return results;
+}
+
+/**
+ * What a declared surface can be asked, once it is known to answer.
+ *
+ * These are the last rules in [endpoints](../../../spec/endpoints.md) with a witness against an
+ * ordinary Worker, and each needs a request nothing else in a run would send: a parameter the
+ * Worker cannot know, a Capability version it cannot answer, a read repeated to see whether it
+ * changed anything.
+ */
+async function probeReads(
+  answered: { capability: string; url: string; body: string }[],
+  transcript: Transcript,
+  say: (id: string, verdict: Result["verdict"], detail?: string) => void,
+): Promise<void> {
+  if (answered.length === 0) {
+    for (const id of ["ENDP-2", "ENDP-6", "ENDP-24"]) {
+      say(id, "notExercised", "no declared surface answered");
+    }
+    return;
+  }
+
+  // ENDP-2: a GET changes nothing a later reader could observe. As with DESC-5 this is the weakest
+  // form and the honest one — a verifier cannot prove the absence of a side effect, only catch a
+  // Worker whose read has one it shows. A collection is where it would show: listing a Worker's
+  // open Tasks must not consume them.
+  const changed: string[] = [];
+  for (const surface of answered) {
+    const again = await transcript.send(
+      surface.url,
+      `the \`${surface.capability}\` address, again`,
+    );
+    if (again.status !== 200) {
+      changed.push(`\`${surface.capability}\` answered ${again.status} on a second read`);
+      continue;
+    }
+    if (again.body !== surface.body) changed.push(`\`${surface.capability}\` answered differently`);
+  }
+
+  if (changed.length === 0) say("ENDP-2", "passes");
+  else say("ENDP-2", "fails", changed.join("; "));
+
+  // ENDP-24: an unrecognized filter parameter is 400, and is never ignored.
+  const ignored: string[] = [];
+  for (const surface of answered) {
+    const probed = new URL(surface.url);
+    probed.searchParams.set("no-such-filter-8e31", "1");
+    const answer = await transcript.send(probed.toString(), "a filter the Worker cannot know");
+    const code = (answer.json as { code?: string } | null)?.code;
+    if (answer.status !== 400 || code !== "unknown_filter") {
+      ignored.push(
+        `\`${surface.capability}\` answered ${answer.status} with \`${code ?? "no code"}\``,
+      );
+    }
+  }
+  if (ignored.length === 0) say("ENDP-24", "passes");
+  else say("ENDP-24", "fails", ignored.join("; "));
+
+  // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot answer
+  // it refuses the request whole rather than substituting its own. A version no edition will reach
+  // soon is the only way to ask without a Worker having to cooperate.
+  const unanswerable: string[] = [];
+  for (const surface of answered) {
+    const answer = await transcript.send(
+      surface.url,
+      "a Capability version the Worker cannot answer",
+      {
+        headers: { "worker-protocol-capability-version": "99999" },
+      },
+    );
+    const code = (answer.json as { code?: string } | null)?.code;
+    if (answer.status !== 400 || code !== "unsupported_version") {
+      unanswerable.push(
+        `\`${surface.capability}\` answered ${answer.status} with \`${code ?? "no code"}\``,
+      );
+    }
+  }
+  if (unanswerable.length === 0) say("ENDP-6", "passes");
+  else say("ENDP-6", "fails", unanswerable.join("; "));
 }
