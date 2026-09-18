@@ -6,9 +6,10 @@
 > Descriptor of what it implements, then health, metrics, the Actions it accepts, the settings
 > it holds, and the Tasks and Alerts it has raised.
 >
-> One node is not a Worker. The **Control Tower** knows who exists, what each offers and how each
-> is doing; it brokers the Contracts by which one Worker comes to use another's work, and then the
-> work runs without it — as aircraft already cleared keep flying when the tower goes quiet.
+> One role stands apart, and it is a role and not a kind of node. The **Control Tower** knows who
+> exists, what each offers and how each is doing; it brokers the Contracts by which one Worker comes
+> to use another's work, and then the work runs without it — as aircraft already cleared keep
+> flying when the tower goes quiet.
 >
 > Three principles drive the shape:
 >
@@ -21,9 +22,12 @@
 >    tooling — a cron job in Python over Postgres — must be able to satisfy it completely. Events
 >    travel over whatever broker a worker declares, which is the one place another transport
 >    appears.
-> 3. **The Tower facilitates and monitors. It runs no business logic, and remembers nothing on a
->    worker's behalf.** It knows who exists, what each offers, and how each is doing; it brokers
->    the Contracts by which a consumer uses a Service, and then steps out of the way.
+> 3. **The Tower is in nobody's execution path, and remembers nothing on a worker's behalf.** It
+>    knows who exists, what each offers, and how each is doing; it brokers the Contracts by which a
+>    consumer uses a Service, and then steps out of the way. What it works out about the fleet from
+>    what it observed is its own, exactly as a worker's facts are its own — REG-24 is where the
+>    invariant binds, by forbidding an owner to call the Tower in order to validate a Contract's
+>    credential.
 >
 > **This document is the reasoning, not the normative text.** It explains why the protocol is
 > shaped the way it is; `spec/` and `schemas/` say what a worker must do. Nothing here is closed:
@@ -44,7 +48,7 @@ argument earns each of these in turn.
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
 | **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, metrics, actions, alerts, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
 | **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; the Capabilities it implements, with the schemas of each and, where one answers over HTTP, its address; and the edition of this protocol it speaks. Everything anyone knows about a Worker before calling it is read from here. |
-| **Control Tower** | The one node that is not a Worker — the Tower, for short: the registry and the operator's console. It catalogs what Workers declare in their Descriptors, brokers the Contracts between them, and polls how each is doing. It runs no business logic and holds no Worker's state. |
+| **Control Tower** | A role, not a kind of node — the Tower, for short: the registry and the operator's console. It catalogs what Workers declare in their Descriptors, brokers the Contracts between them, and polls how each is doing. It holds no Worker's state, and nothing it offers is in the path of a call. A Tower that serves a Descriptor is a Worker like any other; what stays asymmetric is that every Worker reaches it by configuration rather than by discovery. |
 | **Metric** | A named quantity a Worker exposes over a period it declares, with a unit and no valuation — cost, volume, outcomes. Health says whether a Worker works; metrics say what it did. |
 | **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker that the protocol knows of; whatever else a Worker answers is its own business, and no console, catalog or Contract sees it. |
 | **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Skill it names. Closes only when the condition disappears. |
@@ -110,19 +114,39 @@ app* has a custom UI in domain language and works the Tasks it raises and claims
 gives a person or team one view of the Tasks they hold across owners, by Skill. A *proxy*
 wraps a system that cannot speak the protocol — Power Automate, Zapier, SAP — and answers for it.
 
-**The Control Tower** is the one node that is not a worker: the registry and the operator's
-console. It catalogs who exists and what each declares — read from each worker's Descriptor,
-together with the Skills the worker or its people answer for; it holds the Services teams publish
-over them; it brokers the Contracts by which a consumer uses a Service; it polls how each worker is
-doing. The registry is derived from those Descriptors: enrolling a worker is a URL and a
-credential, and the rest is read. It holds nobody's data.
+**The Control Tower** is the registry and the operator's console. It catalogs who exists and what
+each declares — read from each worker's Descriptor, together with the Skills the worker or its
+people answer for; it holds the Services teams publish over them; it brokers the Contracts by which
+a consumer uses a Service; it polls how each worker is doing. The registry is derived from those
+Descriptors: enrolling a worker is a URL and a credential, and the rest is read. It holds nobody's
+data.
 
-*Control Tower* names a role, not a product: whatever enrolls Workers, keeps their Descriptors,
-brokers Contracts and polls is one, and a Worker must be legible to any of them. The name is a
-metaphor carried on purpose. A tower sees all the traffic and flies none of it; when it goes quiet,
-whoever is already cleared continues on the last clearance and whoever is not waits — which is
-exactly the claim made under Contracts below. Where the metaphor ends: a real tower sequences
-traffic in flight, and this one does not. A Contract, once granted, is the clearance.
+*Control Tower* names a role, not a product and not a kind of node: whatever enrolls Workers, keeps
+their Descriptors, brokers Contracts and polls is one, and a Worker must be legible to any of them.
+A Tower that serves a Descriptor is a Worker like any other, and nothing in `spec/` either requires
+that or forbids it — what it derives about the fleet would be its own facts, exposed through the
+same Capabilities as anyone's. Three asymmetries survive that and are worth naming, because each is
+a place where the network is not uniform:
+
+- **Every Worker reaches its Tower by configuration, never by discovery.** Nothing is looked up;
+  somebody wrote an address down. A Tower is found the way the first thing in any network is found.
+- **Enrollment starts with a person.** REG-26 has somebody record a base URL and a credential, and
+  its argument says why a handshake would only move the same trust one step. Whatever enrolls the
+  first Tower is outside every mechanism described here, for the same reason.
+- **Nothing a Tower offers is in the path of a call.** REG-24 is the binding form of it. This is the
+  one asymmetry that would not survive being treated as a mere convention: a Tower whose Tasks or
+  Actions were needed to *do* work, rather than to *obtain* it, would make its availability a
+  precondition of the whole network.
+
+What none of that requires is a section of `spec/` about the Tower's own surfaces. Whether a Tower
+exposes an enrollment surface at all is open in [registration](../spec/registration.md), and this
+specification says what a Worker serves — a Control Tower product is a named non-goal in
+[spec/README.md](../spec/README.md).
+
+The name is a metaphor carried on purpose. A tower sees all the traffic and flies none of it; when
+it goes quiet, whoever is already cleared continues on the last clearance and whoever is not waits
+— which is exactly the claim made under Contracts below. Where the metaphor ends: a real tower
+sequences traffic in flight, and this one does not. A Contract, once granted, is the clearance.
 
 Teams also talk about a Service — an issue raised against it, a question about what it answers
 for. A Tower may host that conversation; the protocol does not see it, and it is neither a Task
@@ -370,9 +394,14 @@ surface like health or metrics; writing stays an Action.
 - **Platform independence.** The Worker API is HTTP and JSON Schema so that a worker built with
   none of our libraries can satisfy it fully. That constrains what may ever enter it, and the
   constraint is the point.
-- **The Tower runs no business logic.** Schedules, derivation and connections to foreign APIs live in
-  the workers. The Tower does post Actions — that is what the console is for — but it posts what an
-  operator decided, never what it decided itself, and it is in nobody's execution path.
+- **The Tower is in nobody's execution path.** No worker's work waits on it. It does post Actions —
+  that is what the console is for — but it posts what an operator decided, never what it decided
+  itself, and REG-24 forbids an owner to call it in order to validate a Contract's credential. What
+  it does derive is about the fleet and from what it observed: DESC-20 has it record what a
+  Descriptor declared and when an address stopped answering, REG-14 a Worker id that changed, REG-19
+  a credential that was refused. Those are its own facts, and the earlier form of this line — *the
+  Tower runs no business logic* — denied them while `spec/` required them. Schedules, derivation
+  over a domain, and connections to foreign APIs still live in the workers.
 - **The Tower remembers nothing on a worker's behalf.** A Task's lifecycle belongs to the worker that
   raised it; settings live in the worker. The Tower keeps its own management state — the registry,
   which is the dated copy of each Descriptor it last saw; the Contracts; the credentials — and
