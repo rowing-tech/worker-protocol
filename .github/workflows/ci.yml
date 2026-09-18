@@ -75,19 +75,32 @@ jobs:
       - name: type-check repository tooling
         run: pnpm typecheck
 
-      # EVERY file under each project's src/, generators and tests included. The builds below
+      # Proves the published entry points compile and that the declarations each package ships
+      # are the ones its source describes. pnpm orders these by dependency, so schemas builds
+      # before conformance, which needs its types.
+      #
+      # THIS STEP MUST COME BEFORE THE TYPE-CHECK BELOW, and the order is not a preference.
+      # @worker-protocol/conformance imports @worker-protocol/schemas, whose `types` field points
+      # at dist/index.d.ts — a file that does not exist on a clean checkout until this runs. With
+      # the two the other way round CI fails with `Cannot find module`, and it fails ONLY in CI,
+      # because a developer's tree already holds a dist/ from an earlier build. That is the shape
+      # of bug this repository keeps writing gates against: a stale artifact standing in for a
+      # step nobody ran.
+      #
+      # Checking against dist/ rather than against the source is deliberate. A `paths` mapping to
+      # the source would decouple these two steps and would stop checking the one thing worth
+      # checking, which is that the declarations a consumer installs are the ones the source
+      # describes.
+      - name: build what the packages publish
+        run: pnpm -r build
+
+      # EVERY file under each project's src/, generators and tests included. The builds above
       # compile only what a package publishes, so without this step a generator — the one kind
       # of code here that can corrupt a normative artifact — would never be checked. It is
       # `-r` rather than a step per project on purpose: a project added without a check is the
       # gap this repository keeps finding, and `-r` cannot have one.
       - name: type-check every workspace project
         run: pnpm -r typecheck
-
-      # Proves the published entry points compile and that the declarations each package ships
-      # are the ones its source describes. pnpm orders these by dependency, so schemas builds
-      # before conformance, which needs its types.
-      - name: build what the packages publish
-        run: pnpm -r build
 
       # Two suites. packages/schemas runs conformance/fixtures/ against the Zod objects —
       # documents against schemas, the half of conformance that needs no Worker, and a verdict

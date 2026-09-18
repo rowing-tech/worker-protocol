@@ -13,13 +13,20 @@ pnpm spec:lint            check the rule-id convention spec/README.md states
 pnpm verifiability:lint   check every rule is classified in conformance/verifiability.md
 pnpm rules:check          compare packages/conformance/rules.json against spec/
 pnpm typecheck            type-check scripts/
-pnpm -r typecheck         type-check every workspace project, generators and tests included
 pnpm -r build             compile what each package publishes
+pnpm -r typecheck         type-check every workspace project, generators and tests included
 pnpm test                 both suites: the fixtures, and the verifier against the reference worker
 ```
 
 Those nine are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
 they pass, so run them rather than reporting work as done and leaving them to somebody else.
+
+**`pnpm -r build` comes before `pnpm -r typecheck` and the order is not a preference.**
+`@worker-protocol/conformance` imports `@worker-protocol/schemas`, whose types live in a `dist/`
+that does not exist on a clean checkout until the build runs. The other way round it fails with
+`Cannot find module` — and it fails only in CI, because a working tree already holds a `dist/` from
+an earlier build. If you are chasing a failure that will not reproduce locally, delete both `dist/`
+directories first.
 
 Three more rewrite a generated artifact from its source and are equally free to run:
 
