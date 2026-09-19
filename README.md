@@ -67,9 +67,11 @@ conformance/     fixtures independent of any language, and the register of what 
 packages/
   schemas/       the Zod objects that generate schemas/
   hono/          the surface as Hono routes, which generate openapi/, and mount() over them
+  client/        consume(): read a Worker and take work from it — the consumer half
   conformance/   the verifier: point it at a worker, get a report of what it complies with
 examples/
-  reference-worker/  a worker that conforms, built so the verifier has something to check
+  minimal-worker/    a conformant Worker in under 150 lines. Copy this one
+  reference-worker/  a worker arranged so the verifier can observe the rules that need arranging
 docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```
 

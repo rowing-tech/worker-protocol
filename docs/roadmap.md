@@ -49,9 +49,13 @@ because its reference Worker passes, not because somebody read the prose careful
 **Still open:**
 
 - Which languages first.
-- Whether `mount()` also carries the claim → action → outcome flow for a consumer, or that is a
-  second export, `consume()`, built on a generated client. The TypeScript answer would be the model
-  for the other languages.
+
+**Answered since, and the answer is the model for every other language.** The claim → action →
+outcome flow is not a second export of the server package: it is `@worker-protocol/client`, whose
+only dependencies are `@worker-protocol/schemas` and `fetch`. A consumer is not a server — a Tower,
+a teams app or a Worker on a platform that serves nothing runs no web framework — and the eleven
+rules that oblige a caller rather than a Worker live there, cited and tested by id, because until
+it existed they had no subject anywhere. Each language's repository owes the same two halves.
 
 **Lands in:** a repository per language, each pinned to an edition and each running the verifier
 against its own reference Worker in CI.

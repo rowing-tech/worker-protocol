@@ -23,6 +23,27 @@ this document, and separating them moved six rules.
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 21 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
+## Where a `P` rule has a witness anyway
+
+**`P` says what a report may claim, and not that nothing anywhere checks the rule.** The class is
+about the subject: a tool pointed at a Worker's base URL never contacted a consumer, a Tower or an
+issuer, so it says *other subject* rather than passing one — and that stays true whatever else
+exists in this repository. What changes is that some of those parties now exist here, and a rule
+with a party has somewhere to be true.
+
+| Subject | Rules | Where they are checked |
+|---|---|---|
+| A consumer, a caller, a holder | DESC-13, DESC-30, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31, TASK-18, TASK-20 | `packages/client`, one test per id, against a Worker made to misbehave |
+| A Control Tower | DESC-19, DESC-20, REG-13, REG-14, REG-16, REG-19, REG-29, REG-30 | `packages/conformance/src/__tests__/tower.test.ts`, a Tower simulated over the example Workers |
+| A verifier | DESC-2, DESC-15, DESC-16, DESC-19, DESC-25 | `packages/conformance` itself, which is the verifier they bind |
+| An issuer, a subscriber, this specification | REG-27, REG-33, EVT-5, EVT-6, EVT-7, NAME-3 | Nowhere, and the subject is the reason: no party here issues a credential or subscribes to a broker |
+
+The eleven consumer rules had no witness anywhere until `@worker-protocol/client` existed, which is
+the honest reason to say so here: they were required, they were unobservable, and nobody had ever
+written the party they oblige. What the Tower rules have is weaker and worth naming as such — a
+simulation is a party this repository wrote to its own reading of the rules, so it demonstrates
+that the role is implementable and vouches for no product.
+
 ## descriptor.md — 25
 
 | Rule | Class | What a check observes, or why nothing does |

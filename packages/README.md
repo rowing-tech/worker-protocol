@@ -7,7 +7,13 @@ complying, and proving that you comply.
 |---|---|
 | `schemas` | `@worker-protocol/schemas` — the Zod objects that generate `schemas/`, so an implementer never retypes the specification |
 | `hono` | `@worker-protocol/hono` — the surface as Hono routes, which generate `openapi/`; and `mount()`, which a Worker on Hono mounts to get every address, header and refusal the protocol fixes |
+| `client` | `@worker-protocol/client` — `consume()`: read a Worker, and take work from it. The consumer half, and what a Tower or a teams app is built on |
 | `conformance` | `@worker-protocol/conformance` — point it at a worker's base URL, get a report of what it complies with |
+
+`client` is its own package and not a second export of `hono`, because a consumer is not a server:
+a Tower, a teams app or a Convex Worker that claims Tasks from another Worker runs no web
+framework, and making one install Hono and an OpenAPI generator in order to make HTTP requests is
+the same mistake as the one below, in the other direction. It depends on `schemas` and on `fetch`.
 
 All three are derivable from the specification and verifiable against the fixtures or the
 verifier. `hono` is the one TypeScript SDK and lives here rather than in a repository of its own,
@@ -44,6 +50,21 @@ to carry — not whether the budget should be raised.
 
 `examples/reference-worker` is a different thing and is not a template: it is arranged so that the
 rules `conformance/verifiability.md` marks `H` have something to be observed against.
+
+## The rules that bind the other side
+
+`mount()` carries what a Worker owes; `consume()` carries what a *consumer* owes, and that list is
+not short. Eleven rules in `spec/` oblige a caller rather than a Worker — DESC-13, DESC-30,
+ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31, TASK-18, TASK-20 — and every one is
+required. Until this package existed they had no subject anywhere: `conformance/verifiability.md`
+classes them `P` and a report says *other subject*, correctly, because a tool pointed at a Worker
+never contacted whoever they bind.
+
+They are obeyed in `client/src/call.ts`, each cited on the line that obeys it, and
+`client/src/__tests__/consumer-rules.test.ts` holds one test per id against a Worker made to
+misbehave on purpose. That does not change what a conformance report says about a Worker. It means
+the consumer in this repository is one somebody can read the rules off, which is the same standing
+`mount()` has and is the only standing anything here gets.
 
 ## A package version is not an edition
 

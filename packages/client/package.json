@@ -1,8 +1,8 @@
 {
-  "name": "@worker-protocol/conformance",
+  "name": "@worker-protocol/client",
   "version": "0.1.0",
   "workerProtocolEdition": "0.1",
-  "description": "Point it at a Worker's base URL, get a report of what it complies with",
+  "description": "Read a Worker, and take work from it. The consumer half of worker-protocol",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,8 +14,7 @@
     }
   },
   "files": [
-    "dist",
-    "rules.json"
+    "dist"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -27,10 +26,9 @@
   },
   "devDependencies": {
     "@types/node": "26.5.1",
-    "@worker-protocol/client": "workspace:*",
-    "@worker-protocol/minimal-worker": "workspace:*",
-    "@worker-protocol/reference-worker": "workspace:*",
+    "@worker-protocol/hono": "workspace:*",
     "typescript": "7.0.2",
-    "vitest": "5.0.0"
+    "vitest": "5.0.0",
+    "zod": "4.5.4"
   }
 }

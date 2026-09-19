@@ -1,0 +1,12 @@
+{
+  "//": "Emits only what @worker-protocol/client publishes. rewriteRelativeImportExtensions is what lets the source import `./call.ts` — the spelling Node's native type stripping needs — and still emit `./call.js`.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/index.ts"]
+}

@@ -126,12 +126,14 @@ jobs:
       - name: type-check every workspace project
         run: pnpm -r typecheck
 
-      # Three suites. packages/schemas runs conformance/fixtures/ against the Zod objects —
+      # Four suites. packages/schemas runs conformance/fixtures/ against the Zod objects —
       # documents against schemas, the half of conformance that needs no Worker, and a verdict
       # about the normative artifact because schemas:check above already proved the two agree.
       # packages/hono checks the shape of openapi/ — one server per document, every $ref
-      # resolving, every refusal status in the vocabulary. packages/conformance starts
-      # examples/reference-worker, which is mount() from packages/hono over an arranged
-      # implementation, over a real socket and verifies it, which is the half that needs one.
+      # resolving, every refusal status in the vocabulary. packages/client holds one test per rule
+      # that binds a CONSUMER rather than a Worker, which is eleven required rules that had no
+      # subject anywhere until that package existed. packages/conformance starts both example
+      # Workers over a real socket and verifies them, and simulates a Control Tower over them,
+      # which is the half that needs something answering.
       - name: conformance
         run: pnpm test
