@@ -378,16 +378,16 @@ keeps retrying in silence. What the owner raises when it stops granting is answe
 `claimable`, rather than leaving a consumer to infer it from a pattern of refusals. What lets it
 grant again is still the owner's.
 
-A **Response** is therefore two things: the Action posted into the owner, and the outcome declared
-on the Claim. It may carry the cost and elapsed time of the execution; what happens to those
-numbers is undecided.
+A **Response** is therefore two things: the Action posted into the owner, naming the Claim it is
+performed under, and the outcome declared on the Claim. It may carry the cost and elapsed time of
+the execution; what happens to those numbers is undecided.
 
 **Alerts** are conditions an operator should see. An Alert may carry Actions; a Task additionally
-requires a Skill and a Claim. A silent vehicle is a Task for whoever can check it; a worker
-whose credentials expire in three days is an Alert for the Tower. Whether they were a surface of
-their own or Tasks nobody must claim was open for a while; [alerts](../spec/alerts.md) answers it
-and says why, and the short version is that folding them into Tasks would have meant a Task type
-carrying an exception to almost every rule in that file.
+requires a Skill, and is answered under a Claim. A silent vehicle is a Task for whoever can check
+it; a worker whose credentials expire in three days is an Alert for the Tower. Whether they were a
+surface of their own or Tasks nobody must claim was open for a while;
+[alerts](../spec/alerts.md) answers it and says why, and the short version is that folding them
+into Tasks would have meant a Task type carrying an exception to almost every rule in that file.
 
 **Alarms** are something else again: a worker waking *itself* at a future time to re-evaluate.
 They are neither Tasks nor Alerts, and are named here only so nobody calls them either.

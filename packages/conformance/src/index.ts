@@ -86,8 +86,16 @@ export type Arrangement = {
   claimableTask?: string;
   /** A Task the Worker is not currently granting leases on (TASK-11). */
   unclaimableTask?: string;
-  /** A second credential issued to the same holder (REG-8, REG-28, ALRT-6, TASK-6). */
+  /** A second credential issued to the same holder (REG-8, REG-28, ALRT-6). */
   secondCredential?: string;
+  /**
+   * A credential issued under a Contract rather than recorded at enrollment (TASK-6, TASK-26).
+   *
+   * TASK-6 compares what it sees against what the recorded credential sees; TASK-26 reads a held
+   * Task with it and expects no `holder`. Where none is given TASK-6 falls back to the second
+   * credential, as it did before TASK-26 gave the two different things to show.
+   */
+  consumerCredential?: string;
   /** A credential the Worker authenticates and that carries no right here (REG-32). */
   unprivilegedCredential?: string;
   /** That this Worker was started moments ago, so HLTH-4's window is still open. */
@@ -164,6 +172,39 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         options.mayPerform === true,
       )),
     );
+    // TASK-2 is an agreement between two entries rather than a shape inside one, so the tasks
+    // check is handed the Action names the `actions` entry holds.
+    const actionNames = Object.keys(
+      (
+        descriptor.document.capabilities.actions as
+          | { actions?: Record<string, unknown> }
+          | undefined
+      )?.actions ?? {},
+    );
+    // Tasks before Actions, and the order is not a preference. TASK-16 performs the safe Action
+    // under a Claim, and an Action that answers a Task may resolve its condition (TASK-15) — so
+    // the Task the operators named as claimable has to be claimed before anything performs the
+    // Action that closes it. `checks/actions.ts` performs it again afterwards on its own account,
+    // which a safe Action survives by definition.
+    const claimed = await checkTasks(
+      descriptor.document.capabilities.tasks,
+      descriptor.surfaces.find((s) => s.capability === "tasks")?.url ?? null,
+      descriptor.url,
+      actionNames,
+      byId,
+      attribution,
+      tape,
+      {
+        ...(options.arrangement ?? {}),
+        // TASK-16 sends the Action and then the outcome, so it needs the address the `actions`
+        // entry declared. `verify` resolves it once rather than every check resolving it again.
+        actionsUrl: descriptor.surfaces.find((s) => s.capability === "actions")?.url ?? undefined,
+      },
+      options.mayPerform === true,
+      options.credential,
+    );
+    results.push(...claimed.results);
+    nested.push(...claimed.addresses);
     const performed = await checkActions(
       descriptor.document.capabilities.actions,
       descriptor.surfaces.find((s) => s.capability === "actions")?.url ?? null,
@@ -185,15 +226,6 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         tape,
       )),
     );
-    // TASK-2 is an agreement between two entries rather than a shape inside one, so the tasks
-    // check is handed the Action names the `actions` entry holds.
-    const actionNames = Object.keys(
-      (
-        descriptor.document.capabilities.actions as
-          | { actions?: Record<string, unknown> }
-          | undefined
-      )?.actions ?? {},
-    );
     // `events` has no address by design (DESC-22), so this check sends nothing and takes no
     // transcript. It is the only Capability a verifier judges entirely from the Descriptor.
     results.push(...checkEvents(descriptor.document.capabilities.events, byId, attribution));
@@ -207,24 +239,6 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         tape,
       )),
     );
-    const claimed = await checkTasks(
-      descriptor.document.capabilities.tasks,
-      descriptor.surfaces.find((s) => s.capability === "tasks")?.url ?? null,
-      descriptor.url,
-      actionNames,
-      byId,
-      attribution,
-      tape,
-      {
-        ...(options.arrangement ?? {}),
-        // TASK-16 sends the Action and then the outcome, so it needs the address the `actions`
-        // entry declared. `verify` resolves it once rather than every check resolving it again.
-        actionsUrl: descriptor.surfaces.find((s) => s.capability === "actions")?.url ?? undefined,
-      },
-      options.mayPerform === true,
-    );
-    results.push(...claimed.results);
-    nested.push(...claimed.addresses);
     results.push(
       ...(await checkHealth(
         descriptor.document.capabilities.health,

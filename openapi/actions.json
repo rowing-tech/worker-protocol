@@ -48,6 +48,16 @@
             }
           },
           {
+            "name": "Worker-Protocol-Claim",
+            "in": "header",
+            "required": false,
+            "description": "TASK-20. The Claim this Action is performed under, where it answers a Task. TASK-21: one that is not its Task's current one, or whose Task's type does not list this Action, is `409` and nothing is performed. Absent, the call is a performance and answers no Claim.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
             "name": "Worker-Protocol-Capability-Version",
             "in": "header",
             "required": false,
@@ -242,7 +252,7 @@
             }
           },
           "409": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `idempotency_key_reused` (ENDP-17).",
+            "description": "ENDP-25. The shared error envelope, carrying one of: `conflict` (TASK-21), `idempotency_key_reused` (ENDP-17).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

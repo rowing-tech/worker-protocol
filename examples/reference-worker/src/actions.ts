@@ -77,10 +77,20 @@ export const DECLARATIONS: Record<string, z.infer<typeof actionDeclaration>> = {
 };
 
 /**
+ * What the Actions reach into: the Tasks, because an Action is how a Response lands (TASK-16) and
+ * the one Facts this Worker derives a Task from. `verify` changes those Facts; `allows` is
+ * TASK-21's precondition, answered by whoever holds the Claims.
+ */
+export type Facts = {
+  verify: (vehicle: string) => void;
+  allows: (claim: string, action: string) => boolean;
+};
+
+/**
  * The state this Worker holds, so that `configure` has something to replace and a reading address
  * has something to answer. It is per-instance, which is what lets a test start a fresh one.
  */
-export function createActions() {
+export function createActions(facts: Facts) {
   let settings: Settings = { ...INITIAL };
   /** ENDP-16: the outcome recorded against a key, for as long as the declared window. */
   const recorded = new Map<string, { body: string; answer: Answer }>();
@@ -90,8 +100,13 @@ export function createActions() {
   return {
     settings: () => settings,
 
-    /** ACT-5 through ACT-11 — one performance. */
-    perform(name: string, raw: string, key: string | undefined): Refusal | Answer {
+    /** ACT-5 through ACT-11, TASK-21 — one performance. */
+    perform(
+      name: string,
+      raw: string,
+      key: string | undefined,
+      claim: string | undefined,
+    ): Refusal | Answer {
       // ACT-7, a request naming no Action, never reaches here: `mount()` refuses it on the route's
       // own declaration, which is what declaring the surface as routes buys.
 
@@ -99,6 +114,14 @@ export function createActions() {
       const declaration = DECLARATIONS[name];
       if (declaration === undefined) {
         return reject("not_found", `No Action named ${name} is declared.`);
+      }
+
+      // TASK-21: an Action performed under a Claim is refused before anything else happens where
+      // that Claim is not its Task's current one, or where its Task's type never listed this
+      // Action. It sits ahead of the idempotency lookup on purpose: a stale Claim is a fact about
+      // THIS call, and a recorded outcome is not an answer to it.
+      if (claim !== undefined && !facts.allows(claim, name)) {
+        return reject("conflict", "That Claim is not current for this Action.");
       }
 
       // ENDP-18: a required key that is absent is `400`. Checked before the body, because an
@@ -134,14 +157,13 @@ export function createActions() {
         }
       }
 
-      const answer = run(
-        name,
-        input,
-        () => settings,
-        (next) => {
+      const answer = run(name, input, {
+        read: () => settings,
+        write: (next) => {
           settings = next;
         },
-      );
+        verify: facts.verify,
+      });
 
       if (wantsKey && key !== undefined && !("code" in answer)) {
         recorded.set(key, { body: raw, answer: answer as Answer });
@@ -180,19 +202,25 @@ function mismatch(name: string, input: unknown): string | null {
 function run(
   name: string,
   input: unknown,
-  read: () => Settings,
-  write: (next: Settings) => void,
+  state: {
+    read: () => Settings;
+    write: (next: Settings) => void;
+    verify: (vehicle: string) => void;
+  },
 ): Refusal | Answer {
   const body = input as Record<string, unknown>;
 
   if (name === "configure") {
     // ACT-14: the input is the complete settings document and this replaces what is held.
-    write({ label: body.label as string, pollSeconds: body.pollSeconds as number });
+    state.write({ label: body.label as string, pollSeconds: body.pollSeconds as number });
     // ACT-10: `204` where the Action declares no result.
     return { status: 204, body: null };
   }
 
   if (name === "record-verification") {
+    // A verification is now on record for this vehicle, whatever it found. The Task that asked
+    // for one closes by condition (TASK-15) — the Action changed a Fact, and the Task followed.
+    state.verify(body.vehicle as string);
     return { status: 200, body: { recordedAt: new Date().toISOString() } };
   }
 
@@ -206,6 +234,6 @@ function run(
   }
 
   // ACT-11: it declared that it does not complete within the call, so `202` and no body.
-  void read;
+  void state.read;
   return { status: 202, body: null };
 }

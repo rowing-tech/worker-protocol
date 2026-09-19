@@ -53,11 +53,11 @@ export async function checkArranged(
       headers: { authorization: `Bearer ${arrangement.secondCredential}` },
     });
 
-  // REG-28 (recommended), REG-8, ALRT-6 and TASK-6 all need a second credential, and it is one
-  // arrangement because it is one thing an operator issues.
+  // REG-28 (recommended), REG-8 and ALRT-6 all need a second credential, and it is one arrangement
+  // because it is one thing an operator issues.
   const second = arrangement.secondCredential;
   if (second === undefined || surfaces.descriptorUrl === null) {
-    for (const id of ["REG-28", "REG-8", "ALRT-6", "TASK-6"]) {
+    for (const id of ["REG-28", "REG-8", "ALRT-6"]) {
       say(id, "notExercised", "no second credential was given to the verifier");
     }
   } else {
@@ -94,30 +94,42 @@ export async function checkArranged(
         say("ALRT-6", "fails", "the two credentials were served different Alerts");
       }
     }
+  }
 
-    // TASK-6 is the one that reads the other way. Alerts are for whoever operates the Worker, so
-    // two credentials seeing the same list is the rule holding; Tasks are what a Contract covers,
-    // so two credentials seeing the same list proves only that this Worker had nothing to filter.
-    if (surfaces.tasksUrl === null) {
-      say("TASK-6", "notExercised", "the Worker declares no `tasks`");
+  // TASK-6 is the one that reads the other way. Alerts are for whoever operates the Worker, so
+  // two credentials seeing the same list is the rule holding; Tasks are what a Contract covers,
+  // so two credentials seeing the same list proves only that this Worker had nothing to filter.
+  // The credential compared against is a Contract's where one was arranged — that is the party
+  // the rule is about — and the second credential otherwise, as it was before TASK-26 gave the
+  // two different things to show.
+  const consumer = arrangement.consumerCredential ?? second;
+  if (consumer === undefined) {
+    say("TASK-6", "notExercised", "no Contract credential was given to the verifier");
+  } else if (surfaces.tasksUrl === null) {
+    say("TASK-6", "notExercised", "the Worker declares no `tasks`");
+  } else {
+    const a = taskPage.safeParse((await transcript.send(surfaces.tasksUrl, "Tasks, first")).json);
+    const b = taskPage.safeParse(
+      (
+        await transcript.send(surfaces.tasksUrl, "Tasks, Contract credential", {
+          headers: { authorization: `Bearer ${consumer}` },
+        })
+      ).json,
+    );
+    if (!a.success || !b.success) {
+      say("TASK-6", "notExercised", "one of the two reads did not validate");
     } else {
-      const a = taskPage.safeParse((await transcript.send(surfaces.tasksUrl, "Tasks, first")).json);
-      const b = taskPage.safeParse((await asSecond(surfaces.tasksUrl, "Tasks, second")).json);
-      if (!a.success || !b.success) {
-        say("TASK-6", "notExercised", "one of the two reads did not validate");
+      const ids = (page: typeof a) => (page.success ? page.data.items.map((t) => t.id) : []);
+      const first = new Set(ids(a));
+      const other = ids(b);
+      if (other.length === first.size && other.every((id) => first.has(id))) {
+        say(
+          "TASK-6",
+          "notExercised",
+          "both credentials see the same Tasks, which is consistent with filtering and with not filtering",
+        );
       } else {
-        const ids = (page: typeof a) => (page.success ? page.data.items.map((t) => t.id) : []);
-        const first = new Set(ids(a));
-        const other = ids(b);
-        if (other.length === first.size && other.every((id) => first.has(id))) {
-          say(
-            "TASK-6",
-            "notExercised",
-            "both credentials see the same Tasks, which is consistent with filtering and with not filtering",
-          );
-        } else {
-          say("TASK-6", "passes");
-        }
+        say("TASK-6", "passes");
       }
     }
   }

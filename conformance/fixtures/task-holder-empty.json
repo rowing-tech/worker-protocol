@@ -1,0 +1,15 @@
+{
+  "schema": "task",
+  "valid": false,
+  "rule": "TASK-26",
+  "why": "An empty `holder` identifies nobody. A Task under a Claim either names who holds it, to the credential recorded at enrollment, or omits the member to everyone else; an empty string is neither and an operator reading it would have a Task that is held and nobody to call.",
+  "document": {
+    "id": "task-1",
+    "type": "tech.rowing.fleet.verify-vehicle",
+    "payload": { "vehicle": "ABC-123" },
+    "failedClaims": 0,
+    "lapsedClaims": 0,
+    "claimable": true,
+    "holder": ""
+  }
+}

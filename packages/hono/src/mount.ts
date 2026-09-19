@@ -185,7 +185,8 @@ export function mount(worker: Worker): OpenAPIHono {
     }
     capabilities.actions = { version: 1, address: "../actions", actions };
     // ACT-5: the Action is named in the query and the body is the input, raw. The name has been
-    // validated as present before this runs.
+    // validated as present before this runs. TASK-20: the Claim an Action answers under travels
+    // as a header, outside the body, and is handed on for the Worker to check (TASK-21).
     serve(
       "/actions",
       performAction,
@@ -196,6 +197,7 @@ export function mount(worker: Worker): OpenAPIHono {
             query(c).get("action") ?? "",
             await c.req.text(),
             c.req.header("idempotency-key"),
+            c.req.header("worker-protocol-claim"),
           ),
         ),
       true,
@@ -220,7 +222,24 @@ export function mount(worker: Worker): OpenAPIHono {
     };
     // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers.
     serve("/tasks", readTasks, (c) => page(c, read(query(c), bearer(c))), true);
-    serve("/claims", writeClaim, (c) => reply(c, write(query(c))), true);
+    serve(
+      "/claims",
+      writeClaim,
+      (c) => {
+        // TASK-23: a claim naming a type where the entry does not declare `claimByType` is a
+        // parameter fault, and this app refuses it because it serves the declaration and cannot
+        // disagree with it. A type the entry does not raise is the Worker's to refuse.
+        const asked = query(c);
+        if (asked.has("type") && declared.claimByType !== true) {
+          return envelope({
+            code: "invalid_parameter",
+            message: "This Worker does not declare `claimByType`.",
+          });
+        }
+        return reply(c, write(asked, bearer(c)));
+      },
+      true,
+    );
   }
 
   descriptor = JSON.stringify({ id: worker.id, edition, capabilities });

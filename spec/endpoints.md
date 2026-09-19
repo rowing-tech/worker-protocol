@@ -7,10 +7,12 @@ verbs, which content types, and how a Worker says which version of this protocol
 
 Two shapes are shared by every surface and have schemas of their own: the error envelope,
 [schemas/error.json](../schemas/error.json), and the page envelope,
-[schemas/page.json](../schemas/page.json). Three header names are fixed by this file and by nothing
-else, because a JSON Schema describes a body and not a header:
-`Worker-Protocol-Edition`, `Worker-Protocol-Capability-Version` and `Idempotency-Key`. What follows
-is what no schema can state. Rules carry ids; the convention is in [spec/README.md](README.md).
+[schemas/page.json](../schemas/page.json). Four header names are fixed by this specification,
+because a JSON Schema describes a body and not a header. Three are this file's:
+`Worker-Protocol-Edition`, `Worker-Protocol-Capability-Version` and `Idempotency-Key`. The fourth,
+`Worker-Protocol-Claim`, is [tasks and claims](tasks-and-claims.md)'s, and TASK-20 says what it
+carries. What follows is what no schema can state. Rules carry ids; the convention is in
+[spec/README.md](README.md).
 
 ## One fixed route, and no fixed prefix
 

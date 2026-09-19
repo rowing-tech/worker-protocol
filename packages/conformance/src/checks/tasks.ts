@@ -12,7 +12,7 @@ import type { Transcript } from "../transcript.ts";
  * to a Worker through this protocol, and the one a verifier has least business doing uninvited. So
  * the declaration and the read are checked unconditionally, and everything from TASK-9 onward waits
  * for `mayClaim` and a Task named as one that may be taken. `checkClaiming` below is that half, and
- * it releases every Claim it takes.
+ * it releases every Claim it takes that an Action has not already answered.
  */
 export const CLAIMS = [
   "TASK-1",
@@ -24,7 +24,7 @@ export const CLAIMS = [
   "TASK-8",
   "NAME-7",
   // Only against a Worker whose operators said a Task may be claimed. Every Claim taken here is
-  // released again, so the Worker is left as it was found.
+  // closed again, so the Worker is left holding nothing it did not hold before.
   "TASK-9",
   "TASK-10",
   "TASK-11",
@@ -33,12 +33,22 @@ export const CLAIMS = [
   "TASK-14",
   "TASK-16",
   "TASK-17",
+  "TASK-21",
+  "TASK-22",
+  "TASK-23",
+  "TASK-24",
+  "TASK-25",
+  "TASK-26",
 ] as const;
 
 type Entry = {
   raises: Record<string, { payload: unknown; answeredBy: string[] }>;
   answers: string[];
+  claimByType?: boolean;
 };
+
+/** One Task as `task-page.json` types it — read off the schema rather than restated here. */
+type Task = ReturnType<typeof taskPage.parse>["items"][number];
 
 export async function checkTasks(
   entry: Record<string, unknown> | undefined,
@@ -50,6 +60,7 @@ export async function checkTasks(
   transcript: Transcript,
   arrangement: Arrangement,
   mayPerform: boolean,
+  credential: string | undefined,
 ): Promise<{ results: Result[]; addresses: string[] }> {
   const results: Result[] = [];
   const addresses: string[] = [];
@@ -79,7 +90,7 @@ export async function checkTasks(
     return { results, addresses };
   }
 
-  const { raises, answers } = declared.data as unknown as Entry;
+  const { raises, answers, claimByType } = declared.data as unknown as Entry;
   for (const id of ["TASK-1", "TASK-3"]) say(id, "passes");
 
   // NAME-7: a name this protocol expects one party to match against a name that came from
@@ -177,7 +188,18 @@ export async function checkTasks(
   // at — `configure`'s reading address was the first of these and this is the second.
   if (claimUrl !== null) addresses.push(claimUrl);
 
-  await checkClaiming(claimUrl, arrangement, mayPerform, transcript, say);
+  await checkClaiming(
+    {
+      claimUrl,
+      readUrl: url,
+      claimByType: claimByType === true,
+      hasCredential: credential !== undefined,
+    },
+    arrangement,
+    mayPerform,
+    transcript,
+    say,
+  );
 
   return { results, addresses };
 }
@@ -191,17 +213,59 @@ const CLAIMING = [
   "TASK-14",
   "TASK-16",
   "TASK-17",
+  "TASK-21",
+  "TASK-22",
+  "TASK-23",
+  "TASK-24",
+  "TASK-25",
+  "TASK-26",
 ];
+
+/**
+ * One Task by id, paging through the reading address until it is found or the collection ends.
+ *
+ * `null` is the collection ending without it — which, for a Task that was there a moment ago, is
+ * the Task closing by condition. `"unreadable"` is a page that did not answer or did not validate,
+ * and it is kept apart because the two are opposite facts about a Worker.
+ */
+async function findTask(
+  url: string,
+  id: string,
+  intent: string,
+  transcript: Transcript,
+  headers: HeadersInit = {},
+): Promise<Task | null | "unreadable"> {
+  let cursor: string | undefined;
+  for (let pages = 0; pages < 64; pages++) {
+    const target = new URL(url);
+    if (cursor !== undefined) target.searchParams.set("cursor", cursor);
+    const answer = await transcript.send(target.toString(), intent, { headers });
+    const page = taskPage.safeParse(answer.json);
+    if (answer.status !== 200 || !page.success) return "unreadable";
+    const found = page.data.items.find((task) => task.id === id);
+    if (found !== undefined) return found;
+    if (page.data.nextCursor === undefined) return null;
+    cursor = page.data.nextCursor;
+  }
+  return "unreadable";
+}
 
 /**
  * What only a Worker whose operators said so can show.
  *
- * The sequence is chosen so that the Worker is left exactly as it was found: claim, look, claim
- * again and be refused, renew, answer, release, and try the released Claim once more. Nothing is
- * held at the end of it and no Task has been taken out of anyone's reach for longer than the run.
+ * The sequence is chosen so that the Worker is left holding no Claim of this tool's: claim, read
+ * the held Task back with each credential, claim again and be refused, renew twice, answer under
+ * the Claim, close it, try the closed Claim once more on both addresses, and claim once by type and
+ * release it. What the answering Action does to the Worker's Facts is the arrangement's — a Task it
+ * resolves is a Task the operators offered to have resolved.
  */
 async function checkClaiming(
-  url: string | null,
+  surface: {
+    claimUrl: string | null;
+    readUrl: string;
+    claimByType: boolean;
+    hasCredential: boolean;
+  },
   arrangement: Arrangement,
   mayPerform: boolean,
   transcript: Transcript,
@@ -213,6 +277,7 @@ async function checkClaiming(
     }
     return;
   }
+  const url = surface.claimUrl;
   if (url === null) {
     for (const id of CLAIMING) say(id, "notExercised", "the claim address did not resolve");
     return;
@@ -254,6 +319,49 @@ async function checkClaiming(
   // duration is deliberately not fixed by this protocol, so there is nothing else here to judge.
   say("TASK-12", "passes", "the expiry is an RFC 3339 instant with an offset");
 
+  // The held Task, read back: what TASK-26 judges, and where the type a claim by type names is
+  // read from. Read now, while the Claim is held and before an Action can close the Task.
+  const seen = await findTask(surface.readUrl, claimable, "the held Task, read back", transcript);
+
+  // TASK-26: a Task under a Claim names who holds it to the credential recorded at enrollment —
+  // which is the one this verifier was given — and to no other. Both halves have to be seen: an
+  // owner that answered `holder` to everyone would pass the first and fail the rule.
+  const consumer = arrangement.consumerCredential;
+  if (!surface.hasCredential) {
+    say(
+      "TASK-26",
+      "notExercised",
+      "no credential was given to the verifier, so none is the recorded one",
+    );
+  } else if (seen === "unreadable" || seen === null) {
+    say("TASK-26", "notExercised", "the held Task could not be read back");
+  } else if (seen.holder === undefined) {
+    say("TASK-26", "fails", "the recorded credential read the held Task without `holder`");
+  } else if (consumer === undefined) {
+    say(
+      "TASK-26",
+      "notExercised",
+      "no Contract credential was given, so nothing could be compared",
+    );
+  } else {
+    const other = await findTask(
+      surface.readUrl,
+      claimable,
+      "the held Task, Contract credential",
+      transcript,
+      { authorization: `Bearer ${consumer}` },
+    );
+    if (other === "unreadable") {
+      say("TASK-26", "notExercised", "the Contract credential could not read the Tasks");
+    } else if (other === null) {
+      say("TASK-26", "passes", "the Contract credential does not see the held Task at all");
+    } else if (other.holder !== undefined) {
+      say("TASK-26", "fails", "a Contract credential read `holder` off the held Task");
+    } else {
+      say("TASK-26", "passes");
+    }
+  }
+
   // TASK-10: claiming is exclusive, and a second claim of a held Task is refused.
   const second = await post(
     `?task=${encodeURIComponent(claimable)}`,
@@ -269,35 +377,58 @@ async function checkClaiming(
   if (renewed.status === 200 && again.success) say("TASK-13", "passes");
   else say("TASK-13", "fails", `renewing answered ${renewed.status}`);
 
+  // TASK-25: a renewal may propose a duration, and the owner answers an expiry rather than
+  // refusing the parameter. What it grants is its own, so nothing about the expiry is judged.
+  const proposed = await post(
+    `?claim=${encodeURIComponent(held.data.id)}&lease=120`,
+    "a renewal proposing a lease duration",
+  );
+  if (proposed.status === 200 && claimSchema.safeParse(proposed.json).success) {
+    say("TASK-25", "passes");
+  } else {
+    say(
+      "TASK-25",
+      "fails",
+      `a renewal proposing a duration answered ${proposed.status} with \`${code(proposed) ?? "no code"}\``,
+    );
+  }
+
   // TASK-16: a Response is two calls, the Action into the owner and THEN the outcome on the Claim,
   // and they are not atomic. The witness is the owner accepting them as two — so the check sends
-  // two, in that order, and passes on what came back rather than on having been arranged.
+  // two, in that order, and passes on what came back rather than on having been arranged. TASK-20
+  // is what this tool does as the holder: the Action names the Claim in its header.
   //
   // It was once written to pass on the arrangement existing, with no request sent at all. That is
   // the fault `conformance/README.md` names by name: a check that only knows how to say yes.
   const safe = arrangement.safeAction;
+  const actionUrl =
+    safe === undefined || arrangement.actionsUrl === undefined
+      ? null
+      : `${arrangement.actionsUrl}?action=${encodeURIComponent(safe.name)}`;
+  const answerUnder = (claim: string, intent: string, permanent = false) =>
+    actionUrl === null || safe === undefined
+      ? null
+      : transcript
+          .send(actionUrl, intent, {
+            method: "POST",
+            body: JSON.stringify(safe.input),
+            headers: {
+              "worker-protocol-claim": claim,
+              // ENDP-18: the Action may require an idempotency key. One is sent whether or not it
+              // does — a Worker that takes none ignores it, and asking first would cost a request.
+              "idempotency-key": `conformance-response-${Date.now()}-${Math.random()}`,
+            },
+            permanent,
+          })
+          .then((exchange) => exchange);
+
   let responded = false;
-  if (mayPerform && safe !== undefined && arrangement.actionsUrl !== undefined) {
-    const url = `${arrangement.actionsUrl}?action=${encodeURIComponent(safe.name)}`;
-    const body = JSON.stringify(safe.input);
-    let performed = await transcript.send(url, `the Action \`${safe.name}\`, answering the Task`, {
-      method: "POST",
-      body,
-    });
-
-    // ENDP-18: the Action may require an idempotency key, and the Worker says so rather than the
-    // arrangement having to. Asking and then obeying the answer needs no new field from an
-    // operator, and it exercises ENDP-15's declaration from the caller's side.
-    const why = (performed.json as { code?: string } | null)?.code;
-    if (performed.status === 400 && why === "idempotency_key_required") {
-      performed = await transcript.send(url, `the Action \`${safe.name}\`, with a key`, {
-        method: "POST",
-        body,
-        headers: { "idempotency-key": `conformance-response-${Date.now()}` },
-      });
-    }
-
-    if (performed.status >= 400) {
+  if (mayPerform && actionUrl !== null && safe !== undefined) {
+    const performed = await answerUnder(
+      held.data.id,
+      `the Action \`${safe.name}\`, answering the Task`,
+    );
+    if (performed !== null && performed.status >= 400) {
       say("TASK-16", "fails", `the Action answered ${performed.status}, so no outcome followed it`);
     } else {
       responded = true;
@@ -305,6 +436,12 @@ async function checkClaiming(
   } else {
     say("TASK-16", "notExercised", "no Action was named as safe to perform against this Worker");
   }
+
+  // Whether the Action closed the Task — TASK-15 working — which is what TASK-22 needs to see.
+  const afterwards = responded
+    ? await findTask(surface.readUrl, claimable, "the Task, after the Action", transcript)
+    : "unreadable";
+  const closedByAction = responded && afterwards === null;
 
   // TASK-14: the holder closes its Claim. Where an Action was performed the outcome is `done` and
   // it is the second half of the Response; otherwise `released`, which gives the Task straight
@@ -324,16 +461,55 @@ async function checkClaiming(
     else say("TASK-16", "fails", `the Action was taken and the outcome answered ${closed.status}`);
   }
 
+  // TASK-22: the Task closed by condition the moment the Action landed, and the Claim stayed its
+  // current one — so the outcome was accepted where a literal reading of TASK-17 would have
+  // answered `409` at the ordinary end of every Response.
+  if (!responded) {
+    say("TASK-22", "notExercised", "no Action was performed, so nothing could close the Task");
+  } else if (afterwards === "unreadable") {
+    say("TASK-22", "notExercised", "the Tasks could not be read after the Action");
+  } else if (!closedByAction) {
+    say(
+      "TASK-22",
+      "notExercised",
+      "the Action did not close the Task, so its Claim was never on a closed one",
+    );
+  } else if (accepted) {
+    say("TASK-22", "passes", "the outcome was accepted on a Claim whose Task had closed");
+  } else {
+    say(
+      "TASK-22",
+      "fails",
+      `the Task had closed and the outcome on its Claim answered ${closed.status}`,
+    );
+  }
+
   // TASK-17: the Claim id is the fencing token. A call naming one that is no longer the Task's
   // current one is refused — which is a released Claim, a lapsed lease and a reclaimed Task all
   // answered by one precondition at write time.
   const stale = await post(
     `?claim=${encodeURIComponent(held.data.id)}&outcome=done`,
-    "an outcome on a Claim that was released",
+    "an outcome on a Claim that was closed",
     true,
   );
   if (stale.status === 409 && code(stale) === "conflict") say("TASK-17", "passes");
   else say("TASK-17", "fails", `answered ${stale.status} with \`${code(stale) ?? "no code"}\``);
+
+  // TASK-21: the same token on the other address. An Action performed under a Claim that is no
+  // longer current is refused before it is performed, with the same `409` — a late Response is
+  // exactly what the header exists to let an owner refuse.
+  if (!mayPerform || actionUrl === null) {
+    say("TASK-21", "notExercised", "no Action was named as safe to perform against this Worker");
+  } else {
+    const late = await answerUnder(held.data.id, "the Action under a Claim that was closed", true);
+    if (late !== null && late.status === 409 && code(late) === "conflict") say("TASK-21", "passes");
+    else
+      say(
+        "TASK-21",
+        "fails",
+        `answered ${late?.status} with \`${(late && code(late)) ?? "no code"}\``,
+      );
+  }
 
   // TASK-11: a Task the owner will not currently grant a lease on. TASK-7 puts `claimable` on the
   // Task itself precisely so a consumer reads it rather than inferring it from a pattern of 409s,
@@ -353,6 +529,58 @@ async function checkClaiming(
         "TASK-11",
         "fails",
         `answered ${refusedClaim.status} with \`${code(refusedClaim) ?? "no code"}\``,
+      );
+    }
+  }
+
+  // TASK-23: a claim naming a type the entry does not raise is a parameter fault, whether or not
+  // the entry declares `claimByType` — so one probe reaches the rule on every Worker.
+  const noSuchType = await post(
+    "?type=tech.rowing.no-such.task-type-4c1f",
+    "a claim by a Task type the entry does not declare",
+    true,
+  );
+  if (noSuchType.status === 400 && code(noSuchType) === "invalid_parameter")
+    say("TASK-23", "passes");
+  else {
+    say(
+      "TASK-23",
+      "fails",
+      `answered ${noSuchType.status} with \`${code(noSuchType) ?? "no code"}\``,
+    );
+  }
+
+  // TASK-24: where the entry declares it, a claim by type answers the Claim with the Task it
+  // holds. The type is the held Task's own, read back above; the Claim taken is released.
+  if (!surface.claimByType) {
+    say("TASK-24", "notExercised", "the entry does not declare `claimByType`");
+  } else if (seen === "unreadable" || seen === null) {
+    say("TASK-24", "notExercised", "the held Task could not be read back, so its type is unknown");
+  } else {
+    const byType = await post(`?type=${encodeURIComponent(seen.type)}`, "a claim by Task type");
+    const granted = claimSchema.safeParse(byType.json);
+    if (byType.status === 404) {
+      say("TASK-24", "notExercised", `no claimable Task of type \`${seen.type}\` was open`);
+    } else if (byType.status !== 200 || !granted.success) {
+      say("TASK-24", "fails", `answered ${byType.status} with \`${code(byType) ?? "no code"}\``);
+    } else {
+      if (granted.data.held === undefined) {
+        say("TASK-24", "fails", "the Claim carries no `held` Task");
+      } else if (
+        granted.data.held.id !== granted.data.task ||
+        granted.data.held.type !== seen.type
+      ) {
+        say(
+          "TASK-24",
+          "fails",
+          "the Task in `held` is not the one the Claim names, or not of the type claimed",
+        );
+      } else {
+        say("TASK-24", "passes");
+      }
+      await post(
+        `?claim=${encodeURIComponent(granted.data.id)}&outcome=released`,
+        "releasing the Claim taken by type",
       );
     }
   }

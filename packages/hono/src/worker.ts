@@ -72,8 +72,17 @@ export type Worker = {
      * no data model, so the Worker parses it and answers `malformed_request` or `schema_mismatch`
      * itself (ENDP-4, ACT-8). `name` has been validated as present; whether it is declared is the
      * Worker's to answer (ACT-6). `key` is the `Idempotency-Key` header where one was sent.
+     * `claim` is the `Worker-Protocol-Claim` header where one was sent (TASK-20): the Claim this
+     * Action answers a Task under, which the Worker checks before performing anything and refuses
+     * with `conflict` where it is not current or its Task's type does not list the Action
+     * (TASK-21). Absent, the call is a performance and answers no Claim.
      */
-    perform: (name: string, body: string, key: string | undefined) => Answer | Refusal;
+    perform: (
+      name: string,
+      body: string,
+      key: string | undefined,
+      claim: string | undefined,
+    ) => Answer | Refusal;
     /**
      * The document `configure` would accept (ACT-15). Where it is given, `mount()` serves it at
      * the reading address and writes that address into the `configure` declaration, so the two
@@ -83,10 +92,19 @@ export type Worker = {
   };
   /** `tasks`: what the entry declares (TASK-1 to TASK-4), one read and one write. */
   tasks?: Declared<typeof tasksEntry> & {
-    /** `token` is the presented credential, for TASK-6: only the Tasks it covers are answered. */
+    /**
+     * `token` is the presented credential, for TASK-6: only the Tasks it covers are answered. And
+     * for TASK-26: a Task under a Claim carries `holder` to a credential recorded at enrollment
+     * and to no other, and which credentials those are is the Worker's to know.
+     */
     read: (query: URLSearchParams, token: string | undefined) => z.infer<typeof taskPage> | Refusal;
-    /** A claim, a renewal or an outcome (TASK-9 to TASK-14, TASK-17), told apart by the query. */
-    write: (query: URLSearchParams) => Answer | Refusal;
+    /**
+     * A claim by Task or by type, a renewal or an outcome (TASK-9 to TASK-14, TASK-17, TASK-22 to
+     * TASK-25), told apart by the query. `type` reaches here only where the entry declares
+     * `claimByType`; `mount()` refuses it otherwise (TASK-23). `token` is the presented credential,
+     * for TASK-24's `covers` and for whatever the Worker mints as `holder`.
+     */
+    write: (query: URLSearchParams, token: string | undefined) => Answer | Refusal;
   };
   /** `alerts`: the Alerts whose conditions hold (ALRT-2). */
   alerts?: () => z.infer<typeof alertPage>;

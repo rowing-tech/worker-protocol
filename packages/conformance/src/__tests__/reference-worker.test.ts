@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
 import { createWorker } from "@worker-protocol/reference-worker";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { verify } from "../index.ts";
 import { tally } from "../report.ts";
 
@@ -39,14 +39,17 @@ const ARRANGEMENT = {
   asyncAction: { name: "rebuild-index", input: {} },
   // Claiming is a consent of its own: performing an Action does something to the Worker, and
   // claiming takes work away from whoever would otherwise have taken it. Every Claim the verifier
-  // takes it releases again, so the Worker is left as it was found.
+  // takes it closes again — and the safe Action, performed under the Claim, resolves the Task it
+  // was taken on, which is what the operators offered by naming both.
   mayClaim: true,
   claimableTask: "task-1",
   unclaimableTask: "task-3",
-  // What no Worker has by accident: a second credential live beside the first, one that
-  // authenticates and carries no right, settings its operators will let go of, and an event it
-  // already published — because a verifier holds no broker and will never see one itself.
+  // What no Worker has by accident: a second credential live beside the first, one issued under
+  // a Contract rather than at enrollment, one that authenticates and carries no right, settings
+  // its operators will let go of, and an event it already published — because a verifier holds no
+  // broker and will never see one itself.
   secondCredential: "b-token",
+  consumerCredential: "d-token",
   unprivilegedCredential: "c-token",
   replaceableSettings: true,
   publishedEvent: {
@@ -61,18 +64,24 @@ const ARRANGEMENT = {
 describe("the reference worker, verified", () => {
   let worker: Awaited<ReturnType<typeof start>>;
 
-  beforeAll(async () => {
+  // A fresh Worker for every test, because a full run now changes one: the safe Action answers
+  // the claimable Task under its Claim and resolves it (TASK-15, TASK-22), and a second run against
+  // the same process would find nothing to claim. A Worker arranged to be checked is arranged for
+  // one check.
+  beforeEach(async () => {
     worker = await start({
       credential: "a-token",
       secondCredential: "b-token",
+      consumerCredential: "d-token",
       unprivilegedCredential: "c-token",
-      // TASK-6: the second credential covers one Task and the first covers all of them, so the
-      // two lists differ and filtering is something a check can actually see happen.
-      visibleTasks: { "b-token": ["task-1"] },
+      // TASK-6: the Contract credential covers one Task and the recorded ones cover all of them, so
+      // the two lists differ and filtering is something a check can actually see happen. TASK-26:
+      // the same credential reads that Task without `holder` while the recorded one reads it with.
+      visibleTasks: { "d-token": ["task-1"] },
     });
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await worker.close();
   });
 
@@ -167,11 +176,11 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(26);
+    expect(counts.otherSubject).toBe(27);
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(21);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(103);
+    expect(counts.passes).toBe(109);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,

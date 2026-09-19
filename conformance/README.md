@@ -17,8 +17,8 @@ live Worker. `pnpm test` runs them from TypeScript today.
 A run produces a verdict for **every** rule in the specification, never only for the ones it
 exercised. That is the whole design of this vocabulary, and the reason is the one this repository
 applies everywhere else: something is produced and a party reads it. A report listing the checks
-that ran, all green, over a specification of 152 rules tells an operator that a Worker was checked
-against the protocol. Today that would be 105 of them, and nothing on the page would say which — so
+that ran, all green, over a specification of 159 rules tells an operator that a Worker was checked
+against the protocol. Today that would be 111 of them, and nothing on the page would say which — so
 the reader concludes more than was established, which is the same fault as a generated artifact
 nobody compares.
 
@@ -38,7 +38,7 @@ there is a verdict waiting. `unverified` says no arrangement of any tool ever pr
 that showed both as *not checked* would hide the first behind the second, and the work of closing
 the gap would look permanent when almost all of it is a Tuesday afternoon.
 
-`other subject` is the verdict for the twenty-six rules that bind somebody who is not a Worker.
+`other subject` is the verdict for the twenty-seven rules that bind somebody who is not a Worker.
 [spec/README.md](../spec/README.md) already says the subject of a rule is whoever the sentence names
 and that a report says which of these it was checking; this is that sentence with a place to land.
 Those rules are not defects and not exemptions — DESC-20 obliges a Tower and ENDP-28 obliges a

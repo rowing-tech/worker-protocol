@@ -114,6 +114,14 @@ report it. NAME-7 binds because an unnamespaced name produces the collision dire
 can see the missing prefix. This is the same social contract Java packages have run on for twenty-
 five years, and the sky has stayed up.
 
+Who *the minting team* is has one trap worth naming, because the error is silent. The DNS name is
+the one controlled by whoever wrote the definition of the work — the team that decided what
+`verify-vehicle` means and what its payload carries — and never the deployment that happens to run
+it. A process installed twice, each installation prefixing with its own host, publishes two Skills
+for one Task type, and the catalog TASK-3 exists for cannot join them: the Tower answers *who
+answers this* with half of the Workers that do. Nothing detects it, for the reason NAME-8
+recommends rather than binds, which is why it is said here rather than left to be found.
+
 The form is lowercase, which matters more than it looks. DNS is case-insensitive, so `Example.com`
 and `example.com` are one domain — but NAME-1 compares names byte for byte, so `com.Example.x` and
 `com.example.x` would be two names for one thing, minted inside one team, with nothing to say they

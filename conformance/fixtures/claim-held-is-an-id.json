@@ -1,0 +1,12 @@
+{
+  "schema": "claim",
+  "valid": false,
+  "rule": "TASK-24",
+  "why": "`held` is the Task document and not its id — `task` already carries the id. An owner that answered the id twice would have handed a consumer nothing it could act on without the list the claim by type exists to spare it.",
+  "document": {
+    "id": "claim-2",
+    "task": "task-2",
+    "expires": "2026-09-19T12:00:00+02:00",
+    "held": "task-2"
+  }
+}

@@ -25,7 +25,7 @@
     "/": {
       "post": {
         "summary": "Claim, renew, or close a Claim",
-        "description": "TASK-9. `task` claims; `claim` alone renews; `claim` with `outcome` closes. Closing a Claim never closes the Task, which closes when its condition stops holding and which nobody declares (TASK-15).",
+        "description": "TASK-9. `task` claims one Task and `type` claims any claimable Task of a type, where the entry declares `claimByType`; `claim` alone renews; `claim` with `outcome` closes. `lease` proposes a duration on a claim or a renewal. Closing a Claim never closes the Task, which closes when its condition stops holding and which nobody declares (TASK-15) — and a Task closing never closes the Claim (TASK-22).",
         "parameters": [
           {
             "name": "task",
@@ -35,6 +35,26 @@
             "schema": {
               "type": "string",
               "minLength": 1
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "TASK-24. A Task type to claim one claimable Task of, where the entry declares `claimByType`. The Claim answered carries that Task in `held`. A type the entry does not raise, or one named where `claimByType` is not declared, is `400` (TASK-23); nothing claimable of it is `404`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "lease",
+            "in": "query",
+            "required": false,
+            "description": "TASK-25. A lease duration the holder proposes, in seconds, on a claim or a renewal. The owner grants what it decides and publishes the expiry; a proposal binds it to nothing.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           },
           {
@@ -74,7 +94,7 @@
         ],
         "responses": {
           "200": {
-            "description": "TASK-9. The Claim granted, or the new expiry after a renewal.",
+            "description": "TASK-9. The Claim granted — with the Task it holds in `held` on a claim by type (TASK-24) — or the new expiry after a renewal.",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
@@ -123,7 +143,7 @@
             }
           },
           "400": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `invalid_parameter` (TASK-14), `unsupported_version` (ENDP-6).",
+            "description": "ENDP-25. The shared error envelope, carrying one of: `invalid_parameter` (TASK-14), `invalid_parameter` (TASK-23), `unsupported_version` (ENDP-6).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
@@ -207,7 +227,7 @@
             }
           },
           "404": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `not_found` (ENDP-29).",
+            "description": "ENDP-25. The shared error envelope, carrying one of: `not_found` (ENDP-29), `not_found` (TASK-24).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

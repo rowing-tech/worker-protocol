@@ -28,6 +28,11 @@
     "claimable": {
       "type": "boolean",
       "description": "TASK-7, TASK-11. Whether the owner will grant a lease on this Task now. An owner that has stopped granting says so here rather than leaving a consumer to infer it from a pattern of 409s."
+    },
+    "holder": {
+      "description": "TASK-26. An identifier the owner mints for whoever holds this Task's current Claim, present only on a Task under a Claim and only when read with a credential recorded for the Worker at enrollment. Never the credential and never a name: it is the owner's own, for an operator to map onto a Contract. A consumer reading another consumer's identity here would be the disclosure TASK-6 exists against.",
+      "type": "string",
+      "minLength": 1
     }
   },
   "required": [

@@ -18,8 +18,8 @@ this document, and separating them moved six rules.
 | Class | Meaning | Count |
 |---|---|---|
 | **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 82 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 23 |
-| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 26 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 29 |
+| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 27 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 21 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
@@ -126,7 +126,7 @@ this document, and separating them moved six rules.
 | ACT-14 | H | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
 | ACT-15 | W | A GET of the declared reading address answers a document `configure` would accept |
 
-## tasks-and-claims.md — 19
+## tasks-and-claims.md — 26
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
@@ -149,6 +149,13 @@ this document, and separating them moved six rules.
 | TASK-17 | H | Needs a Claim that is no longer the Task's current one |
 | TASK-18 | P | Binds a holder: it is the consumer that must not do arithmetic against a clock the owner never saw. Which clock decided is not a fact on the wire |
 | TASK-19 | N | Recommended. What a nudge IS has no witness: an owner notifying by some other means is indistinguishable from one that does not notify at all |
+| TASK-20 | P | Binds a holder: naming its Claim on the Action is the consumer's act, and a consumer that omits it has posted a performance this file says nothing about. What an owner does with a header it receives is TASK-21's |
+| TASK-21 | H | Needs a Claim that is no longer current and an Action safe to perform, posted under it. The witness is `409` and nothing performed |
+| TASK-22 | H | Needs an Action that resolves the Task's condition, and the outcome posted after the Task is gone. The witness is `204` where a literal TASK-17 would have answered `409` |
+| TASK-23 | H | A claim naming a type the entry does not raise is `400`. It is a POST to the claim address, which needs permission to claim |
+| TASK-24 | H | Needs `claimByType` declared, a claimable Task of that type, and permission to claim it. The witness is a Claim carrying the Task it holds |
+| TASK-25 | H | A renewal proposing a duration is answered with an expiry rather than refused. Needs a Claim to renew |
+| TASK-26 | H | Two credentials: the one recorded at enrollment reads `holder` on a held Task, and a Contract's reads the same Task without it |
 
 ## alerts.md — 7
 
@@ -235,12 +242,12 @@ a weaker class.
 
 ## Where this stands
 
-152 rules across ten files, none of them `open`, under edition 0.1. Every rule the register marks
+159 rules across ten files, none of them `open`, under edition 0.1. Every rule the register marks
 `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over a
 real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.
 
-What no tool reaches is 47 rules, and the two kinds are not the same thing. Twenty-six bind a
+What no tool reaches is 48 rules, and the two kinds are not the same thing. Twenty-seven bind a
 party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
 specification — and a report calls those *another subject's* because it never contacted whoever
 they oblige. Twenty-one have the Worker as their subject and no witness anywhere, and a report

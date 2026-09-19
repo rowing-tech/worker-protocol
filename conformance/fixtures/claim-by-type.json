@@ -1,0 +1,19 @@
+{
+  "schema": "claim",
+  "valid": true,
+  "rule": "TASK-24",
+  "why": "A Claim granted on a claim by type carries the Task it holds in `held`, so that a consumer answering a nudge has the work in hand after one call and no race against anyone reading the same page. `task` is that Task's id, as on any Claim.",
+  "document": {
+    "id": "claim-2",
+    "task": "task-2",
+    "expires": "2026-09-19T12:00:00+02:00",
+    "held": {
+      "id": "task-2",
+      "type": "tech.rowing.fleet.verify-vehicle",
+      "payload": { "vehicle": "DEF-456" },
+      "failedClaims": 0,
+      "lapsedClaims": 0,
+      "claimable": true
+    }
+  }
+}

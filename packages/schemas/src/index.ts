@@ -815,6 +815,18 @@ export const tasksEntry = capabilityEntry
         "the Tower catalogs by. May be empty: a Worker that raises Tasks and answers none is the " +
         "ordinary case rather than the exception.",
     }),
+    claimByType: z
+      .boolean()
+      .optional()
+      .meta({
+        description:
+          "TASK-23. Whether a claim may name a Task type in `type` rather than a Task in `task`, " +
+          "and be answered with one claimable Task of that type together with the Claim " +
+          "(TASK-24). Absent means it may not, and a claim naming a type is then `400`. Declared " +
+          "rather than assumed because DESC-11 has a Capability declare what is conditional on a " +
+          "call, and because an owner whose store cannot pick any one atomically should not be " +
+          "made to pretend it can.",
+      }),
   })
   .meta({
     title: "Tasks capability entry",
@@ -871,6 +883,18 @@ export const task = z
         "has stopped granting says so here rather than leaving a consumer to infer it from a " +
         "pattern of 409s.",
     }),
+    holder: z
+      .string()
+      .min(1)
+      .optional()
+      .meta({
+        description:
+          "TASK-26. An identifier the owner mints for whoever holds this Task's current Claim, " +
+          "present only on a Task under a Claim and only when read with a credential recorded " +
+          "for the Worker at enrollment. Never the credential and never a name: it is the " +
+          "owner's own, for an operator to map onto a Contract. A consumer reading another " +
+          "consumer's identity here would be the disclosure TASK-6 exists against.",
+      }),
   })
   .meta({
     title: "Task",
@@ -911,12 +935,19 @@ export const claim = z
         "TASK-18: a hint about when to RENEW, and never a number a holder does arithmetic on " +
         "to decide whether it may still act — the owner's clock is the only one that decides.",
     ),
+    held: task.optional().meta({
+      description:
+        "TASK-24. The Task this Claim holds, in full, so that a consumer that claimed by type " +
+        "has the work in hand without listing first. Present on a claim by type; an owner may " +
+        "also answer it on a claim by Task. `task` above is the same Task's id.",
+    }),
   })
   .meta({
     title: "Claim",
     description:
       "TASK-9. One consumer's exclusive lease on a Task. Closes by declaration (TASK-14) or by " +
-      "lapsing, and closing it never closes the Task.",
+      "lapsing, and closing it never closes the Task. TASK-22: a Task closing never closes it " +
+      "either — it stays the Task's current Claim until it is closed, lapses, or is succeeded.",
   });
 
 /**

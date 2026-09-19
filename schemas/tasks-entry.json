@@ -38,6 +38,10 @@
         "$ref": "qualified-name.json"
       },
       "description": "TASK-3. The Task types this Worker answers, which IS its Skill — the unit of discovery the Tower catalogs by. May be empty: a Worker that raises Tasks and answers none is the ordinary case rather than the exception."
+    },
+    "claimByType": {
+      "description": "TASK-23. Whether a claim may name a Task type in `type` rather than a Task in `task`, and be answered with one claimable Task of that type together with the Claim (TASK-24). Absent means it may not, and a claim naming a type is then `400`. Declared rather than assumed because DESC-11 has a Capability declare what is conditional on a call, and because an owner whose store cannot pick any one atomically should not be made to pretend it can.",
+      "type": "boolean"
     }
   },
   "required": [

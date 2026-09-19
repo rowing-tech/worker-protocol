@@ -14,8 +14,10 @@ clocks that were never synchronised.
 
 The declaration is [schemas/tasks-entry.json](../schemas/tasks-entry.json), one Task on the wire is
 [schemas/task.json](../schemas/task.json), and a Claim is
-[schemas/claim.json](../schemas/claim.json). What follows is what no schema can state. Rules carry
-ids and a class; the convention is in [spec/README.md](README.md).
+[schemas/claim.json](../schemas/claim.json). One header name is fixed by this file and by nothing
+else, because a JSON Schema describes a body and not a header: `Worker-Protocol-Claim`, which
+TASK-20 gives its meaning. What follows is what no schema can state. Rules carry ids and a class;
+the convention is in [spec/README.md](README.md).
 
 ## What a Worker declares
 
@@ -39,7 +41,8 @@ TASK-2's closed list is the keystone of the whole arrangement, and it is a *list
 Actions*. A Response is an Action posted into the owner (TASK-16), so the Actions that may answer a
 Task are declared in that same Worker's `actions` entry and named here by their names. A Task type
 that names an Action the Worker does not accept is a Descriptor disagreeing with itself, which is
-the fault DESC-18 already describes one level up.
+the fault DESC-18 already describes one level up. TASK-21 is where the list binds on a call: an
+Action performed under a Claim whose Task type does not list it is refused.
 
 TASK-3 is the other side of the same name, and putting both in one entry is what makes the
 [architecture](../docs/architecture.md)'s *unit of discovery* concrete: the Tower catalogs Workers
@@ -64,6 +67,10 @@ how many have lapsed, and whether it may be claimed now.**
 **TASK-8 (required). A read filters by Task type with `type`. A type the entry does not declare is
 `400`, with the code `invalid_parameter`.**
 
+**TASK-26 (required). A Task under a Claim carries `holder`, an identifier the owner mints for
+whoever holds that Claim, when it is read with a credential recorded for the Worker at enrollment
+(REG-21) — and never when it is read with any other.**
+
 TASK-6 answers the question this file was asked — whether the owner filters or the consumer reads
 and discards — and it goes to the owner for two reasons that point the same way. A list that showed
 every Task to every holder of any Contract is a disclosure the owner cannot take back, and it would
@@ -85,6 +92,17 @@ retrying in silence. `claimable` is the other half — an owner that has stopped
 so on the Task rather than by refusing every claim and leaving a consumer to infer it from a
 pattern of `409`s.
 
+TASK-26 is the other thing a stuck Task has to show. TASK-7's counts say how many Claims failed and
+how many lapsed, and a Task that has outlived several is stuck where an operator can see it — with
+a number beside it and nobody to call. The owner already knows who holds the current Claim: REG-24
+has it validate the credential itself, so it held the answer before it granted the lease. What it
+publishes is an identifier of its own and not the credential or a name, because REG-27 only
+*recommends* one credential per holder, and because the id is the owner's to mint and an operator's
+to map onto the Contract it brokered. It goes to the recorded credential and to no other for the
+reason TASK-6 gives: a consumer that read who else holds work from this owner would learn about a
+party it has no Contract with, and that is a disclosure the owner cannot take back. A Worker that
+reads openly has no recorded credential and answers no `holder` to anyone.
+
 ## Claiming
 
 **TASK-9 (required). A claim is a POST to the claim address naming the Task in `task`. It answers
@@ -102,6 +120,19 @@ an offset, and this protocol fixes no duration.**
 **TASK-13 (required). A holder renews by posting the claim address naming the Claim in `claim` and
 no outcome. The owner answers a new expiry, or refuses.**
 
+**TASK-23 (required). A `tasks` entry declares in `claimByType` whether a claim may name a Task
+type in `type` rather than a Task in `task`. A claim naming a type the entry does not raise, or
+naming one where the entry does not declare `claimByType`, is `400`, with the code
+`invalid_parameter`.**
+
+**TASK-24 (required). Where `claimByType` is declared, a claim naming a type grants a lease on one
+claimable Task of that type that the credential presented covers, and answers the Claim with the
+Task it holds in `held`. Where no such Task is claimable, `404`, with the code `not_found`.**
+
+**TASK-25 (required). A claim or a renewal may propose a lease duration in `lease`, in seconds.
+The owner grants what it decides and publishes it as the expiry, and a proposal binds it to
+nothing.**
+
 Claiming is exclusive and the owner's store settles contention by first commit, which is why this
 file needs no policy for it: two consumers that post at the same instant produce one grant and one
 `409`, and neither had to agree with the other about anything. `conflict` is the code ENDP-29
@@ -118,6 +149,33 @@ cadence.** A number here would be a number every Worker in every deployment was 
 invented by somebody who had seen none of them. What a lease has to be is long enough for the work
 and short enough that a lapsed one is not a stall, and only the owner knows either.
 
+**TASK-25 is what lets the consumer say the one thing it knows.** How long the work takes is the
+holder's fact and nobody else's: a consumer that needs thirty minutes and is granted five renews
+six times, and each renewal is a request the owner answers for no reason a longer lease would not
+have removed. So it may *propose*, and the two rules above are untouched by it. A duration is not
+an instant, so TASK-18's argument about two clocks does not reach it; and the owner grants what it
+decides and publishes the expiry as before, so a proposal is information and never a term. It is
+allowed on a renewal as well as on a claim because a renewal is where a holder finds out that its
+lease was short.
+
+**TASK-23 and TASK-24 remove a round trip and a race, and are an addition and not a replacement.** A
+claim names a Task by id (TASK-9), and the id is read off the list — so the path from a nudge is
+nudge, list, claim, and under contention several consumers read the same page and run at the same
+ids, harvesting `409`s that TASK-10 then has to explain. Claiming by type asks the owner for *one
+claimable Task of this kind that I may take*, and the owner, whose store already settles contention
+by first commit, answers the Claim and the Task together: one call, and no race the consumer can
+lose. The list stays where it is, for the operator and for TASK-6. It is declared rather than
+assumed because DESC-11 has a Capability declare what is conditional on a call, and because an
+owner whose store cannot pick *any one* atomically should not be made to pretend it can.
+
+`not_found` rather than `conflict`, because the caller named a description and not a thing. A claim
+that names a Task the owner is not granting on conflicts with the state of that Task, which is
+TASK-11's `409`; a claim that names a type and finds nothing has asked for a resource that does not
+exist right now, and its recourse is the one every `404` here has — come round again on its
+schedule. `invalid_parameter` for a type the entry does not raise is TASK-8's division applied to
+a write, and the same code where `claimByType` is not declared, so that a consumer built against
+an owner that declares it and pointed at one that does not is told the same thing either way.
+
 ## Answering
 
 **TASK-14 (required). A holder closes its Claim by posting the claim address naming the Claim in
@@ -132,19 +190,37 @@ the Claim. They are not atomic.**
 **TASK-17 (required). A call naming a Claim that is no longer the Task's current one is `409`, with
 the code `conflict`.**
 
+**TASK-20 (required). A holder performs the Action that answers its Task naming its Claim in the
+`Worker-Protocol-Claim` header of the call.**
+
+**TASK-21 (required). An Action call carrying `Worker-Protocol-Claim` is refused before anything is
+performed where the Claim named is not its Task's current one, or where its Task's type does not
+list the Action under TASK-2: `409`, with the code `conflict`.**
+
+**TASK-22 (required). A Claim stays its Task's current one after the Task's condition stops
+holding. It stops being current when it is closed, when it lapses, or when another Claim is granted
+on the same Task — never because the Task closed — so an outcome naming it answers `204` and a
+renewal naming it answers an expiry.**
+
 TASK-15 is the sentence the rest of this file protects. The owner derives its Task from its own
 Facts, so a consumer declaring the work done is telling the owner something about the consumer, not
 about the condition. An owner that closed a Task because somebody said so would be holding state
 whose authority it had given away — which is the one thing the
 [architecture](../docs/architecture.md) does not allow of a Worker.
 
-**TASK-16 costs something real and it is stated rather than hidden.** Two calls that are not atomic
-means the second can be lost: the Action lands, the outcome never does, the lease lapses, and
-another consumer claims the same Task and performs the same Action again. That is not a defect to
-be engineered away here — making it atomic would mean the owner accepting an envelope that carried
-an Action performance inside a Claim outcome, which puts this protocol's vocabulary inside a
-document the Worker owns and is exactly what ACT-5 argues against. The protocol already offers the
-answer and it is the Action's to take: an Action that declares an idempotency key under ACT-12 is
+**TASK-16 costs something real and it is stated rather than hidden — and the cost is narrower than
+a first reading suggests, because TASK-15 narrows it.** Two calls that are not atomic means the
+second can be lost. When the Action resolves the condition, that costs nothing that matters: the
+Task is gone the moment the Action lands, there is nothing left for anyone to reclaim, and a lost
+outcome leaves the owner a Claim it closes by lapse. The window is open only when the Action does
+*not* resolve the condition — partial progress, a condition that waits on something else, an
+Action that declares it does not complete within the call and whose outcome ACT-11 leaves this
+edition without. There, the Action lands, the outcome never does, the lease lapses, and another
+consumer claims the same Task and performs the same Action again. That is not a defect to be
+engineered away here — making it atomic would mean the owner accepting an envelope that carried an
+Action performance inside a Claim outcome, which puts this protocol's vocabulary inside a document
+the Worker owns and is exactly what ACT-5 argues against. The protocol already offers the answer
+and it is the Action's to take: an Action that declares an idempotency key under ACT-12 is
 performed once however many times it is posted. **A Task whose answering Action declares no key is
 one a consumer should expect to perform more than once**, and that is emphasis rather than an
 obligation, because nothing about it is a contract between two parties — it is what a design costs,
@@ -156,6 +232,30 @@ time whether that Claim is still the Task's current one. A lapsed lease, a relea
 reclaimed by somebody else — all three are the same check and it is a precondition rather than a
 sweep. Comparing instants would have required the owner and the holder to agree about the time,
 which is the thing the next section says they cannot.
+
+**TASK-20 and TASK-21 are what make the token a token.** Until they were written, this file defined
+a Response as two calls and never said that the first of them names the Claim — and no rule in
+[actions](actions.md) required one, so on the wire a Response and an ordinary performance of the
+same Action were the same bytes. A fencing token nobody presents fences nothing: the late Response
+TASK-17 exists to refuse could not be told from an operator posting the same Action from a console,
+and the twenty minutes of work the Claim was taken to protect could be paid for twice by a Worker
+that did everything the text asked. So the holder names its Claim on the Action, and it names it in
+a header rather than in the body because ACT-5 makes the body the input and nothing else —
+`Idempotency-Key` is the precedent, a fact about the call that is not part of what the Action takes.
+An Action posted without the header is a performance under [actions](actions.md) and this file has
+nothing to say about it: it may well resolve the condition, which is TASK-15 working as intended,
+but it answers no Claim and nothing here refuses it. TASK-21's refusal comes *before* the
+performance because that is what a precondition is; a Worker that performed and then refused would
+have done the duplicate work the fence exists to prevent. The second clause is TASK-2's list
+binding at last: a Claim on one Task type does not license an Action that type never named.
+
+**TASK-22 closes a hole TASK-17 would otherwise open on every successful Response.** When the
+Action resolves the condition, the Task is gone before the outcome arrives, and a reading of *the
+Task's current one* that looked the Task up would find nothing and answer `409` — so the ordinary
+end of every Response would be an error the consumer learns to ignore, which is how it comes to
+ignore the one `409` that matters. Currency is therefore a fact about the Claim and never about the
+Task: it ends by declaration, by lapse, or by a successor, and a Task closing ends nothing. The
+outcome is accepted, the holder's bookkeeping closes cleanly, and TASK-17 keeps its one meaning.
 
 ## Clocks
 
@@ -195,6 +295,9 @@ of it is load-bearing. **A Worker that claims only on a nudge is one dropped req
 stalling silently**, so the schedule is what the design rests on; the nudge makes the common case
 prompt and nothing depends on it arriving. A consumer that declares none is slower and never wrong.
 
+Where the owner declares `claimByType`, a nudge is answered in one call: the consumer claims by the
+type the nudge carried and receives the Task with the Claim (TASK-24), without listing first.
+
 ## Still open here
 
 - **Who verifies that a Worker answers the Task types it declares under TASK-3.** The Tower at
@@ -202,10 +305,23 @@ prompt and nothing depends on it arriving. A consumer that declares none is slow
 - **What happens to a Claim held under a credential revoked mid-flight.** TASK-17 refuses the
   Response on the Claim, but nothing says whether the owner should have closed the Claim first.
   Listed from [registration](registration.md).
+- **Whether a holder may close its Claim in the Action call itself** — the header TASK-20 fixes
+  carrying an outcome beside the id, declared by the owner and never required. It is one
+  declaration away and this edition stops short of it for two reasons. A Task type may list several
+  Actions and a holder may post two before it is done, so the header would carry a declaration and
+  not only an id, and the Response would have two forms. And a Worker whose Action reaches a
+  system outside its own store has no transaction that spans both, so the form could only ever be
+  declared. With TASK-22 the window TASK-16 admits is the narrow one, and ACT-12 already covers it.
+- **Whether a holder renews several Claims in one call.** TASK-13 renews one. A batch answers an
+  expiry or a refusal *per Claim*, which is a partial success ENDP-29 has no vocabulary for; and
+  TASK-12 leaves the lease to the owner precisely so that a long one makes renewal rare.
+- **Whether a credential recorded at enrollment is told from a Contract's by anything this protocol
+  sees.** TASK-26 leans on the distinction and [registration](registration.md) leaves the shape of
+  a credential's rights open.
 - Whether a Task may carry a deadline of its own, distinct from any Claim's lease.
 - What a Response may carry beyond the outcome — the cost and elapsed time the
-  [architecture](../docs/architecture.md) mentions — and who consolidates it. Open in
-  [undecided](../docs/undecided.md).
+  [architecture](../docs/architecture.md) mentions — and who consolidates it. TASK-26 now names
+  whom it would be consolidated for. Open in [undecided](../docs/undecided.md).
 
 ## Withdrawn
 

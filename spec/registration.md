@@ -315,8 +315,9 @@ Contract is. The rule is about the call, not about the history.
 - Whether taking a Claim and acting on one already held are authorized by the same right. They pull
   apart in practice — taking work is a grant about a Task type, acting is a fact about a lease you
   already hold — and [tasks and claims](tasks-and-claims.md) has since been written without
-  dividing them: TASK-17 refuses a call naming a Claim that is no longer current, and says nothing
-  about a right. The question is still open and is now this file's rather than that one's.
+  dividing them: TASK-20 has the Action name the Claim it is performed under, TASK-21 refuses one
+  that is no longer current, and neither says anything about a right. The question is still open
+  and is now this file's rather than that one's.
 - Whether a Tower exposes an enrollment surface at all. This protocol defines what a Worker serves;
   a Tower's own API is not in it.
 

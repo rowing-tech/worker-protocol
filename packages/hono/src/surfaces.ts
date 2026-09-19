@@ -307,6 +307,16 @@ export const performAction = createRoute({
             "Where the Action declares it reads a key from the header. Within the declared window a repeat under the same key is not a second performance; the same key with a different body is `409`.",
           ),
         }),
+      "Worker-Protocol-Claim": z
+        .string()
+        .min(1)
+        .optional()
+        .openapi({
+          description: cite(
+            "TASK-20",
+            "The Claim this Action is performed under, where it answers a Task. TASK-21: one that is not its Task's current one, or whose Task's type does not list this Action, is `409` and nothing is performed. Absent, the call is a performance and answers no Claim.",
+          ),
+        }),
       "Worker-Protocol-Capability-Version": expectedVersion,
     }),
     // No schema, deliberately, and so no validation here: the body is the Action's own input,
@@ -338,6 +348,7 @@ export const performAction = createRoute({
       ["schema_mismatch", "ACT-8"],
       ["idempotency_key_required", "ENDP-18"],
       ["not_found", "ACT-6"],
+      ["conflict", "TASK-21"],
       ["idempotency_key_reused", "ENDP-17"],
       ["unprocessable_content", "ACT-9"],
       ...SHARED,
@@ -380,7 +391,7 @@ export const writeClaim = createRoute({
   summary: "Claim, renew, or close a Claim",
   description: cite(
     "TASK-9",
-    "`task` claims; `claim` alone renews; `claim` with `outcome` closes. Closing a Claim never closes the Task, which closes when its condition stops holding and which nobody declares (TASK-15).",
+    "`task` claims one Task and `type` claims any claimable Task of a type, where the entry declares `claimByType`; `claim` alone renews; `claim` with `outcome` closes. `lease` proposes a duration on a claim or a renewal. Closing a Claim never closes the Task, which closes when its condition stops holding and which nobody declares (TASK-15) — and a Task closing never closes the Claim (TASK-22).",
   ),
   request: {
     query: z.object({
@@ -393,6 +404,29 @@ export const writeClaim = createRoute({
             "TASK-9",
             "The Task to claim, by the id TASK-7 carries. One already claimed, or one the Worker is not granting leases on, is `409`.",
           ),
+        }),
+      type: z
+        .string()
+        .min(1)
+        .optional()
+        .openapi({
+          description: cite(
+            "TASK-24",
+            "A Task type to claim one claimable Task of, where the entry declares `claimByType`. The Claim answered carries that Task in `held`. A type the entry does not raise, or one named where `claimByType` is not declared, is `400` (TASK-23); nothing claimable of it is `404`.",
+          ),
+        }),
+      lease: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .openapi({
+          description: cite(
+            "TASK-25",
+            "A lease duration the holder proposes, in seconds, on a claim or a renewal. The owner grants what it decides and publishes the expiry; a proposal binds it to nothing.",
+          ),
+          type: "integer",
+          minimum: 1,
         }),
       claim: z
         .string()
@@ -414,11 +448,17 @@ export const writeClaim = createRoute({
     headers: versionHeader,
   },
   responses: {
-    200: answer("TASK-9", "The Claim granted, or the new expiry after a renewal.", claim),
+    200: answer(
+      "TASK-9",
+      "The Claim granted — with the Task it holds in `held` on a claim by type (TASK-24) — or the new expiry after a renewal.",
+      claim,
+    ),
     204: answer("TASK-14", "The Claim is closed.", null),
     ...refusals([
       ["invalid_parameter", "TASK-14"],
+      ["invalid_parameter", "TASK-23"],
       ["not_found", "ENDP-29"],
+      ["not_found", "TASK-24"],
       ["conflict", "TASK-10"],
       ...SHARED,
     ]),

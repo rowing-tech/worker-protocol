@@ -64,6 +64,14 @@ export type WorkerOptions = {
    * is the window it would otherwise report itself best in.
    */
   readyAfterMs?: number;
+  /**
+   * A credential issued under a Contract rather than recorded at enrollment (TASK-6, TASK-26).
+   *
+   * It authenticates like the others and covers only what `visibleTasks` says it covers. What it
+   * never reads is `holder`: a Task under a Claim names who holds it to the credentials this
+   * Worker was enrolled with, and to no other.
+   */
+  consumerCredential?: string;
   /** Which Tasks each credential covers, for TASK-6. A credential absent from it covers all. */
   visibleTasks?: Record<string, string[]>;
 };
@@ -72,8 +80,11 @@ const DEFAULT_ID = "tech.rowing.worker-protocol.reference";
 
 /** The Worker, as `@worker-protocol/hono` sees it: what only this Worker knows. */
 export function referenceWorker(options: WorkerOptions = {}): Worker {
-  const actions = createActions();
+  // The Actions reach into the Tasks: `record-verification` changes the Fact a verify-vehicle Task
+  // is derived from (TASK-15), and an Action performed under a Claim asks the Tasks whether that
+  // Claim is current before it does anything (TASK-21).
   const tasks = createTasks();
+  const actions = createActions(tasks);
 
   // HLTH-4: until it has established its state it answers `unhealthy`, never `healthy`. Answering
   // `unhealthy` costs nothing, because ENDP-29 classes the condition `retry` and a poller comes
@@ -87,6 +98,10 @@ export function referenceWorker(options: WorkerOptions = {}): Worker {
   const good = new Set(
     [options.credential, options.secondCredential].filter((t): t is string => t !== undefined),
   );
+  // TASK-26: the credentials recorded at enrollment are the ones `holder` is answered to. A Worker
+  // that reads openly has recorded none and answers it to nobody.
+  const enrolled = (token: string | undefined) =>
+    options.credential !== undefined && token !== undefined && good.has(token);
 
   return {
     id: options.id ?? DEFAULT_ID,
@@ -97,6 +112,7 @@ export function referenceWorker(options: WorkerOptions = {}): Worker {
     authenticate: (token) => {
       if (options.credential === undefined) return "accepted";
       if (token !== undefined && token === options.unprivilegedCredential) return "forbidden";
+      if (token !== undefined && token === options.consumerCredential) return "accepted";
       return token !== undefined && good.has(token) ? "accepted" : "unauthenticated";
     },
 
@@ -127,8 +143,11 @@ export function referenceWorker(options: WorkerOptions = {}): Worker {
     tasks: {
       raises: RAISES,
       answers: ANSWERS,
-      read: (query, token) => tasks.read(query, options.visibleTasks?.[token ?? ""]),
-      write: tasks.write,
+      // TASK-23: declared, so that a claim by type (TASK-24) has a Worker to be observed against.
+      claimByType: true,
+      read: (query, token) =>
+        tasks.read(query, options.visibleTasks?.[token ?? ""], enrolled(token)),
+      write: (query, token) => tasks.write(query, token, options.visibleTasks?.[token ?? ""]),
     },
 
     alerts,

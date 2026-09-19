@@ -912,6 +912,48 @@
       "file": "tasks-and-claims.md",
       "class": "recommended",
       "reach": "N"
+    },
+    {
+      "id": "TASK-20",
+      "file": "tasks-and-claims.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "TASK-21",
+      "file": "tasks-and-claims.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "TASK-22",
+      "file": "tasks-and-claims.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "TASK-23",
+      "file": "tasks-and-claims.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "TASK-24",
+      "file": "tasks-and-claims.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "TASK-25",
+      "file": "tasks-and-claims.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "TASK-26",
+      "file": "tasks-and-claims.md",
+      "class": "required",
+      "reach": "H"
     }
   ],
   "codes": [
@@ -1067,6 +1109,13 @@
     "claim": {
       "": "TASK-9",
       "expires": "TASK-12",
+      "held": "TASK-7",
+      "held/failedClaims": "TASK-7",
+      "held/holder": "TASK-26",
+      "held/id": "TASK-7",
+      "held/lapsedClaims": "TASK-7",
+      "held/payload": "TASK-7",
+      "held/type": "NAME-7",
       "task": "TASK-9"
     },
     "descriptor": {
@@ -1183,6 +1232,7 @@
     "task": {
       "": "TASK-7",
       "failedClaims": "TASK-7",
+      "holder": "TASK-26",
       "id": "TASK-7",
       "lapsedClaims": "TASK-7",
       "payload": "TASK-7",
@@ -1192,6 +1242,7 @@
       "": "TASK-1",
       "address": "DESC-12",
       "answers": "TASK-3",
+      "claimByType": "TASK-23",
       "raises": "TASK-2",
       "raises/*": "TASK-2",
       "raises/*/answeredBy": "TASK-2",
