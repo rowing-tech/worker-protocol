@@ -289,10 +289,27 @@ It is read that way by all three readers:
   Worker claims leaves the Worker's claim and the catalog disagreeing with nothing written down,
   and an operator looking at a Capability missing from the console cannot tell whether it was never
   declared or quietly discarded.
-- **DESC-21 (required). A consumer that meets a declared surface answering `404` stops, and does
-  not retry.** It is a contract error, and [endpoints](endpoints.md) says why at length. A consumer
-  that treats a missing declared surface as a transient failure retries against a Worker that will
-  never answer, and the mistake surfaces as slow silence instead of a refusal.
+- **DESC-30 (required). A consumer that meets a declared address serving nothing — one that answers
+  `404` to every request the Descriptor says it answers — stops, and does not retry.** It is a
+  contract error, and [endpoints](endpoints.md) says why at length. A consumer that treats a
+  missing declared surface as a transient failure retries against a Worker that will never answer,
+  and the mistake surfaces as slow silence instead of a refusal.
+
+**DESC-30 is about the address and not about a request to it, and the distinction is the whole of
+what the earlier form of this rule got wrong.** It said *a declared surface answering `404`*, which,
+read as a rule is meant to be read — alone, by somebody who never saw this paragraph — reached every
+`404` that address ever gives. But a surface that answers perfectly well says `404` about resources
+all the time: a claim naming a Task that has closed since it was listed (TASK-9), a metric a read
+named that the entry does not declare (MET-9), an Action no entry holds (ACT-6). A consumer obeying
+that text stopped permanently the first time a Task closed between two of its own calls, which is
+the failure this rule exists to prevent, pointed at the wrong party. The argument above defends *an
+address that is not served*, so that is what the rule now says, and a `404` about a resource at an
+address that answers is an ordinary refusal under ENDP-29 like any other. It is withdrawn below.
+
+Which `404`s those are is read from the Descriptor and not guessed: the requests the Descriptor
+says an address answers are the ones each Capability's own file defines for it. A consumer that has
+met one `404` has met a resource that is gone; a consumer that can get nothing else out of an
+address has met DESC-18's fault from the other side.
 
 DESC-20 binds, and it is worth saying why, because it is the rule most easily mistaken for advice
 about a console. Nothing on a *call* turns on it — a Tower that drops the entry breaks no request
@@ -300,7 +317,7 @@ between a consumer and this Worker. But the party it fails is the operator, and 
 party this whole specification exists for: someone who must see, operate and give work to Workers
 they did not build. The catalog is the surface they see, and a catalog that quietly omits an entry
 tells them the Worker was never enrolled. Something was produced and a party read it wrongly, which
-is the same fault DESC-21 describes and not a different kind of thing. That the Control Tower is
+is the same fault DESC-30 describes and not a different kind of thing. That the Control Tower is
 named and defined in these files is what gives this specification the standing to require it.
 
 The converse is not a fault. A Worker serves whatever else it likes at whatever address it likes,
@@ -396,3 +413,17 @@ and stays structural; this section adds no rule, because there is no new violati
   and the address it answers at. Replaced by **DESC-22**, which keys the entries by name instead of
   naming the Capability inside each, and makes the address optional in the shared entry. A
   Descriptor conformant under one is not a document the other accepts, so the id did not survive.
+- **DESC-21** — required that a consumer meeting *a declared surface answering `404`* stop and not
+  retry. Replaced by **DESC-30**, which scopes it to an address that answers `404` to every request
+  the Descriptor says it answers. This is the first id withdrawn since edition 0.1 published, and
+  what it cost is what [spec/README.md](README.md) said it would: the number is spent, and a report
+  citing DESC-21 stays true about the rule DESC-21 was.
+
+  The argument beneath it, here and in DESC-18 through DESC-20, is about a Descriptor declaring a
+  Capability the Worker does not serve. The rule said more than that. Every surface in this
+  protocol answers `404` about resources — a Task claimed after it closed, a metric the entry does
+  not declare, an Action no entry holds — and a consumer applying DESC-21 as written stopped
+  permanently on the first of them. That is *a prohibition reaching further than its reason*, which
+  spec/README.md says is the rule's fault and not the implementation's, and the remedy it names is
+  this one. A consumer that stopped on a resource `404` obeyed DESC-21 and breaks DESC-30, so the
+  verdict moves and the id did not survive.

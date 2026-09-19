@@ -41,7 +41,7 @@
             "name": "type",
             "in": "query",
             "required": false,
-            "description": "TASK-24. A Task type to claim one claimable Task of, where the entry declares `claimByType`. The Claim answered carries that Task in `held`. A type the entry does not raise, or one named where `claimByType` is not declared, is `400` (TASK-23); nothing claimable of it is `404`.",
+            "description": "TASK-24. A Task type to claim one claimable Task of, where the entry declares `claimByType`. The Claim answered carries that Task in `held`. A type the entry does not raise, or one named where `claimByType` is not declared, is `400` (TASK-23); nothing claimable of it is `204` and not a refusal, because an empty queue is neither `you are wrong` nor `I am busy`.",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -122,7 +122,7 @@
             }
           },
           "204": {
-            "description": "TASK-14. The Claim is closed.",
+            "description": "TASK-14. The Claim is closed — or, on a claim by type, nothing of that type is claimable and nothing was claimed (TASK-24). The caller tells the two apart by what it asked for.",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
@@ -227,7 +227,7 @@
             }
           },
           "404": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `not_found` (ENDP-29), `not_found` (TASK-24).",
+            "description": "ENDP-25. The shared error envelope, carrying one of: `not_found` (ENDP-29).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

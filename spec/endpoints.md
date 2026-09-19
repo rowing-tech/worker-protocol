@@ -208,7 +208,7 @@ the argument beneath each code — why `502` and `504` are two of them, why `sch
 | `idempotency_key_required` | `400` | `reject` | An Action requires a key and none was sent — ENDP-18 |
 | `unauthenticated` | `401` | `reject` | No credential, or one the Worker cannot read — ENDP-29 |
 | `forbidden` | `403` | `reject` | The credential is understood and does not carry the right — ENDP-29 |
-| `not_found` | `404` | `reject` | No such address, or no such resource — ENDP-29, DESC-21 |
+| `not_found` | `404` | `reject` | No such address, or no such resource — ENDP-29, DESC-30 |
 | `request_timeout` | `408` | `retry` | The request did not arrive in time to be answered — ENDP-29 |
 | `conflict` | `409` | `reject` | The request conflicts with the current state — ENDP-29 |
 | `idempotency_key_reused` | `409` | `reject` | A key reused with a different body — ENDP-17 |

@@ -230,12 +230,6 @@
       "reach": "P"
     },
     {
-      "id": "DESC-21",
-      "file": "descriptor.md",
-      "class": "required",
-      "reach": "P"
-    },
-    {
       "id": "DESC-22",
       "file": "descriptor.md",
       "class": "required",
@@ -282,6 +276,12 @@
       "file": "descriptor.md",
       "class": "required",
       "reach": "N"
+    },
+    {
+      "id": "DESC-30",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
     },
     {
       "id": "ENDP-1",

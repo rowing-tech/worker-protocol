@@ -127,7 +127,7 @@ naming one where the entry does not declare `claimByType`, is `400`, with the co
 
 **TASK-24 (required). Where `claimByType` is declared, a claim naming a type grants a lease on one
 claimable Task of that type that the credential presented covers, and answers the Claim with the
-Task it holds in `held`. Where no such Task is claimable, `404`, with the code `not_found`.**
+Task it holds in `held`. Where no such Task is claimable, `204`, and nothing is claimed.**
 
 **TASK-25 (required). A claim or a renewal may propose a lease duration in `lease`, in seconds.
 The owner grants what it decides and publishes it as the expiry, and a proposal binds it to
@@ -168,13 +168,31 @@ lose. The list stays where it is, for the operator and for TASK-6. It is declare
 assumed because DESC-11 has a Capability declare what is conditional on a call, and because an
 owner whose store cannot pick *any one* atomically should not be made to pretend it can.
 
-`not_found` rather than `conflict`, because the caller named a description and not a thing. A claim
-that names a Task the owner is not granting on conflicts with the state of that Task, which is
-TASK-11's `409`; a claim that names a type and finds nothing has asked for a resource that does not
-exist right now, and its recourse is the one every `404` here has — come round again on its
-schedule. `invalid_parameter` for a type the entry does not raise is TASK-8's division applied to
-a write, and the same code where `claimByType` is not declared, so that a consumer built against
-an owner that declares it and pointed at one that does not is told the same thing either way.
+**A success and not a refusal, and this is the one place in the protocol where that had to be
+argued.** A claim by type asks *is there work of this kind for me*, and *no, not now* is the answer
+a consumer polling a quiet queue gets most of the time. It is not a failure of any kind:
+[endpoints](endpoints.md) divides every refusal into *you are wrong* and *I am busy*, and calls
+that division the most load-bearing thing it says — an empty queue is neither. `reject` means, in
+ENDP-28's own words, that the request *is wrong and will be wrong again*, which is false here and
+would be false of `409` too; the choice was never between two error codes. The protocol already has
+a convention for a question that finds nothing, and it is the opposite of an error: a read with no
+results is an empty page under ENDP-20 and answers `200`. A claim by type is the first call here
+that can legitimately come back empty without being a page, and `204` is what ENDP-29 leaves room
+for when it says this protocol does not fix the status of a success. TASK-14 and ACT-10 already
+answer `204` for *done, and nothing to hand back*.
+
+The earlier draft of this rule answered `404`, and it was wrong twice over. It classed an ordinary
+Tuesday as a contract error — and the rule that then stood in [descriptor](descriptor.md), written
+about a declared address that is not served but worded as *a declared surface answering `404`*,
+told every conformant consumer to stop polling permanently the first time it found the queue empty.
+That one has been narrowed to what its argument earns and its predecessor is withdrawn there; this
+one never reached an edition, so it is corrected in place.
+
+`invalid_parameter` for a type the entry does not raise is TASK-8's division applied to a write,
+and the same code where `claimByType` is not declared, so that a consumer built against an owner
+that declares it and pointed at one that does not is told the same thing either way. A claim that
+names a Task the owner is not granting on is different again and stays a `409`: it conflicts with
+the state of a thing the caller named, which is TASK-11.
 
 ## Answering
 
@@ -248,6 +266,16 @@ but it answers no Claim and nothing here refuses it. TASK-21's refusal comes *be
 performance because that is what a precondition is; a Worker that performed and then refused would
 have done the duplicate work the fence exists to prevent. The second clause is TASK-2's list
 binding at last: a Claim on one Task type does not license an Action that type never named.
+
+**What the fence does not reach is worth stating, because TASK-20 binds the holder and nobody can
+check it.** A holder that simply omits the header performs the Action, and the owner has no way to
+tell that call from a console posting the same thing: the one late Response TASK-21 would have
+refused — a holder whose lease lapsed, whose Task another consumer has since claimed, posting
+anyway — goes through, and the work is done twice. Nothing here can prevent that, and pretending
+otherwise would be the kind of rule this specification refuses to write: the subject is the
+consumer, no request carries the evidence, and `conformance/` reports it as another subject's. What
+bounds the damage is the same thing that bounds TASK-16's: an Action with an idempotency key under
+ACT-12 is performed once however many times it is posted.
 
 **TASK-22 closes a hole TASK-17 would otherwise open on every successful Response.** When the
 Action resolves the condition, the Task is gone before the outcome arrives, and a reading of *the

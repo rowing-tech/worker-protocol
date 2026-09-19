@@ -559,8 +559,12 @@ async function checkClaiming(
   } else {
     const byType = await post(`?type=${encodeURIComponent(seen.type)}`, "a claim by Task type");
     const granted = claimSchema.safeParse(byType.json);
-    if (byType.status === 404) {
+    // TASK-24: nothing claimable is `204`, which is the rule holding rather than a Claim to judge.
+    // A `404` here is the fault this rule was corrected for, and it is named rather than excused.
+    if (byType.status === 204) {
       say("TASK-24", "notExercised", `no claimable Task of type \`${seen.type}\` was open`);
+    } else if (byType.status === 404) {
+      say("TASK-24", "fails", "an empty queue answered `404`, which TASK-24 makes a `204`");
     } else if (byType.status !== 200 || !granted.success) {
       say("TASK-24", "fails", `answered ${byType.status} with \`${code(byType) ?? "no code"}\``);
     } else {

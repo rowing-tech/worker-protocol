@@ -43,7 +43,7 @@ this document, and separating them moved six rules.
 | DESC-18 | W | A declared address that answers `404` |
 | DESC-19 | P | Binds a verifier |
 | DESC-20 | P | Binds a Tower. It is also unobservable, as every Tower rule is, and the class goes to the SUBJECT: `unverified` is what a report says about a rule whose subject is the Worker, and saying it here would vouch for a party the tool never contacted |
-| DESC-21 | P | Binds a consumer |
+| DESC-30 | P | Binds a consumer |
 | DESC-22 | W | `capabilities` is a map, each entry carries a version |
 | DESC-23 | W | Exactly one edition, `MAJOR.MINOR`, parses and orders |
 | DESC-24 | N | Binds whoever edits this specification across editions. No single-Worker witness |

@@ -257,8 +257,11 @@ export function createTasks() {
             !held.has(candidate.id) &&
             (covers === undefined || covers.includes(candidate.id)),
         );
+        // TASK-24: nothing claimable is `204` and not a refusal. A consumer polling a quiet queue
+        // has asked a reasonable question and got a true answer; classing that `reject` would tell
+        // it, under ENDP-28, that the request is wrong and will be wrong again.
         if (task === undefined) {
-          return reject("not_found", `No claimable Task of type ${type} is open.`);
+          return { status: 204, body: null };
         }
         const granted = grant(task, token, query);
         return {

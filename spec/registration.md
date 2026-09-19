@@ -104,12 +104,14 @@ Saying so plainly is better than a rule a conformance report would have to fail 
 serves.**
 
 REG-7 refuses a habit that is ordinarily good practice, and the reason is specific to this
-protocol. DESC-21 makes a consumer that meets `404` on a declared surface stop permanently and
-report a contract error, because a declared surface answering `404` means the Descriptor is wrong.
-A Worker that hides an authentication failure behind a `404` has therefore told every consumer that
-the surface does not exist, and sent its operator looking for a missing endpoint while the
-credential that actually failed is never examined. The work stops, the diagnosis points at the
-wrong half of the system, and the Descriptor takes the blame for the credential.
+protocol. DESC-30 makes a consumer that meets a declared address serving nothing stop permanently
+and report a contract error, because an address that answers `404` to everything means the
+Descriptor is wrong. A Worker that hides an authentication failure behind a `404` has therefore
+told every consumer that the surface does not exist — and told it in the one way DESC-30 reaches,
+since a credential that is refused is refused on every request the address takes. The operator goes
+looking for a missing endpoint while the credential that actually failed is never examined: the
+work stops, the diagnosis points at the wrong half of the system, and the Descriptor takes the
+blame for the credential.
 
 That is why it binds where the rest of this section does not: two parties disagree about what an
 answer meant, and the consumer acts on the wrong one. The thing the habit protects is not available
@@ -137,7 +139,8 @@ once. DESC-20 has the Tower catalog what the Descriptor declared — so a filter
 the registry a statement about what the Tower is allowed to see rather than about what the Worker
 implements, and nothing anywhere says which it is. And a consumer under a Contract that reads a
 short Descriptor cannot tell a Capability it may not use from a Capability the Worker withdrew;
-DESC-18 through DESC-21 exist to make that distinction, and per-reader filtering erases it. That is
+DESC-18, DESC-19, DESC-20 and DESC-30 exist to make that distinction, and per-reader filtering
+erases it. That is
 a misreading by a party who cannot detect it, which is what puts this rule on the binding side.
 
 Which Capabilities a given caller may *use* is a real question, and the answer is `403` on the

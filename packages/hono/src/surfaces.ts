@@ -412,7 +412,7 @@ export const writeClaim = createRoute({
         .openapi({
           description: cite(
             "TASK-24",
-            "A Task type to claim one claimable Task of, where the entry declares `claimByType`. The Claim answered carries that Task in `held`. A type the entry does not raise, or one named where `claimByType` is not declared, is `400` (TASK-23); nothing claimable of it is `404`.",
+            "A Task type to claim one claimable Task of, where the entry declares `claimByType`. The Claim answered carries that Task in `held`. A type the entry does not raise, or one named where `claimByType` is not declared, is `400` (TASK-23); nothing claimable of it is `204` and not a refusal, because an empty queue is neither `you are wrong` nor `I am busy`.",
           ),
         }),
       lease: z.coerce
@@ -453,12 +453,15 @@ export const writeClaim = createRoute({
       "The Claim granted — with the Task it holds in `held` on a claim by type (TASK-24) — or the new expiry after a renewal.",
       claim,
     ),
-    204: answer("TASK-14", "The Claim is closed.", null),
+    204: answer(
+      "TASK-14",
+      "The Claim is closed — or, on a claim by type, nothing of that type is claimable and nothing was claimed (TASK-24). The caller tells the two apart by what it asked for.",
+      null,
+    ),
     ...refusals([
       ["invalid_parameter", "TASK-14"],
       ["invalid_parameter", "TASK-23"],
       ["not_found", "ENDP-29"],
-      ["not_found", "TASK-24"],
       ["conflict", "TASK-10"],
       ...SHARED,
     ]),
