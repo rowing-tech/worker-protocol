@@ -1,7 +1,10 @@
 import { OpenAPIHono, type RouteConfig } from "@hono/zod-openapi";
 import { EDITION } from "@worker-protocol/schemas";
 import type { Context, MiddlewareHandler } from "hono";
+import { actions as actionsSurface, jsonSchema } from "./actions.ts";
+import { claims as claimLifecycle, memoryClaims } from "./claims.ts";
 import { byCode } from "./codes.ts";
+import { metrics as metricsSurface } from "./metrics.ts";
 import {
   performAction,
   pollHealth,
@@ -11,6 +14,7 @@ import {
   readTasks,
   writeClaim,
 } from "./surfaces.ts";
+import { tasks as taskSurface } from "./tasks.ts";
 import type { Answer, Refusal, Worker } from "./worker.ts";
 
 /**
@@ -28,18 +32,20 @@ import type { Answer, Refusal, Worker } from "./worker.ts";
  * - REG-3 and REG-21, reading `Authorization: Bearer` and asking the Worker whether it is good on
  *   every address, the Descriptor's included; and the `401`/`403` of ENDP-29 when it is not.
  * - ENDP-6, refusing a Capability version this Worker cannot answer, whole, before anything else.
- * - ENDP-24, refusing an unrecognised filter on every surface that takes no parameter of its own.
+ * - ENDP-24, refusing an unrecognised filter on every surface.
  * - ENDP-25 and ENDP-26, the error envelope with the status and class the code carries.
+ * - ENDP-19, ENDP-20, ENDP-21, ENDP-23, the page envelope and its cursor, on every collection.
  * - DESC-12, the addresses: relative, `../health` and not `health`, because the base for
  *   resolution is the Descriptor's own route and a bare `health` would land under `.well-known/`.
- *   Climbing one segment lands beside the base URL and keeps doing so under a path.
- * - The routes `surfaces.ts` declares, registered at the paths this app serves them at, so that a
- *   Worker author's own `OpenAPIHono` can describe this Worker — with its own Actions and Task
- *   payloads — by asking for its document.
+ * - TASK-9 through TASK-26, the whole Claim lifecycle — `claims.ts` and `tasks.ts`.
+ * - MET-7 through MET-20, the parameters and the boundaries — `metrics.ts` and `buckets.ts`.
+ * - ACT-6 through ACT-12 and ENDP-15 through ENDP-18, the call and its key — `actions.ts`.
+ * - ACT-2 and ACT-3, generating the Descriptor's JSON Schema from the Zod object a Worker declared,
+ *   so the document a console renders a form from and the object a request is validated against
+ *   are one declaration.
  *
  * What it does not carry is anything the Worker is authoritative over: whether a credential is
- * good, what a metric read answers, what performing an Action does. Those arrive as functions and
- * are called; their refusals travel as `{ code, message }` and are enveloped here.
+ * good, which conditions hold, what a number is, what performing an Action does.
  */
 
 const JSON_UTF8 = { "content-type": "application/json; charset=utf-8" };
@@ -81,8 +87,8 @@ const defaultHook = (result: { success: boolean }) =>
 
 // ENDP-24: an unrecognized filter parameter is `400` and is never ignored. A filter dropped in
 // silence answers with MORE than the caller asked for, in a shape it will happily parse. The
-// surfaces with parameters of their own — metrics, tasks, the writes — check them where they know
-// what they mean; the rest take none, so anything at all is a parameter they cannot know.
+// surfaces with parameters of their own check them where they know what they mean; the rest take
+// none, so anything at all is a parameter they cannot know.
 const noParameters: MiddlewareHandler = async (c, next) => {
   const [first] = Object.keys(c.req.query());
   if (first !== undefined) {
@@ -114,8 +120,7 @@ export function mount(worker: Worker): OpenAPIHono {
   const guard: MiddlewareHandler = async (c, next) => {
     // REG-21: the Worker accepts the credential recorded for it on every address this protocol
     // defines, the Descriptor's route included. What makes one good is the Worker's (REG-3).
-    // REG-32: the refusal distinguishes nothing. Not which credential, not which scope, not which
-    // address would have changed the answer — a refusal that explains itself is an oracle.
+    // REG-32: the refusal distinguishes nothing — a refusal that explains itself is an oracle.
     const verdict = worker.authenticate?.(bearer(c)) ?? "accepted";
     if (verdict !== "accepted") return envelope({ code: verdict, message: "No." });
 
@@ -151,9 +156,7 @@ export function mount(worker: Worker): OpenAPIHono {
   };
 
   // DESC-1: the Descriptor, derived from what the Worker implements and nothing else. What it
-  // declares, this app serves, so DESC-18 has nothing to catch. It is filled in below and
-  // serialised once at the end: it does not change for the life of the app, and it is the document
-  // every caller reads first.
+  // declares, this app serves, so DESC-18 has nothing to catch.
   const capabilities: Record<string, unknown> = {};
   let descriptor = "";
   serve(readDescriptor.path, readDescriptor, (c) => c.body(descriptor, 200, JSON_UTF8));
@@ -162,42 +165,71 @@ export function mount(worker: Worker): OpenAPIHono {
     const { health } = worker;
     capabilities.health = { version: 1, address: "../health" };
     // HLTH-5: `200` whatever it reports. The status is read from the body.
-    serve("/health", pollHealth, (c) => c.json(health(), 200));
+    serve("/health", pollHealth, async (c) => c.json(await health(), 200));
   }
 
   if (worker.metrics) {
-    const { read, ...declared } = worker.metrics;
+    const { read, pageSize, ...declared } = worker.metrics;
     capabilities.metrics = { version: 1, address: "../metrics", ...declared };
-    serve("/metrics", readMetric, (c) => page(c, read(query(c))), true);
+    const answer = metricsSurface(worker.metrics);
+    serve("/metrics", readMetric, async (c) => page(c, await answer(query(c))), true);
   }
 
+  // TASK-21 is asked on the Actions address and answered by the Claims, so the tasks surface is
+  // built first whether or not this Worker declares `actions`. A Worker with no `tasks` answers
+  // no Claim, and an Action naming one is then a Claim that is not current.
+  const held = worker.tasks
+    ? claimLifecycle(worker.tasks.claims ?? memoryClaims(), worker.tasks.lease)
+    : undefined;
+  // TASK-26: absent, every credential this Worker authenticated counts as recorded at enrollment.
+  // A Worker with one credential has recorded it, and a default of `false` would have made that
+  // Worker fail a required rule in order to guard a case it does not have.
+  const enrolled = worker.enrolled ?? ((token: string | undefined) => token !== undefined);
+  const surface =
+    worker.tasks && held
+      ? taskSurface(worker.tasks.raises, worker.tasks, held, enrolled)
+      : undefined;
+
   if (worker.actions) {
-    const { perform, settings } = worker.actions;
-    const actions = { ...worker.actions.actions };
-    // ACT-15: where the Worker exposes its settings, the reading address is this app's to fix,
-    // because this app serves it — written into the declaration so the two cannot disagree. It is
-    // not one of `surfaces.ts`'s routes: its document is shaped by `configure`'s own input schema,
-    // which is the Worker's, so it is served plainly and described by nothing here.
-    if (settings && actions.configure) {
-      actions.configure = { ...actions.configure, readAddress: "../settings" };
-      protect("/settings", false);
-      app.get("/settings", (c) => c.json(settings() as Record<string, unknown>));
+    const { settings } = worker.actions;
+    const perform = actionsSurface(
+      worker.actions,
+      async (claim, action) => (await surface?.allows(claim, action)) ?? false,
+    );
+    // ACT-2, ACT-3: the Descriptor carries JSON Schema, generated from the Zod object the Worker
+    // declared — one declaration, so the form a console renders and the validation a request meets
+    // are the same document and cannot drift.
+    const declared: Record<string, unknown> = {};
+    for (const [name, action] of Object.entries(worker.actions.actions)) {
+      declared[name] = {
+        input: jsonSchema(action.input),
+        ...(action.result === undefined ? {} : { result: jsonSchema(action.result) }),
+        completesWithinCall: action.completesWithinCall ?? true,
+        ...(action.idempotency === undefined ? {} : { idempotency: action.idempotency }),
+        // ACT-15: where the Worker exposes its settings, the reading address is this app's to fix,
+        // because this app serves it — written into the declaration so the two cannot disagree.
+        ...(name === "configure" && settings ? { readAddress: "../settings" } : {}),
+      };
     }
-    capabilities.actions = { version: 1, address: "../actions", actions };
-    // ACT-5: the Action is named in the query and the body is the input, raw. The name has been
-    // validated as present before this runs. TASK-20: the Claim an Action answers under travels
-    // as a header, outside the body, and is handed on for the Worker to check (TASK-21).
+    if (settings && worker.actions.actions.configure) {
+      protect("/settings", false);
+      app.get("/settings", async (c) => c.json((await settings()) as Record<string, unknown>));
+    }
+    capabilities.actions = { version: 1, address: "../actions", actions: declared };
+    // ACT-5: the Action is named in the query and the body is the input, raw. TASK-20: the Claim
+    // an Action answers under travels as a header, outside the body.
     serve(
       "/actions",
       performAction,
       async (c) =>
         reply(
           c,
-          perform(
+          await perform(
             query(c).get("action") ?? "",
             await c.req.text(),
             c.req.header("idempotency-key"),
             c.req.header("worker-protocol-claim"),
+            bearer(c),
           ),
         ),
       true,
@@ -207,36 +239,42 @@ export function mount(worker: Worker): OpenAPIHono {
   if (worker.alerts) {
     const { alerts } = worker;
     capabilities.alerts = { version: 1, address: "../alerts" };
-    serve("/alerts", readAlerts, (c) => c.json(alerts(), 200));
+    // ALRT-2, ENDP-20: the Alerts whose conditions hold, in the page envelope this app builds.
+    serve("/alerts", readAlerts, async (c) => c.json({ items: await alerts() }, 200));
   }
 
   if (worker.events) capabilities.events = { version: 1, ...worker.events };
 
-  if (worker.tasks) {
-    const { read, write, ...declared } = worker.tasks;
+  if (worker.tasks && surface) {
+    const { raises, answers, claimByType } = worker.tasks;
     capabilities.tasks = {
       version: 1,
       address: "../tasks",
       claimAddress: "../claims",
-      ...declared,
+      raises: Object.fromEntries(
+        Object.entries(raises).map(([type, declaration]) => [
+          type,
+          { payload: declaration.payload, answeredBy: declaration.answeredBy },
+        ]),
+      ),
+      answers,
+      ...(claimByType === undefined ? {} : { claimByType }),
     };
-    // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers.
-    serve("/tasks", readTasks, (c) => page(c, read(query(c), bearer(c))), true);
+    serve("/tasks", readTasks, async (c) => page(c, await surface.read(query(c), bearer(c))), true);
     serve(
       "/claims",
       writeClaim,
-      (c) => {
-        // TASK-23: a claim naming a type where the entry does not declare `claimByType` is a
-        // parameter fault, and this app refuses it because it serves the declaration and cannot
-        // disagree with it. A type the entry does not raise is the Worker's to refuse.
+      async (c) => {
+        // TASK-23: a claim naming a type where the entry declares no `claimByType` is a parameter
+        // fault, and this app refuses it because it serves the declaration and cannot disagree.
         const asked = query(c);
-        if (asked.has("type") && declared.claimByType !== true) {
+        if (asked.has("type") && claimByType !== true) {
           return envelope({
             code: "invalid_parameter",
             message: "This Worker does not declare `claimByType`.",
           });
         }
-        return reply(c, write(asked, bearer(c)));
+        return reply(c, await surface.write(asked, bearer(c)));
       },
       true,
     );

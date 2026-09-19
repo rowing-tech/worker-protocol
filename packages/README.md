@@ -10,10 +10,40 @@ complying, and proving that you comply.
 | `conformance` | `@worker-protocol/conformance` — point it at a worker's base URL, get a report of what it complies with |
 
 All three are derivable from the specification and verifiable against the fixtures or the
-verifier. Convenience for an implementer belongs here; behavior belongs in `spec/`. `hono` is the
-one TypeScript SDK and lives here rather than in a repository of its own, because the routes it
-exports are also the source `openapi/` is generated from, and the declaration that generates the
-normative artifact does not leave the repository that publishes it.
+verifier. `hono` is the one TypeScript SDK and lives here rather than in a repository of its own,
+because the routes it exports are also the source `openapi/` is generated from, and the declaration
+that generates the normative artifact does not leave the repository that publishes it.
+
+## What "carries no behavior of its own" forbids, and what it asks for
+
+The constraint is about **whose** behavior, not how much. A package may not do something `spec/`
+does not say: that is a package making the standard, and it rots the text the moment the two
+disagree. A package carrying what `spec/` *does* say is the opposite — it is the specification
+compiled once instead of re-derived by everyone.
+
+That sentence was read the narrow way for a while and it cost something measurable. `mount()`
+handed a Worker author a raw `URLSearchParams` and took back a page, so every Worker that declared
+`tasks` wrote its own paging, its own cursor, its own unknown-filter refusal, its own lease clock,
+its own fencing check, its own lapse counting — several hundred lines of rules, identical in every
+Worker, in a repository whose whole argument is that a rule written twice is a rule that will
+disagree with itself. The reference Worker was a thousand lines and said of itself that it was not
+a starting point to copy, which left a developer with no starting point at all.
+
+**The test is whether a rule id can be cited for the line.** If `mount()` does something and no
+rule in `spec/` requires it, that is the forbidden case and the honest response is to argue for the
+rule. If a rule requires it and a Worker author is writing it, the package is the one in the wrong.
+Everything `mount()` carries cites the rules it carries; what it leaves alone — what a Task's
+condition is, what an Action does, what a number means — is what `spec/` deliberately never says.
+
+## The measure
+
+`examples/minimal-worker` is the smallest conformant Worker, and `pnpm dx:check` holds it under a
+line count. It exists because complying being cheap is a claim like any other here, and a claim
+nobody gates is a claim nobody verifies. When it grows, the question is which rule `mount()` failed
+to carry — not whether the budget should be raised.
+
+`examples/reference-worker` is a different thing and is not a template: it is arranged so that the
+rules `conformance/verifiability.md` marks `H` have something to be observed against.
 
 ## A package version is not an edition
 

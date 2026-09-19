@@ -73,13 +73,23 @@ examples/
 docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```
 
-Nothing in `packages/` may carry behavior of its own: everything there is derivable from the
-schemas and verifiable against the fixtures. The day a package does something the specification
-does not say, the package has become the standard and the text has started to rot. `mount()` in
-`packages/hono` is the one thing here that answers a request, and its standing is the verifier's:
-it is derived from the surface declaration beside it, and `@worker-protocol/conformance` running
-against a Worker built on it is what vouches for it. It carries what every conformant Worker owes
-and nothing the specification leaves to a Worker.
+**Nothing in `packages/` may carry behavior of its *own*, and the word is load-bearing in the
+opposite direction to the one it is usually read in.** What is forbidden is a package doing
+something the specification does not say — that is how a package becomes the standard and the text
+starts to rot. What is *wanted* is a package carrying everything the specification does say, because
+the alternative is every Worker author deriving the same rules again and the ones who get a detail
+wrong being non-conformant in a way only a verifier ever finds.
+
+So `mount()` in `packages/hono` carries the whole of what this protocol fixes — the addresses, the
+headers, the envelope, the refusals, the page envelope, the Claim lifecycle, the bucket boundaries
+— and nothing the specification leaves to a Worker. Its standing is the verifier's: it is derived
+from the surface declaration beside it, and `@worker-protocol/conformance` running against a Worker
+built on it is what vouches for it.
+
+**How much a Worker author writes is a number this repository gates**, because it is the one that
+decides whether any of the rest gets used. `examples/minimal-worker` is a conformant Worker in
+under 150 lines, `pnpm dx:check` fails when it grows, and everything above that line is a rule
+`mount()` should have carried.
 
 ## Status
 

@@ -12,24 +12,22 @@ const began = (hoursAgo: number) =>
   new Date(Date.now() - hoursAgo * 3_600_000).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export function alerts() {
-  return {
-    items: [
-      {
-        id: "alert-1",
-        severity: "warning" as const,
-        since: began(30),
-        summary: "The credential recorded for this Worker expires in three days.",
-        // ALRT-7: by the name the `actions` entry holds it under, and nothing else — the schema is
-        // already there and a second copy is a second thing to keep in step.
-        actions: ["configure"],
-      },
-      {
-        id: "alert-2",
-        severity: "critical" as const,
-        since: began(2),
-        summary: "Three Claims on the same Task have failed and no lease is being granted.",
-        actions: [],
-      },
-    ],
-  };
+  return [
+    {
+      id: "alert-1",
+      severity: "warning" as const,
+      since: began(30),
+      summary: "The credential recorded for this Worker expires in three days.",
+      // ALRT-7: by the name the `actions` entry holds it under, and nothing else — the schema is
+      // already there and a second copy is a second thing to keep in step.
+      actions: ["configure"],
+    },
+    {
+      id: "alert-2",
+      severity: "critical" as const,
+      since: began(2),
+      summary: "Three Claims on the same Task have failed and no lease is being granted.",
+      actions: [],
+    },
+  ];
 }

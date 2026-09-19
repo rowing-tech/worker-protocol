@@ -243,11 +243,21 @@ export async function checkActions(
   // purpose: it is the smallest document that no Action's input schema could describe, so a Worker
   // that acted on it would have acted on no input at all. A conformance tool has to pick something
   // to be refused, and this is the one thing that cannot be mistaken for a request to do work.
+  //
+  // A key travels with it where the Action declares one. Two faults are present otherwise — a body
+  // that does not match AND a required key that is absent — and no rule fixes which a Worker names
+  // first, so a probe that provoked both would be asking a question the specification does not
+  // answer and failing whichever Worker answered it the other way. ENDP-18 has its own probe below.
   const mismatched = await post(
     `?action=${encodeURIComponent(name)}`,
     "[]",
     "an input no schema could accept",
-    { permanent: true },
+    {
+      permanent: true,
+      ...(declaration.idempotency === undefined
+        ? {}
+        : { headers: { "idempotency-key": `conformance-mismatch-${Date.now()}` } }),
+    },
   );
   if (mismatched.status === 400 && code(mismatched) === "schema_mismatch") say("ACT-8", "passes");
   else

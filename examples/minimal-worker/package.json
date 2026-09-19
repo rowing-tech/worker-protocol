@@ -1,0 +1,26 @@
+{
+  "name": "@worker-protocol/minimal-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The smallest conformant Worker, and the measure of how cheap complying is",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/server.ts",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "node src/server.ts"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@worker-protocol/hono": "workspace:*",
+    "hono": "4.13.7",
+    "zod": "4.5.4"
+  }
+}

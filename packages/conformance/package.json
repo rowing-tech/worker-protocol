@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@types/node": "26.5.1",
+    "@worker-protocol/minimal-worker": "workspace:*",
     "@worker-protocol/reference-worker": "workspace:*",
     "typescript": "7.0.2",
     "vitest": "5.0.0"

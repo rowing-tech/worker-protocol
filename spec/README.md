@@ -107,8 +107,11 @@ Named non-goals, each settled by work already done rather than asserted in advan
   Every schema a Worker declares is the Worker's own.
 - **Orchestration.** No workflow, no routing, no scheduling, no retry policy beyond the class an
   answer carries.
-- **A runtime, an SDK or a deployment story.** `packages/` is convenience and carries no behaviour;
-  the day a package does something this text does not say, the package has become the standard.
+- **A runtime, an SDK or a deployment story.** Nothing in this directory is written for a library
+  to implement, and no rule here may be satisfied only by one. `packages/` may carry as much of
+  what this text says as it can — that is what an SDK is for — and may carry nothing this text does
+  not say: the day a package does something written nowhere here, the package has become the
+  standard.
 - **A Control Tower product.** The Tower is a role this protocol names and requires little of.
 
 The cost of getting this wrong is not an untidy document. It is thousands of rules that condition

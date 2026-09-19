@@ -12,6 +12,7 @@ pnpm schemas:check        compare schemas/ against the Zod source, byte for byte
 pnpm spec:lint            check the rule-id convention spec/README.md states
 pnpm verifiability:lint   check every rule is classified in conformance/verifiability.md
 pnpm prose:lint           check hand-wrapped Markdown holds the line width biome.jsonc states
+pnpm dx:check             check examples/minimal-worker stays under its line budget
 pnpm rules:check          compare packages/conformance/rules.json against spec/
 pnpm typecheck            type-check scripts/
 pnpm -r build             compile what each package publishes
@@ -21,8 +22,14 @@ pnpm test                 all three suites: the fixtures, openapi/, and the veri
                           reference worker
 ```
 
-Those eleven are what `.github/workflows/ci.yml` runs, in that order. A change is not finished until
-they pass, so run them rather than reporting work as done and leaving them to somebody else.
+Those twelve are what `.github/workflows/ci.yml` runs, in that order. A change is not finished
+until they pass, so run them rather than reporting work as done and leaving them to somebody else.
+
+**`pnpm dx:check` is the one that fails for a reason nobody expects, so the reason is here.**
+It holds `examples/minimal-worker/src/worker.ts` under a line budget, because `packages/` claims
+that complying is cheap and a claim nobody gates is a claim nobody verifies. When it fails, the
+first question is *which rule did `mount()` fail to carry* — the budget moves only when the lines
+added are genuinely a Worker's own domain, and then the commit message says so.
 
 **`pnpm -r build` comes before `pnpm openapi:check` and `pnpm -r typecheck`, and the order is not a
 preference.** `@worker-protocol/conformance` and `@worker-protocol/hono` both import

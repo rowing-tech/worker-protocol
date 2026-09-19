@@ -5,17 +5,29 @@
  * declaration `openapi/` is generated from, and they are `createRoute` objects rather than data of
  * this repository's own because most Workers built on this protocol run on Hono: the declaration
  * that runs is the one that generates, and nothing is declared twice. `mount()` is what makes them
- * run — a Worker author implements `Worker` and gets every address, header, envelope and refusal
- * this protocol fixes, once, the same way in every Worker.
+ * run — a Worker author implements `Worker` and gets every address, header, envelope, refusal,
+ * page, Claim and bucket boundary this protocol fixes, once, the same way in every Worker.
  *
- * This package carries behaviour, and `README.md` says what standing that has: `mount()` is
- * derivable from `surfaces.ts` and verifiable by `@worker-protocol/conformance`, which is the
- * standing the verifier itself has. `examples/reference-worker` is `mount()` over an
- * implementation arranged to be checked, and the verifier passing against it is what vouches for
- * this package.
+ * This package carries behaviour, and `packages/README.md` says what standing that has: what is
+ * forbidden is behaviour of its OWN — something `spec/` does not say — and what is wanted is all of
+ * what `spec/` does say, because the alternative is every Worker deriving the same rules again.
+ * Every line here cites the rule it carries. `examples/reference-worker` is `mount()` over an
+ * implementation arranged to be checked, and `@worker-protocol/conformance` passing against it is
+ * what vouches for this package; `examples/minimal-worker` is what says it is cheap.
  */
 
+export type { Action, ActionCall, ActionDeclarations, ActionFacts } from "./actions.ts";
+export { jsonSchema } from "./actions.ts";
+export { bucketsIn, endOf, type Granularity, rfc3339, startOf } from "./buckets.ts";
+export {
+  type ClaimRecord,
+  type ClaimStore,
+  type LeasePolicy,
+  memoryClaims,
+  type TaskCounts,
+} from "./claims.ts";
 export { CODES, type ErrorCode } from "./codes.ts";
+export type { Bucket, MetricFacts, MetricQuery, MetricSample } from "./metrics.ts";
 export { mount } from "./mount.ts";
 export {
   performAction,
@@ -26,4 +38,5 @@ export {
   readTasks,
   writeClaim,
 } from "./surfaces.ts";
+export type { OpenTask, TaskFacts, TaskTypes } from "./tasks.ts";
 export type { Answer, Refusal, Worker } from "./worker.ts";

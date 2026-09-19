@@ -70,6 +70,14 @@ jobs:
       - name: prose holds the line width biome.jsonc states
         run: pnpm prose:lint
 
+      # The one gate here that measures something about a READER rather than about an artifact.
+      # packages/ claims that complying is cheap, and a claim nobody gates is a claim nobody
+      # verifies — the same reasoning that has schemas/ regenerated above rather than trusted. When
+      # this fails the question is which rule mount() failed to carry, not whether to raise the
+      # budget. The conformance suite holds the other half: that the same file actually conforms.
+      - name: a conformant Worker stays cheap to write
+        run: pnpm dx:check
+
       # The verifier needs the rule universe at runtime and is published to npm, where spec/
       # does not travel with it — so packages/conformance/rules.json is generated AND
       # committed, exactly like schemas/, and for the same reason. This regenerates it from
