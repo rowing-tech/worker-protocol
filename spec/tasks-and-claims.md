@@ -285,6 +285,15 @@ ignore the one `409` that matters. Currency is therefore a fact about the Claim 
 Task: it ends by declaration, by lapse, or by a successor, and a Task closing ends nothing. The
 outcome is accepted, the holder's bookkeeping closes cleanly, and TASK-17 keeps its one meaning.
 
+**The case is ordinary rather than a corner, and it was found by running into it.** Building the
+conformance tool's Task checks required claiming before performing, because the Action that answers
+a Task resolves its condition and the Task is then not there to be claimed — which reads as a
+scheduling detail of a test harness and is not one. It is TASK-15 in the open: a Task disappears
+the instant the Facts beneath it change, and any consumer listing Tasks while another performs that
+Action sees exactly the same thing. The race is not between a test and a Worker; it is between two
+consumers of any Worker, which is why the Claim has to survive the Task rather than be looked up
+through it.
+
 ## Clocks
 
 **TASK-18 (required). The owner's clock decides. A lease expiry is a fact the owner publishes and
