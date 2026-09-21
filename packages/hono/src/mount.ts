@@ -1,12 +1,7 @@
 import { OpenAPIHono, type RouteConfig } from "@hono/zod-openapi";
 import { EDITION } from "@worker-protocol/schemas";
 import type { Context, MiddlewareHandler } from "hono";
-import {
-  actions as actionsSurface,
-  jsonSchema,
-  memoryOutcomes,
-  type OutcomeStore,
-} from "./actions.ts";
+import { actions as actionsSurface, IN_MEMORY, jsonSchema, type OutcomeStore } from "./actions.ts";
 import { byCode } from "./codes.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
 import {
@@ -123,26 +118,73 @@ const noParameters: MiddlewareHandler = async (c, next) => {
 };
 
 /**
- * The state this package owns rather than the Worker, and that therefore outlives one request.
+ * One Worker's surfaces.
  *
- * ENDP-16 is a rule keeping a promise across calls, so a fresh copy per request would be the rule
- * silently broken: a window that forgets before it said it would, while a caller still believes it
- * is protected. This is the fallback a Worker gets when it declares no store of its own, and it is
- * a Map — right in one long-lived process, and wrong in every runtime that scales horizontally,
- * which `ActionFacts.outcomes` is there to answer.
+ * **Nothing here holds state across requests any more, and that is deliberate.** Everything a rule
+ * needs to outlive one call — which today is ENDP-16's recorded outcomes and nothing else — is a
+ * store the Worker names, because `mount()` may answer a different `Worker` object on every
+ * request and a copy held here would start again with each one. That was the shape of three
+ * separate bugs before it was a principle.
  */
-type Durable = {
-  /** ENDP-16. Where recorded outcomes live when the Worker names nowhere else. */
-  outcomes: OutcomeStore;
-};
-
-/** One Worker's surfaces, over state that is older than this request. */
-function surfacesOf(worker: Worker, durable: Durable) {
+function surfacesOf(worker: Worker) {
   return {
     tasks: worker.tasks ? taskSurface(worker.tasks.raises, worker.tasks) : undefined,
-    actions: worker.actions ? actionsSurface(worker.actions, durable.outcomes) : undefined,
+    actions: worker.actions ? actionsSurface(worker.actions) : undefined,
     metrics: worker.metrics ? metricsSurface(worker.metrics) : undefined,
   };
+}
+
+/**
+ * Two ways a Worker fails ENDP-16 without a single request going wrong.
+ *
+ * Neither is a conformance failure anything could find: a verifier sees two `200`s and has no way
+ * to know the Action ran twice. So they are found here, and said where somebody can act on them —
+ * thrown before a request exists where that is possible, and written to the log where it is not.
+ */
+const complainer = () => {
+  let complained = false;
+  return (fault: string | null): void => {
+    if (fault === null || complained) return;
+    complained = true;
+    console.error(fault);
+  };
+};
+
+/**
+ * A Worker that declares an idempotency key and names nowhere to record the outcome.
+ *
+ * It cannot keep the promise the key is for: every repeat performs the Action again, and answers
+ * as though it had not, which is the whole of what ENDP-16 exists to prevent.
+ */
+function unrecorded(worker: Worker): string | null {
+  if (worker.actions === undefined || worker.actions.outcomes !== undefined) return null;
+  const keyed = Object.entries(worker.actions.actions)
+    .filter(([, action]) => action.idempotency !== undefined)
+    .map(([name]) => name);
+  if (keyed.length === 0) return null;
+  return (
+    `ENDP-16: ${keyed.join(", ")} declare${keyed.length === 1 ? "s" : ""} an idempotency key and ` +
+    "this Worker names nowhere to record an outcome. Set `actions.outcomes`: `memoryOutcomes()` " +
+    "in a single long-lived process, or a store over a durable object, a KV namespace or a " +
+    "table anywhere that runs more than one. A Map per isolate performs the Action twice under " +
+    "one key while the caller believes it is protected, and both calls answer 200."
+  );
+}
+
+/**
+ * A Worker that builds its store INSIDE the function answering it, so there is a new one per
+ * request and each forgets what the last recorded — the same failure, reached by obeying the rule
+ * above. Only a memory store is compared: a Worker that builds a thin adapter per request over a
+ * durable backend is correct, and comparing identity alone would fail it.
+ */
+function forgetful(first: OutcomeStore | undefined, now: OutcomeStore | undefined): string | null {
+  if (first === undefined || now === undefined || first === now) return null;
+  if (first[IN_MEMORY] !== true || now[IN_MEMORY] !== true) return null;
+  return (
+    "ENDP-16: this Worker answered a second `memoryOutcomes()`, which means one is built on every " +
+    "request and forgets what the last recorded. Build it once, outside the function that answers " +
+    "the Worker, and close over it — or name a store that outlives the process."
+  );
 }
 
 /** DESC-1. The Descriptor, derived from what the Worker implements and nothing else. */
@@ -197,8 +239,6 @@ function descriptorOf(worker: Worker, edition: string): string {
 }
 
 export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
-  const durable: Durable = { outcomes: memoryOutcomes() };
-
   /**
    * What the runtime gave this request, where it gave one.
    *
@@ -220,6 +260,40 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     typeof source === "function"
       ? (c: Context) => source(c.env as E, executionCtx(c))
       : () => source;
+
+  /**
+   * ENDP-16's check, run once against the first Worker this app sees.
+   *
+   * Once, because REG-8 requires a Worker to declare the same Descriptor to every caller, so its
+   * shape is invariant by the time anything here could disagree — and a Worker handed in whole is
+   * checked before a request has arrived at all, which is where the message does the most good.
+   */
+  let checked = false;
+  let firstStore: OutcomeStore | undefined;
+  // Once per app and not once per process: two Workers mounted in one process are two Workers,
+  // and a fault in the second is not said by the first having said its own.
+  const warn = complainer();
+  const audited = async (c: Context): Promise<Worker> => {
+    const worker = await resolve(c);
+    if (!checked) {
+      checked = true;
+      warn(unrecorded(worker));
+      firstStore = worker.actions?.outcomes;
+    } else {
+      warn(forgetful(firstStore, worker.actions?.outcomes));
+    }
+    return worker;
+  };
+  // A Worker handed in whole is a shape this app can read before a request exists, so the fault is
+  // refused where somebody is still looking at it. A Worker answered per request has no such
+  // moment — so the same fault is said loudly on the first one, and not thrown: ENDP-11 forbids a
+  // `5xx` for a condition that will not change, and this one never will.
+  if (typeof source !== "function") {
+    checked = true;
+    const fault = unrecorded(source);
+    if (fault !== null) throw new Error(fault);
+    firstStore = source.actions?.outcomes;
+  }
 
   /**
    * Which Capabilities this app registers a route for, or `null` when it cannot know yet.
@@ -263,7 +337,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   app.notFound(() => envelope({ code: "not_found", message: "No such address." }));
 
   const guard: MiddlewareHandler = async (c, next) => {
-    const worker = await resolve(c);
+    const worker = await audited(c);
     // REG-21: the Worker accepts the credential recorded for it on every address this protocol
     // defines, the Descriptor's route included. What makes one good is the Worker's (REG-3).
     // REG-32: the refusal distinguishes nothing — a refusal that explains itself is an oracle.
@@ -301,7 +375,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     app.use(path, guard);
     if (!ownParameters) app.use(path, noParameters);
     app.openapi({ ...route, path }, (async (c: Context) => {
-      const worker = await resolve(c);
+      const worker = await audited(c);
       return handler(c, worker);
     }) as never);
   };
@@ -323,7 +397,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "/metrics",
     readMetric,
     async (c, worker) => {
-      const read = surfacesOf(worker, durable).metrics;
+      const read = surfacesOf(worker).metrics;
       if (!read) return undeclared("metrics");
       return page(c, await read(query(c)));
     },
@@ -336,7 +410,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "/actions",
     performAction,
     async (c, worker) => {
-      const perform = surfacesOf(worker, durable).actions;
+      const perform = surfacesOf(worker).actions;
       if (!perform) return undeclared("actions");
       return reply(
         c,
@@ -356,7 +430,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   app.use("/settings", guard);
   app.use("/settings", noParameters);
   app.get("/settings", async (c) => {
-    const worker = await resolve(c);
+    const worker = await audited(c);
     const settings = worker.actions?.settings;
     if (!settings || !worker.actions?.actions.configure) return undeclared("configure");
     return c.json((await settings()) as Record<string, unknown>);
@@ -373,7 +447,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "/tasks",
     readTasks,
     async (c, worker) => {
-      const tasks = surfacesOf(worker, durable).tasks;
+      const tasks = surfacesOf(worker).tasks;
       if (!tasks) return undeclared("tasks");
       return page(c, await tasks.read(query(c), bearer(c)));
     },

@@ -19,7 +19,7 @@
  * quiet, and closes it when somebody records a check.
  */
 
-import { mount, type OpenTask, type Worker } from "@worker-protocol/hono";
+import { memoryOutcomes, mount, type OpenTask, type Worker } from "@worker-protocol/hono";
 import * as z from "zod";
 
 const TYPE = "tech.rowing.fleet.check-silent-vehicle";
@@ -33,6 +33,15 @@ const silent = new Map<string, Date>([
   ["DEF-456", new Date(Date.now() - 7_200_000)],
 ]);
 const checked = new Set<string>();
+
+/**
+ * ENDP-16: where a repeat under the same key finds the outcome already recorded.
+ *
+ * Built HERE and not inside the Worker below, which is answered on every request: a store built
+ * there would be a new one each time and would forget what the last one recorded. On Cloudflare
+ * this is a durable object, because a Map per isolate has the same problem one step out.
+ */
+const outcomes = memoryOutcomes();
 
 export const fleetWorker = (env: Env): Worker => ({
   // DESC-6: the Worker's own id, which is not the URL it is served from.
@@ -69,6 +78,7 @@ export const fleetWorker = (env: Env): Worker => ({
   // ACT-2: the input is a Zod object, and it is used twice — the Descriptor carries the JSON
   // Schema a console renders a form from, and a request is validated against the same object.
   actions: {
+    outcomes,
     actions: {
       "record-check": {
         input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),

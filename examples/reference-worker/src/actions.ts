@@ -12,7 +12,7 @@
  * validator this file used to hold is gone with it, and with it the second place to disagree.
  */
 
-import type { ActionDeclarations, Refusal } from "@worker-protocol/hono";
+import { type ActionDeclarations, memoryOutcomes, type Refusal } from "@worker-protocol/hono";
 import * as z from "zod";
 
 /** ACT-14: the Worker's complete settings document. A performance replaces what it holds. */
@@ -68,5 +68,6 @@ export function createActions(verify: (vehicle: string) => void) {
     },
   };
 
-  return { actions, settings: () => settings };
+  // ENDP-16: one process here, so a Map is the right store and saying so is one line.
+  return { actions, settings: () => settings, outcomes: memoryOutcomes() };
 }

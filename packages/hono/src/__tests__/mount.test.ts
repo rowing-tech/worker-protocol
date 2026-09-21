@@ -1,7 +1,7 @@
 import { EDITION } from "@worker-protocol/schemas";
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
-import type { OutcomeStore, Recorded } from "../actions.ts";
+import { memoryOutcomes, type OutcomeStore, type Recorded } from "../actions.ts";
 import { mount } from "../mount.ts";
 
 /**
@@ -74,6 +74,7 @@ describe("mount()", () => {
  */
 describe("mount(), with the Worker answered per request", () => {
   let performed = 0;
+  const outcomes = memoryOutcomes();
   const perRequest = mount<{ token: string }>((env) => ({
     id: "tech.rowing.worker-protocol.dynamic",
     authenticate: (presented) => (presented === env.token ? "accepted" : "unauthenticated"),
@@ -88,6 +89,10 @@ describe("mount(), with the Worker answered per request", () => {
       ],
     },
     actions: {
+      // ENDP-16: the store outlives the Worker object, which is the whole point of naming one —
+      // `mount()` answers a different Worker on every request and a Map built here would start
+      // again with each. This one is built once, above, and closed over.
+      outcomes,
       actions: {
         count: {
           input: z.object({}),
@@ -210,5 +215,78 @@ describe("mount(), with the recorded outcomes somewhere durable", () => {
     // `{ n: 2 }` — the Action performed twice under one key, which is ENDP-16 broken in silence.
     expect(await (await post(isolate())).json()).toEqual({ n: 1 });
     expect(performed).toBe(1);
+  });
+});
+
+/**
+ * The two ways a Worker can fail ENDP-16 without a single request going wrong.
+ *
+ * Both are refused at the moment somebody can still fix them. Neither is a conformance failure a
+ * verifier would find: a tool sees two `200`s and has no way to know the Action ran twice.
+ */
+describe("mount(), refusing a Worker that cannot keep ENDP-16", () => {
+  const keyed = {
+    count: {
+      input: z.object({}),
+      idempotency: { required: true, from: "header", windowSeconds: 60 },
+      run: () => undefined,
+    },
+  } as const;
+
+  it("refuses a Worker handed in whole that names nowhere to record", () => {
+    // A shape this app can read before a request exists, so the fault is refused where somebody is
+    // still looking at it rather than six weeks later in somebody else's log.
+    expect(() => mount({ id: "tech.rowing.test.unrecorded", actions: { actions: keyed } })).toThrow(
+      /ENDP-16.*names nowhere to record/s,
+    );
+  });
+
+  it("says so loudly when the Worker is answered per request, and does not throw", async () => {
+    // There is no moment before a request to refuse it in, and throwing inside one would answer
+    // `500` — which ENDP-11 forbids for a condition that will not change, and this never will. So
+    // it goes to the log, and the Worker serves: broken about ENDP-16 and honest about everything.
+    const said: string[] = [];
+    const original = console.error;
+    console.error = (line: string) => void said.push(line);
+    try {
+      const app = mount(() => ({ id: "tech.rowing.test.unrecorded", actions: { actions: keyed } }));
+      const answer = await app.fetch(new Request("http://worker.invalid/health"), {});
+      expect(answer.status).toBe(404);
+    } finally {
+      console.error = original;
+    }
+    expect(said.join()).toMatch(/ENDP-16.*names nowhere to record/s);
+  });
+
+  it("says so when a memory store is built on every request", async () => {
+    // The subtler one, and the one `examples/minimal-worker` walked into: the store is named, and
+    // built inside the function that answers the Worker — so it is a new Map per request and
+    // forgets what the last one recorded. Obeying the first rule is how you reach this.
+    const said: string[] = [];
+    const original = console.error;
+    console.error = (line: string) => void said.push(line);
+    try {
+      const app = mount(() => ({
+        id: "tech.rowing.test.forgetful",
+        actions: { outcomes: memoryOutcomes(), actions: keyed },
+      }));
+      const call = () => app.fetch(new Request("http://worker.invalid/health"), {});
+      await call();
+      await call();
+    } finally {
+      console.error = original;
+    }
+    expect(said.join()).toMatch(/ENDP-16.*built on every request/s);
+  });
+
+  it("allows a Worker that answers a store it built once", async () => {
+    const outcomes = memoryOutcomes();
+    const perRequest = mount(() => ({
+      id: "tech.rowing.test.recorded",
+      actions: { outcomes, actions: keyed },
+    }));
+    const call = () => perRequest.fetch(new Request("http://worker.invalid/health"), {});
+    expect((await call()).status).toBe(404);
+    expect((await call()).status).toBe(404);
   });
 });

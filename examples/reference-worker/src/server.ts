@@ -98,7 +98,7 @@ export type Facts = ReturnType<typeof createFacts>;
  * resolved on every request, so anything it built itself would be built again.
  */
 export function referenceWorker(options: WorkerOptions = {}, facts: Facts = createFacts()): Worker {
-  const { tasks, actions, settings, started } = facts;
+  const { tasks, actions, settings, outcomes, started } = facts;
   const readyAfter = options.readyAfterMs ?? 0;
 
   // REG-28: more than one valid credential for one holder at a time, so replacing one is an
@@ -138,7 +138,9 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
 
     // ACT-1: the Actions this Worker accepts, keyed by name. `mount()` generates each one's JSON
     // Schema from the Zod object beside it and writes `configure`'s reading address (ACT-15).
-    actions: { actions, settings },
+    // ENDP-16: `outcomes` travels with them, because `record-verification` declares a key and a
+    // Worker that declares one and names nowhere to record it is refused at construction.
+    actions: { actions, settings, outcomes },
 
     // TASK-6: only what the credential covers, because a list showing every Task to every holder
     // of any Contract is a disclosure the owner cannot take back.

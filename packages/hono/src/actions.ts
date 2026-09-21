@@ -63,17 +63,18 @@ export type ActionFacts = {
   /** ACT-15. The document `configure` would accept, where the Worker accepts settings. */
   settings?: () => unknown | Promise<unknown>;
   /**
-   * ENDP-16. Where the recorded outcomes live, for a Worker that runs in more than one process.
+   * ENDP-16. Where the recorded outcomes live. **Required as soon as any Action declares a key.**
    *
-   * **Absent, they live in a Map, and that is correct in exactly one place: a single long-lived
-   * process.** A Worker across isolates — Cloudflare, Vercel edge, Deno Deploy, anything that
-   * scales horizontally — has one Map per isolate, so a repeat under the same key reaches a
-   * process that never recorded the first and the Action is performed a second time *while the
-   * caller believes it is protected*. That is the exact failure ENDP-16 exists to prevent, and it
-   * is silent: both calls succeed and nobody sees two.
+   * There is no default, and the absence is the design. The obvious one is a Map, which is correct
+   * in exactly one place — a single long-lived process — and silently wrong everywhere that scales
+   * horizontally: a Worker across isolates has one Map per isolate, so a repeat under the same key
+   * reaches a process that recorded nothing, the Action is performed a second time *while the
+   * caller believes it is protected*, and both calls answer `200` so nobody sees two.
    *
-   * A store over a durable object, a KV namespace or a table closes it. It is four methods and
-   * none of them decides anything; the window is `mount()`'s to enforce.
+   * A default would have made that the thing you get by not thinking about it, on the platform
+   * this protocol's architecture names first. So it is written, in one line, by whoever knows where
+   * their Worker runs: `memoryOutcomes()` in a process, a store over a durable object, a KV
+   * namespace or a table anywhere else.
    */
   outcomes?: OutcomeStore;
 };
@@ -88,7 +89,20 @@ export type ActionFacts = {
 export type OutcomeStore = {
   get: (key: string) => Recorded | undefined | Promise<Recorded | undefined>;
   put: (key: string, held: Recorded) => void | Promise<void>;
+  /** Set by `memoryOutcomes` alone, so `mount()` can tell one built per request from a durable one. */
+  readonly [IN_MEMORY]?: true;
 };
+
+/**
+ * What marks a store as living in this process and nowhere else.
+ *
+ * `mount()` uses it for one check it could not otherwise make: a store built INSIDE the function
+ * that answers the Worker is a fresh one on every request, which forgets everything between two
+ * calls and breaks ENDP-16 exactly as having no store does. Comparing identity would catch that and
+ * would also fail a perfectly correct Worker that builds a thin adapter per request over a durable
+ * backend — so only a memory store is compared, where a second object is unambiguously the mistake.
+ */
+export const IN_MEMORY: unique symbol = Symbol.for("worker-protocol.outcomes.in-memory");
 
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
 
@@ -101,14 +115,26 @@ const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message }
  */
 export type Recorded = { body: string; answer: Answer; until: number };
 
-/** The default store: a Map, which is right in one long-lived process and wrong everywhere else. */
+/**
+ * A store in memory: right in one long-lived process, and wrong everywhere else.
+ *
+ * It is exported rather than defaulted so that choosing it is a line somebody wrote. A Worker in a
+ * single Node or Bun process is the case it is right for, and that case is common enough to
+ * deserve the helper and not common enough to deserve the default.
+ */
 export const memoryOutcomes = (): OutcomeStore => {
   const held = new Map<string, Recorded>();
-  return { get: (key) => held.get(key), put: (key, record) => void held.set(key, record) };
+  return {
+    [IN_MEMORY]: true,
+    get: (key) => held.get(key),
+    put: (key, record) => void held.set(key, record),
+  };
 };
 
-export function actions(facts: ActionFacts, fallback: OutcomeStore) {
-  const recorded = facts.outcomes ?? fallback;
+export function actions(facts: ActionFacts) {
+  // ENDP-16 needs somewhere to record, and `mount()` has refused to build a Worker that declares a
+  // key without naming one — so by here it is either given or never asked for.
+  const recorded = facts.outcomes;
 
   return async function perform(
     name: string,
@@ -164,7 +190,9 @@ export function actions(facts: ActionFacts, fallback: OutcomeStore) {
 
     const now = Date.now();
     const held =
-      recordedKey === undefined ? undefined : await recorded.get(`${name}:${recordedKey}`);
+      recordedKey === undefined || recorded === undefined
+        ? undefined
+        : await recorded.get(`${name}:${recordedKey}`);
     if (held !== undefined && held.until > now) {
       // ENDP-17: a key reused with a different body is `409`. Only the caller can tell a retry
       // from a genuine repeat, and this is the Worker declining to guess.
@@ -187,7 +215,7 @@ export function actions(facts: ActionFacts, fallback: OutcomeStore) {
           ? { status: 204, body: null }
           : { status: 200, body: produced };
 
-    if (recordedKey !== undefined && idempotency !== undefined) {
+    if (recordedKey !== undefined && idempotency !== undefined && recorded !== undefined) {
       await recorded.put(`${name}:${recordedKey}`, {
         body: raw,
         answer,
