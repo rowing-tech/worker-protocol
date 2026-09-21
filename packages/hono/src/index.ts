@@ -25,7 +25,7 @@ export type {
   Recorded,
   Reservation,
 } from "./actions.ts";
-export { jsonSchema, memoryOutcomes } from "./actions.ts";
+export { action, jsonSchema, memoryOutcomes } from "./actions.ts";
 export { bucketsIn, endOf, type Granularity, rfc3339, startOf } from "./buckets.ts";
 export { CODES, type ErrorCode } from "./codes.ts";
 export type { Bucket, MetricFacts, MetricQuery, MetricSample } from "./metrics.ts";
@@ -46,4 +46,4 @@ export {
   readTasks,
 } from "./surfaces.ts";
 export type { OpenTask, TaskFacts, TaskTypes } from "./tasks.ts";
-export type { Activity, Alert, Answer, Refusal, Worker } from "./worker.ts";
+export type { Activity, Alert, Answer, Refusal, SkillDeclaration, Worker } from "./worker.ts";

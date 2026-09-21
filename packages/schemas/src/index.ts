@@ -253,6 +253,39 @@ export const healthEntry = capabilityEntry.extend({ address }).meta({
  * unknown key while the generated `additionalProperties: false` REJECTS it — a TypeScript
  * consumer and a Python one would otherwise reach opposite verdicts on one Descriptor.
  */
+/**
+ * TASK-30 — what a Worker declares about one Skill, which today is nothing.
+ *
+ * Empty and strict on purpose. A Skill carries no declaration yet, and the shape for *nothing yet*
+ * is the one an optional member can join without invalidating a document already written — which
+ * NAME-5 calls compatible. A list of names could only have grown by becoming this, and becoming
+ * this later would have cost every Worker that declared a Skill a rewrite.
+ */
+export const skillDeclaration = z
+  .strictObject({
+    payload: z
+      .looseObject({})
+      .optional()
+      .meta({
+        description:
+          "TASK-30. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task " +
+          "of this type — its own requirement, and not a copy of what any owner sends. NAME-6 " +
+          "judges the two in the direction the document travels: a Tower validates the Tasks an " +
+          "owner actually raises against this, and knows before any work is handed over whether " +
+          "this Worker can read it. May ask for less than an owner sends; a Tower that finds it " +
+          "asking for more has its answer. OPTIONAL: a Skill that states no requirement claims " +
+          "the capability and nothing about what it needs, which is conformant and is where this " +
+          "protocol stood before the field existed. What it costs is the check.",
+      }),
+  })
+  .meta({
+    title: "Skill declaration",
+    description:
+      "TASK-30. What this Worker declares about one Task type it answers. The owner's `raises` " +
+      "says what is sent; this says what the answerer requires, where it says anything at all, " +
+      "and the two are what a Tower compares.",
+  });
+
 export const descriptor = z
   .strictObject({
     id: z
@@ -281,11 +314,11 @@ export const descriptor = z
           "with numeric comparison.",
       }),
     skills: z
-      .array(qualifiedName)
+      .record(qualifiedName, skillDeclaration)
       .optional()
       .meta({
         description:
-          "TASK-29. The Task types this Worker answers, which IS its Skill — the unit of " +
+          "TASK-30. The Task types this Worker answers, which IS its Skill — the unit of " +
           "discovery the Tower catalogs by. It is at the root rather than in the `tasks` entry " +
           "because a Skill is served at no address and answered by no surface: it is what a " +
           "Worker IS, like its id, and a Capability is what a Worker SERVES. Omitted by a Worker " +
@@ -798,7 +831,7 @@ export const taskTypeDeclaration = z
  * lifecycle was withdrawn; `spec/tasks.md` holds the argument, and the short of it is that a lease
  * over a unit of work is orchestration, which this specification names a non-goal.
  *
- * It carried a third thing until TASK-29 moved it: what the Worker ANSWERS, which is served at no
+ * It carried a third thing until TASK-30 moved it: what the Worker ANSWERS, which is served at no
  * address and is now `skills` on the Descriptor's root. What is left here is what the declared
  * address actually answers instances of.
  */
@@ -815,7 +848,7 @@ export const tasksEntry = capabilityEntry
     title: "Tasks capability entry",
     description:
       "TASK-27. The shared Capability entry with the reading address required, and the Task " +
-      "types this Worker raises. What it ANSWERS is TASK-29's `skills`, on the Descriptor root.",
+      "types this Worker raises. What it ANSWERS is TASK-30's `skills`, on the Descriptor root.",
   });
 
 /**
@@ -1106,6 +1139,7 @@ registry.add(metricDeclaration, { id: "metric-declaration" });
 registry.add(metricsEntry, { id: "metrics-entry" });
 registry.add(metricBucket, { id: "metric-bucket" });
 registry.add(metricPage, { id: "metric-page" });
+registry.add(skillDeclaration, { id: "skill-declaration" });
 registry.add(descriptor, { id: "descriptor" });
 registry.add(error, { id: "error" });
 registry.add(page, { id: "page" });

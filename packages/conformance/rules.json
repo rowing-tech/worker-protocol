@@ -902,7 +902,7 @@
       "reach": "W"
     },
     {
-      "id": "TASK-29",
+      "id": "TASK-30",
       "file": "tasks.md",
       "class": "required",
       "reach": "W"
@@ -1083,7 +1083,9 @@
       "capabilities/*/version": "DESC-9",
       "edition": "DESC-23",
       "id": "DESC-6",
-      "skills": "TASK-29"
+      "skills": "TASK-30",
+      "skills/*": "TASK-30",
+      "skills/*/payload": "TASK-30"
     },
     "error": {
       "": "ENDP-25",
@@ -1182,6 +1184,10 @@
     },
     "qualified-name": {
       "": "NAME-7"
+    },
+    "skill-declaration": {
+      "": "TASK-30",
+      "payload": "TASK-30"
     },
     "task-page": {
       "": "TASK-5",

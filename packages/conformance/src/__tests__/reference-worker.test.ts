@@ -113,25 +113,27 @@ describe("the reference worker, verified", () => {
     // specification did not.
     expect(failing).toEqual(["DESC-3"]);
 
-    // TASK-29's positive witness. This is the only Worker here that HAS a Skill, so it is the only
+    // TASK-30's positive witness. This is the only Worker here that HAS a Skill, so it is the only
     // place the rule can be seen passing — the other two suites assert its absence, and a pair of
     // tests that only ever saw a field missing would prove nothing about the field.
-    expect(report.results.find((r) => r.rule.id === "TASK-29")?.verdict).toBe("passes");
+    expect(report.results.find((r) => r.rule.id === "TASK-30")?.verdict).toBe("passes");
   });
 
-  it("declares its Skill on the Descriptor root, where TASK-29 puts it", async () => {
+  it("declares its Skill on the Descriptor root, where TASK-30 puts it", async () => {
     const descriptor = await fetch(new URL("/.well-known/worker-protocol", worker.url), {
       headers: { authorization: "Bearer a-token" },
     });
     const document = (await descriptor.json()) as {
-      skills?: string[];
+      skills?: Record<string, unknown>;
       capabilities: { tasks?: Record<string, unknown> };
     };
 
     // Beside the id, not inside a Capability — read off the bytes on the wire rather than off the
     // TypeScript that produced them. The verdict itself is asserted on the report the test above
     // already ran; a second full sweep to look up one rule id is a whole verification wasted.
-    expect(document.skills).toEqual(["tech.rowing.worker-protocol.verify-vehicle"]);
+    expect(document.skills).toEqual({
+      "tech.rowing.worker-protocol.verify-vehicle": { payload: expect.any(Object) },
+    });
     expect(document.capabilities.tasks).not.toHaveProperty("skills");
     expect(document.capabilities.tasks).not.toHaveProperty("answers");
   });

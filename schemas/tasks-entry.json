@@ -33,5 +33,5 @@
   ],
   "additionalProperties": {},
   "title": "Tasks capability entry",
-  "description": "TASK-27. The shared Capability entry with the reading address required, and the Task types this Worker raises. What it ANSWERS is TASK-29's `skills`, on the Descriptor root."
+  "description": "TASK-27. The shared Capability entry with the reading address required, and the Task types this Worker raises. What it ANSWERS is TASK-30's `skills`, on the Descriptor root."
 }

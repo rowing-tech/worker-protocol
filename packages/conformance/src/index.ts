@@ -168,7 +168,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     const listed = await checkTasks(
       descriptor.document.capabilities.tasks,
       surface("tasks"),
-      descriptor.document.skills ?? [],
+      Object.keys(descriptor.document.skills ?? {}),
       actionNames,
       byId,
       attribution,

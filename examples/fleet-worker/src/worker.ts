@@ -1,4 +1,5 @@
 import {
+  action,
   defineWorker,
   mount,
   type OpenTask,
@@ -101,20 +102,20 @@ export const fleetWorker = defineWorker<Env>((env) => {
       // first recorded. A `Map` here would have been one per isolate and the Action would run twice.
       outcomes: durableOutcomes(fleet),
       accepts: {
-        "record-inspection": {
+        "record-inspection": action({
           input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
           result: z.object({ recordedAt: z.string() }),
           idempotency: { required: true, from: "header", windowSeconds: 3600 },
-          run: async ({ vehicle }: { vehicle: string }) => {
+          run: async ({ vehicle }) => {
             await fleet.inspect(vehicle, Date.now());
             return { recordedAt: new Date().toISOString() };
           },
-        },
-        "run-cycle": {
+        }),
+        "run-cycle": action({
           input: z.object({}),
           result: z.object({ readings: z.number(), published: z.number() }),
           run: () => cycle(env),
-        },
+        }),
       },
     },
 
@@ -138,11 +139,8 @@ export const fleetWorker = defineWorker<Env>((env) => {
     tasks: {
       raises: {
         [QUIET_VEHICLE]: {
-          payload: {
-            type: "object",
-            properties: { vehicle: { type: "string" } },
-            required: ["vehicle"],
-          },
+          // A Zod object, as an Action's input is; `mount()` writes the JSON Schema.
+          payload: z.object({ vehicle: z.string() }),
           answeredBy: ["record-inspection"],
         },
       },
@@ -164,11 +162,7 @@ export const fleetWorker = defineWorker<Env>((env) => {
       destination: { bootstrapServers: "kafka.rowing.invalid:9092", topic: "fleet.telemetry" },
       publishes: {
         "tech.rowing.fleet.vehicle-went-quiet": {
-          data: {
-            type: "object",
-            properties: { vehicle: { type: "string" }, since: { type: "string" } },
-            required: ["vehicle", "since"],
-          },
+          data: z.object({ vehicle: z.string(), since: z.string() }),
         },
       },
       // EVT-8: what a consumer sizes its deduplication store against.

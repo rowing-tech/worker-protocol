@@ -12,7 +12,12 @@
  * validator this file used to hold is gone with it, and with it the second place to disagree.
  */
 
-import { type ActionDeclarations, memoryOutcomes, type Refusal } from "@worker-protocol/hono";
+import {
+  type ActionDeclarations,
+  action,
+  memoryOutcomes,
+  type Refusal,
+} from "@worker-protocol/hono";
 import * as z from "zod";
 
 /** ACT-14: the Worker's complete settings document. A performance replaces what it holds. */
@@ -29,43 +34,43 @@ export function createActions(verify: (vehicle: string) => void) {
   const actions: ActionDeclarations = {
     // ACT-13: the one Action name this edition reserves, and ACT-15 the reading address without
     // which a console renders an empty form and an operator replaces what they did not remember.
-    configure: {
+    configure: action({
       input: settingsSchema,
-      run: (next: Settings) => {
+      run: (next) => {
         // ACT-14: the input is the complete settings document and this replaces what is held.
         settings = next;
       },
-    },
-    "record-verification": {
+    }),
+    "record-verification": action({
       input: z.object({ vehicle: z.string().min(1), verified: z.boolean() }),
       result: z.object({ recordedAt: z.string() }),
       // ENDP-15, ACT-12: a key in the header is opaque and the Worker records it without parsing
       // it, which is what a caller reaches for when its payload carries no identity of its own.
       idempotency: { required: true, from: "header", windowSeconds: 3600 },
-      run: ({ vehicle }: { vehicle: string }) => {
+      run: ({ vehicle }) => {
         // A verification is now on record for this vehicle, whatever it found. The Task that asked
         // for one closes by condition (TASK-15): the Action changed a Fact, and the Task followed.
         verify(vehicle);
         return { recordedAt: new Date().toISOString() };
       },
-    },
-    "price-quote": {
+    }),
+    "price-quote": action({
       input: z.object({ amount: z.number() }),
       result: z.object({ quote: z.number() }),
-      run: ({ amount }: { amount: number }): { quote: number } | Refusal =>
+      run: ({ amount }): { quote: number } | Refusal =>
         // ACT-9: schema-valid, and refused on this Worker's own rules. ENDP-12's second half, and
         // the one case a verifier cannot provoke without a Worker built to offer it.
         amount <= 0
           ? { code: "unprocessable_content", message: "An amount is positive." }
           : { quote: amount * 1.21 },
-    },
-    "rebuild-index": {
+    }),
+    "rebuild-index": action({
       input: z.object({}),
       // ACT-11: it declares that it does not finish here, so a caller knows before it sends that
       // it will not learn the outcome from the answer, and `mount()` answers `202`.
       completesWithinCall: false,
       run: () => undefined,
-    },
+    }),
   };
 
   // ENDP-16: one process here, so a Map is the right store and saying so is one line.

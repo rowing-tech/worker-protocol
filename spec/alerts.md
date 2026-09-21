@@ -17,7 +17,7 @@ every poller in order to reach one operator. Fold Alerts into health and a Worke
 misreport its own state or never mention the thing a person has three days to fix.
 
 Against [tasks](tasks.md): a Task is delegation, and an Alert delegates nothing. A Task requires a
-Skill and is discovered by it — TASK-29 makes the Task types a Worker answers the unit a Tower
+Skill and is discovered by it — TASK-30 makes the Task types a Worker answers the unit a Tower
 catalogs by — and an Alert has no Skill, because its audience is whoever operates this Worker and
 that is a relationship of enrollment rather than of Contract. TASK-6 follows from the same place: a
 Task is shown only to the consumer whose Contract covers it, where ALRT-6 answers the same Alerts

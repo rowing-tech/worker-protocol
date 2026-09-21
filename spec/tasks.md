@@ -26,8 +26,11 @@ than buried in the list, because a reader who remembers them is owed it.
 **TASK-2 (required). The entry declares every Task type the Worker raises, keyed by name, each with
 the schema of its payload and the closed list of Actions that may answer it.**
 
-**TASK-29 (required). The Descriptor declares under `skills`, at its root and not inside a
-Capability, the Task types the Worker answers — which is its Skill. A Worker with none omits it.**
+**TASK-30 (required). The Descriptor declares under `skills`, at its root and not inside a
+Capability, the Task types the Worker answers — which is its Skill. It is a map keyed by Task type,
+as `raises` is, and each entry may declare the JSON Schema of the payload that Worker requires in
+order to answer one. A Worker with no Skill omits `skills`; a Skill that states no requirement is a
+claim of capability and nothing more.**
 
 **TASK-4 (required). A Task type is a qualified name under NAME-7.**
 
@@ -41,12 +44,42 @@ tell an Action performed *because of* a Task from one performed for any other re
 the same request. The list tells a consumer what would answer, and nothing refuses a performance
 that answers nothing.
 
-TASK-29 is the other side of the same name, and it is what makes the
+TASK-30 is the other side of the same name, and it is what makes the
 [architecture](../docs/architecture.md)'s *unit of discovery* concrete: the Tower catalogs Workers
 by the Task types they answer, so a Worker that answers `tech.rowing.fleet.verify-vehicle` says so
 where every reader already looks. Both lists are drawn from one vocabulary, and NAME-7 reaches both
 for the same reason — `raises` says *I need this done* and `skills` says *I can do this*, and the
 two are joined by a party that met neither.
+
+**Each side declares the payload, and they are not the same declaration.** The owner's, under
+`raises`, is what it *sends*: the shape of what it knows about the condition. The answerer's,
+under `skills`, is what it *needs to receive* in order to do the work — and it is the answerer who
+knows that, because the answerer is the one who has to act on it. NAME-6 already says which way to
+judge the two: for a document a Worker receives, against the party that sends it. So a Tower holding
+both can answer the question an operator asks at enrollment — *can this Worker take that one's
+Tasks?* — by validating the Tasks the owner actually raises against what the answerer says it
+requires, and can answer it again on every poll, so that an owner that changes what it sends is
+caught before a consumer is handed work it cannot read.
+
+**What that establishes, and what it does not.** That the shapes agree is checkable, and it is the
+difference between *the names matched* and *this Worker can understand the work*. That the Worker
+will then *do* the work is not something any declaration can promise, and this file does not
+pretend one can: what remains is to hand it a Task and see whether the Action arrives, which is what
+the verifier already does under an arrangement, and to read its [activity](activity.md) and watch
+the owner's Task close. A Worker's Skill says what it needs; its record says what it did.
+
+The answerer's schema may ask for less than the owner sends — a consumer that needs one field of a
+ten-field payload declares one — and every document the owner produces then satisfies it. It may
+not ask for more, and a Tower that finds it asking for more has found the answer to the question.
+
+**The requirement is optional, and leaving it out means what it says.** A Worker that states none
+has claimed it answers the type and claimed nothing about what it needs, which is where this
+protocol stood before the field existed and is still a conformant thing to say — a Worker that
+takes whatever arrives has no requirement to state, and inventing one so that a field is filled
+would be a declaration written to satisfy a schema rather than a reader. What it costs is the
+check: a Tower reads a name it can catalog and has nothing to compare, so the pairing is judged
+when the work arrives rather than when the operator asked. That is the trade, and it belongs to the
+Worker that made it.
 
 **It sits at the root rather than in the `tasks` entry, and where it sits is an argument.** A
 Capability is something a Worker *serves*: DESC-12 gives each entry an address, and a read of the
@@ -62,7 +95,7 @@ A Worker that raises Tasks and answers none, or answers and raises none, is the 
 rather than the exception. **Both rules bind anyway, and they say the empty case differently.** A
 Worker that raises nothing still declares `raises` as an empty map, because the entry exists and
 every reader parses one shape; a Worker that answers nothing omits `skills` entirely, because
-TASK-29 is a root field and DESC-2 already has a Worker leave out what it does not implement. What
+TASK-30 is a root field and DESC-2 already has a Worker leave out what it does not implement. What
 neither rule requires is *content* — and both require that what content there is be complete. A
 Worker that answers a Task type and leaves it out of `skills` is not conformant; it is merely
 undiscoverable, which is the same thing from the Tower's side and is why nothing outside can tell.
@@ -179,7 +212,7 @@ anybody did about it.
 
 ## Still open here
 
-- **Who verifies that a Worker answers the Task types it declares under TASK-29.** The Tower at
+- **Who verifies that a Worker answers the Task types it declares under TASK-30.** The Tower at
   registration, the owner at claim time, or nobody. Open in [undecided](../docs/undecided.md).
 - Whether a Task may carry a deadline of its own.
 - **Whether a consumer can say it is working on something, without a lease.** An advisory note on
@@ -190,6 +223,19 @@ anybody did about it.
   it. Open in [undecided](../docs/undecided.md).
 
 ## Withdrawn
+
+- **TASK-29** — required the same declaration, at the same place, as a list of Task type names.
+  Replaced by **TASK-30**, which makes it a map keyed by Task type. A Descriptor carrying an array
+  satisfied TASK-29 and does not satisfy TASK-30, so the verdict moves and the id did not survive.
+
+  It was withdrawn before anything was built on it, and the reason is the one it now prevents. A
+  Skill carries no declaration today, and a bare list is the right shape for that — right up to the
+  first thing anybody wants to say about one, at which point the list has to become a map and every
+  Worker that ever declared a Skill rewrites its Descriptor. The [Control
+  Tower](../docs/architecture.md) is what this protocol is for and it does not exist yet; writing
+  Workers now against a shape that is known to move when it arrives is a bill sent to the people
+  this specification is trying to help. The map is what let the value arrive — the payload the
+  answerer requires — without the list having to become something else first.
 
 - **TASK-3** — required the list inside the `tasks` entry, under `answers`. Replaced by
   **TASK-29**, which moves it to the Descriptor's root and calls it `skills`. An entry carrying

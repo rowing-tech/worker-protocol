@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skill-declaration.json",
+  "type": "object",
+  "properties": {
+    "payload": {
+      "description": "TASK-30. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task of this type — its own requirement, and not a copy of what any owner sends. NAME-6 judges the two in the direction the document travels: a Tower validates the Tasks an owner actually raises against this, and knows before any work is handed over whether this Worker can read it. May ask for less than an owner sends; a Tower that finds it asking for more has its answer. OPTIONAL: a Skill that states no requirement claims the capability and nothing about what it needs, which is conformant and is where this protocol stood before the field existed. What it costs is the check.",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    }
+  },
+  "additionalProperties": false,
+  "title": "Skill declaration",
+  "description": "TASK-30. What this Worker declares about one Task type it answers. The owner's `raises` says what is sent; this says what the answerer requires, where it says anything at all, and the two are what a Tower compares."
+}

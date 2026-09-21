@@ -37,7 +37,14 @@ export type OpenTask = {
   since: Date;
 };
 
-export type TaskTypes = Record<string, { payload: unknown; answeredBy: string[] }>;
+/**
+ * TASK-2. What a Worker declares about one Task type it raises.
+ *
+ * `payload` is a Zod object and not a JSON Schema written by hand, for the reason ACT-2's input is
+ * one: the Descriptor carries the JSON Schema a console renders a form from, `mount()` generates it
+ * from this, and there is one declaration rather than two that can drift.
+ */
+export type TaskTypes = Record<string, { payload: z.ZodType; answeredBy: string[] }>;
 
 /** What a Worker author implements for `tasks`, beside the declaration itself. */
 export type TaskFacts = {

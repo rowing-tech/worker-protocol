@@ -1,4 +1,10 @@
-import type { activityState, alertSeverity, eventsEntry, health } from "@worker-protocol/schemas";
+import type {
+  activityState,
+  alertSeverity,
+  eventsEntry,
+  eventTypeDeclaration,
+  health,
+} from "@worker-protocol/schemas";
 import type * as z from "zod";
 import type { ActionFacts } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
@@ -33,13 +39,17 @@ export type Worker = {
   /** The edition this Worker speaks (DESC-23). Defaults to the one `@worker-protocol/schemas` encodes. */
   edition?: string;
   /**
-   * TASK-29. The Task types this Worker answers, which IS its Skill.
+   * TASK-30. The Task types this Worker answers, which IS its Skill, keyed by type.
    *
    * Beside the id rather than inside `tasks`, because a Skill is served at no address: it is what
    * this Worker is, and a Capability is what it serves. A Worker that only ANSWERS Tasks declares
    * this and no `tasks` Capability at all.
+   *
+   * Each entry says what this Worker NEEDS to receive to answer a Task of that type — which is the
+   * other half of what the owner's `raises` says it sends, and what a Tower compares to answer
+   * "can this Worker take that one's Tasks?" before any work changes hands.
    */
-  skills?: string[];
+  skills?: Record<string, SkillDeclaration>;
   /**
    * Whether a presented credential is good, on every address this protocol defines (REG-21).
    *
@@ -77,14 +87,36 @@ export type Worker = {
    * holds the argument.
    */
   activity?: () => Activity[] | Promise<Activity[]>;
-  /** `events`: the entry and nothing else, because there is no address to serve (EVT-11). */
-  events?: Omit<z.infer<typeof eventsEntry>, "version" | "address">;
+  /**
+   * `events`: the entry and nothing else, because there is no address to serve (EVT-11).
+   *
+   * Each event type's `data` is a Zod object, as an Action's input and a Task's payload are.
+   * `mount()` writes the JSON Schema the Descriptor carries, so a Worker declares one shape.
+   */
+  events?: Omit<z.infer<typeof eventsEntry>, "version" | "address" | "publishes"> & {
+    publishes: Record<
+      string,
+      Omit<z.infer<typeof eventTypeDeclaration>, "data"> & { data: z.ZodType }
+    >;
+  };
   /** `tasks`: what the entry declares (TASK-27, TASK-2 to TASK-4), and which conditions hold. */
   tasks?: {
     /** TASK-2. Every Task type this Worker raises, with its payload schema and answering Actions. */
     raises: TaskTypes;
   } & TaskFacts;
 };
+
+/**
+ * TASK-30. What a Worker declares about one Skill: the payload it needs to receive to answer one.
+ *
+ * A Zod object, as an Action's input and a Task's payload are, and `mount()` writes the JSON Schema
+ * the Descriptor carries. It is this Worker's own requirement — NAME-6 judges it against what an
+ * owner sends, and a Tower holding both knows at enrollment whether the work can be read.
+ *
+ * Optional: `{}` claims the type and says nothing about what it needs, which is what a Worker that
+ * takes whatever arrives should say. It costs the check, and nothing else.
+ */
+export type SkillDeclaration = { payload?: z.ZodType };
 
 /** What a Worker says about a condition an operator should see: the domain, and no more (ALRT-3). */
 export type Alert = {

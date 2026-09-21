@@ -52,6 +52,14 @@ to carry — not whether the budget should be raised.
 the rules `conformance/verifiability.md` marks `H` have something to be observed against. It sits
 under `conformance/` rather than `examples/` because it is evidence, not a starting point.
 
+**`consume()` is not the whole of that package.** TASK-30 has an answerer declare what it needs to
+receive and TASK-2 has an owner declare what it sends, and deciding whether the two agree is an
+algorithm `spec/tasks.md` states rather than a policy anybody chooses — so `canAnswer` is exported
+beside `consume`. A Control Tower product is a non-goal and this is not one: it is the question an
+operator asks when enrolling a Worker, answered from two Descriptors and calling nobody. Left
+unpublished, every Tower, teams app and proxy would derive it again and disagree about the edges —
+which is what this package exists to stop.
+
 ## The rules that bind the other side
 
 `mount()` carries what a Worker owes; `consume()` carries what a *consumer* owes, and that list is

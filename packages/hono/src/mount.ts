@@ -232,6 +232,10 @@ function forgetful(first: OutcomeStore | undefined, now: OutcomeStore | undefine
   );
 }
 
+/** Every value of a record, mapped. Three Capabilities declare a map of Zod objects to convert. */
+const mapValues = <T, R>(record: Record<string, T>, each: (value: T) => R): Record<string, R> =>
+  Object.fromEntries(Object.entries(record).map(([key, value]) => [key, each(value)]));
+
 /** DESC-1. The Descriptor, derived from what the Worker implements and nothing else. */
 function descriptorOf(worker: Worker, edition: string): string {
   const capabilities: Record<string, unknown> = {};
@@ -266,30 +270,41 @@ function descriptorOf(worker: Worker, edition: string): string {
     capabilities.actions = { version: 1, address: "../actions", accepts: declared };
   }
 
-  if (worker.events) capabilities.events = { version: 1, ...worker.events };
-
-  if (worker.tasks) {
-    const { raises } = worker.tasks;
-    capabilities.tasks = {
+  // EVT-12, TASK-2, TASK-30: the Descriptor carries JSON Schema, generated from the Zod object the
+  // Worker declared — the same move ACT-2 makes, so a Worker writes one declaration and never two.
+  if (worker.events) {
+    capabilities.events = {
       version: 1,
-      address: "../tasks",
-      raises: Object.fromEntries(
-        Object.entries(raises).map(([type, declaration]) => [
-          type,
-          { payload: declaration.payload, answeredBy: declaration.answeredBy },
-        ]),
-      ),
+      ...worker.events,
+      publishes: mapValues(worker.events.publishes, (declared) => ({
+        ...declared,
+        data: jsonSchema(declared.data),
+      })),
     };
   }
 
-  // TASK-29: at the root, beside the id, and omitted by a Worker with no Skill — which is what
-  // DESC-2 lets a Worker do with anything it does not implement.
-  return JSON.stringify({
-    id: worker.id,
-    edition,
-    ...(worker.skills === undefined ? {} : { skills: worker.skills }),
-    capabilities,
-  });
+  if (worker.tasks) {
+    capabilities.tasks = {
+      version: 1,
+      address: "../tasks",
+      raises: mapValues(worker.tasks.raises, (declared) => ({
+        payload: jsonSchema(declared.payload),
+        answeredBy: declared.answeredBy,
+      })),
+    };
+  }
+
+  const document: Record<string, unknown> = { id: worker.id, edition };
+  // TASK-30: at the root, beside the id, and omitted by a Worker with no Skill — which is what
+  // DESC-2 lets a Worker do with anything it does not implement. A Skill that states no
+  // requirement travels as `{}`: the claim, and nothing about what it needs.
+  if (worker.skills !== undefined) {
+    document.skills = mapValues(worker.skills, (skill) =>
+      skill.payload === undefined ? {} : { payload: jsonSchema(skill.payload) },
+    );
+  }
+  document.capabilities = capabilities;
+  return JSON.stringify(document);
 }
 
 export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
@@ -318,9 +333,11 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   /**
    * ENDP-16's check, run once against the first Worker this app sees.
    *
-   * Once, because REG-8 requires a Worker to declare the same Descriptor to every caller, so its
-   * shape is invariant by the time anything here could disagree — and a Worker handed in whole is
-   * checked before a request has arrived at all, which is where the message does the most good.
+   * Once because the fault it looks for is a mistake in how the Worker was WRITTEN, not in any one
+   * request: an author who named no store for a keyed Action named none on the first request
+   * either. Re-checking every request would buy nothing and would repeat the same message forever.
+   * A Worker handed in whole is checked before a request has arrived at all, which is where it
+   * does the most good; a builder cannot be, so the first one it answers is the first chance.
    */
   let checked = false;
   let firstStore: OutcomeStore | undefined;
@@ -437,8 +454,21 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   const undeclared = (capability: string) =>
     envelope({ code: "not_found", message: `This Worker declares no \`${capability}\`.` });
 
+  /**
+   * DESC-1's document, built once where it can be.
+   *
+   * A Worker handed in whole is one object that nothing here can change, so building its Descriptor
+   * a second time could only produce the same bytes. A Worker answered per request is the case
+   * `WorkerSource` argues for: what it DECLARES may legitimately differ between two requests
+   * because its configuration may have, so that one is built each time and a cache would serve a
+   * document the Worker has stopped meaning. Nothing in `spec/` bears on this either way — REG-8
+   * is about two CALLERS seeing one document and says nothing about two moments.
+   */
+  const staticDescriptor =
+    typeof source === "function" ? null : descriptorOf(source, source.edition ?? EDITION);
+
   serve(null, readDescriptor.path, readDescriptor, async (c, worker) =>
-    c.body(descriptorOf(worker, worker.edition ?? EDITION), 200, JSON_UTF8),
+    c.body(staticDescriptor ?? descriptorOf(worker, worker.edition ?? EDITION), 200, JSON_UTF8),
   );
 
   // HLTH-5: `200` whatever it reports. The status is read from the body.

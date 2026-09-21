@@ -9,40 +9,39 @@
  * working and is the only way anything here closes.
  */
 
-import type { OpenTask } from "@worker-protocol/hono";
-import type { taskTypeDeclaration } from "@worker-protocol/schemas";
-import type * as z from "zod";
+import type { OpenTask, SkillDeclaration, TaskTypes } from "@worker-protocol/hono";
+import * as z from "zod";
 
 const NAMESPACE = "tech.rowing.worker-protocol";
 export const VERIFY_VEHICLE = `${NAMESPACE}.verify-vehicle`;
 export const PRICE_A_QUOTE = `${NAMESPACE}.price-a-quote`;
 
-export const RAISES: Record<string, z.infer<typeof taskTypeDeclaration>> = {
+export const RAISES: TaskTypes = {
   [VERIFY_VEHICLE]: {
-    payload: {
-      type: "object",
-      properties: { vehicle: { type: "string", minLength: 1 } },
-      required: ["vehicle"],
-      additionalProperties: false,
-    },
+    payload: z.strictObject({ vehicle: z.string().min(1) }),
     // TASK-2: the closed list is a list of the OWNER's own Actions, by the names its `actions`
     // entry holds them under. A name that entry does not hold is a Descriptor disagreeing with
     // itself, which is the fault DESC-18 describes one level up.
     answeredBy: ["record-verification"],
   },
   [PRICE_A_QUOTE]: {
-    payload: {
-      type: "object",
-      properties: { amount: { type: "number" } },
-      required: ["amount"],
-      additionalProperties: false,
-    },
+    payload: z.strictObject({ amount: z.number() }),
     answeredBy: ["price-quote"],
   },
 };
 
-/** TASK-29: the Task types this Worker answers, which is its Skill. */
-export const SKILLS: string[] = [VERIFY_VEHICLE];
+/**
+ * TASK-30: the Task types this Worker answers, each with the payload it needs to receive.
+ *
+ * It answers the type it also raises, which `examples/minimal-worker` deliberately does not — a
+ * Worker that needs somebody to go and look at a vehicle cannot be that somebody, and the template
+ * shows the ordinary case where the two point in opposite directions. Here they are the same on
+ * purpose: a check that compares what one Worker sends against what another requires needs both
+ * sides, and one arranged Worker standing on both is one server to start instead of two.
+ */
+export const SKILLS: Record<string, SkillDeclaration> = {
+  [VERIFY_VEHICLE]: { payload: z.strictObject({ vehicle: z.string().min(1) }) },
+};
 
 const HOUR = 3_600_000;
 

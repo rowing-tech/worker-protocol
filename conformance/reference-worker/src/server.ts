@@ -2,6 +2,7 @@ import { createServer, type Server } from "node:http";
 import { getRequestListener } from "@hono/node-server";
 import { mount, type Worker } from "@worker-protocol/hono";
 import { Hono } from "hono";
+import * as z from "zod";
 import { createActions } from "./actions.ts";
 import { activity } from "./activity.ts";
 import { alerts } from "./alerts.ts";
@@ -112,7 +113,7 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     id: options.id ?? DEFAULT_ID,
     edition: options.edition,
 
-    // TASK-29: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
+    // TASK-30: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
     // at no address — it is what this Worker IS, and a Capability is what it serves.
     skills: SKILLS,
 
@@ -175,12 +176,7 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
       destination: { servers: "nats://events.invalid:4222", subject: "worker-protocol.reference" },
       publishes: {
         "tech.rowing.worker-protocol.vehicle-verified": {
-          data: {
-            type: "object",
-            properties: { vehicle: { type: "string" } },
-            required: ["vehicle"],
-            additionalProperties: false,
-          },
+          data: z.strictObject({ vehicle: z.string() }),
         },
       },
       // EVT-8: what a consumer sizes its deduplication store against. An hour, declared, because

@@ -98,6 +98,8 @@ export type PerformOptions = {
 
 const rfc3339 = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, "Z");
 
+export { type Compatibility, canAnswer } from "./skills.ts";
+
 export async function consume(baseUrl: string, options: CallerOptions = {}): Promise<Consumed> {
   // DESC-3: the one route this protocol fixes, and the only address a consumer ever assembles.
   // Everything else is declared, which is what ENDP-1 buys and why nothing below concatenates.

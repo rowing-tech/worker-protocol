@@ -58,6 +58,33 @@ export type ActionCall = {
 
 export type ActionDeclarations = Record<string, Action>;
 
+/**
+ * Write an Action, and have `run` typed by the schema above it.
+ *
+ * `Action.input` is a Zod object and `Action.run` takes what it parses — but a record of Actions
+ * cannot carry one type parameter per entry, so annotating the record makes `run`'s argument
+ * `unknown` and the author writes the shape a second time, by hand, beside the schema that already
+ * states it. Two declarations of one thing, and the day they disagree the compiler says nothing.
+ *
+ * ```ts
+ * accepts: {
+ *   "record-check": action({
+ *     input: z.object({ vehicle: z.string(), reachable: z.boolean() }),
+ *     run: ({ vehicle }) => …,   // vehicle is a string, from the line above
+ *   }),
+ * }
+ * ```
+ *
+ * Like `defineWorker`, it returns its argument and no rule id can be cited for it. It is here
+ * because the alternative is every Worker author writing every input type twice.
+ */
+export const action = <I extends z.ZodType>(
+  declaration: Omit<Action, "input" | "run"> & {
+    input: I;
+    run: (input: z.infer<I>, call: ActionCall) => unknown | Promise<unknown>;
+  },
+): Action => declaration;
+
 export type ActionFacts = {
   /** ACT-16. Every Action this Worker accepts, keyed by name. */
   accepts: ActionDeclarations;

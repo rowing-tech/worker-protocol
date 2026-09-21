@@ -28,7 +28,7 @@ type Entry = {
 export async function checkTasks(
   entry: Record<string, unknown> | undefined,
   url: string | null,
-  /** TASK-29, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
+  /** TASK-30, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
    * them — and reach them even for a Worker that declares a Skill and no `tasks` entry. */
   skills: string[],
   actionNames: string[],

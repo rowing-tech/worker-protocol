@@ -1,5 +1,5 @@
 import type { AddressInfo } from "node:net";
-import { consume, Refused } from "@worker-protocol/client";
+import { type Compatibility, canAnswer, consume, Refused } from "@worker-protocol/client";
 import { createWorker } from "@worker-protocol/reference-worker";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -85,18 +85,49 @@ function tower() {
     },
 
     /**
-     * TASK-29: the unit of discovery. An owner names a Task type and never an actor, and this is
+     * TASK-30: the unit of discovery. An owner names a Task type and never an actor, and this is
      * the question it asks — *who answers this* — over what each Worker declared about itself.
      */
     bySkill(type: string): string[] {
       const answering: string[] = [];
       for (const enrollment of enrolled.values()) {
-        const { skills } = (enrollment.descriptor ?? {}) as { skills?: string[] };
-        if (skills?.includes(type) && enrollment.id !== undefined) {
+        const { skills } = (enrollment.descriptor ?? {}) as { skills?: Record<string, unknown> };
+        if (skills !== undefined && type in skills && enrollment.id !== undefined) {
           answering.push(enrollment.id);
         }
       }
       return answering;
+    },
+
+    /**
+     * TASK-30, NAME-6: can this Worker take that one's Tasks of this type?
+     *
+     * `bySkill` says who declared the name. This says whether the work can be READ, and it is the
+     * question an operator asks at enrollment — so it is answered from the two dated Descriptors
+     * this registry already holds, before any Task exists and without calling anybody.
+     *
+     * The comparison itself is `canAnswer` in `@worker-protocol/client`, because it is an algorithm
+     * `spec/tasks.md` states rather than a policy a Tower chooses: every Tower, teams app and proxy
+     * would otherwise derive it again and disagree about the edges. What is the Tower's own is what
+     * is here — which Workers it holds, and asking again on every poll so that an owner that
+     * changes what it sends is caught.
+     *
+     * What none of it can say is whether the Worker will then DO the work. The verifier hands one a
+     * Task under an arrangement and watches for the Action; its `activity` says what it took on.
+     */
+    canAnswer(ownerUrl: string, answererId: string, type: string): Compatibility {
+      const owner = enrolled.get(ownerUrl);
+      let answerer: Enrollment | undefined;
+      for (const one of enrolled.values()) if (one.id === answererId) answerer = one;
+
+      if (owner?.descriptor === undefined || answerer?.descriptor === undefined) {
+        return { verdict: "unknown", why: "one of the two has not answered yet" };
+      }
+      return canAnswer(
+        owner.descriptor as Parameters<typeof canAnswer>[0],
+        answerer.descriptor as Parameters<typeof canAnswer>[1],
+        type,
+      );
     },
   };
 }
@@ -213,6 +244,59 @@ describe("a Control Tower, over Workers that answer", () => {
     } finally {
       await renamed.close();
     }
+  });
+
+  it("answers at ENROLLMENT whether a Worker can read another's Tasks", async () => {
+    // The question an operator asks when pasting a URL: can this Worker take that one's work?
+    // Answered from the two Descriptors, so it arrives before any Task exists — which is the whole
+    // reason TASK-30 has the answerer declare what it requires instead of everyone finding out
+    // when work is handed over.
+    const registry = tower();
+    registry.enroll(worker.url, "a-token");
+    await registry.poll();
+    const self = "tech.rowing.worker-protocol.reference";
+    const VERIFY_VEHICLE = "tech.rowing.worker-protocol.verify-vehicle";
+    const PRICE_A_QUOTE = "tech.rowing.worker-protocol.price-a-quote";
+
+    // It raises `verify-vehicle` sending `{ vehicle }` and declares it needs `{ vehicle }`.
+    expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
+      verdict: "compatible",
+      why: "everything it requires is something the owner sends",
+    });
+
+    // A type it declared no Skill for is not a shape that disagrees: it is no claim at all.
+    expect(registry.canAnswer(worker.url, self, PRICE_A_QUOTE)).toEqual({
+      verdict: "incompatible",
+      why: `it declares no Skill for ${PRICE_A_QUOTE}`,
+    });
+
+    // The remaining cases are about what the ANSWERER declares, so the simulation edits the dated
+    // copy the registry holds (DESC-20): what is being shown is the comparison, not the fetch.
+    const held = registry.entry(worker.url)?.descriptor as {
+      skills: Record<string, { payload?: unknown }>;
+    };
+    const { skills } = held;
+
+    // TASK-30's third answer: the Skill is claimed and nothing is said about what it needs. Not a
+    // refusal — reporting one would invent an obligation the rule does not carry.
+    skills[VERIFY_VEHICLE] = {};
+    expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
+      verdict: "unknown",
+      why: "it declares the Skill and states no requirement",
+    });
+
+    // And the case the field exists for: asking for MORE than the owner sends.
+    skills[VERIFY_VEHICLE] = {
+      payload: {
+        type: "object",
+        properties: { vehicle: { type: "string" }, plate: { type: "string" } },
+        required: ["vehicle", "plate"],
+      },
+    };
+    expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
+      verdict: "incompatible",
+      why: "it requires plate, which the owner does not send",
+    });
   });
 
   it("catalogs by Skill, which is the unit of discovery and not a Task instance", async () => {

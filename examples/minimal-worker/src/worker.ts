@@ -27,6 +27,7 @@
 
 import {
   type Activity,
+  action,
   defineWorker,
   memoryOutcomes,
   mount,
@@ -34,8 +35,14 @@ import {
 } from "@worker-protocol/hono";
 import * as z from "zod";
 
-/** NAME-7: a name two parties who never spoke must match on is namespaced. */
+// NAME-7: a name two parties who never spoke must match on is namespaced. These two are the whole
+// of this Worker's relationship with work, and they point in opposite directions.
+
+/** What this Worker NEEDS somebody to do: go and look at a vehicle that has gone quiet. */
 const SILENT_VEHICLE = "tech.rowing.fleet.check-silent-vehicle";
+
+/** What this Worker CAN do for somebody else: it holds the readings, so it knows where one is. */
+const LOCATE_VEHICLE = "tech.rowing.dispatch.locate-vehicle";
 
 /** What this Worker is deployed with. On Cloudflare these are bindings; on Node, `process.env`. */
 export type Env = { CREDENTIAL?: string };
@@ -63,10 +70,13 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   // DESC-6: the Worker's own id, which is not the URL it is served from.
   id: "tech.rowing.fleet.watcher",
 
-  // TASK-29: the Task types this Worker ANSWERS, which is its Skill — beside the id and not inside
-  // `tasks`, because a Skill is served at no address. It is what the Tower catalogs this Worker by,
-  // and it is how somebody else's quiet vehicle becomes this Worker's work.
-  skills: [SILENT_VEHICLE],
+  // TASK-30: the Task types this Worker ANSWERS, which is its Skill — beside the id and not inside
+  // `tasks`, because a Skill is served at no address. Note it is NOT the type raised below: this
+  // Worker needs a person to go and look at a quiet vehicle, and it cannot do that itself. What it
+  // can do is say where a vehicle is, because it holds the readings, and to do that it needs the
+  // plate — which is what the payload declares. A Tower compares that against the Tasks whoever
+  // raises `locate-vehicle` actually sends, and knows at enrollment whether the work can be read.
+  skills: { [LOCATE_VEHICLE]: { payload: z.object({ vehicle: z.string() }) } },
 
   // REG-3, REG-21: what makes a credential good is this Worker's business, and nobody else's.
   authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
@@ -105,39 +115,40 @@ export const fleetWorker = defineWorker<Env>((env) => ({
     // and everything the operator did not remember would go back to a default.
     settings: () => configuration,
     accepts: {
-      "record-check": {
+      "record-check": action({
         input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
         result: z.object({ recordedAt: z.string() }),
         // ACT-12: performed once however many times it is posted, within the declared window.
         idempotency: { required: true, from: "header", windowSeconds: 3600 },
-        run: ({ vehicle }: { vehicle: string }) => {
+        // `vehicle` is a string because the schema above says so. Nothing is typed twice.
+        run: ({ vehicle }) => {
           checked.add(vehicle);
           return { recordedAt: new Date().toISOString() };
         },
-      },
+      }),
       // ACT-17: `nudge` is the other reserved name — a POST from a Worker that raised a Task of a
       // type this one answers, saying only that there is work of that type. It carries no Task and
       // no payload: the owner decides whether the condition still holds, so this reads rather than
       // trusts. Declaring it is optional; without it this Worker is told nothing and is read on its
       // own schedule, which is slower and never wrong.
-      nudge: {
+      nudge: action({
         input: z.object({ type: z.string() }),
-        run: ({ type }: { type: string }) => {
+        run: ({ type }) => {
           pending.add(type);
           return null;
         },
-      },
+      }),
 
       // ACT-13: `configure` is one of the two Action names this protocol reserves, and it takes the
       // whole document — an operator replaces the settings rather than patching them, so what they
       // saw in the form is what they send back.
-      configure: {
+      configure: action({
         input: z.object({ label: z.string().min(1), quietAfterMinutes: z.number().int().min(1) }),
-        run: (replacement: typeof configuration) => {
+        run: (replacement) => {
           configuration = replacement;
           return null;
         },
-      },
+      }),
     },
   },
 
@@ -180,7 +191,9 @@ export const fleetWorker = defineWorker<Env>((env) => ({
     // TASK-2: every Task type this Worker raises, with the Actions of its own that may answer one.
     raises: {
       [SILENT_VEHICLE]: {
-        payload: { type: "object", properties: { vehicle: { type: "string" } } },
+        // A Zod object, as an Action's input is. `mount()` writes the JSON Schema the Descriptor
+        // carries, so the shape a consumer reads and the shape this Worker means are one line.
+        payload: z.object({ vehicle: z.string() }),
         answeredBy: ["record-check"],
       },
     },
@@ -208,11 +221,7 @@ export const fleetWorker = defineWorker<Env>((env) => ({
     destination: { bootstrapServers: "kafka.rowing.invalid:9092", topic: "fleet.telemetry" },
     publishes: {
       "tech.rowing.fleet.vehicle-went-quiet": {
-        data: {
-          type: "object",
-          properties: { vehicle: { type: "string" }, since: { type: "string" } },
-          required: ["vehicle", "since"],
-        },
+        data: z.object({ vehicle: z.string(), since: z.string() }),
       },
     },
     // EVT-8: what a consumer sizes its deduplication store against. Declared, because `remember
