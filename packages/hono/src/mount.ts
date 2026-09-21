@@ -1,7 +1,12 @@
 import { OpenAPIHono, type RouteConfig } from "@hono/zod-openapi";
 import { EDITION } from "@worker-protocol/schemas";
 import type { Context, MiddlewareHandler } from "hono";
-import { actions as actionsSurface, jsonSchema, type Recorded } from "./actions.ts";
+import {
+  actions as actionsSurface,
+  jsonSchema,
+  memoryOutcomes,
+  type OutcomeStore,
+} from "./actions.ts";
 import { byCode } from "./codes.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
 import {
@@ -122,19 +127,20 @@ const noParameters: MiddlewareHandler = async (c, next) => {
  *
  * ENDP-16 is a rule keeping a promise across calls, so a fresh copy per request would be the rule
  * silently broken: a window that forgets before it said it would, while a caller still believes it
- * is protected. A Worker that runs across isolates needs more than a Map for it, and that is not
- * yet something this package offers.
+ * is protected. This is the fallback a Worker gets when it declares no store of its own, and it is
+ * a Map — right in one long-lived process, and wrong in every runtime that scales horizontally,
+ * which `ActionFacts.outcomes` is there to answer.
  */
 type Durable = {
-  /** ENDP-16. The outcome recorded against a key, for as long as the Action declared. */
-  recorded: Map<string, Recorded>;
+  /** ENDP-16. Where recorded outcomes live when the Worker names nowhere else. */
+  outcomes: OutcomeStore;
 };
 
 /** One Worker's surfaces, over state that is older than this request. */
 function surfacesOf(worker: Worker, durable: Durable) {
   return {
     tasks: worker.tasks ? taskSurface(worker.tasks.raises, worker.tasks) : undefined,
-    actions: worker.actions ? actionsSurface(worker.actions, durable.recorded) : undefined,
+    actions: worker.actions ? actionsSurface(worker.actions, durable.outcomes) : undefined,
     metrics: worker.metrics ? metricsSurface(worker.metrics) : undefined,
   };
 }
@@ -191,7 +197,7 @@ function descriptorOf(worker: Worker, edition: string): string {
 }
 
 export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
-  const durable: Durable = { recorded: new Map() };
+  const durable: Durable = { outcomes: memoryOutcomes() };
 
   /**
    * What the runtime gave this request, where it gave one.

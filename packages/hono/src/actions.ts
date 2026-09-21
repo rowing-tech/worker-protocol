@@ -62,6 +62,32 @@ export type ActionFacts = {
   actions: ActionDeclarations;
   /** ACT-15. The document `configure` would accept, where the Worker accepts settings. */
   settings?: () => unknown | Promise<unknown>;
+  /**
+   * ENDP-16. Where the recorded outcomes live, for a Worker that runs in more than one process.
+   *
+   * **Absent, they live in a Map, and that is correct in exactly one place: a single long-lived
+   * process.** A Worker across isolates — Cloudflare, Vercel edge, Deno Deploy, anything that
+   * scales horizontally — has one Map per isolate, so a repeat under the same key reaches a
+   * process that never recorded the first and the Action is performed a second time *while the
+   * caller believes it is protected*. That is the exact failure ENDP-16 exists to prevent, and it
+   * is silent: both calls succeed and nobody sees two.
+   *
+   * A store over a durable object, a KV namespace or a table closes it. It is four methods and
+   * none of them decides anything; the window is `mount()`'s to enforce.
+   */
+  outcomes?: OutcomeStore;
+};
+
+/**
+ * Where a Worker keeps what ENDP-16 promised, when a Map will not do.
+ *
+ * `put` carries the instant the record expires so that a store with its own time-to-live can use
+ * it — a KV namespace, a durable object alarm — and one without may ignore it, because `get` is
+ * asked to answer nothing for a record whose window has passed and `mount()` checks that anyway.
+ */
+export type OutcomeStore = {
+  get: (key: string) => Recorded | undefined | Promise<Recorded | undefined>;
+  put: (key: string, held: Recorded) => void | Promise<void>;
 };
 
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
@@ -69,13 +95,21 @@ const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message }
 /**
  * ENDP-16. One recorded outcome, for as long as the Action declared.
  *
- * It is handed in rather than held here, because `mount()` may answer a different `Worker` object
- * on every request — which is what a Cloudflare, Vercel or Deno runtime forces — and a window that
- * started again with each one would forget before it said it would.
+ * `until` is epoch milliseconds on the Worker's own clock. Nothing compares it against a caller's:
+ * ENDP-16 is a promise the Worker makes about its own memory, and the caller only ever learns
+ * whether it was kept by sending the request again.
  */
 export type Recorded = { body: string; answer: Answer; until: number };
 
-export function actions(facts: ActionFacts, recorded: Map<string, Recorded>) {
+/** The default store: a Map, which is right in one long-lived process and wrong everywhere else. */
+export const memoryOutcomes = (): OutcomeStore => {
+  const held = new Map<string, Recorded>();
+  return { get: (key) => held.get(key), put: (key, record) => void held.set(key, record) };
+};
+
+export function actions(facts: ActionFacts, fallback: OutcomeStore) {
+  const recorded = facts.outcomes ?? fallback;
+
   return async function perform(
     name: string,
     raw: string,
@@ -129,7 +163,8 @@ export function actions(facts: ActionFacts, recorded: Map<string, Recorded>) {
     }
 
     const now = Date.now();
-    const held = recordedKey === undefined ? undefined : recorded.get(`${name}:${recordedKey}`);
+    const held =
+      recordedKey === undefined ? undefined : await recorded.get(`${name}:${recordedKey}`);
     if (held !== undefined && held.until > now) {
       // ENDP-17: a key reused with a different body is `409`. Only the caller can tell a retry
       // from a genuine repeat, and this is the Worker declining to guess.
@@ -153,7 +188,7 @@ export function actions(facts: ActionFacts, recorded: Map<string, Recorded>) {
           : { status: 200, body: produced };
 
     if (recordedKey !== undefined && idempotency !== undefined) {
-      recorded.set(`${name}:${recordedKey}`, {
+      await recorded.put(`${name}:${recordedKey}`, {
         body: raw,
         answer,
         until: now + idempotency.windowSeconds * 1000,

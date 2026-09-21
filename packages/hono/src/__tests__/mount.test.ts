@@ -1,6 +1,7 @@
 import { EDITION } from "@worker-protocol/schemas";
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
+import type { OutcomeStore, Recorded } from "../actions.ts";
 import { mount } from "../mount.ts";
 
 /**
@@ -153,5 +154,61 @@ describe("mount(), with the Worker answered per request", () => {
     const answer = await call("/metrics?metric=x", { token: "a" }, { authorization: "Bearer a" });
     expect(answer.status).toBe(404);
     expect(await answer.json()).toMatchObject({ code: "not_found" });
+  });
+});
+
+/**
+ * ENDP-16 across more than one process, which is where a Map stops being enough.
+ *
+ * A Worker that scales horizontally has one Map per isolate, so a repeat under the same key reaches
+ * a process that never recorded the first and the Action is performed a second time *while the
+ * caller believes it is protected*. Nothing is refused and nobody sees two — which is the silent
+ * shape of failure this repository keeps finding, and the third time today.
+ */
+describe("mount(), with the recorded outcomes somewhere durable", () => {
+  it("records into and reads from the store the Worker declared", async () => {
+    // The store stands in for a durable object or a KV namespace: what matters is that it is ONE
+    // store, and that two Workers built separately — as two isolates would be — share it.
+    const shared = new Map<string, Recorded>();
+    const outcomes: OutcomeStore = {
+      get: (key) => shared.get(key),
+      put: (key, held) => void shared.set(key, held),
+    };
+
+    let performed = 0;
+    const isolate = () =>
+      mount({
+        id: "tech.rowing.worker-protocol.durable",
+        actions: {
+          outcomes,
+          actions: {
+            count: {
+              input: z.object({}),
+              result: z.object({ n: z.number() }),
+              idempotency: { required: true, from: "header", windowSeconds: 60 },
+              run: () => {
+                performed += 1;
+                return { n: performed };
+              },
+            },
+          },
+        },
+      });
+
+    const post = (app: ReturnType<typeof mount>) =>
+      app.fetch(
+        new Request("http://worker.invalid/actions?action=count", {
+          method: "POST",
+          body: "{}",
+          headers: { "idempotency-key": "k-1" },
+        }),
+      );
+
+    expect(await (await post(isolate())).json()).toEqual({ n: 1 });
+
+    // A DIFFERENT app object, as a second isolate would be. With the default Map this answers
+    // `{ n: 2 }` — the Action performed twice under one key, which is ENDP-16 broken in silence.
+    expect(await (await post(isolate())).json()).toEqual({ n: 1 });
+    expect(performed).toBe(1);
   });
 });

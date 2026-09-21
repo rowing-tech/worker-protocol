@@ -301,6 +301,13 @@ has forgotten performs the Action again while the caller still believes it is pr
 the window turns that from a silent assumption into a fact a caller can read and design against
 before it sends anything.
 
+**Where the Worker keeps what it recorded is its own, and the one thing worth saying about it is
+that a process is not a Worker.** A Worker that answers from several at once — which is every
+runtime that scales horizontally — and that remembers in each of them separately has not kept this
+promise: a repeat reaches a process that recorded nothing, the Action happens twice, and both calls
+succeed so nobody sees it. ENDP-16 binds the Worker and not the process, and a deployment that
+cannot share the record has to shorten the window to nothing and declare it, or not declare a key.
+
 Retrying is then narrow. A caller repeats only a `retry`, only unchanged, and only under the same
 key; a caller that invents a new key for a repeat has asked for the Action twice and will
 correctly get it twice.

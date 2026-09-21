@@ -12,9 +12,10 @@ back — so that when the answer lands, both places know.
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers. Listed in [spec/health.md](../spec/health.md).
 - **Who verifies that a worker answers the Task types it declares.** The Control Tower at
-  registration, the owner at claim time, or nobody.
-- **What a Contract carries beyond credentials.** Rate, retention of Task events, revocation while
-  a Task is claimed, and the time zone a multi-tenant Worker cuts a consumer's metric buckets in.
+  registration, the owner when a Response arrives, or nobody. Nothing can today: an Action carries
+  no sign of the Task it answered, so an owner sees a performance and not a Response.
+- **What a Contract carries beyond credentials.** Rate, retention of Task events, when a revocation
+  takes effect, and the time zone a multi-tenant Worker cuts a consumer's metric buckets in.
   Revocation is listed in [spec/registration.md](../spec/registration.md) and the time zone in
   [spec/metrics.md](../spec/metrics.md).
 - **Whether a Task type may belong to several Services, and whether a Service may span workers of
@@ -22,10 +23,11 @@ back — so that when the answer lands, both places know.
 - **Whether this protocol names a `contract` dimension for a metric**, so that one name means the
   same thing across Workers, or leaves each Worker to declare its own. The Worker is authoritative
   over the value either way — it sees the credential on every request, so it knows which Contract
-  each Claim, Action and Response came under. Listed in [spec/metrics.md](../spec/metrics.md).
-- **Who consolidates the cost and elapsed time a Response carries.** Nothing does today; the
-  consumer's own metrics, split by the Contract each Response came under, are the obvious
-  candidate. Listed in [spec/metrics.md](../spec/metrics.md).
+  each read and each Action came under. Listed in [spec/metrics.md](../spec/metrics.md).
+- **Whether a consumer reports the cost and elapsed time of the work it did, and who consolidates
+  it.** Nothing carries either today — a Response is one Action and its input is the Worker's own
+  shape — and the consumer's own metrics, split by the Contract, are the obvious candidate. Listed
+  in [spec/metrics.md](../spec/metrics.md).
 - **Whether a person's cross-owner work list is the Tower's or a Worker's.** A teams app is one
   answer; the console is another.
 - **How much the protocol recognizes about Workers that talk to people**, beyond what it recognizes
