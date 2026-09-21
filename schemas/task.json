@@ -6,44 +6,29 @@
     "id": {
       "type": "string",
       "minLength": 1,
-      "description": "TASK-7. The owner's own id for this Task, which a claim names under TASK-9. Opaque to everyone else."
+      "description": "TASK-28. The owner's own id for this Task. Opaque to everyone else."
     },
     "type": {
-      "description": "TASK-7, TASK-4. One of the types the entry declares under `raises`.",
+      "description": "TASK-28, TASK-4. One of the types the entry declares under `raises`.",
       "$ref": "qualified-name.json"
     },
     "payload": {
-      "description": "TASK-7. Against the schema that type declared. The Worker's own shape."
+      "description": "TASK-28. Against the schema that type declared. The Worker's own shape."
     },
-    "failedClaims": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "TASK-7. How many Claims on this Task were closed `failed`. Failure is counted over Claims and never over the condition, so this number never removes a Task."
-    },
-    "lapsedClaims": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "TASK-7. How many Claims lapsed without a word. A Task that has outlived several is stuck where an operator can see it, which is the point of carrying the count at all."
-    },
-    "claimable": {
-      "type": "boolean",
-      "description": "TASK-7, TASK-11. Whether the owner will grant a lease on this Task now. An owner that has stopped granting says so here rather than leaving a consumer to infer it from a pattern of 409s."
-    },
-    "holder": {
-      "description": "TASK-26. An identifier the owner mints for whoever holds this Task's current Claim, present only on a Task under a Claim and only when read with a credential recorded for the Worker at enrollment. Never the credential and never a name: it is the owner's own, for an operator to map onto a Contract. A consumer reading another consumer's identity here would be the disclosure TASK-6 exists against.",
+    "since": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+      "format": "date-time",
+      "description": "TASK-28. When this Task's condition began. It is what a stuck Task is read from: one open since Tuesday is one nobody has answered, and it is the field ALRT-3 puts on an Alert, read the same way. It replaced counts of Claims that had failed and lapsed, and says less: how long a condition has held, and nothing about what anybody did about it."
     }
   },
   "required": [
     "id",
     "type",
     "payload",
-    "failedClaims",
-    "lapsedClaims",
-    "claimable"
+    "since"
   ],
   "additionalProperties": false,
   "title": "Task",
-  "description": "TASK-7. One Task whose condition holds. TASK-5 answers these in the page envelope of ENDP-20."
+  "description": "TASK-28. One Task whose condition holds. TASK-5 answers these in the page envelope of ENDP-20."
 }

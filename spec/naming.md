@@ -222,16 +222,15 @@ legible here.
 a Task and it is not an Alert, and a Worker exposes one as neither.**
 
 The three are told apart by who is being asked for something. A **Task** asks another party to do
-something, is claimed under an exclusive lease, and names the Actions that may answer it. An
-**Alert** asks an operator to look. An **Alarm** asks nobody for anything: the Worker set it, the
-Worker will service it, and it is a private scheduling detail of how that Worker keeps its own
-facts current.
+something, and names the Actions that may answer it. An **Alert** asks an operator to look. An
+**Alarm** asks nobody for anything: the Worker set it, the Worker will service it, and it is a
+private scheduling detail of how that Worker keeps its own facts current.
 
 Exposing one as a Task puts work in front of a consumer that cannot possibly do it — there is no
-Action that answers *wake up and re-evaluate*, nothing for a lease to protect, and the Task's
-condition is not a fact anybody outside the Worker can affect. A consumer that claims one holds a
-lease on nothing and reports a failure it did not cause. Exposing one as an Alert is quieter and
-worse: an operator's console fills with conditions that require nothing and clear themselves, and
+Action that answers *wake up and re-evaluate*, and the Task's condition is not a fact anybody
+outside the Worker can affect. A consumer reads it, finds nothing it could post, and either does
+nothing or reports a failure it did not cause. Exposing one as an Alert is quieter and worse: an
+operator's console fills with conditions that require nothing and clear themselves, and
 the operator learns that this Worker's Alerts are noise, which is a lesson they will still have
 learned on the day one of them is not.
 

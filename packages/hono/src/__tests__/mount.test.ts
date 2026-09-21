@@ -72,20 +72,31 @@ describe("mount()", () => {
  * `mount()` owns on the Worker's behalf does not start again with it.
  */
 describe("mount(), with the Worker answered per request", () => {
+  let performed = 0;
   const perRequest = mount<{ token: string }>((env) => ({
     id: "tech.rowing.worker-protocol.dynamic",
     authenticate: (presented) => (presented === env.token ? "accepted" : "unauthenticated"),
     health: () => ({ status: "healthy", checks: {} }),
     tasks: {
       raises: {
-        "tech.rowing.test.a-thing": { payload: {}, answeredBy: ["do-it"] },
+        "tech.rowing.test.a-thing": { payload: {}, answeredBy: ["count"] },
       },
       answers: [],
-      open: () => [{ id: "t-1", type: "tech.rowing.test.a-thing", payload: {} }],
+      open: () => [
+        { id: "t-1", type: "tech.rowing.test.a-thing", payload: {}, since: new Date(0) },
+      ],
     },
     actions: {
       actions: {
-        "do-it": { input: z.object({}), run: () => undefined },
+        count: {
+          input: z.object({}),
+          result: z.object({ n: z.number() }),
+          idempotency: { required: true, from: "header", windowSeconds: 60 },
+          run: () => {
+            performed += 1;
+            return { n: performed };
+          },
+        },
       },
     },
   }));
@@ -116,23 +127,23 @@ describe("mount(), with the Worker answered per request", () => {
     expect(Object.keys(document.capabilities).sort()).toEqual(["actions", "health", "tasks"]);
   });
 
-  it("keeps the Claim it granted, though the Worker object is a new one each time", async () => {
-    // The state `mount()` owns rather than the Worker: a fresh store per request would have made
-    // every Claim vanish the moment it was granted, and TASK-10's exclusivity unobservable.
+  it("keeps the idempotency window, though the Worker object is a new one each time", async () => {
+    // The state `mount()` owns rather than the Worker: a fresh record per request would have made
+    // ENDP-16's window start again with every call, so a repeat under the same key would perform
+    // the Action a second time while the caller still believed it was protected.
     const env = { token: "a" };
-    const headers = { authorization: "Bearer a" };
-    const granted = await perRequest.fetch(
-      new Request("http://worker.invalid/claims?task=t-1", { method: "POST", headers }),
-      env,
-    );
-    expect(granted.status).toBe(200);
-
-    // TASK-10: a second claim of a held Task, on a later request and therefore a later Worker.
-    const again = await perRequest.fetch(
-      new Request("http://worker.invalid/claims?task=t-1", { method: "POST", headers }),
-      env,
-    );
-    expect(again.status).toBe(409);
+    const headers = { authorization: "Bearer a", "idempotency-key": "k-1" };
+    const post = () =>
+      perRequest.fetch(
+        new Request("http://worker.invalid/actions?action=count", {
+          method: "POST",
+          body: "{}",
+          headers,
+        }),
+        env,
+      );
+    expect((await post()).status).toBe(200);
+    expect(await (await post()).json()).toEqual({ n: 1 });
   });
 
   it("answers 404 for a Capability the resolved Worker does not declare", async () => {

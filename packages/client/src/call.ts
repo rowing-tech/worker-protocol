@@ -4,14 +4,16 @@ import type * as z from "zod";
 /**
  * One call to a Worker, and every rule in `spec/` that binds the party making it.
  *
- * Eleven rules in the specification oblige a consumer rather than a Worker, and until this package
+ * Nine rules in the specification oblige a consumer rather than a Worker, and until this package
  * existed none of them had a subject: `conformance/verifiability.md` classes them `P` and a report
  * says *other subject*, because a tool pointed at a base URL never contacted whoever they bind.
  * They are all here, each cited where it is obeyed, and `__tests__/consumer-rules.test.ts` is what
  * holds this to them.
  *
- * DESC-13, DESC-30, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31, TASK-18,
- * TASK-20 — that is the whole list, and a line below cites each.
+ * DESC-13, DESC-30, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 — that is the
+ * whole list, and a line below cites each. It was eleven until the Claim lifecycle was withdrawn:
+ * TASK-18 bound a holder not to do arithmetic on a lease it no longer has, and TASK-20 had it name
+ * that lease on the Action.
  */
 
 /** A Worker refused, and the refusal is the Worker's own statement about itself (ENDP-25). */
@@ -76,8 +78,6 @@ export type Call = {
   url: string;
   method?: "GET" | "POST";
   body?: string;
-  /** TASK-20. The Claim this Action is performed under, where it answers a Task. */
-  claim?: string;
   /** ENDP-15. Where the Action declares it reads a key from the header. */
   idempotencyKey?: string;
   /**
@@ -121,9 +121,6 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
       // it, not calling the address — which the Worker declared and may well serve openly.
     }
     if (call.body !== undefined) headers.set("content-type", "application/json");
-    // TASK-20: the holder names its Claim on the Action that answers its Task, in the header, so
-    // that ACT-5 keeps the body as the input and nothing else.
-    if (call.claim !== undefined) headers.set("worker-protocol-claim", call.claim);
     if (call.idempotencyKey !== undefined) {
       headers.set("idempotency-key", call.idempotencyKey);
     }

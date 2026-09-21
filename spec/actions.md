@@ -135,7 +135,7 @@ operation outlives the call says so in its declaration and answers `202`, and th
 what this edition defines: the caller knows it was accepted, and knows it will not learn the outcome
 here. How the outcome arrives — an event, a Task, a Worker the caller polls — is not something this
 file can settle alone, because every candidate is a surface another file owns: an event is
-[events](events.md)'s, a Task is [tasks and claims](tasks-and-claims.md)'s, and a resource to poll
+[events](events.md)'s, a Task is [tasks](tasks.md)'s, and a resource to poll
 is nothing this protocol defines yet. Saying `202` and stopping is better than inventing a
 mechanism those files would then have to live with, and it is listed below so that the gap is a
 decision rather than an omission.
@@ -201,7 +201,7 @@ that writing it is an Action like any other.
 - **How the outcome of an Action that answered `202` reaches anyone.** It was left open because
   every candidate lived in a file that was not written; all of them are now, and none of them took
   it. [events](events.md) publishes Facts with no addressee, so a caller waiting on one particular
-  outcome is not who an event is for. [tasks and claims](tasks-and-claims.md) inverts the direction
+  outcome is not who an event is for. [tasks](tasks.md) inverts the direction
   — a Task is work an owner offers, not a result it owes a caller. So the question survives the
   reason it was parked for, and ACT-11 still defines nothing rather than inventing a fourth.
 - Whether an Action may be declared with no input at all, or whether the empty object is the

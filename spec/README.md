@@ -28,7 +28,7 @@ a version of its own:
 | `metrics` | [metrics.md](metrics.md) | Named quantities accumulated over declared periods |
 | `actions` | [actions.md](actions.md) | Declaring and performing an operation, `configure` and settings included |
 | `alerts` | [alerts.md](alerts.md) | Conditions an operator should see |
-| `tasks` | [tasks-and-claims.md](tasks-and-claims.md) | Exposing Tasks, claiming under a lease, answering |
+| `tasks` | [tasks.md](tasks.md) | Exposing the Tasks a condition holds open, and answering one |
 | `events` | [events.md](events.md) | The envelope, the broker, deduplication |
 
 The Capability names in that table are a reading aid. The normative list is
@@ -40,7 +40,7 @@ on them — the Descriptor route, the addresses, the versioning rule, the error 
 side of a call proves who it is, and how a name is compared and what a schema change breaks.
 Every other file is `draft` too, which is to say **no file here is `open` any more**:
 [health.md](health.md), [metrics.md](metrics.md), [actions.md](actions.md),
-[tasks-and-claims.md](tasks-and-claims.md), [alerts.md](alerts.md) and [events.md](events.md) —
+[tasks.md](tasks.md), [alerts.md](alerts.md) and [events.md](events.md) —
 the whole of *operate*, the whole of *delegate*, the conditions an operator should see, and the
 Facts a Worker publishes to nobody in particular. What remains open is written inside each file,
 under `Still open here`, and in [deliberately undecided](../docs/undecided.md).
@@ -165,7 +165,7 @@ so that two files never race for the same one:
 | [endpoints.md](endpoints.md) | `ENDP` | [metrics.md](metrics.md) | `MET` |
 | [registration.md](registration.md) | `REG` | [actions.md](actions.md) | `ACT` |
 | [naming.md](naming.md) | `NAME` | [alerts.md](alerts.md) | `ALRT` |
-| | | [tasks-and-claims.md](tasks-and-claims.md) | `TASK` |
+| | | [tasks.md](tasks.md) | `TASK` |
 | | | [events.md](events.md) | `EVT` |
 
 Numbers are issued in the order rules are written, not in the order they appear, so a file's ids

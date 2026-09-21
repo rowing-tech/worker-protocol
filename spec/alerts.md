@@ -2,31 +2,36 @@
 
 `draft`
 
-Conditions an operator should see, exposed beside the Tasks. An Alert may carry Actions and asks no
-Claim.
+Conditions an operator should see, exposed beside the Tasks. An Alert may carry Actions and
+requires no Skill.
 
 ## Whether this file should exist at all
 
-It was open whether an Alert is a surface of its own or a Task nobody is required to claim, and the
-answer decides whether there is anything here. **It is a surface of its own, and the reason is that
-neither of the two surfaces it could have folded into answers the question an Alert asks.**
+It was open whether an Alert is a surface of its own or a kind of Task, and the answer decides
+whether there is anything here. **It is a surface of its own, and the reason is that neither of the
+two surfaces it could have folded into answers the question an Alert asks.**
 
 Against [health](health.md): health answers *can I be relied on*. A Worker whose credential expires
 in three days can be relied on completely, and saying `degraded` about it would be a lie told to
 every poller in order to reach one operator. Fold Alerts into health and a Worker must either
 misreport its own state or never mention the thing a person has three days to fix.
 
-Against [tasks and claims](tasks-and-claims.md): a Task is delegation. It requires a Skill,
-TASK-9 grants exactly one exclusive lease, and TASK-6 shows a Task only to the consumer whose
-Contract covers it. Every one of those is wrong for an Alert. There is no Skill — the audience is
-whoever operates this Worker, which is a relationship of enrollment and not of Contract. Exclusivity
-is backwards: an Alert two operators can both see is working, and one that a colleague's claim hid
-from you is not. And a Task nobody claims is, by TASK-7's counts, a Task that is *stuck* — the thing
-this protocol wants visible — where an unclaimed Alert is simply an Alert.
+Against [tasks](tasks.md): a Task is delegation, and an Alert delegates nothing. A Task requires a
+Skill and is discovered by it — TASK-3 makes the Task types a Worker answers the unit a Tower
+catalogs by — and an Alert has no Skill, because its audience is whoever operates this Worker and
+that is a relationship of enrollment rather than of Contract. TASK-6 follows from the same place: a
+Task is shown only to the consumer whose Contract covers it, where ALRT-6 answers the same Alerts
+to every caller the Worker authenticates, and the difference is not a detail — it is which party
+the surface is for.
 
-Folding them would therefore have meant a Task type carrying an exception to almost every rule in
-that file, which is how you can tell it is a different thing. What it borrows instead is the one
+Folding them would therefore have meant a Task type carrying an exception to the rules that make a
+Task a Task, which is how you can tell it is a different thing. What it borrows instead is the one
 idea that does transfer, and ALRT-5 is where.
+
+*This argument used to rest on a third leg: that a Task was claimed under an exclusive lease and an
+Alert two operators can both see is working. The lease is withdrawn, and the leg with it. What is
+left carries the weight on its own, which is worth saying rather than leaving somebody to notice
+that a paragraph lost a third of its reasons and kept its conclusion.*
 
 The declaration is [schemas/alerts-entry.json](../schemas/alerts-entry.json) and one Alert is
 [schemas/alert.json](../schemas/alert.json). Rules carry ids and a class; the convention is in
@@ -115,8 +120,8 @@ page and is conformant, exactly as one reporting no health checks is.
 
 - Whether an Alert may name the metric or the check it is about, so that a console can link them.
   Nothing needs it yet and a reference that could dangle is worse than none.
-- Whether a Worker that has raised the same Alert repeatedly exposes that count, as TASK-7 does for
-  failed Claims.
+- Whether a Worker that has raised the same Alert repeatedly exposes that count. ALRT-3's `since`
+  says how long this one has held and nothing about the ones before it.
 
 ## Withdrawn
 

@@ -6,7 +6,7 @@
  * this repository's own because most Workers built on this protocol run on Hono: the declaration
  * that runs is the one that generates, and nothing is declared twice. `mount()` is what makes them
  * run — a Worker author implements `Worker` and gets every address, header, envelope, refusal,
- * page, Claim and bucket boundary this protocol fixes, once, the same way in every Worker.
+ * page and bucket boundary this protocol fixes, once, the same way in every Worker.
  *
  * This package carries behaviour, and `packages/README.md` says what standing that has: what is
  * forbidden is behaviour of its OWN — something `spec/` does not say — and what is wanted is all of
@@ -25,13 +25,6 @@ export type {
 } from "./actions.ts";
 export { jsonSchema } from "./actions.ts";
 export { bucketsIn, endOf, type Granularity, rfc3339, startOf } from "./buckets.ts";
-export {
-  type ClaimRecord,
-  type ClaimStore,
-  type LeasePolicy,
-  memoryClaims,
-  type TaskCounts,
-} from "./claims.ts";
 export { CODES, type ErrorCode } from "./codes.ts";
 export type { Bucket, MetricFacts, MetricQuery, MetricSample } from "./metrics.ts";
 export { type ExecutionCtx, mount, type WorkerSource } from "./mount.ts";
@@ -42,7 +35,6 @@ export {
   readDescriptor,
   readMetric,
   readTasks,
-  writeClaim,
 } from "./surfaces.ts";
 export type { OpenTask, TaskFacts, TaskTypes } from "./tasks.ts";
 export type { Answer, Refusal, Worker } from "./worker.ts";

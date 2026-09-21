@@ -1,7 +1,0 @@
-{
-  "schema": "claim",
-  "valid": false,
-  "rule": "TASK-12",
-  "why": "An expiry with no offset. Two processes that never met do not share a clock, and an instant that does not say which zone it is in is one each party resolves against its own — which is exactly the disagreement TASK-18 says this protocol has no mechanism to settle.",
-  "document": { "id": "claim-1", "task": "task-1", "expires": "2026-09-18T16:00:00" }
-}

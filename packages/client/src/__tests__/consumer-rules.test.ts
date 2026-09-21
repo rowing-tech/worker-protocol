@@ -3,13 +3,13 @@ import { type Call, caller, Malformed, pages, Refused, Unserved } from "../call.
 import { consume } from "../index.ts";
 
 /**
- * The eleven rules that oblige a consumer, each with a witness for the first time.
+ * The nine rules that oblige a consumer, each with a witness.
  *
  * `conformance/verifiability.md` classes these `P` — *the subject is not a Worker* — and a report
  * from `@worker-protocol/conformance` says `other subject` about every one of them, correctly:
- * that tool's subject is a Worker and it never contacted whoever these bind. Which left eleven
+ * that tool's subject is a Worker and it never contacted whoever these bind. Which left nine
  * required rules that nothing anywhere checked, because until this package there was no consumer
- * to check.
+ * to check. It was eleven until the Claim lifecycle was withdrawn.
  *
  * So each one has a test here, named by its id, and a fake Worker that can be made to misbehave on
  * purpose. This does not change what a conformance report says about a Worker; it says that the
@@ -21,7 +21,7 @@ const DESCRIPTOR = {
   edition: "0.1",
   capabilities: {
     health: { version: 1, address: "../health" },
-    tasks: { version: 1, address: "../tasks", claimAddress: "../claims", raises: {}, answers: [] },
+    tasks: { version: 1, address: "../tasks", raises: {}, answers: [] },
     actions: { version: 1, address: "../actions", actions: {} },
   },
 };
@@ -232,47 +232,6 @@ describe("the rules that bind a consumer", () => {
     expect(thrown).not.toBeInstanceOf(Unserved);
   });
 
-  it("TASK-20: names its Claim in the header, and never in the body", async () => {
-    // ACT-5 makes the body the input and nothing else, so the Claim travels beside it — the
-    // precedent is `Idempotency-Key`, a fact about the call that is not part of what the Action
-    // takes. A Response that did not name its Claim would be indistinguishable from an operator
-    // posting the same Action from a console.
-    const worker = fakeWorker((url) =>
-      url.pathname.endsWith("/claims")
-        ? { body: { id: "claim-1", task: "t-1", expires: "2999-01-01T00:00:00Z" } }
-        : { status: 204 },
-    );
-    const client = await consume(BASE, { fetch: worker.fetch, wait: nowait });
-
-    const held = await client.tasks?.claim("t-1");
-    await held?.answer("record-verification", { vehicle: "ABC-123" });
-
-    const performed = worker.seen.find((call) => call.url.includes("/actions"));
-    expect(performed?.headers.get("worker-protocol-claim")).toBe("claim-1");
-    expect(performed?.body).toBe(JSON.stringify({ vehicle: "ABC-123" }));
-  });
-
-  it("TASK-18: does no arithmetic against the owner's clock to decide whether it may act", async () => {
-    // Two processes that never met do not share a clock. The expiry is a hint about when to renew,
-    // and every question of the form *is this Claim still mine* is answered by asking — so a Claim
-    // whose lease this consumer's clock says lapsed an hour ago is still posted, and refused by
-    // the one party whose clock decides.
-    const worker = fakeWorker((url) =>
-      url.pathname.endsWith("/claims")
-        ? { body: { id: "claim-1", task: "t-1", expires: "2000-01-01T00:00:00Z" } }
-        : { status: 204 },
-    );
-    const client = await consume(BASE, { fetch: worker.fetch, wait: nowait });
-
-    const held = await client.tasks?.claim("t-1");
-    expect(held?.expires.getTime()).toBeLessThan(Date.now());
-
-    // It acts anyway, because the alternative is a consumer deciding on a clock the owner never
-    // saw. A holder whose clock runs slow acts and is refused; neither loses work.
-    await held?.answer("record-verification", {});
-    expect(worker.seen.some((call) => call.url.includes("/actions"))).toBe(true);
-  });
-
   it("validates what the protocol fixes and nothing the Worker owns", async () => {
     // The line `packages/README.md` draws for `mount()`, drawn again from the other side: a Task
     // missing a member `schemas/` requires is caught and named; a payload of any shape at all is
@@ -285,7 +244,7 @@ describe("the rules that bind a consumer", () => {
     const thrown = await client.tasks?.list().catch((error: unknown) => error);
     expect(thrown).toBeInstanceOf(Malformed);
     expect((thrown as Malformed).rule).toBe("TASK-5");
-    expect((thrown as Malformed).detail).toContain("failedClaims");
+    expect((thrown as Malformed).detail).toContain("since");
   });
 
   it("resolves every address against the Descriptor's own route (DESC-12)", async () => {
@@ -336,7 +295,5 @@ const task = (id: string) => ({
   id,
   type: "tech.rowing.test.a-thing",
   payload: {},
-  failedClaims: 0,
-  lapsedClaims: 0,
-  claimable: true,
+  since: "2026-09-21T00:00:00Z",
 });

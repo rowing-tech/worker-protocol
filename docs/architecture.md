@@ -58,14 +58,13 @@ argument earns each of these in turn.
 | **Control Tower** | A role, not a kind of node — the Tower, for short: the registry and the operator's console. It catalogs what Workers declare in their Descriptors, brokers the Contracts between them, and polls how each is doing. It holds no Worker's state, and nothing it offers is in the path of a call. A Tower that serves a Descriptor is a Worker like any other; what stays asymmetric is that every Worker reaches it by configuration rather than by discovery. |
 | **Metric** | A named quantity a Worker exposes over a period it declares, with a unit and no valuation — cost, volume, outcomes. Health says whether a Worker works; metrics say what it did. |
 | **Action** | An operation a Worker accepts, published with a schema and an address. The only way to act on a Worker that the protocol knows of; whatever else a Worker answers is its own business, and no console, catalog or Contract sees it. |
-| **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Skill it names. Closes only when the condition disappears. |
+| **Task** | A condition a Worker evaluates over its own Facts that, while it holds, requires one of a closed list of Actions from someone holding the Skill it names. Carries the instant its condition began, and closes only when that condition disappears. |
 | **Skill** | What a Worker or a person knows how to do in its domain, stated as the Task types it answers, each with its payload and response schemas. What a Task requires, and what the Tower catalogs by. |
-| **Claim** | One consumer's exclusive lease on a Task. Closes by declaration — `done`, `failed`, `released` — or by expiry, after which the owner reclaims. |
-| **Nudge** | A best-effort notification that there is something to claim. Carries no payload and no guarantee; whoever receives one claims as it would have on its next schedule. Losing one costs latency, never work. |
-| **Response** | What a consumer posts to the owner: the Action performed, and the outcome declared on the Claim. Does not close the Task. |
+| **Nudge** | A best-effort notification that there is something to do. Carries no payload and no guarantee; whoever receives one reads as it would have on its next schedule. Losing one costs latency, never work. |
+| **Response** | The Action a consumer posts to the owner in answer to a Task. Does not close it: the owner re-evaluates, and the condition closes or does not. |
 | **Event** | A Fact published for anyone to consume, with a shape declared in the Worker's own Descriptor. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
-| **Alert** | A condition an operator should see. May carry Actions; asks no Claim. |
+| **Alert** | A condition an operator should see. May carry Actions; requires no Skill. |
 | **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, metrics, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
 | **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
@@ -85,10 +84,10 @@ worker needs none. Ours run on Cloudflare.
 
 A worker finds work in four ways, and they combine freely:
 
-- **Claimed, on a schedule.** On a timer, the worker asks whatever holds the queue whether there is
-  work for it.
-- **Claimed, after a notification.** A best-effort nudge says there is work, and the worker claims
-  it straight away.
+- **Taken, on a schedule.** On a timer, the worker asks whoever raised the work whether there is
+  any for it.
+- **Taken, after a notification.** A best-effort nudge says there is work, and the worker reads
+  straight away.
 - **Pushed to an endpoint.** Someone calls the worker with the work in hand. If the worker wants
   the protocol to see that door — a console to render it, a Contract to cover it — it publishes it
   as an Action; otherwise it is an endpoint like any other the worker chooses to serve, and the
@@ -97,7 +96,7 @@ A worker finds work in four ways, and they combine freely:
   changed. The source has no idea the worker exists.
 
 Notification and schedule are a deliberate pair: the nudge makes the common case prompt, and the
-schedule makes it correct when a nudge is lost. A worker that claims only on a nudge is one dropped
+schedule makes it correct when a nudge is lost. A worker that reads only on a nudge is one dropped
 request away from stalling silently. The pair also answers how a consumer learns of a new Task — by
 the same means a worker finds any work: on a schedule, or after a best-effort nudge.
 
@@ -107,7 +106,7 @@ nobody is holding anything, which is why something else has to come round eventu
 
 **Workers that talk to people** ask for the opposite: a store and a user interface close enough
 together that building the screens is cheap, and a way for a person's action to become a message
-the worker handles. They are workers first; the UI is how their Tasks get claimed and answered by
+the worker handles. They are workers first; the UI is how their Tasks get answered by
 people. Ours run on Convex.
 
 Placement is a weighing, not a rule. Set a worker's demands — how long a run takes, how often it
@@ -117,7 +116,7 @@ exists is often cheaper there than as a new deployment elsewhere; one whose runs
 timers are many is asking for what a durable object gives.
 
 Three shapes recur often enough to have names; none is a different kind of node. A *domain service
-app* has a custom UI in domain language and works the Tasks it raises and claims. A *teams app*
+app* has a custom UI in domain language and works the Tasks it raises. A *teams app*
 gives a person or team one view of the Tasks they hold across owners, by Skill. A *proxy*
 wraps a system that cannot speak the protocol — Power Automate, Zapier, SAP — and answers for it.
 
@@ -173,7 +172,7 @@ workers running side by side while one replaces the other is already what a Serv
 stand behind it, Contracts reach both, and metrics let an operator compare them. Telling a retired
 worker from a dead one cannot rest on a declaration anyway, since a worker that dies declares
 nothing and somebody has to go and look either way. And what only the worker can do while it
-retires — stop granting Claims, drain what it holds — is its own business, seen through `tasks` and
+retires — stop raising Tasks, drain what it holds — is its own business, seen through `tasks` and
 `health` without needing a name.
 
 What does cross into the protocol is narrower than it looks, and two thirds of it is already
@@ -184,7 +183,7 @@ granted over a worker that is being retired, which belongs with the rest of what
 A **Service** is a name a team publishes over things workers already offer — these events, these
 Task types, these Actions — and answers for. It is the unit a Contract is made over, never a unit
 of execution: nothing is requested from a Service, and nothing flows through it. Using one means
-subscribing to its events, claiming its Tasks or posting its Actions directly against the workers
+subscribing to its events, reading its Tasks or posting its Actions directly against the workers
 behind it — which may be many, and which need not know which Service they serve.
 
 ```mermaid
@@ -203,8 +202,8 @@ flowchart LR
 
   worker -- "perceives, on a schedule" --> source
   caller -- "pushes work" --> worker
-  worker -- "claims Tasks, posts Responses<br/>(on a nudge or a schedule, under a Contract)" --> app
-  person -- "claims Tasks in the UI" --> app
+  worker -- "reads Tasks, posts Responses<br/>(on a nudge or a schedule, under a Contract)" --> app
+  person -- "answers Tasks in the UI" --> app
   worker -- "publishes events" --> broker
   app -- "subscribes to events" --> broker
   tower -- "polls the Worker API" --> worker
@@ -289,7 +288,7 @@ same signal, and telling them apart needs a second mechanism that exists only to
 Polling collapses that: the Tower already knows who should answer, and a worker that does not answer
 is a fact, immediately.
 
-The same argument holds for Tasks between workers: a consumer reads the Tasks it may claim from
+The same argument holds for Tasks between workers: a consumer reads the Tasks it may answer from
 the owner's API, and posts its Response to an owner it already knows.
 
 ### The payoff: the operator's UI is written once
@@ -344,50 +343,49 @@ needs something *done*, it raises a Task.
 
 A **Task** is a condition the worker evaluates over its own facts. While the condition holds, the
 Task exists; it names the **Actions** that may answer it — a closed list, not an instruction — and
-the **Skill** needed to perform them. A consumer with that Skill — another worker, or a
-person through an app — claims the Task and acts. **Nothing the consumer does closes the Task.**
-The owner never waits for a Response; it re-evaluates its condition when one arrives, and when the
-condition no longer holds the Task is gone. Nobody declares it done.
+the **Skill** needed to perform them. A consumer with that Skill — another worker, or a person
+through an app — reads it and acts. **Nothing the consumer does closes the Task.** The owner never
+waits for a Response; it re-evaluates its condition when one arrives, and when the condition no
+longer holds the Task is gone. Nobody declares it done.
 
 This inverts the dependency rather than removing it. The consumer knows the owner — the same way a
 subscriber knows the shape of the event it consumes. The owner knows nobody. That is the direction
 the network already accepts for events.
 
-**Skill** is the keystone, and it is concrete: the Task types a worker declares it answers,
-each with its payload and response schemas. A Task requires one; a worker or a person declares
-one; the Tower catalogs by it. It is the *unit of discovery*: the owner names a Task type, never an
-actor, and the Tower answers "who answers it". The owner's logic names no actor, exactly as a
-publisher names no subscriber; its runtime records who claimed, because refusing a late Response
-requires knowing who holds the Claim. That is what keeps a Task from becoming a dependency on a
-particular consumer.
+**Skill** is the keystone, and it is concrete: the Task types a worker declares it answers, each
+with its payload and response schemas. A Task requires one; a worker or a person declares one; the
+Tower catalogs by it. It is the *unit of discovery*: the owner names a Task type, never an actor,
+and the Tower answers "who answers it". The owner's logic names no actor, exactly as a publisher
+names no subscriber. That is what keeps a Task from becoming a dependency on a particular consumer.
 
-**A Task and a Claim are two objects with two lifecycles.** A Task closes by *condition*: the owner
-derives its status, and when the condition stops holding the Task disappears, whatever anyone
-said. A **Claim** closes by *declaration or by lease*: the holder reports `done`, `failed` or
-`released`, or its lease lapses and the owner reclaims the work for someone else. Claiming is
-exclusive — the owner grants one lease per Task and refuses a second claim of a held one; its store
-settles contention by first commit, and the owner needs no policy for that.
+A Task carries the instant its condition began, and that is the whole of its state. There is none
+other to carry: it exists because something is true, and it is gone when that stops. What an
+operator needs from it is *how long*, because a Task open since Tuesday is one nobody has answered
+— the same reading an Alert's `since` gets, for the same reason.
 
-Failure is counted over Claims, never over the condition: the owner keeps, beside the Task, how
-many Claims have failed and how many lapsed without a word, and may stop granting new leases past
-a cap of its own choosing. The Task itself is untouched by any of it — its condition still holds,
-so it still exists. A Task that has outlived several failed Claims is stuck, and that is the point:
-it is stuck where an operator can see it, with the count beside it, rather than in a queue that
-keeps retrying in silence. What the owner raises when it stops granting is answered in
-[tasks and claims](../spec/tasks-and-claims.md): it says so on the Task itself, under TASK-7's
-`claimable`, rather than leaving a consumer to infer it from a pattern of refusals. What lets it
-grant again is still the owner's.
+**Two consumers may answer the same Task, and this protocol does not prevent it.** An Action that
+declares an idempotency key is performed once however many times it is posted, and a condition a
+first answer resolved is not there for a second. Where the work is expensive, or physical, or paid
+for, the consumers of it coordinate among themselves — which is the party that can, since two
+people in one teams app are two people in one application.
 
-A **Response** is therefore two things: the Action posted into the owner, naming the Claim it is
-performed under, and the outcome declared on the Claim. It may carry the cost and elapsed time of
-the execution; what happens to those numbers is undecided.
+*This is where a Claim used to be: an exclusive lease a consumer took on a Task, with an expiry, a
+fencing token and counts of what had failed. Sixteen rules of it are withdrawn, and
+[tasks](../spec/tasks.md) carries the argument. The short of it is that a lease over a unit of work
+is the primitive of a work queue, that `spec/README.md` names orchestration a non-goal, and that
+the cost fell on the owner — who had to stand up a durable store to settle contention — while the
+consumer's side of it was optional all along.*
+
+A **Response** is therefore one call: an Action posted into the owner, under
+[actions](../spec/actions.md) and nothing added. It may carry the cost and elapsed time of the
+execution; what happens to those numbers is undecided.
 
 **Alerts** are conditions an operator should see. An Alert may carry Actions; a Task additionally
-requires a Skill, and is answered under a Claim. A silent vehicle is a Task for whoever can check
-it; a worker whose credentials expire in three days is an Alert for the Tower. Whether they were a
-surface of their own or Tasks nobody must claim was open for a while;
-[alerts](../spec/alerts.md) answers it and says why, and the short version is that folding them
-into Tasks would have meant a Task type carrying an exception to almost every rule in that file.
+requires a Skill and is discovered by it. A silent vehicle is a Task for whoever can check it; a
+worker whose credentials expire in three days is an Alert for the Tower. Whether they were a
+surface of their own was open for a while; [alerts](../spec/alerts.md) answers it and says why, and
+the short version is that folding them into Tasks would have meant a Task type carrying an
+exception to the rules that make a Task a Task.
 
 **Alarms** are something else again: a worker waking *itself* at a future time to re-evaluate.
 They are neither Tasks nor Alerts, and are named here only so nobody calls them either.
@@ -459,10 +457,10 @@ of those came back on their own. It raises no Tasks and does not know who listen
 A fleet operations app on Convex subscribes to those events and derives its own facts: trips, and
 which silent vehicles matter. From a `signal.lost` event it may raise the Task *verify silent
 vehicle*, requiring the Action *record verification* and the Skill *fleet verification*. A
-person with that Skill claims it — from the app's own UI, or from a teams app under a Contract
-the Tower brokered — verifies, and posts the Response: the verification, and `done` on the Claim.
-The app re-evaluates: the vehicle reported again, or a verification is on record, so the condition
-is gone and the Task closes.
+person with that Skill reads it — from the app's own UI, or from a teams app under a Contract the
+Tower brokered — verifies, and posts the Response, which is the Action *record verification* and
+nothing else. The app re-evaluates: the vehicle reported again, or a verification is on record, so
+the condition is gone and the Task closes. Nobody told it to.
 
 The worker owns motion and silence; the app owns trips and the Task; the Tower owns the Contracts
 and watches. Nobody touches another's state.

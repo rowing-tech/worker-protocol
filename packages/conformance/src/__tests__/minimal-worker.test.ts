@@ -16,7 +16,7 @@ import { type Report, verify } from "../index.ts";
  *
  * **One run, asserted from several tests.** The minimal Worker keeps its Facts in module scope, as
  * the smallest honest Worker would, so a verification is not repeatable against the same process:
- * the Action it performs resolves the condition of the Task it claimed, which is TASK-15 working
+ * the Action it performs resolves the condition of a Task it was listing, which is TASK-15 working
  * and is the thing being demonstrated. Running the tool once and reading the one report is both
  * more honest and what an operator does.
  */
@@ -26,16 +26,11 @@ import { type Report, verify } from "../index.ts";
  *
  * The reference Worker needs a second credential, an unprivileged one, a boot window, replaceable
  * settings and a published event, because it exists to put the `H` rules within reach. A Worker
- * that was merely written needs none of that: what it has is an Action that is safe to perform and
- * a Task it does not mind having claimed.
+ * that was merely written needs none of that: one Action that is safe to perform is the whole of
+ * what its operators have to say.
  */
 const ARRANGEMENT = {
   safeAction: { name: "record-check", input: { vehicle: "ABC-123", reachable: true } },
-  mayClaim: true,
-  // The Task the safe Action answers, and not merely any Task: TASK-22's witness is an outcome
-  // posted on a Claim whose Task the Action has already closed, so the two have to be about the
-  // same vehicle. Naming a different one leaves the rule reporting `not exercised`, correctly.
-  claimableTask: "silent:ABC-123",
 };
 
 describe("the minimal worker", () => {
@@ -90,34 +85,18 @@ describe("the minimal worker", () => {
     expect(arranged.some((r) => r.verdict === "notExercised")).toBe(true);
   });
 
-  it("carries the Claim lifecycle it never wrote a line of", () => {
-    // The whole of `spec/tasks-and-claims.md` that a Worker would otherwise implement: the lease
-    // and its expiry, exclusivity, renewal, the outcome, the fencing token, the Claim that
-    // survives its Task, the claim by type. `examples/minimal-worker` declares `open()` and
-    // `claimByType` and nothing else, and every one of these passes.
-    for (const id of [
-      "TASK-9",
-      "TASK-10",
-      "TASK-12",
-      "TASK-13",
-      "TASK-14",
-      "TASK-17",
-      "TASK-21",
-      "TASK-22",
-      "TASK-23",
-      "TASK-24",
-      "TASK-25",
-    ]) {
+  it("carries the whole tasks surface it never wrote a line of", () => {
+    // What a Worker would otherwise implement: the page envelope, the cursor, the ordering that
+    // makes paging terminate, the filter that must be refused rather than ignored.
+    // `examples/minimal-worker` declares `raises`, `answers` and `open()` and nothing else.
+    for (const id of ["TASK-27", "TASK-2", "TASK-3", "TASK-4", "TASK-5", "TASK-8", "TASK-28"]) {
       expect(verdict(id), id).toBe("passes");
     }
 
-    // TASK-26 is the one that cannot pass here, and the tool saying so is the point rather than a
-    // gap. Its negative half — that a Contract's credential does NOT read `holder` — needs a
-    // Contract credential to compare against, and a Worker nobody has brokered a Contract over has
-    // none to give. A verifier that passed it on the positive half alone would be vouching for the
-    // half that matters.
-    expect(verdict("TASK-26")).toBe("notExercised");
-    expect(report.results.find((r) => r.rule.id === "TASK-26")?.detail).toContain("Contract");
+    // TASK-6 cannot pass here, and the tool saying so is the point rather than a gap: showing that
+    // an owner filters needs a second credential covering something different, and a Worker nobody
+    // has brokered a Contract over has none to give.
+    expect(verdict("TASK-6")).toBe("notExercised");
   });
 
   it("cuts its metric buckets in a zone that observes daylight saving", () => {

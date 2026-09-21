@@ -63,8 +63,8 @@ matches it against what it decided to consume, having never met the team that mi
 **EVT-8 is where *how long must a consumer remember* stops being unanswerable.** The honest form of
 that question is not a duration this specification could invent — it would be a number every
 deployment was measured against, invented by somebody who had seen none of them, which is the same
-refusal [health](health.md) makes about a cadence and [tasks and claims](tasks-and-claims.md) makes
-about a lease. What turns it into something a consumer can design against is the same move ENDP-15
+refusal [health](health.md) makes about a poll cadence. What turns it into something a consumer can
+design against is the same move ENDP-15
 already makes for an idempotency key: **the producer declares the window, and the guarantee is
 worthless without one.** *Remember forever* is not implementable, and a consumer that forgot too
 early would process an event twice while believing it was protected. Declared, the consumer sizes
@@ -108,7 +108,7 @@ through unchanged.**
 
 A Worker on a platform with no long-lived process — and the [architecture](../docs/architecture.md)
 is explicit that those are the Workers people use — cannot hold a consumer group. The answer needs
-no new surface, and it is the same answer [tasks and claims](tasks-and-claims.md) gives the nudge:
+no new surface, and it is the same answer [tasks](tasks.md) gives the nudge:
 **an Action is already a declared, schema-carrying, credentialed way to push something into a
 Worker.** The subscriber is the consumer's own component, this protocol does not see it, and the
 Worker on the other side of it is receiving an ordinary Action.

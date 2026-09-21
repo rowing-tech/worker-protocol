@@ -1,14 +1,12 @@
 {
   "schema": "task",
   "valid": true,
-  "rule": "TASK-7",
-  "why": "A Task that has outlived three failed Claims and is no longer being granted leases. It still exists, because its condition still holds and nothing a consumer said bears on that — and it is stuck where an operator can see it, with the count beside it, rather than in a queue retrying in silence.",
+  "rule": "TASK-28",
+  "why": "One Task whose condition has held for three days. It carries no status and nothing anybody declared about it: a Task exists while its condition holds and disappears when it stops, so `since` is the whole of what a reader needs beyond what it is — and a Task open since Tuesday is one nobody has answered.",
   "document": {
     "id": "task-3",
     "type": "tech.rowing.fleet.verify-vehicle",
     "payload": { "vehicle": "ABC-123" },
-    "failedClaims": 3,
-    "lapsedClaims": 1,
-    "claimable": false
+    "since": "2026-09-18T09:00:00+02:00"
   }
 }

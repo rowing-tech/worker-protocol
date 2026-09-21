@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "worker-protocol — tasks, the reading address",
+    "title": "worker-protocol — tasks",
     "version": "0.1",
     "description": "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
     "license": {
@@ -12,7 +12,7 @@
   "servers": [
     {
       "url": "{address}",
-      "description": "TASK-1. The reading address the `tasks` entry declares, resolved per DESC-12. The address a claim is posted to is a different declared address and has its own document.",
+      "description": "TASK-27. The one address the `tasks` entry declares, resolved per DESC-12.",
       "variables": {
         "address": {
           "default": "/",
@@ -25,7 +25,7 @@
     "/": {
       "get": {
         "summary": "Read the open Tasks",
-        "description": "TASK-5. Listing a Worker's open Tasks does not consume them, which is why this is a GET and why the claim is not (ENDP-2, ENDP-3).",
+        "description": "TASK-5. Listing a Worker's open Tasks does not consume them, which is what ENDP-2 spends its argument on and why this is a GET.",
         "parameters": [
           {
             "name": "type",

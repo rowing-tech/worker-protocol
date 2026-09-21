@@ -1,8 +1,6 @@
 import { createRoute, type RouteConfig, z } from "@hono/zod-openapi";
 import {
   alertPage,
-  claim,
-  claimOutcome,
   DIMENSION_NAME,
   descriptor,
   error,
@@ -307,16 +305,6 @@ export const performAction = createRoute({
             "Where the Action declares it reads a key from the header. Within the declared window a repeat under the same key is not a second performance; the same key with a different body is `409`.",
           ),
         }),
-      "Worker-Protocol-Claim": z
-        .string()
-        .min(1)
-        .optional()
-        .openapi({
-          description: cite(
-            "TASK-20",
-            "The Claim this Action is performed under, where it answers a Task. TASK-21: one that is not its Task's current one, or whose Task's type does not list this Action, is `409` and nothing is performed. Absent, the call is a performance and answers no Claim.",
-          ),
-        }),
       "Worker-Protocol-Capability-Version": expectedVersion,
     }),
     // No schema, deliberately, and so no validation here: the body is the Action's own input,
@@ -348,7 +336,6 @@ export const performAction = createRoute({
       ["schema_mismatch", "ACT-8"],
       ["idempotency_key_required", "ENDP-18"],
       ["not_found", "ACT-6"],
-      ["conflict", "TASK-21"],
       ["idempotency_key_reused", "ENDP-17"],
       ["unprocessable_content", "ACT-9"],
       ...SHARED,
@@ -362,7 +349,7 @@ export const readTasks = createRoute({
   summary: "Read the open Tasks",
   description: cite(
     "TASK-5",
-    "Listing a Worker's open Tasks does not consume them, which is why this is a GET and why the claim is not (ENDP-2, ENDP-3).",
+    "Listing a Worker's open Tasks does not consume them, which is what ENDP-2 spends its argument on and why this is a GET.",
   ),
   request: {
     query: z.object({
@@ -382,89 +369,6 @@ export const readTasks = createRoute({
   responses: {
     200: answer("TASK-5", "Tasks whose conditions hold, in the shared page envelope.", taskPage),
     ...refusals([["invalid_parameter", "TASK-8"], ["unknown_filter", "ENDP-24"], ...SHARED]),
-  },
-});
-
-export const writeClaim = createRoute({
-  method: "post",
-  path: "/",
-  summary: "Claim, renew, or close a Claim",
-  description: cite(
-    "TASK-9",
-    "`task` claims one Task and `type` claims any claimable Task of a type, where the entry declares `claimByType`; `claim` alone renews; `claim` with `outcome` closes. `lease` proposes a duration on a claim or a renewal. Closing a Claim never closes the Task, which closes when its condition stops holding and which nobody declares (TASK-15) — and a Task closing never closes the Claim (TASK-22).",
-  ),
-  request: {
-    query: z.object({
-      task: z
-        .string()
-        .min(1)
-        .optional()
-        .openapi({
-          description: cite(
-            "TASK-9",
-            "The Task to claim, by the id TASK-7 carries. One already claimed, or one the Worker is not granting leases on, is `409`.",
-          ),
-        }),
-      type: z
-        .string()
-        .min(1)
-        .optional()
-        .openapi({
-          description: cite(
-            "TASK-24",
-            "A Task type to claim one claimable Task of, where the entry declares `claimByType`. The Claim answered carries that Task in `held`. A type the entry does not raise, or one named where `claimByType` is not declared, is `400` (TASK-23); nothing claimable of it is `204` and not a refusal, because an empty queue is neither `you are wrong` nor `I am busy`.",
-          ),
-        }),
-      lease: z.coerce
-        .number()
-        .int()
-        .min(1)
-        .optional()
-        .openapi({
-          description: cite(
-            "TASK-25",
-            "A lease duration the holder proposes, in seconds, on a claim or a renewal. The owner grants what it decides and publishes the expiry; a proposal binds it to nothing.",
-          ),
-          type: "integer",
-          minimum: 1,
-        }),
-      claim: z
-        .string()
-        .min(1)
-        .optional()
-        .openapi({
-          description: cite(
-            "TASK-13",
-            "The Claim to renew or close. One that is no longer the Task's current one is `409` — the Claim id is the fencing token, checked at write time rather than against a clock.",
-          ),
-        }),
-      outcome: z.optional(claimOutcome).openapi({
-        description: cite(
-          "TASK-14",
-          "Closes the Claim. Absent with `claim`, the call renews instead.",
-        ),
-      }),
-    }),
-    headers: versionHeader,
-  },
-  responses: {
-    200: answer(
-      "TASK-9",
-      "The Claim granted — with the Task it holds in `held` on a claim by type (TASK-24) — or the new expiry after a renewal.",
-      claim,
-    ),
-    204: answer(
-      "TASK-14",
-      "The Claim is closed — or, on a claim by type, nothing of that type is claimable and nothing was claimed (TASK-24). The caller tells the two apart by what it asked for.",
-      null,
-    ),
-    ...refusals([
-      ["invalid_parameter", "TASK-14"],
-      ["invalid_parameter", "TASK-23"],
-      ["not_found", "ENDP-29"],
-      ["conflict", "TASK-10"],
-      ...SHARED,
-    ]),
   },
 });
 
@@ -554,28 +458,13 @@ export const SURFACES: Surface[] = [
     capability: "tasks",
     server: {
       variable: "address",
-      rule: "TASK-1",
-      description:
-        "The reading address the `tasks` entry declares, resolved per DESC-12. The address a claim is posted to is a different declared address and has its own document.",
+      rule: "TASK-27",
+      description: "The one address the `tasks` entry declares, resolved per DESC-12.",
     },
-    title: "worker-protocol — tasks, the reading address",
+    title: "worker-protocol — tasks",
     description:
       "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
     route: readTasks,
-  },
-  {
-    document: "tasks-claims",
-    capability: "tasks",
-    server: {
-      variable: "claimAddress",
-      rule: "TASK-1",
-      description:
-        "The address the `tasks` entry declares a claim is posted to, resolved per DESC-12. It is a second document and not a second path, because a declared address is a server and a path appended to one is an address nobody declared.",
-    },
-    title: "worker-protocol — tasks, the claim address",
-    description:
-      "Claiming a Task, renewing a lease, and declaring an outcome. Everything here changes state, which is why it is a POST (ENDP-3).",
-    route: writeClaim,
   },
   {
     document: "alerts",

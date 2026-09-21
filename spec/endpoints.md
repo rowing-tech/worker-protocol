@@ -7,12 +7,10 @@ verbs, which content types, and how a Worker says which version of this protocol
 
 Two shapes are shared by every surface and have schemas of their own: the error envelope,
 [schemas/error.json](../schemas/error.json), and the page envelope,
-[schemas/page.json](../schemas/page.json). Four header names are fixed by this specification,
-because a JSON Schema describes a body and not a header. Three are this file's:
-`Worker-Protocol-Edition`, `Worker-Protocol-Capability-Version` and `Idempotency-Key`. The fourth,
-`Worker-Protocol-Claim`, is [tasks and claims](tasks-and-claims.md)'s, and TASK-20 says what it
-carries. What follows is what no schema can state. Rules carry ids; the convention is in
-[spec/README.md](README.md).
+[schemas/page.json](../schemas/page.json). Three header names are fixed by this file and by nothing
+else, because a JSON Schema describes a body and not a header:
+`Worker-Protocol-Edition`, `Worker-Protocol-Capability-Version` and `Idempotency-Key`. What follows
+is what no schema can state. Rules carry ids; the convention is in [spec/README.md](README.md).
 
 ## One fixed route, and no fixed prefix
 
@@ -50,10 +48,10 @@ them, reading its Alerts does not dismiss them, reading its settings does not re
 read endpoint that empties what it read turns every act of looking into an act of taking, and the
 operator who was only looking finds out later, from the absence.
 
-Where answering requires changing state — claiming a Task takes an exclusive lease, and the answer
-is only true because the state changed — it is not a read and it is not a GET. That is the line: if
-a caller could not run it twice and get the same answer, it is not on the read side of this
-protocol.
+Where answering requires changing state — a counter that only moves because somebody asked, an
+answer that is only true because the state changed — it is not a read and it is not a GET. That is
+the line: if a caller could not run it twice and get the same answer, it is not on the read side of
+this protocol.
 
 One verb on the writing side, because the reader that matters never chose it. A console renders a
 form from a schema it did not author and posts the result to an address it does not understand;
@@ -155,7 +153,7 @@ the class named beside it. This protocol does not fix the status of a success.**
 | `403` | `reject` | The credential is understood and does not carry the right — a scope it lacks, a Contract it is not covered by |
 | `404` | `reject` | No such address, or no such resource |
 | `408` | `retry` | The request did not arrive in time to be answered |
-| `409` | `reject` | The request conflicts with the current state — a Task already claimed, an idempotency key reused with a different body |
+| `409` | `reject` | The request conflicts with the current state — an idempotency key reused with a different body |
 | `422` | `reject` | The body is well-formed and matches the schema, and this Worker will not accept its content |
 | `429` | `retry` | Too many requests. Carries `Retry-After` |
 | `500` | `retry` | The Worker failed for its own reasons |
@@ -220,11 +218,14 @@ the argument beneath each code — why `502` and `504` are two of them, why `sch
 | `upstream_timeout` | `504` | `retry` | Something the Worker depends on did not answer in time — ENDP-29 |
 
 Every code above names a condition some rule already states. None was invented to fill a gap, and
-where the text has not committed to a condition there is deliberately no code for it: `conflict` is
-the only broad one, because ENDP-29 names *a Task already claimed* among its 409s and
-[tasks-and-claims](tasks-and-claims.md) had not been written. It has been since, and it wanted no
-code of its own: TASK-10, TASK-11 and TASK-17 all answer `conflict`, which is the same broad
-condition under three names for it. The price below was therefore not spent there.
+where the text has not committed to a condition there is deliberately no code for it — with one
+exception, and it is now the only loose thread in the vocabulary. **`conflict` is broad, and today
+nothing but `idempotency_key_reused` answers under its status.** It was written broad because
+ENDP-29 named *a Task already claimed* among its 409s, and the three rules in [tasks](tasks.md)
+that used it are withdrawn with the lease they were about. Whether a code with no condition left to
+name should survive an edition is a question for the next one; withdrawing it now would be spending
+an edition's price to remove a code nobody sends, which is the same ceremony in the other
+direction.
 
 [actions](actions.md) is the first file to have spent that price. `schema_mismatch` is not
 `malformed_request`, and the difference is what a caller does next: a body that will not parse
@@ -345,7 +346,7 @@ because a parameter one Worker honors is a parameter every other Worker must rec
 That is a good reason and it is not a contract: a Worker that does honor a requested size, up to
 its cap, breaks nothing and no caller can tell. It answers to its own operators for the choice.
 
-Filters belong to the surfaces that have them — which Tasks a consumer may claim, which period a
+Filters belong to the surfaces that have them — which Task types a consumer reads, which period a
 metric covers — and each file names its own. ENDP-24 is about the one a Worker does not know,
 and it is strict for a reason: a filter that is dropped silently answers with more than the caller
 asked for, in a shape it will happily parse. A caller that filtered in order to stay inside a

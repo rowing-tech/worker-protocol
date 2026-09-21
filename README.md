@@ -21,8 +21,8 @@ Two halves, and a worker may implement one or both:
 - **Operate.** A worker exposes its health and its metrics, raises alerts, and declares the
   actions it accepts, each with the schema of its input. An operator acts on it from a console
   without knowing what is inside.
-- **Delegate.** A worker takes tasks it did not create, claims one under a lease, and answers.
-  Whoever raised the task never names who will do it.
+- **Delegate.** A worker reads tasks it did not create and answers one. Whoever raised the task
+  never names who will do it, and nobody declares it done: it closes when its condition stops.
 
 A worker may also implement neither and still be one. The descriptor is the whole floor: everything
 above it is declared or left out freely, and a worker that serves a descriptor and nothing else is
@@ -43,8 +43,8 @@ Four layers, and only the first three bind:
 
 `openapi/` holds one document per declared address rather than per Capability, because an address
 is a *server* to every generator and a path appended to one is an address somebody assembled —
-which ENDP-1 says no reader does. `tasks` therefore has two. `events` has none: it travels over a
-broker this protocol declines to name, so there is no call to describe.
+which ENDP-1 says no reader does. `events` has none: it travels over a broker this protocol
+declines to name, so there is no call to describe.
 
 Every section of `spec/` carries a maturity marker, so that implementing this in parts is a fact
 you can read rather than a negotiation:
@@ -83,8 +83,8 @@ the alternative is every Worker author deriving the same rules again and the one
 wrong being non-conformant in a way only a verifier ever finds.
 
 So `mount()` in `packages/hono` carries the whole of what this protocol fixes — the addresses, the
-headers, the envelope, the refusals, the page envelope, the Claim lifecycle, the bucket boundaries
-— and nothing the specification leaves to a Worker. Its standing is the verifier's: it is derived
+headers, the envelope, the refusals, the page envelope and its cursor, the bucket boundaries — and
+nothing the specification leaves to a Worker. Its standing is the verifier's: it is derived
 from the surface declaration beside it, and `@worker-protocol/conformance` running against a Worker
 built on it is what vouches for it.
 
@@ -104,18 +104,25 @@ about trust. Each still carries a `Still open here` section, which is what `stab
 be empty of. What `draft` means here is what the table above says: shaped and implementable, still
 moving — and moving now costs a withdrawal rather than a silent edit.
 
-What stands behind that: 159 rules, every one classified in
+What stands behind that: 143 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
 is broken, and every one of the 82 a tool can observe against an ordinary Worker checked by
-[`@worker-protocol/conformance`](packages/conformance) over a real socket. Twenty-nine more need a
-Worker *arranged* to be observed — a second credential, a boot window, a Task its operators will let
-go of — and pass when that arrangement is handed to the verifier out of band, as the base URL and
-the credential already are.
+[`@worker-protocol/conformance`](packages/conformance) over a real socket. Fifteen more need a
+Worker *arranged* to be observed — a second credential, a boot window, an Action safe to perform —
+and pass when that arrangement is handed to the verifier out of band, as the base URL and the
+credential already are.
 
-The remaining 48 are reported rather than passed, and the two kinds are not the same: 27 bind a
+The remaining 46 are reported rather than passed, and the two kinds are not the same: 25 bind a
 party who is not a Worker, so this tool never contacted whoever they oblige, and 21 have no witness
-anywhere. A report that counted either as compliance would be vouching for something nobody
-checked.
+anywhere.
+
+**Forty-four rules are withdrawn, and sixteen of them went at once.** A Claim was an exclusive lease
+a consumer took on a Task, and [spec/tasks.md](spec/tasks.md) says why it is gone: a lease over a
+unit of work is the primitive of a work queue, orchestration is a declared non-goal, and the cost
+fell on the owner while the consumer's half of it was optional all along.
+
+A report that counted `other subject` or `unverified` as compliance would be vouching for something
+nobody checked, which is why neither is a pass.
 
 ## License and name
 

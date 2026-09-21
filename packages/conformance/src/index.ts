@@ -24,7 +24,7 @@ export type { Exchange } from "./transcript.ts";
  * `@worker-protocol/conformance` — point it at a Worker's base URL, get a report of what it
  * complies with.
  *
- * Its subject is a Worker and nothing else. Twenty-six rules in `spec/` bind a verifier, a Control
+ * Its subject is a Worker and nothing else. Twenty-seven rules in `spec/` bind a verifier, a Control
  * Tower, a consumer, an issuer or the specification itself; this tool reports those as
  * `otherSubject` rather than passing them, because it never contacted the party they oblige.
  * `conformance/verifiability.md` is where that classification is decided and `conformance/
@@ -72,28 +72,13 @@ export type Arrangement = {
   refusedInput?: { name: string; input: unknown };
   /** An Action that declares it does not complete within the call, and an input for it (ACT-11). */
   asyncAction?: { name: string; input: unknown };
-  /**
-   * Whether the verifier may claim a Task, and release it again.
-   *
-   * Separate from `mayPerform` because it is a different consent. Performing an Action does
-   * something to the Worker; claiming takes work away from whoever would otherwise have taken it,
-   * for as long as the lease runs. The verifier releases every Claim it takes, so a Worker is left
-   * as it was found — but a Task held for even a moment is a Task somebody else could not have,
-   * and that is the operators' call rather than this tool's.
-   */
-  mayClaim?: boolean;
-  /** A Task the operators are willing to have claimed and released (TASK-9 onward). */
-  claimableTask?: string;
-  /** A Task the Worker is not currently granting leases on (TASK-11). */
-  unclaimableTask?: string;
   /** A second credential issued to the same holder (REG-8, REG-28, ALRT-6). */
   secondCredential?: string;
   /**
-   * A credential issued under a Contract rather than recorded at enrollment (TASK-6, TASK-26).
+   * A credential issued under a Contract rather than recorded at enrollment (TASK-6).
    *
-   * TASK-6 compares what it sees against what the recorded credential sees; TASK-26 reads a held
-   * Task with it and expects no `holder`. Where none is given TASK-6 falls back to the second
-   * credential, as it did before TASK-26 gave the two different things to show.
+   * TASK-6 compares what it sees against what the recorded credential sees. Where none is given it
+   * falls back to the second credential.
    */
   consumerCredential?: string;
   /** A credential the Worker authenticates and that carries no right here (REG-32). */
@@ -154,18 +139,11 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       ...(await callSurfaces(
         descriptor.surfaces,
         descriptor.url,
-        // ENDP-6 is probed on the writes too, and these are the two this protocol has: the
-        // Actions address, and the address a claim is posted to.
-        [
-          descriptor.surfaces.find((s) => s.capability === "actions")?.url,
-          typeof (descriptor.document.capabilities.tasks as { claimAddress?: unknown } | undefined)
-            ?.claimAddress === "string" && descriptor.url !== null
-            ? new URL(
-                (descriptor.document.capabilities.tasks as { claimAddress: string }).claimAddress,
-                descriptor.url,
-              ).toString()
-            : undefined,
-        ].filter((url): url is string => url !== undefined),
+        // ENDP-6 is probed on the write this protocol has, which is the Actions address. It was
+        // two until the claim address went with the lease.
+        [descriptor.surfaces.find((s) => s.capability === "actions")?.url].filter(
+          (url): url is string => url !== undefined,
+        ),
         byId,
         tape,
         options.credential,
@@ -181,30 +159,19 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           | undefined
       )?.actions ?? {},
     );
-    // Tasks before Actions, and the order is not a preference. TASK-16 performs the safe Action
-    // under a Claim, and an Action that answers a Task may resolve its condition (TASK-15) — so
-    // the Task the operators named as claimable has to be claimed before anything performs the
-    // Action that closes it. `checks/actions.ts` performs it again afterwards on its own account,
-    // which a safe Action survives by definition.
-    const claimed = await checkTasks(
+    // Tasks before Actions, and the order is not a preference: an Action that answers a Task
+    // resolves its condition (TASK-15), so a Worker whose Tasks are read after its Actions are
+    // performed may have none left to read. Every check here is a GET and changes nothing.
+    const listed = await checkTasks(
       descriptor.document.capabilities.tasks,
       descriptor.surfaces.find((s) => s.capability === "tasks")?.url ?? null,
-      descriptor.url,
       actionNames,
       byId,
       attribution,
       tape,
-      {
-        ...(options.arrangement ?? {}),
-        // TASK-16 sends the Action and then the outcome, so it needs the address the `actions`
-        // entry declared. `verify` resolves it once rather than every check resolving it again.
-        actionsUrl: descriptor.surfaces.find((s) => s.capability === "actions")?.url ?? undefined,
-      },
-      options.mayPerform === true,
-      options.credential,
     );
-    results.push(...claimed.results);
-    nested.push(...claimed.addresses);
+    results.push(...listed.results);
+    nested.push(...listed.addresses);
     const performed = await checkActions(
       descriptor.document.capabilities.actions,
       descriptor.surfaces.find((s) => s.capability === "actions")?.url ?? null,

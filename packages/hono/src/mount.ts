@@ -2,7 +2,6 @@ import { OpenAPIHono, type RouteConfig } from "@hono/zod-openapi";
 import { EDITION } from "@worker-protocol/schemas";
 import type { Context, MiddlewareHandler } from "hono";
 import { actions as actionsSurface, jsonSchema, type Recorded } from "./actions.ts";
-import { type ClaimStore, claims as claimLifecycle, memoryClaims } from "./claims.ts";
 import { byCode } from "./codes.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
 import {
@@ -12,7 +11,6 @@ import {
   readDescriptor,
   readMetric,
   readTasks,
-  writeClaim,
 } from "./surfaces.ts";
 import { tasks as taskSurface } from "./tasks.ts";
 import type { Answer, Refusal, Worker } from "./worker.ts";
@@ -42,11 +40,11 @@ import type { Answer, Refusal, Worker } from "./worker.ts";
  *
  * What it carries, so that a Worker author does not: ENDP-5's two headers on every response;
  * REG-3 and REG-21; ENDP-6's whole refusal of a version it cannot answer; ENDP-24; ENDP-25 and
- * ENDP-26's envelope; ENDP-19 through ENDP-23's page and cursor; DESC-12's addresses; TASK-9
- * through TASK-26, the whole Claim lifecycle; MET-7 through MET-20, the parameters and the
- * boundaries; ACT-6 through ACT-12 and ENDP-15 through ENDP-18; and ACT-2 and ACT-3's JSON Schema,
- * generated from the Zod object a Worker declared so the document a console renders a form from and
- * the object a request is validated against are one declaration.
+ * ENDP-26's envelope; ENDP-19 through ENDP-23's page and cursor; DESC-12's addresses; TASK-5's
+ * filter and TASK-28's page; MET-7 through MET-20, the parameters and the boundaries; ACT-6 through
+ * ACT-12 and ENDP-15 through ENDP-18; and ACT-2 and ACT-3's JSON Schema, generated from the Zod
+ * object a Worker declared so the document a console renders a form from and the object a request
+ * is validated against are one declaration.
  *
  * What it does not carry is anything the Worker is authoritative over: whether a credential is
  * good, which conditions hold, what a number is, what performing an Action does.
@@ -122,47 +120,23 @@ const noParameters: MiddlewareHandler = async (c, next) => {
 /**
  * The state this package owns rather than the Worker, and that therefore outlives one request.
  *
- * Every one of these is a rule keeping a promise across calls, so a fresh copy per request would
- * be the rule silently broken: Claims granted in a Map nobody looks at again, an idempotency
- * window that forgets before it said it would, two holders minted the same id. A Worker that runs
- * across isolates gives its own `claims` store; these are what a single one gets for free.
+ * ENDP-16 is a rule keeping a promise across calls, so a fresh copy per request would be the rule
+ * silently broken: a window that forgets before it said it would, while a caller still believes it
+ * is protected. A Worker that runs across isolates needs more than a Map for it, and that is not
+ * yet something this package offers.
  */
 type Durable = {
-  /** TASK-9 onward, where the Worker declares no store of its own. */
-  memory: ClaimStore;
-  /** TASK-26. The opaque id this Worker calls each credential by. */
-  minted: Map<string, string>;
   /** ENDP-16. The outcome recorded against a key, for as long as the Action declared. */
   recorded: Map<string, Recorded>;
 };
 
 /** One Worker's surfaces, over state that is older than this request. */
 function surfacesOf(worker: Worker, durable: Durable) {
-  const held = worker.tasks
-    ? claimLifecycle(worker.tasks.claims ?? durable.memory, worker.tasks.lease)
-    : undefined;
-
-  // TASK-26: absent, every credential this Worker authenticated counts as recorded at enrollment.
-  // A Worker with one credential has recorded it, and a default of `false` would have made that
-  // Worker fail a required rule in order to guard a case it does not have.
-  const enrolled = worker.enrolled ?? ((token: string | undefined) => token !== undefined);
-
-  const tasks =
-    worker.tasks && held
-      ? taskSurface(worker.tasks.raises, worker.tasks, held, enrolled, durable.minted)
-      : undefined;
-
-  const actions = worker.actions
-    ? actionsSurface(
-        worker.actions,
-        async (claim, action) => (await tasks?.allows(claim, action)) ?? false,
-        durable.recorded,
-      )
-    : undefined;
-
-  const metrics = worker.metrics ? metricsSurface(worker.metrics) : undefined;
-
-  return { tasks, actions, metrics };
+  return {
+    tasks: worker.tasks ? taskSurface(worker.tasks.raises, worker.tasks) : undefined,
+    actions: worker.actions ? actionsSurface(worker.actions, durable.recorded) : undefined,
+    metrics: worker.metrics ? metricsSurface(worker.metrics) : undefined,
+  };
 }
 
 /** DESC-1. The Descriptor, derived from what the Worker implements and nothing else. */
@@ -199,11 +173,10 @@ function descriptorOf(worker: Worker, edition: string): string {
   if (worker.events) capabilities.events = { version: 1, ...worker.events };
 
   if (worker.tasks) {
-    const { raises, answers, claimByType } = worker.tasks;
+    const { raises, answers } = worker.tasks;
     capabilities.tasks = {
       version: 1,
       address: "../tasks",
-      claimAddress: "../claims",
       raises: Object.fromEntries(
         Object.entries(raises).map(([type, declaration]) => [
           type,
@@ -211,7 +184,6 @@ function descriptorOf(worker: Worker, edition: string): string {
         ]),
       ),
       answers,
-      ...(claimByType === undefined ? {} : { claimByType }),
     };
   }
 
@@ -219,7 +191,7 @@ function descriptorOf(worker: Worker, edition: string): string {
 }
 
 export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
-  const durable: Durable = { memory: memoryClaims(), minted: new Map(), recorded: new Map() };
+  const durable: Durable = { recorded: new Map() };
 
   /**
    * What the runtime gave this request, where it gave one.
@@ -352,8 +324,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     true,
   );
 
-  // ACT-5: the Action is named in the query and the body is the input, raw. TASK-20: the Claim
-  // an Action answers under travels as a header, outside the body.
+  // ACT-5: the Action is named in the query and the body is the input, raw.
   serve(
     "actions",
     "/actions",
@@ -367,7 +338,6 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           query(c).get("action") ?? "",
           await c.req.text(),
           c.req.header("idempotency-key"),
-          c.req.header("worker-protocol-claim"),
           bearer(c),
         ),
       );
@@ -400,27 +370,6 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       const tasks = surfacesOf(worker, durable).tasks;
       if (!tasks) return undeclared("tasks");
       return page(c, await tasks.read(query(c), bearer(c)));
-    },
-    true,
-  );
-
-  serve(
-    "tasks",
-    "/claims",
-    writeClaim,
-    async (c, worker) => {
-      const tasks = surfacesOf(worker, durable).tasks;
-      if (!tasks) return undeclared("tasks");
-      // TASK-23: a claim naming a type where the entry declares no `claimByType` is a parameter
-      // fault, and this app refuses it because it serves the declaration and cannot disagree.
-      const asked = query(c);
-      if (asked.has("type") && worker.tasks?.claimByType !== true) {
-        return envelope({
-          code: "invalid_parameter",
-          message: "This Worker does not declare `claimByType`.",
-        });
-      }
-      return reply(c, await tasks.write(asked, bearer(c)));
     },
     true,
   );

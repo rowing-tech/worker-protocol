@@ -28,9 +28,9 @@ const TYPE = "tech.rowing.fleet.check-silent-vehicle";
 export type Env = { CREDENTIAL?: string };
 
 /** This Worker's own Facts. A real one reads them from the store its environment gives it. */
-const silent = new Map<string, number>([
-  ["ABC-123", Date.now() - 3_600_000],
-  ["DEF-456", Date.now() - 7_200_000],
+const silent = new Map<string, Date>([
+  ["ABC-123", new Date(Date.now() - 3_600_000)],
+  ["DEF-456", new Date(Date.now() - 7_200_000)],
 ]);
 const checked = new Set<string>();
 
@@ -62,9 +62,7 @@ export const fleetWorker = (env: Env): Worker => ({
     read: ({ buckets }) =>
       buckets.map((bucket) => ({
         start: bucket.start,
-        value: [...silent.values()].filter(
-          (at) => at >= bucket.start.getTime() && at < bucket.end.getTime(),
-        ).length,
+        value: [...silent.values()].filter((at) => at >= bucket.start && at < bucket.end).length,
       })),
   },
 
@@ -108,15 +106,19 @@ export const fleetWorker = (env: Env): Worker => ({
       },
     },
     answers: [],
-    // TASK-23: a consumer answering a nudge may claim by type and get the work in one call.
-    claimByType: true,
     // TASK-15: the condition, and the whole of what this Worker owes. A Task exists while its
     // vehicle is quiet and unchecked, and it closes when that stops being true — which nobody
     // declares, and which is why `record-check` above needs to know nothing about Tasks.
+    // TASK-28's `since` is the instant the condition began, not the instant this was asked.
     open: (): OpenTask[] =>
-      [...silent.keys()]
-        .filter((vehicle) => !checked.has(vehicle))
-        .map((vehicle) => ({ id: `silent:${vehicle}`, type: TYPE, payload: { vehicle } })),
+      [...silent.entries()]
+        .filter(([vehicle]) => !checked.has(vehicle))
+        .map(([vehicle, since]) => ({
+          id: `silent:${vehicle}`,
+          type: TYPE,
+          payload: { vehicle },
+          since,
+        })),
   },
 });
 

@@ -302,7 +302,7 @@ monitoring system. The period is the distinction.
 
 - **Whether a metric is broken down by Contract.** It would be a dimension like any other, and the
   Worker is authoritative over the value: it sees the credential on every request, so it knows which
-  Contract each Claim, Action and Response came under. What is undecided is whether this protocol
+  Contract each read and each Action came under. What is undecided is whether this protocol
   names that dimension, which would make one name mean the same thing across Workers, or leaves each
   Worker to declare its own. Open in [undecided](../docs/undecided.md).
 

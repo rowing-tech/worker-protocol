@@ -299,8 +299,8 @@ It is read that way by all three readers:
 what the earlier form of this rule got wrong.** It said *a declared surface answering `404`*, which,
 read as a rule is meant to be read — alone, by somebody who never saw this paragraph — reached every
 `404` that address ever gives. But a surface that answers perfectly well says `404` about resources
-all the time: a claim naming a Task that has closed since it was listed (TASK-9), a metric a read
-named that the entry does not declare (MET-9), an Action no entry holds (ACT-6). A consumer obeying
+all the time: a metric a read named that the entry does not declare (MET-9), an Action no entry
+holds (ACT-6), a resource that was there when it was listed. A consumer obeying
 that text stopped permanently the first time a Task closed between two of its own calls, which is
 the failure this rule exists to prevent, pointed at the wrong party. The argument above defends *an
 address that is not served*, so that is what the rule now says, and a `404` about a resource at an
@@ -336,14 +336,14 @@ older version keeps working while a newer one exists.* That need is real. Declar
 twice is the wrong instrument for it, and the reason is what a Capability version actually counts.
 
 DESC-29 makes it a count of breaking changes **to that Capability's own surface** — how Actions are
-declared and posted, how Tasks are claimed, what the health envelope carries. It is not a count of
+declared and posted, how Tasks are read, what the health envelope carries. It is not a count of
 breaking changes to the things a Worker declares *through* that surface. An Action's payload schema
 and a Task type's payload are the Worker's own, and this specification does not have a data model.
 So `actions` going from 1 to 2 means the shape of an Action *declaration* changed for every Worker
 in the network — a protocol event, at edition scale, which no Worker reaches by editing one of its
 own payloads.
 
-The pressure from [actions](actions.md) and [tasks and claims](tasks-and-claims.md) is the second
+The pressure from [actions](actions.md) and [tasks](tasks.md) is the second
 kind, and the second kind already has a mechanism. NAME-2 says a name is never reused for a
 different thing, and a payload that changed breakingly is a different thing; NAME-7 gives every
 such name a namespace of its own. So an owner that must keep an old consumer working declares
@@ -421,7 +421,7 @@ and stays structural; this section adds no rule, because there is no new violati
 
   The argument beneath it, here and in DESC-18 through DESC-20, is about a Descriptor declaring a
   Capability the Worker does not serve. The rule said more than that. Every surface in this
-  protocol answers `404` about resources — a Task claimed after it closed, a metric the entry does
+  protocol answers `404` about resources — a metric the entry does
   not declare, an Action no entry holds — and a consumer applying DESC-21 as written stopped
   permanently on the first of them. That is *a prohibition reaching further than its reason*, which
   spec/README.md says is the rule's fault and not the implementation's, and the remedy it names is

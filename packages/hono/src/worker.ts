@@ -1,7 +1,6 @@
 import type { alert, eventsEntry, health } from "@worker-protocol/schemas";
 import type * as z from "zod";
 import type { ActionFacts } from "./actions.ts";
-import type { ClaimStore } from "./claims.ts";
 import type { ErrorCode } from "./codes.ts";
 import type { MetricFacts } from "./metrics.ts";
 import type { TaskFacts, TaskTypes } from "./tasks.ts";
@@ -11,9 +10,9 @@ import type { TaskFacts, TaskTypes } from "./tasks.ts";
  *
  * **Everything this protocol fixes is `mount()`'s.** The addresses, the verbs, the two headers on
  * every response, the error envelope, the page envelope and its cursor, the refusal for a version
- * this Worker cannot speak or a filter it does not know, the Claim lifecycle with its lease and its
- * fencing token, the bucket boundaries cut in a declared zone, the idempotency window. None of it
- * is a decision a Worker gets to make, so none of it is asked for here.
+ * this Worker cannot speak or a filter it does not know, the bucket boundaries cut in a declared
+ * zone, the idempotency window. None of it is a decision a Worker gets to make, so none of it is
+ * asked for here.
  *
  * What is left is what only the Worker knows, and it is a short list: who it is, whether a
  * credential is good, how it is doing, which Tasks' conditions hold, how much of something
@@ -41,17 +40,6 @@ export type Worker = {
    * decides is its own. Left out, the Worker reads openly, which `spec/registration.md` permits.
    */
   authenticate?: (token: string | undefined) => "accepted" | "unauthenticated" | "forbidden";
-  /**
-   * TASK-26. Whether a credential is one recorded for this Worker at enrollment, as against one
-   * issued under a Contract.
-   *
-   * Only a Task's `holder` turns on it. **It defaults to every credential this Worker
-   * authenticated**, because TASK-26 is required and the ordinary Worker has one credential, which
-   * is the recorded one: a default of `false` would have made the common case non-conformant in
-   * order to guard a case that only arises once a Tower has brokered a Contract. A Worker that
-   * issues Contract credentials knows it does, and answers this.
-   */
-  enrolled?: (token: string | undefined) => boolean;
   /** `health`: the answer to a poll (HLTH-2). HLTH-5 makes it `200` whatever it reports. */
   health?: () => z.infer<typeof health> | Promise<z.infer<typeof health>>;
   /** `metrics`: what the entry declares (MET-1 to MET-6), and the Worker's own values. */
@@ -62,14 +50,12 @@ export type Worker = {
   alerts?: () => z.infer<typeof alert>[] | Promise<z.infer<typeof alert>[]>;
   /** `events`: the entry and nothing else, because there is no address to serve (EVT-2). */
   events?: Omit<z.infer<typeof eventsEntry>, "version" | "address">;
-  /** `tasks`: what the entry declares (TASK-1 to TASK-4), and which conditions hold. */
+  /** `tasks`: what the entry declares (TASK-27, TASK-2 to TASK-4), and which conditions hold. */
   tasks?: {
     /** TASK-2. Every Task type this Worker raises, with its payload schema and answering Actions. */
     raises: TaskTypes;
     /** TASK-3. The Task types this Worker answers, which IS its Skill. */
     answers: string[];
-    /** Where the Claims live. Defaults to a Map, which is every test and some Workers. */
-    claims?: ClaimStore;
   } & TaskFacts;
 };
 

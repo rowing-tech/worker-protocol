@@ -100,8 +100,7 @@ export async function checkArranged(
   // two credentials seeing the same list is the rule holding; Tasks are what a Contract covers,
   // so two credentials seeing the same list proves only that this Worker had nothing to filter.
   // The credential compared against is a Contract's where one was arranged — that is the party
-  // the rule is about — and the second credential otherwise, as it was before TASK-26 gave the
-  // two different things to show.
+  // the rule is about — and the second credential otherwise.
   const consumer = arrangement.consumerCredential ?? second;
   if (consumer === undefined) {
     say("TASK-6", "notExercised", "no Contract credential was given to the verifier");

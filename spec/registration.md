@@ -170,9 +170,9 @@ that works, and a Worker reading a subject out of a token gets it for free. A Wo
 follow it still answers every call correctly — it has only made one of its own future afternoons
 worse, which is exactly the shape of advice rather than obligation.
 
-What happens to a Task already claimed under a credential revoked mid-flight is
-[open](../docs/undecided.md), and it is open in [tasks and claims](tasks-and-claims.md)'s territory
-rather than here.
+What a consumer half way through work does when the credential it was granted is revoked is nobody's
+problem here any more: it posts its Action, is refused, and has lost the work rather than a lease.
+This used to be an open question about a Task already claimed, and it went with the lease.
 
 ## When the id at an enrolled URL changes
 
@@ -315,12 +315,10 @@ Contract is. The rule is about the call, not about the history.
   `403` is the entire vocabulary, and everything behind it — a scope, a Contract's list of Task
   types, a wildcard — is the Worker's own. What a Contract carries is open in
   [undecided](../docs/undecided.md).
-- Whether taking a Claim and acting on one already held are authorized by the same right. They pull
-  apart in practice — taking work is a grant about a Task type, acting is a fact about a lease you
-  already hold — and [tasks and claims](tasks-and-claims.md) has since been written without
-  dividing them: TASK-20 has the Action name the Claim it is performed under, TASK-21 refuses one
-  that is no longer current, and neither says anything about a right. The question is still open
-  and is now this file's rather than that one's.
+- Whether reading a Worker's Tasks and performing one of the Actions that answer them are
+  authorized by the same right. TASK-6 already divides what a credential may *see*; nothing divides
+  what it may *do*, because an Action carries no sign of the Task it answers. A Contract that
+  granted the reading and withheld the Action would be expressing something no call can carry.
 - Whether a Tower exposes an enrollment surface at all. This protocol defines what a Worker serves;
   a Tower's own API is not in it.
 

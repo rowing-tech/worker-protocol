@@ -1,18 +1,12 @@
 /**
  * The `tasks` Capability, arranged to be checked.
  *
- * Two Task types and a handful of open Tasks, one of which the Worker will not currently grant a
- * lease on — because TASK-11 has no witness against a Worker that always grants, and TASK-7's
- * `claimable` would otherwise be a field nobody has ever seen be false.
+ * Two Task types, and conditions of different ages so that TASK-28's `since` carries something an
+ * operator would read differently.
  *
  * The verify-vehicle Tasks hold by a condition this Worker can actually resolve: no verification
  * on record for the vehicle. That is what lets `record-verification` close one, which is TASK-15
- * working, and what gives TASK-22 something to witness — an outcome posted on a Claim whose Task
- * is already gone.
- *
- * What is NOT here any more is the whole Claim lifecycle: the lease, the fencing token, the lapse
- * counting, the paging, the filter refusal, who holds what. All of it is `mount()`'s now, which is
- * why this file is a third of what it was and none of what is left is a rule.
+ * working and is the only way anything here closes.
  */
 
 import type { OpenTask } from "@worker-protocol/hono";
@@ -50,12 +44,31 @@ export const RAISES: Record<string, z.infer<typeof taskTypeDeclaration>> = {
 /** TASK-3: the Task types this Worker answers, which is its Skill. */
 export const ANSWERS: string[] = [VERIFY_VEHICLE];
 
+const HOUR = 3_600_000;
+
 const RAISED: (OpenTask & { vehicle?: string })[] = [
-  { id: "task-1", type: VERIFY_VEHICLE, payload: { vehicle: "ABC-123" }, vehicle: "ABC-123" },
-  { id: "task-2", type: VERIFY_VEHICLE, payload: { vehicle: "DEF-456" }, vehicle: "DEF-456" },
-  // TASK-11: one the owner has stopped granting leases on, so `claimable` is a field a verifier
-  // has seen be false. Its condition still holds, so it is stuck where an operator can see it.
-  { id: "task-3", type: PRICE_A_QUOTE, payload: { amount: 100 } },
+  {
+    id: "task-1",
+    type: VERIFY_VEHICLE,
+    payload: { vehicle: "ABC-123" },
+    vehicle: "ABC-123",
+    since: new Date(Date.now() - HOUR),
+  },
+  {
+    id: "task-2",
+    type: VERIFY_VEHICLE,
+    payload: { vehicle: "DEF-456" },
+    vehicle: "DEF-456",
+    since: new Date(Date.now() - 2 * HOUR),
+  },
+  // TASK-28: a condition that began three days ago, so the field a stuck Task is read from has
+  // been seen carrying something an operator would act on rather than always saying `just now`.
+  {
+    id: "task-3",
+    type: PRICE_A_QUOTE,
+    payload: { amount: 100 },
+    since: new Date(Date.now() - 72 * HOUR),
+  },
 ];
 
 export function createTasks() {
@@ -72,10 +85,7 @@ export function createTasks() {
      */
     open: (): OpenTask[] =>
       RAISED.filter((task) => task.vehicle === undefined || !verified.has(task.vehicle)).map(
-        ({ id, type, payload }) => ({ id, type, payload }),
+        ({ id, type, payload, since }) => ({ id, type, payload, since }),
       ),
-
-    /** TASK-11: the owner stopped granting past a cap of its own choosing, and says so. */
-    claimable: (task: OpenTask) => task.id !== "task-3",
   };
 }

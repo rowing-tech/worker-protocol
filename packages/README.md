@@ -11,7 +11,7 @@ complying, and proving that you comply.
 | `conformance` | `@worker-protocol/conformance` — point it at a worker's base URL, get a report of what it complies with |
 
 `client` is its own package and not a second export of `hono`, because a consumer is not a server:
-a Tower, a teams app or a Convex Worker that claims Tasks from another Worker runs no web
+a Tower, a teams app or a Convex Worker that answers another Worker's Tasks runs no web
 framework, and making one install Hono and an OpenAPI generator in order to make HTTP requests is
 the same mistake as the one below, in the other direction. It depends on `schemas` and on `fetch`.
 
@@ -29,11 +29,11 @@ compiled once instead of re-derived by everyone.
 
 That sentence was read the narrow way for a while and it cost something measurable. `mount()`
 handed a Worker author a raw `URLSearchParams` and took back a page, so every Worker that declared
-`tasks` wrote its own paging, its own cursor, its own unknown-filter refusal, its own lease clock,
-its own fencing check, its own lapse counting — several hundred lines of rules, identical in every
-Worker, in a repository whose whole argument is that a rule written twice is a rule that will
-disagree with itself. The reference Worker was a thousand lines and said of itself that it was not
-a starting point to copy, which left a developer with no starting point at all.
+`tasks` wrote its own paging, its own cursor, its own unknown-filter refusal and its own ordering —
+several hundred lines of rules, identical in every Worker, in a repository whose whole argument is
+that a rule written twice is a rule that will disagree with itself. The reference Worker was a
+thousand lines and said of itself that it was not a starting point to copy, which left a developer
+with no starting point at all.
 
 **The test is whether a rule id can be cited for the line.** If `mount()` does something and no
 rule in `spec/` requires it, that is the forbidden case and the honest response is to argue for the
@@ -54,11 +54,11 @@ rules `conformance/verifiability.md` marks `H` have something to be observed aga
 ## The rules that bind the other side
 
 `mount()` carries what a Worker owes; `consume()` carries what a *consumer* owes, and that list is
-not short. Eleven rules in `spec/` oblige a caller rather than a Worker — DESC-13, DESC-30,
-ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31, TASK-18, TASK-20 — and every one is
-required. Until this package existed they had no subject anywhere: `conformance/verifiability.md`
-classes them `P` and a report says *other subject*, correctly, because a tool pointed at a Worker
-never contacted whoever they bind.
+not short. Nine rules in `spec/` oblige a caller rather than a Worker — DESC-13, DESC-30, ENDP-13,
+ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 — and every one is required. Until this
+package existed they had no subject anywhere: `conformance/verifiability.md` classes them `P` and a
+report says *other subject*, correctly, because a tool pointed at a Worker never contacted whoever
+they bind.
 
 They are obeyed in `client/src/call.ts`, each cited on the line that obeys it, and
 `client/src/__tests__/consumer-rules.test.ts` holds one test per id against a Worker made to

@@ -18,8 +18,8 @@ this document, and separating them moved six rules.
 | Class | Meaning | Count |
 |---|---|---|
 | **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 82 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 29 |
-| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 27 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 15 |
+| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 25 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 21 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
@@ -33,12 +33,12 @@ with a party has somewhere to be true.
 
 | Subject | Rules | Where they are checked |
 |---|---|---|
-| A consumer, a caller, a holder | DESC-13, DESC-30, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31, TASK-18, TASK-20 | `packages/client`, one test per id, against a Worker made to misbehave |
+| A consumer or a caller | DESC-13, DESC-30, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 | `packages/client`, one test per id, against a Worker made to misbehave |
 | A Control Tower | DESC-19, DESC-20, REG-13, REG-14, REG-16, REG-19, REG-29, REG-30 | `packages/conformance/src/__tests__/tower.test.ts`, a Tower simulated over the example Workers |
 | A verifier | DESC-2, DESC-15, DESC-16, DESC-19, DESC-25 | `packages/conformance` itself, which is the verifier they bind |
 | An issuer, a subscriber, this specification | REG-27, REG-33, EVT-5, EVT-6, EVT-7, NAME-3 | Nowhere, and the subject is the reason: no party here issues a credential or subscribes to a broker |
 
-The eleven consumer rules had no witness anywhere until `@worker-protocol/client` existed, which is
+The nine consumer rules had no witness anywhere until `@worker-protocol/client` existed, which is
 the honest reason to say so here: they were required, they were unobservable, and nobody had ever
 written the party they oblige. What the Tower rules have is weaker and worth naming as such — a
 simulation is a party this repository wrote to its own reading of the rules, so it demonstrates
@@ -147,36 +147,24 @@ that the role is implementable and vouches for no product.
 | ACT-14 | H | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
 | ACT-15 | W | A GET of the declared reading address answers a document `configure` would accept |
 
-## tasks-and-claims.md — 26
+## tasks.md — 10
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
-| TASK-1 | W | The entry carries a reading address and a claim address |
+| TASK-27 | W | The entry carries one address, which a read answers Tasks from |
 | TASK-2 | W | Every Task type it raises, with a payload schema and a non-empty list of answering Actions |
 | TASK-3 | W | The Task types it answers, read off the entry |
 | TASK-4 | W | Every Task type name is a qualified name |
 | TASK-5 | W | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
 | TASK-6 | H | Two credentials covering different Tasks must exist before two lists can be compared |
-| TASK-7 | W | Each Task carries its id, type, payload, both counts and whether it may be claimed |
-| TASK-8 | W | A type the entry does not declare is `400` + `invalid_parameter`, and nothing is claimed |
-| TASK-9 | H | Claiming takes an exclusive lease, which is work done to somebody's Worker. It needs a Task the operators said may be claimed |
-| TASK-10 | H | Needs a Task already held, which means claiming one first |
-| TASK-11 | H | The Worker must offer a Task it will not currently grant a lease on |
-| TASK-12 | H | The expiry is on a Claim, and there is no Claim without claiming |
-| TASK-13 | H | Needs a Claim to renew |
-| TASK-14 | H | Needs a Claim to close |
-| TASK-15 | N | A Task that disappears as a Claim closes may have had its condition stop holding at that moment for reasons of its own. Nothing outside can tell the two apart — which is exactly why the rule matters |
-| TASK-16 | H | Needs a Claim and an Action, posted separately, to see that the owner accepts them that way |
-| TASK-17 | H | Needs a Claim that is no longer the Task's current one |
-| TASK-18 | P | Binds a holder: it is the consumer that must not do arithmetic against a clock the owner never saw. Which clock decided is not a fact on the wire |
+| TASK-8 | W | A type the entry does not declare is `400` + `invalid_parameter` |
+| TASK-15 | N | A Task that disappears may have had its condition stop holding at that moment for reasons of its own. Nothing outside can tell — which is exactly why the rule matters |
 | TASK-19 | N | Recommended. What a nudge IS has no witness: an owner notifying by some other means is indistinguishable from one that does not notify at all |
-| TASK-20 | P | Binds a holder: naming its Claim on the Action is the consumer's act, and a consumer that omits it has posted a performance this file says nothing about. What an owner does with a header it receives is TASK-21's |
-| TASK-21 | H | Needs a Claim that is no longer current and an Action safe to perform, posted under it. The witness is `409` and nothing performed |
-| TASK-22 | H | Needs an Action that resolves the Task's condition, and the outcome posted after the Task is gone. The witness is `204` where a literal TASK-17 would have answered `409` |
-| TASK-23 | H | A claim naming a type the entry does not raise is `400`. It is a POST to the claim address, which needs permission to claim |
-| TASK-24 | H | Needs `claimByType` declared, a claimable Task of that type, and permission to claim it. The witness is a Claim carrying the Task it holds |
-| TASK-25 | H | A renewal proposing a duration is answered with an expiry rather than refused. Needs a Claim to renew |
-| TASK-26 | H | Two credentials: the one recorded at enrollment reads `holder` on a held Task, and a Contract's reads the same Task without it |
+| TASK-28 | W | Each Task carries its id, type, payload and the instant its condition began |
+
+**Sixteen rules of the Claim lifecycle were withdrawn**, and with them the only checks in this tool
+that changed a Worker: taking a lease, renewing it, closing it, and the fencing token that refused a
+stale Response. `spec/tasks.md` carries the argument. Every check that is left is a GET.
 
 ## alerts.md — 7
 
@@ -263,12 +251,12 @@ a weaker class.
 
 ## Where this stands
 
-159 rules across ten files, none of them `open`, under edition 0.1. Every rule the register marks
+143 rules across ten files, none of them `open`, under edition 0.1. Every rule the register marks
 `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over a
 real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.
 
-What no tool reaches is 48 rules, and the two kinds are not the same thing. Twenty-seven bind a
+What no tool reaches is 46 rules, and the two kinds are not the same thing. Twenty-five bind a
 party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
 specification — and a report calls those *another subject's* because it never contacted whoever
 they oblige. Twenty-one have the Worker as their subject and no witness anywhere, and a report
@@ -276,7 +264,7 @@ calls those *unverified*. Counting either as compliance would be vouching for so
 checked, which is the whole reason this file exists.
 
 `naming.md` has two rules a tool can check — NAME-1 by folding a declared name, NAME-7 now that a
-Task type is a name that actually crosses — and had none until `tasks-and-claims.md` was written.
+Task type is a name that actually crosses — and had none until `tasks.md` was written.
 `registration.md` has four. Those two files are the thinnest here, and that is a property of their
 subjects rather than a gap: naming is mostly about names nobody types, and registration pushed
 credential lifecycle out to whatever identity provider a deployment already runs.

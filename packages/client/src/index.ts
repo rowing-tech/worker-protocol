@@ -1,7 +1,6 @@
 import {
   type alert,
   alertPage,
-  claim as claimSchema,
   descriptor as descriptorSchema,
   health as healthSchema,
   type metricBucket,
@@ -10,7 +9,7 @@ import {
   type task as taskSchema,
 } from "@worker-protocol/schemas";
 import type * as z from "zod";
-import { type CallerOptions, caller, Malformed, pages } from "./call.ts";
+import { type CallerOptions, caller, pages } from "./call.ts";
 
 /**
  * `@worker-protocol/client` — read a Worker, and take work from it.
@@ -21,9 +20,9 @@ import { type CallerOptions, caller, Malformed, pages } from "./call.ts";
  *
  * **It is the other half of `mount()` and it carries the same kind of thing.** A consumer that
  * wrote this itself would write the address resolution, the paging and its cursor, the retry that
- * must not happen on a `reject`, the header a Claim travels in, and the reading of an expiry it
- * must never do arithmetic on. All of that is fixed by rules — eleven of which oblige a consumer
- * rather than a Worker — and `call.ts` cites every one.
+ * must not happen on a `reject`, and the classification of an answer it cannot read. All of that
+ * is fixed by rules — nine of which oblige a consumer rather than a Worker — and `call.ts` cites
+ * every one.
  *
  * It depends on `@worker-protocol/schemas` and on `fetch`, and on nothing else. A Tower, a teams
  * app or a Worker that consumes another Worker installs no web framework to do it.
@@ -67,17 +66,13 @@ export type Consumed = {
   };
   alerts?: () => Promise<Alert[]>;
   tasks?: {
-    /** TASK-5. Every Task whose condition holds that this credential covers. */
-    list: (type?: string) => Promise<Task[]>;
-    /** TASK-9. A lease on one named Task. */
-    claim: (task: string, options?: ClaimOptions) => Promise<Held>;
     /**
-     * TASK-24. A lease on any claimable Task of a type, where the Worker declares `claimByType`.
+     * TASK-5. Every Task whose condition holds that this credential covers.
      *
-     * `undefined` is an empty queue and not a failure: the Worker answered `204`, which is the
-     * ordinary state of a consumer polling for work, and the caller comes round on its schedule.
+     * Answering one is `actions.perform` with an Action the Task type names (TASK-2), and there is
+     * nothing to claim and nothing to close: the condition stops holding and the Task is gone.
      */
-    claimAny: (type: string, options?: ClaimOptions) => Promise<Held | undefined>;
+    list: (type?: string) => Promise<Task[]>;
   };
 };
 
@@ -94,38 +89,6 @@ export type MetricRead = {
 export type PerformOptions = {
   /** ENDP-15. Where the Action declares it reads a key from the header. */
   idempotencyKey?: string;
-  /** TASK-20. The Claim this Action answers a Task under. `Held.answer` fills it in. */
-  claim?: string;
-};
-
-export type ClaimOptions = {
-  /** TASK-25. A duration this consumer proposes, which binds the owner to nothing. */
-  leaseSeconds?: number;
-};
-
-/**
- * One Claim this consumer holds, and the calls it may make under it.
- *
- * **TASK-18 is why `expires` is a date and nothing here compares it.** Two processes that never
- * met do not share a clock, and this protocol has no mechanism that would give them one — so the
- * expiry is a hint about when to RENEW and never a number this consumer does arithmetic on to
- * decide whether it may still act. Every question of the form *is this Claim still mine* is
- * answered by asking: the owner refuses a call naming a Claim it no longer holds open, and that
- * answer is authoritative because it was computed on one clock.
- */
-export type Held = {
-  id: string;
-  task: string;
-  /** TASK-12. When the owner's lease lapses, on the OWNER's clock. A hint about when to renew. */
-  expires: Date;
-  /** TASK-24. The Task this Claim holds, where the Worker answered a claim by type. */
-  held?: Task;
-  /** TASK-16, TASK-20. The Action into the owner, naming this Claim. */
-  answer: (action: string, input: unknown, options?: PerformOptions) => Promise<unknown>;
-  /** TASK-13. A new expiry, or the owner's refusal. */
-  renew: (options?: ClaimOptions) => Promise<Held>;
-  /** TASK-14. The outcome on the Claim, which never closes the Task (TASK-15). */
-  close: (outcome: "done" | "failed" | "released") => Promise<void>;
 };
 
 const rfc3339 = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -197,7 +160,6 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         url: url.toString(),
         method: "POST",
         body: JSON.stringify(input),
-        claim: perform.claim,
         idempotencyKey: perform.idempotencyKey,
       });
       // ACT-10, ACT-11: `200` with the Action's own result, `204` with none, `202` where it does
@@ -228,61 +190,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
   }
 
   const tasksAddress = addressOf("tasks");
-  const claimAddress = entry("tasks")?.claimAddress;
-  if (tasksAddress !== undefined && typeof claimAddress === "string") {
-    const claimUrl = call.resolve(claimAddress);
-
-    /** One Claim as a handle: the calls TASK-13, TASK-14 and TASK-16 name, and no arithmetic. */
-    const handle = (record: z.infer<typeof claimSchema>): Held => ({
-      id: record.id,
-      task: record.task,
-      expires: new Date(record.expires),
-      held: record.held,
-      answer: (action, input, perform = {}) =>
-        // TASK-16: a Response is two calls and they are not atomic. This is the first; the caller
-        // closes the Claim itself, because only it knows whether the work is finished.
-        (consumed.actions?.perform ?? unavailable)(action, input, { ...perform, claim: record.id }),
-      renew: async (claim = {}) => {
-        const url = new URL(claimUrl);
-        url.searchParams.set("claim", record.id);
-        if (claim.leaseSeconds !== undefined) {
-          url.searchParams.set("lease", String(claim.leaseSeconds));
-        }
-        return handle(
-          await call.validated({ url: url.toString(), method: "POST" }, claimSchema, "TASK-13"),
-        );
-      },
-      close: async (outcome) => {
-        const url = new URL(claimUrl);
-        url.searchParams.set("claim", record.id);
-        url.searchParams.set("outcome", outcome);
-        await call.call({ url: url.toString(), method: "POST" });
-      },
-    });
-
-    const take = async (
-      parameters: Record<string, string>,
-      claim: ClaimOptions,
-    ): Promise<Held | undefined> => {
-      const url = new URL(claimUrl);
-      for (const [key, value] of Object.entries(parameters)) url.searchParams.set(key, value);
-      if (claim.leaseSeconds !== undefined)
-        url.searchParams.set("lease", String(claim.leaseSeconds));
-      const answered = await call.call({ url: url.toString(), method: "POST" });
-      // TASK-24: `204` is an empty queue, which is an answer and not a refusal.
-      if (answered.status === 204) return undefined;
-      const parsed = claimSchema.safeParse(answered.json);
-      if (!parsed.success) {
-        const issue = parsed.error.issues[0];
-        throw new Malformed(
-          "TASK-9",
-          url.toString(),
-          `${issue?.path.join(".") || "(root)"}: ${issue?.message ?? "did not validate"}`,
-        );
-      }
-      return handle(parsed.data);
-    };
-
+  if (tasksAddress !== undefined) {
     consumed.tasks = {
       list: async (type) => {
         const held: Task[] = [];
@@ -294,20 +202,8 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         }
         return held;
       },
-      claim: async (task, claim = {}) => {
-        const taken = await take({ task }, claim);
-        if (taken === undefined) throw new Error(`TASK-9: ${task} answered no Claim.`);
-        return taken;
-      },
-      claimAny: (type, claim = {}) => take({ type }, claim),
     };
   }
 
   return consumed;
 }
-
-const unavailable = (): never => {
-  throw new Error(
-    "TASK-16: this Worker declares no `actions`, so there is no Action to answer a Task with.",
-  );
-};

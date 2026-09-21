@@ -37,13 +37,6 @@ const ARRANGEMENT = {
   safeAction: { name: "record-verification", input: { vehicle: "ABC-123", verified: true } },
   refusedInput: { name: "price-quote", input: { amount: -1 } },
   asyncAction: { name: "rebuild-index", input: {} },
-  // Claiming is a consent of its own: performing an Action does something to the Worker, and
-  // claiming takes work away from whoever would otherwise have taken it. Every Claim the verifier
-  // takes it closes again — and the safe Action, performed under the Claim, resolves the Task it
-  // was taken on, which is what the operators offered by naming both.
-  mayClaim: true,
-  claimableTask: "task-1",
-  unclaimableTask: "task-3",
   // What no Worker has by accident: a second credential live beside the first, one issued under
   // a Contract rather than at enrollment, one that authenticates and carries no right, settings
   // its operators will let go of, and an event it already published — because a verifier holds no
@@ -64,10 +57,9 @@ const ARRANGEMENT = {
 describe("the reference worker, verified", () => {
   let worker: Awaited<ReturnType<typeof start>>;
 
-  // A fresh Worker for every test, because a full run now changes one: the safe Action answers
-  // the claimable Task under its Claim and resolves it (TASK-15, TASK-22), and a second run against
-  // the same process would find nothing to claim. A Worker arranged to be checked is arranged for
-  // one check.
+  // A fresh Worker for every test, because a full run changes one: the safe Action resolves the
+  // condition of a Task this Worker was raising (TASK-15), so a second run against the same
+  // process would read a shorter list. A Worker arranged to be checked is arranged for one check.
   beforeEach(async () => {
     worker = await start({
       credential: "a-token",
@@ -75,8 +67,7 @@ describe("the reference worker, verified", () => {
       consumerCredential: "d-token",
       unprivilegedCredential: "c-token",
       // TASK-6: the Contract credential covers one Task and the recorded ones cover all of them, so
-      // the two lists differ and filtering is something a check can actually see happen. TASK-26:
-      // the same credential reads that Task without `holder` while the recorded one reads it with.
+      // the two lists differ and filtering is something a check can actually see happen.
       visibleTasks: { "d-token": ["task-1"] },
     });
   });
@@ -176,11 +167,11 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(27);
+    expect(counts.otherSubject).toBe(25);
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(21);
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(109);
+    expect(counts.passes).toBe(95);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,

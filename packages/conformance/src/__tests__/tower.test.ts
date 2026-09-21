@@ -263,18 +263,18 @@ describe("a Control Tower, over Workers that answer", () => {
     // the owner and posts its Response to the owner, and no Tower is involved in any of it — so
     // the sequence below is the whole of a Response, performed with no registry in the process.
     const consumer = await consume(worker.url, { credential: "a-token" });
-    const held = await consumer.tasks?.claimAny("tech.rowing.worker-protocol.verify-vehicle");
-    expect(held?.held?.type).toBe("tech.rowing.worker-protocol.verify-vehicle");
+    const open = await consumer.tasks?.list("tech.rowing.worker-protocol.verify-vehicle");
+    const vehicle = (open?.[0]?.payload as { vehicle?: string } | undefined)?.vehicle ?? "";
+    expect(vehicle).not.toBe("");
 
-    const vehicle = (held?.held?.payload as { vehicle: string } | undefined)?.vehicle ?? "";
-    await held?.answer(
+    await consumer.actions?.perform(
       "record-verification",
       { vehicle, verified: true },
       { idempotencyKey: `tower-test-${Date.now()}` },
     );
-    await held?.close("done");
 
-    // TASK-15: the condition stopped holding, so the Task is gone — and nobody declared it.
+    // TASK-15: the condition stopped holding, so the Task is gone — and nobody declared it. One
+    // call answered it; there was nothing to take first and nothing to close after.
     const left = await consumer.tasks?.list();
     expect(left?.some((task) => (task.payload as { vehicle?: string }).vehicle === vehicle)).toBe(
       false,

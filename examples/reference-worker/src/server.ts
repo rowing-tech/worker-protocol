@@ -42,11 +42,10 @@ export type WorkerOptions = {
    */
   secondCredential?: string;
   /**
-   * A credential issued under a Contract rather than recorded at enrollment (TASK-6, TASK-26).
+   * A credential issued under a Contract rather than recorded at enrollment (TASK-6).
    *
-   * It authenticates like the others and covers only what `visibleTasks` says it covers. What it
-   * never reads is `holder`: a Task under a Claim names who holds it to the credentials this
-   * Worker was enrolled with, and to no other.
+   * It authenticates like the others and covers only what `visibleTasks` says it covers, which is
+   * what gives TASK-6 two lists to compare.
    */
   consumerCredential?: string;
   /**
@@ -121,11 +120,6 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
       return token !== undefined && recorded.has(token) ? "accepted" : "unauthenticated";
     },
 
-    // TASK-26: the credentials recorded at enrollment are the ones `holder` is answered to. A
-    // Worker that reads openly has recorded none and answers it to nobody.
-    enrolled: (token) =>
-      options.credential !== undefined && token !== undefined && recorded.has(token),
-
     // HLTH-4: until it has established its state it answers `unhealthy`, never `healthy`.
     // Answering `unhealthy` costs nothing, because ENDP-29 classes the condition `retry` and a
     // poller comes round again. HLTH-2: this Worker depends on nothing, so `checks` is empty.
@@ -151,11 +145,8 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     tasks: {
       raises: RAISES,
       answers: ANSWERS,
-      // TASK-23: declared, so a claim by type (TASK-24) has a Worker to be observed against.
-      claimByType: true,
       open: tasks.open,
-      claimable: tasks.claimable,
-      covers: (token) => options.visibleTasks?.[token ?? ""],
+      covers: (token: string | undefined) => options.visibleTasks?.[token ?? ""],
       // ENDP-19: a cap of two, so that this Worker's own three Tasks actually page — a cap nothing
       // ever reaches is a cap nobody has seen work.
       pageSize: 2,

@@ -4,12 +4,17 @@
  * A Worker knows what an Action DOES. Everything else on the way in is a rule — the name that is
  * not declared, the body that will not parse, the input that does not match the schema the Worker
  * published, the required idempotency key that is absent, the repeat under a key already recorded,
- * the key reused with another body, the Claim an answering Action must name (TASK-20, TASK-21).
+ * and the key reused with another body.
  *
  * The input is declared as a Zod object and used twice: `mount()` generates the JSON Schema the
  * Descriptor carries from it, and this validates against the same object. ACT-2 requires that a
  * console can render a form from the declaration without being told anything else, and a Worker
  * that wrote the schema by hand and the validation by hand had two places to disagree.
+ *
+ * **Nothing here knows whether an Action is answering a Task.** It used to: a holder named its
+ * Claim in a header and this refused a stale one before performing anything. The lease is
+ * withdrawn, so a Response and any other performance are the same request, which `spec/tasks.md`
+ * states rather than hides.
  */
 
 import * as z from "zod";
@@ -49,8 +54,6 @@ export type ActionCall = {
   name: string;
   /** REG-3. The credential presented, for a Worker that splits its own facts by it. */
   token: string | undefined;
-  /** TASK-20. The Claim this Action answers a Task under, where one was named. */
-  claim: string | undefined;
 };
 
 export type ActionDeclarations = Record<string, Action>;
@@ -72,29 +75,17 @@ const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message }
  */
 export type Recorded = { body: string; answer: Answer; until: number };
 
-export function actions(
-  facts: ActionFacts,
-  allows: (claim: string, action: string) => Promise<boolean>,
-  recorded: Map<string, Recorded>,
-) {
+export function actions(facts: ActionFacts, recorded: Map<string, Recorded>) {
   return async function perform(
     name: string,
     raw: string,
     key: string | undefined,
-    claim: string | undefined,
     token: string | undefined,
   ): Promise<Answer | Refusal> {
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
     const declaration = facts.actions[name];
     if (declaration === undefined) {
       return refuse("not_found", `No Action named ${name} is declared.`);
-    }
-
-    // TASK-21: refused BEFORE anything is performed where the Claim is not its Task's current one
-    // or where its Task's type never listed this Action. Ahead of the idempotency lookup on
-    // purpose: a stale Claim is a fact about THIS call, and a recorded outcome is not an answer.
-    if (claim !== undefined && !(await allows(claim, name))) {
-      return refuse("conflict", "That Claim is not current for this Action.");
     }
 
     // ENDP-4: the body is JSON. ENDP-18: a required key absent is `400`, and it is asked before
@@ -149,7 +140,7 @@ export function actions(
       return held.answer;
     }
 
-    const produced = await declaration.run(input.data as never, { name, token, claim });
+    const produced = await declaration.run(input.data as never, { name, token });
     if (isRefusal(produced)) return produced;
 
     // ACT-10, ACT-11: the status comes from what the Action DECLARED, so a caller knows which to
