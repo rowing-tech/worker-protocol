@@ -16,7 +16,13 @@
  * what vouches for this package; `examples/minimal-worker` is what says it is cheap.
  */
 
-export type { Action, ActionCall, ActionDeclarations, ActionFacts } from "./actions.ts";
+export type {
+  Action,
+  ActionCall,
+  ActionDeclarations,
+  ActionFacts,
+  Recorded,
+} from "./actions.ts";
 export { jsonSchema } from "./actions.ts";
 export { bucketsIn, endOf, type Granularity, rfc3339, startOf } from "./buckets.ts";
 export {
@@ -28,7 +34,7 @@ export {
 } from "./claims.ts";
 export { CODES, type ErrorCode } from "./codes.ts";
 export type { Bucket, MetricFacts, MetricQuery, MetricSample } from "./metrics.ts";
-export { mount } from "./mount.ts";
+export { type ExecutionCtx, mount, type WorkerSource } from "./mount.ts";
 export {
   performAction,
   pollHealth,

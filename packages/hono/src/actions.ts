@@ -63,15 +63,20 @@ export type ActionFacts = {
 
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
 
-/** ENDP-16. One recorded outcome, for as long as the Action declared. */
-type Recorded = { body: string; answer: Answer; until: number };
+/**
+ * ENDP-16. One recorded outcome, for as long as the Action declared.
+ *
+ * It is handed in rather than held here, because `mount()` may answer a different `Worker` object
+ * on every request — which is what a Cloudflare, Vercel or Deno runtime forces — and a window that
+ * started again with each one would forget before it said it would.
+ */
+export type Recorded = { body: string; answer: Answer; until: number };
 
 export function actions(
   facts: ActionFacts,
   allows: (claim: string, action: string) => Promise<boolean>,
+  recorded: Map<string, Recorded>,
 ) {
-  const recorded = new Map<string, Recorded>();
-
   return async function perform(
     name: string,
     raw: string,

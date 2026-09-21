@@ -7,11 +7,18 @@
 
 import { createServer } from "node:http";
 import { getRequestListener } from "@hono/node-server";
-import { app } from "./worker.ts";
+import { app, type Env } from "./worker.ts";
 
-export { app, fleetWorker } from "./worker.ts";
+export { app, type Env, fleetWorker } from "./worker.ts";
 
-export const server = () => createServer(getRequestListener(app.fetch));
+/**
+ * On Node the environment is ambient, so it is handed in here rather than by the runtime.
+ *
+ * On Cloudflare, Vercel edge or Deno Deploy this file does not exist: the platform passes `env` to
+ * `fetch` itself and the whole entry point is `export default { fetch: app.fetch }`.
+ */
+export const server = (env: Env = process.env) =>
+  createServer(getRequestListener((request) => app.fetch(request, env)));
 
 if (process.argv[1] === import.meta.filename) {
   const port = Number(process.env.PORT ?? 8788);

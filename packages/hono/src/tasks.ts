@@ -86,9 +86,16 @@ export function tasks(
   facts: TaskFacts,
   held: Claims,
   enrolled: (token: string | undefined) => boolean,
+  /**
+   * TASK-26. The opaque id this Worker calls each credential by, handed in rather than held here.
+   *
+   * `mount()` may answer a different `Worker` object on every request — which is what a Cloudflare,
+   * Vercel or Deno runtime forces — and a map that started again with each one would mint a second
+   * id for a holder that already had one, so an operator would see two names for one party.
+   */
+  minted: Map<string, string>,
 ): TaskSurface {
   const cap = facts.pageSize ?? 50;
-  const minted = new Map<string, string>();
   const answeredBy = (type: string): string[] => raises[type]?.answeredBy ?? [];
 
   /** TASK-26. The Worker's own, or an opaque id per credential that tells a consumer nothing. */

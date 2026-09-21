@@ -70,15 +70,36 @@ export type WorkerOptions = {
 
 const DEFAULT_ID = "tech.rowing.worker-protocol.reference";
 
-/** The Worker, as `@worker-protocol/hono` sees it: what only this Worker knows. */
-export function referenceWorker(options: WorkerOptions = {}): Worker {
+/**
+ * What this Worker knows, which outlives any one request and is not read from the environment.
+ *
+ * On Cloudflare this is a durable object, on Convex a table, here a closure — and the distinction
+ * that matters is the same in all three: a Worker is ANSWERED per request and its Facts are not.
+ * Building these inside `referenceWorker` made every request start a Worker that had never seen a
+ * verification, so a Task closed by an Action reopened on the next call and TASK-15 was untestable.
+ */
+export function createFacts() {
   const tasks = createTasks();
-  const { actions, settings } = createActions(tasks.verify);
+  return {
+    tasks,
+    ...createActions(tasks.verify),
+    // HLTH-4: the window between a process starting and its first evaluation, which is a fact
+    // about this deployment and not about the request asking.
+    started: Date.now(),
+  };
+}
 
-  // HLTH-4: until it has established its state it answers `unhealthy`, never `healthy`. Answering
-  // `unhealthy` costs nothing, because ENDP-29 classes the condition `retry` and a poller comes
-  // round again. HLTH-2: this Worker depends on nothing, so the map of checks is empty.
-  const started = Date.now();
+export type Facts = ReturnType<typeof createFacts>;
+
+/**
+ * The Worker, as `@worker-protocol/hono` sees it: what only this Worker knows.
+ *
+ * `options` is its environment — what a Cloudflare Worker reads off `env` and a Node one off
+ * `process.env` — and `facts` is its store. Both arrive from outside for the same reason: this is
+ * resolved on every request, so anything it built itself would be built again.
+ */
+export function referenceWorker(options: WorkerOptions = {}, facts: Facts = createFacts()): Worker {
+  const { tasks, actions, settings, started } = facts;
   const readyAfter = options.readyAfterMs ?? 0;
 
   // REG-28: more than one valid credential for one holder at a time, so replacing one is an
@@ -105,6 +126,9 @@ export function referenceWorker(options: WorkerOptions = {}): Worker {
     enrolled: (token) =>
       options.credential !== undefined && token !== undefined && recorded.has(token),
 
+    // HLTH-4: until it has established its state it answers `unhealthy`, never `healthy`.
+    // Answering `unhealthy` costs nothing, because ENDP-29 classes the condition `retry` and a
+    // poller comes round again. HLTH-2: this Worker depends on nothing, so `checks` is empty.
     health: () =>
       Date.now() - started < readyAfter
         ? { status: "unhealthy", checks: {} }
@@ -161,19 +185,31 @@ export function referenceWorker(options: WorkerOptions = {}): Worker {
   };
 }
 
-/** The Worker as a Node server, mounted at `basePath`, for a test to listen on a socket. */
+/**
+ * The Worker as a Node server, mounted at `basePath`, for a test to listen on a socket.
+ *
+ * **It is mounted in the form a Cloudflare, Vercel or Deno Worker has to use**, with the Worker
+ * answered from the environment of each request — because this is the Worker the verifier runs
+ * against, and conformance proven only for the shape a long-lived Node process can take would be
+ * proven for the narrower case. `WorkerOptions` IS the environment here: credentials, a boot
+ * window, which Tasks a credential covers. The other form, a Worker handed in whole, is a property
+ * of `mount()` rather than of any Worker, and `packages/hono/src/__tests__/mount.test.ts` holds it.
+ */
 export function createWorker(options: WorkerOptions = {}): Server {
-  const mounted = mount(referenceWorker(options));
+  // The Facts are built once, here, and the Worker is answered from them on every request.
+  const facts = createFacts();
+  const mounted = mount<WorkerOptions>((env) => referenceWorker(env, facts));
+  const serve = (request: Request) => mounted.fetch(request, options);
   const base = (options.basePath ?? "").replace(/\/*$/, "");
-  if (base === "") return createServer(getRequestListener(mounted.fetch));
+  if (base === "") return createServer(getRequestListener(serve));
 
   // Under a path, exactly as an application that already owns the root would mount it (DESC-3).
   // The addresses in the Descriptor are relative and climb one segment, so they resolve beside
   // the base URL wherever that is — which is the case an absolute `/health` would have got wrong.
   const app = new Hono()
     .route(base, mounted)
-    .notFound(() => mounted.fetch(new Request("http://worker.invalid/none")));
-  return createServer(getRequestListener(app.fetch));
+    .notFound(() => serve(new Request("http://worker.invalid/none")));
+  return createServer(getRequestListener((request) => app.fetch(request, options)));
 }
 
 /** `node examples/reference-worker/src/server.ts` runs it on 8787, or on `PORT`. */

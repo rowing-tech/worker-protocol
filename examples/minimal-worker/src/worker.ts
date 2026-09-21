@@ -7,11 +7,16 @@
  * lease and its fencing token, the bucket boundaries cut in a declared time zone, the idempotency
  * window: all of that is `mount()`'s, once, in `@worker-protocol/hono`.
  *
+ * **It is written as a function of its environment, which is the form every platform admits.** A
+ * Cloudflare Worker, a Vercel edge function and a Deno Deploy handler are handed their bindings and
+ * secrets per request and have none at module scope; a Node or Bun process has them ambient and
+ * loses nothing by being asked. Writing it the other way round works in one place and nowhere else.
+ *
  * `pnpm dx:check` holds this file under a line count. When it grows, the question to ask is which
  * rule `mount()` failed to carry — not whether the budget should go up.
  *
- * The domain here is deliberately small and real: a Worker that watches a fleet of vehicles, raises
- * a Task when one goes quiet, and closes it when somebody records a check.
+ * The domain is small and real: a Worker that watches a fleet, raises a Task when a vehicle goes
+ * quiet, and closes it when somebody records a check.
  */
 
 import { mount, type OpenTask, type Worker } from "@worker-protocol/hono";
@@ -19,19 +24,22 @@ import * as z from "zod";
 
 const TYPE = "tech.rowing.fleet.check-silent-vehicle";
 
-/** This Worker's own Facts. A real one would read them from its store. */
+/** What this Worker is deployed with. On Cloudflare these are bindings; on Node, `process.env`. */
+export type Env = { CREDENTIAL?: string };
+
+/** This Worker's own Facts. A real one reads them from the store its environment gives it. */
 const silent = new Map<string, number>([
   ["ABC-123", Date.now() - 3_600_000],
   ["DEF-456", Date.now() - 7_200_000],
 ]);
 const checked = new Set<string>();
 
-export const fleetWorker: Worker = {
+export const fleetWorker = (env: Env): Worker => ({
   // DESC-6: the Worker's own id, which is not the URL it is served from.
   id: "tech.rowing.fleet.watcher",
 
-  // REG-3, REG-21: what makes a credential good is this Worker's business, and nothing else's.
-  authenticate: (token) => (token === process.env.CREDENTIAL ? "accepted" : "unauthenticated"),
+  // REG-3, REG-21: what makes a credential good is this Worker's business, and nobody else's.
+  authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
 
   // HLTH-2: one status and a map of named checks. HLTH-3 forbids `healthy` while a check is not.
   health: () => ({
@@ -110,7 +118,12 @@ export const fleetWorker: Worker = {
         .filter((vehicle) => !checked.has(vehicle))
         .map((vehicle) => ({ id: `silent:${vehicle}`, type: TYPE, payload: { vehicle } })),
   },
-};
+});
 
-/** `mount()` serves the Descriptor and every Capability declared above, at addresses it fixes. */
-export const app = mount(fleetWorker);
+/**
+ * `mount()` serves the Descriptor and every Capability declared above, at addresses it fixes.
+ *
+ * `app.fetch` is what every platform wants: `export default { fetch: app.fetch }` on Cloudflare,
+ * Vercel edge and Deno Deploy; `serve({ fetch: app.fetch })` on Node, Bun and Deno.
+ */
+export const app = mount<Env>((env) => fleetWorker(env));
