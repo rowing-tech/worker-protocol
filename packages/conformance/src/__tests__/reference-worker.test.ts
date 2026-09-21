@@ -450,3 +450,98 @@ describe("the reference worker, verified", () => {
     expect(report.edition).toBeNull();
   });
 });
+
+/**
+ * TASK-32's second obligation, which had no check until now.
+ *
+ * The rule has two halves. The first is the NAME: the Action a Task type is answered by is one of
+ * the owner's own, so a name its `actions` entry does not accept is a Descriptor disagreeing with
+ * itself. The second is that Action's INPUT: where a Task can end more than one way the endings are
+ * variants of it, told apart by a discriminator.
+ *
+ * The second half is what makes the first one worth anything. TASK-32 replaced a list of one Action
+ * per ending precisely so that nobody has to agree a mapping out of band — but a union whose
+ * variants cannot be told apart puts that conversation straight back: a consumer holding a schema
+ * it can satisfy still cannot say WHICH ending it is reporting. A Worker in that state passed every
+ * check this tool ran, which is the silence a register full of ids exists to prevent.
+ */
+describe("a Descriptor whose answering Action cannot say which ending it carries", () => {
+  const SILENT = "tech.rowing.fleet.check-silent-vehicle";
+
+  const canned = (input: unknown): typeof globalThis.fetch =>
+    (async () =>
+      new Response(
+        JSON.stringify({
+          id: "tech.rowing.fleet.watcher",
+          edition: "0.1",
+          capabilities: {
+            tasks: {
+              version: 1,
+              address: "../tasks",
+              raises: { [SILENT]: { payload: { type: "object" }, answeredBy: "answer-check" } },
+            },
+            actions: {
+              version: 1,
+              address: "../actions",
+              accepts: { "answer-check": { input, completesWithinCall: true } },
+            },
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+            "worker-protocol-edition": "0.1",
+            "worker-protocol-capability-version": "1",
+          },
+        },
+      )) as unknown as typeof globalThis.fetch;
+
+  const variant = (properties: Record<string, unknown>, required: string[]) => ({
+    type: "object",
+    properties,
+    required,
+  });
+
+  const verdict = async (input: unknown) => {
+    const report = await verify({ baseUrl: "https://worker.example.com", fetch: canned(input) });
+    return report.results.find((r) => r.rule.id === "TASK-32");
+  };
+
+  it("fails TASK-32 where the two endings share no member fixed to a constant", async () => {
+    const result = await verdict({
+      anyOf: [
+        variant({ vehicle: { type: "string" }, reachable: { type: "boolean" } }, ["vehicle"]),
+        variant({ vehicle: { type: "string" }, lastSeen: { type: "string" } }, ["vehicle"]),
+      ],
+    });
+    expect(result?.verdict).toBe("fails");
+    expect(result?.detail).toContain("union of 2");
+  });
+
+  it("fails it where a member is in both variants and fixed in neither", async () => {
+    // The near miss, and why the check compares constants rather than names: `outcome` is in both
+    // and says nothing, so a reader still cannot tell which ending it is holding.
+    const result = await verdict({
+      anyOf: [
+        variant({ outcome: { type: "string" }, reachable: { type: "boolean" } }, ["outcome"]),
+        variant({ outcome: { type: "string" }, lastSeen: { type: "string" } }, ["outcome"]),
+      ],
+    });
+    expect(result?.verdict).toBe("fails");
+  });
+
+  it("passes where the variants are told apart, and where the input is not a union at all", async () => {
+    const discriminated = await verdict({
+      anyOf: [
+        variant({ outcome: { const: "found" }, reachable: { type: "boolean" } }, ["outcome"]),
+        variant({ outcome: { const: "missing" }, lastSeen: { type: "string" } }, ["outcome"]),
+      ],
+    });
+    expect(discriminated?.verdict).toBe("passes");
+
+    // A Task that ends one way has nothing to tell apart, and failing it would be this tool
+    // requiring a union the specification never asked for.
+    const single = await verdict(variant({ vehicle: { type: "string" } }, ["vehicle"]));
+    expect(single?.verdict).toBe("passes");
+  });
+});

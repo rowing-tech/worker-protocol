@@ -156,14 +156,14 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       )),
     );
     // TASK-32 is an agreement between two entries rather than a shape inside one, so the tasks
-    // check is handed the Action names the `actions` entry holds.
-    const actionNames = Object.keys(
+    // check is handed the `actions` entry itself: it judges the name an entry points at AND the
+    // input that Action declares, and neither is reachable from inside `tasks`.
+    const accepts =
       (
         descriptor.document.capabilities.actions as
-          | { accepts?: Record<string, unknown> }
+          | { accepts?: Record<string, { input?: unknown }> }
           | undefined
-      )?.accepts ?? {},
-    );
+      )?.accepts ?? {};
     // Tasks before Actions, and the order is not a preference: an Action that answers a Task
     // resolves its condition (TASK-15), so a Worker whose Tasks are read after its Actions are
     // performed may have none left to read. Every check here is a GET and changes nothing.
@@ -171,7 +171,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       descriptor.document.capabilities.tasks,
       surface("tasks"),
       Object.keys(descriptor.document.skills ?? {}),
-      actionNames,
+      accepts,
       byId,
       attribution,
       tape,
@@ -206,7 +206,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       ...(await checkAlerts(
         descriptor.document.capabilities.alerts,
         surface("alerts"),
-        actionNames,
+        Object.keys(accepts),
         byId,
         attribution,
         tape,

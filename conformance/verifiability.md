@@ -153,7 +153,7 @@ that the role is implementable and vouches for no product.
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
 | TASK-27 | W | The entry carries one address, which a read answers Tasks from |
-| TASK-32 | W | Every Task type it raises, with a payload schema and the one Action that answers it, which its `actions` entry accepts. An agreement between two entries, which no schema reaches |
+| TASK-32 | W | Every Task type it raises, with a payload schema and the one Action that answers it, which its `actions` entry accepts — and where that Action's input is a union, a member every variant fixes to a constant of its own. Both halves are agreements between two entries, which no schema reaches |
 | TASK-31 | W | The Task types it answers, read off the Descriptor root under `skills`, keyed by type. The two schemas an entry may declare are validated by the schema and not otherwise reached: whether a Worker requires or produces the right thing has no witness against that Worker alone, and `packages/client`'s `canAnswer` is where two Descriptors are compared |
 | TASK-4 | W | Every Task type name is a qualified name |
 | TASK-5 | W | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
