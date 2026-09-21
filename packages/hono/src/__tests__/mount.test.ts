@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import * as z from "zod";
 import { memoryOutcomes, type OutcomeStore, type Recorded } from "../actions.ts";
 import { mount } from "../mount.ts";
+import type { Worker } from "../worker.ts";
 
 /**
  * What `mount()` promises a Worker author, checked without a socket.
@@ -391,5 +392,68 @@ describe("mount(), with two requests under one idempotency key", () => {
     expect((await call(false)).status).toBe(422);
     // The same key again, and it is free: the refusal recorded nothing.
     expect(await (await call(true)).json()).toEqual({ n: 2 });
+  });
+});
+
+/**
+ * A Worker that has to look something up before it can answer anything.
+ *
+ * Every callback that reaches outside the process may answer a promise, and two of them could not
+ * until now: `authenticate`, which `spec/registration.md` describes validating a key against an
+ * identity provider — a network call the signature forbade — and `covers`, which reads what a
+ * Contract the Tower brokered says this credential may see.
+ */
+describe("mount(), with a Worker that awaits", () => {
+  const worker = mount(async () => {
+    // The declaration itself awaited: a time zone in a database, a set of metrics an operator
+    // switched on. Nothing in the object below is a function of its own, because this is.
+    const settings = await Promise.resolve({ zone: "America/Mexico_City", token: "from-the-db" });
+    return {
+      id: "tech.rowing.test.awaiting",
+      authenticate: async (presented: string | undefined) =>
+        (await Promise.resolve(presented === settings.token)) ? "accepted" : "unauthenticated",
+      metrics: {
+        timeZone: settings.zone,
+        metrics: {
+          seen: { unit: "things", additive: true, granularities: ["day"], dimensions: {} },
+        },
+        read: async () => [],
+      },
+      tasks: {
+        raises: {},
+        answers: [],
+        open: async () => [
+          { id: "t-1", type: "tech.rowing.test.a-thing", payload: {}, since: new Date(0) },
+          { id: "t-2", type: "tech.rowing.test.a-thing", payload: {}, since: new Date(0) },
+        ],
+        covers: async () => ["t-2"],
+      },
+    } satisfies Worker;
+  });
+
+  const get = (path: string, token: string) =>
+    worker.fetch(
+      new Request(`http://worker.invalid${path}`, {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    );
+
+  it("awaits `authenticate`, which is what validating against an identity provider needs", async () => {
+    expect((await get("/.well-known/worker-protocol", "from-the-db")).status).toBe(200);
+    expect((await get("/.well-known/worker-protocol", "no")).status).toBe(401);
+  });
+
+  it("declares what the awaited configuration said", async () => {
+    const answer = await get("/.well-known/worker-protocol", "from-the-db");
+    const document = (await answer.json()) as {
+      capabilities: { metrics: { timeZone: string } };
+    };
+    expect(document.capabilities.metrics.timeZone).toBe("America/Mexico_City");
+  });
+
+  it("awaits `covers`, so TASK-6 filters on what a lookup answered", async () => {
+    const answer = await get("/tasks", "from-the-db");
+    const page = (await answer.json()) as { items: { id: string }[] };
+    expect(page.items.map((task) => task.id)).toEqual(["t-2"]);
   });
 });

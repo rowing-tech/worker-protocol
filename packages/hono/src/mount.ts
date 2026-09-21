@@ -56,10 +56,27 @@ export type ExecutionCtx = { waitUntil?: (promise: Promise<unknown>) => void };
 /**
  * A Worker, or how to answer one from the environment of the request in hand.
  *
- * The function form is called on every request and must be cheap: it is a declaration being read,
- * not a connection being opened. What it answers may close over `env` freely — that is the point —
- * but **what it DECLARES may not differ between two callers**, because REG-8 requires the
- * Descriptor to be the same document for every one of them.
+ * **It may be async, and that is how a configurable Worker declares what its configuration says.**
+ * A time zone kept in a database, a set of metrics that depends on what an operator switched on, a
+ * broker read from a settings row: all of it is awaited here, once, and the object answered is an
+ * ordinary Worker. No field of that object needs to be a function of its own, which is why none is.
+ *
+ * ```ts
+ * export default {
+ *   fetch: mount<Env>(async (env) => {
+ *     const settings = await configuration(env); // cached; see below
+ *     return { id: "…", metrics: { timeZone: settings.zone, metrics: published(settings), read } };
+ *   }).fetch,
+ * }
+ * ```
+ *
+ * Two things follow and both are worth knowing before writing that. **It runs on every request**,
+ * the Tower's polls included, so a Worker that reads a store here caches the result — in module
+ * scope, which on an isolate runtime is a cache and not durable state, and is exactly the right
+ * place for one. And **what it DECLARES may not differ between two callers**, because REG-8
+ * requires the Descriptor to be the same document for every one of them: configuration that
+ * changes gives every caller a new Descriptor, which is ordinary, and configuration read per
+ * caller is the thing REG-8 forbids.
  */
 export type WorkerSource<E = unknown> =
   | Worker
@@ -341,7 +358,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     // REG-21: the Worker accepts the credential recorded for it on every address this protocol
     // defines, the Descriptor's route included. What makes one good is the Worker's (REG-3).
     // REG-32: the refusal distinguishes nothing — a refusal that explains itself is an oracle.
-    const verdict = worker.authenticate?.(bearer(c)) ?? "accepted";
+    const verdict = (await worker.authenticate?.(bearer(c))) ?? "accepted";
     if (verdict !== "accepted") return envelope({ code: verdict, message: "No." });
 
     // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot

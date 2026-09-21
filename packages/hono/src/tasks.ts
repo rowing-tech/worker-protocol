@@ -52,8 +52,12 @@ export type TaskFacts = {
    * The owner filters rather than the consumer discarding, and the file gives two reasons: a list
    * showing every Task to every holder of any Contract is a disclosure the owner cannot take back,
    * and a consumer reading through work it may not take costs both sides.
+   *
+   * It may answer a promise, because what a Contract covers is a thing a Worker looks up rather
+   * than a thing it holds — the Tower brokered it, the Worker stored what it was told, and reading
+   * that is a query like any other.
    */
-  covers?: (token: string | undefined) => string[] | undefined;
+  covers?: (token: string | undefined) => string[] | undefined | Promise<string[] | undefined>;
   /** ENDP-19 (recommended). The most Tasks one page carries. */
   pageSize?: number;
 };
@@ -92,7 +96,7 @@ export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
       }
 
       // TASK-6: only what this credential covers. Absent, it covers everything.
-      const covers = facts.covers?.(token);
+      const covers = await facts.covers?.(token);
       const matching = (await facts.open())
         .filter((task) => covers === undefined || covers.includes(task.id))
         .filter((task) => type === null || task.type === type);

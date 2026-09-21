@@ -38,8 +38,20 @@ export type Worker = {
    * `token` is what followed `Bearer ` (REG-3), or `undefined` where nothing readable was
    * presented. `unauthenticated` is `401`, `forbidden` is `403` (ENDP-29), and how the Worker
    * decides is its own. Left out, the Worker reads openly, which `spec/registration.md` permits.
+   *
+   * It may answer a promise, and it has to: `spec/registration.md` names *a Worker that validates
+   * an API key against an identity provider* as the first example of what REG-3 admits, and that
+   * is a network call. A signature that could not await it forbade the case the rule was written
+   * around, and left a Worker comparing against a secret it was deployed with as the only kind
+   * this package could serve.
    */
-  authenticate?: (token: string | undefined) => "accepted" | "unauthenticated" | "forbidden";
+  authenticate?: (
+    token: string | undefined,
+  ) =>
+    | "accepted"
+    | "unauthenticated"
+    | "forbidden"
+    | Promise<"accepted" | "unauthenticated" | "forbidden">;
   /** `health`: the answer to a poll (HLTH-2). HLTH-5 makes it `200` whatever it reports. */
   health?: () => z.infer<typeof health> | Promise<z.infer<typeof health>>;
   /** `metrics`: what the entry declares (MET-1 to MET-6), and the Worker's own values. */
