@@ -159,6 +159,47 @@ for (const [, klass, declared] of inventory.matchAll(/^\| \*\*(\S+)\*\* \| .+ \|
   }
 }
 
+/**
+ * The same counts, where they are written in prose.
+ *
+ * The tables above are gated and the sentences around them were not, so four documents carried
+ * numbers that drifted quietly: `README.md` claimed forty-four rules withdrawn for six rules after
+ * it stopped being true, and the sentence that decomposes what no tool reaches was published
+ * saying 48 where its own two parts add to 47. Both are the fault this repository names everywhere
+ * else — a claim nobody compares — and the fix is the one it uses everywhere else.
+ *
+ * Every number below is already computed above or by `spec/`. A sentence that stops being true now
+ * fails here, naming the file and what it should say.
+ */
+const W = counted.get("W") ?? 0;
+const H = counted.get("H") ?? 0;
+const P = counted.get("P") ?? 0;
+const N = counted.get("N") ?? 0;
+const all = classified.size;
+
+/** `\d+` in the pattern is where the count goes; every other character matches literally. */
+const claims: [file: string, pattern: string, expected: number][] = [
+  ["README.md", "What stands behind that: \\d+ rules", all],
+  ["README.md", "every one of the \\d+ a tool can observe", W],
+  ["README.md", "The remaining \\d+ are reported rather than passed", P + N],
+  ["README.md", "passed, and the two kinds are not the same: \\d+ bind a", P],
+  ["README.md", "whoever they oblige, and \\d+ have no witness", N],
+  ["conformance/README.md", "over a specification of \\d+ rules", all],
+  ["conformance/README.md", "Today that would be \\d+ of them", W + H],
+  ["conformance/verifiability.md", "^\\d+ rules across eleven files", all],
+  ["conformance/verifiability.md", "What no tool reaches is \\d+ rules", P + N],
+];
+
+for (const [file, pattern, expected] of claims) {
+  const text = await readFile(join(ROOT, file), "utf8");
+  const found = text.match(new RegExp(pattern.replace("\\d+", "(\\d+)"), "m"));
+  if (!found) {
+    report(file, "-", "prose-count", `no sentence matching \`${pattern}\``);
+  } else if (Number(found[1]) !== expected) {
+    report(file, "-", "prose-count", `\`${found[0]}\` should say ${expected}`);
+  }
+}
+
 if (findings.length > 0) {
   console.error(`conformance/verifiability.md and spec/ disagree (${findings.length}):\n`);
   let current = "";

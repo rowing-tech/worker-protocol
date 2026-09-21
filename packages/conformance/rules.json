@@ -92,6 +92,42 @@
       "reach": "W"
     },
     {
+      "id": "ACTV-1",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-2",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-3",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-4",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-5",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "ACTV-6",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
       "id": "ALRT-1",
       "file": "alerts.md",
       "class": "required",
@@ -984,6 +1020,26 @@
       "accepts/*/result": "ACT-3",
       "address": "DESC-12",
       "version": "DESC-9"
+    },
+    "activity-entry": {
+      "": "ACTV-1",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "activity-page": {
+      "": "ACTV-2",
+      "items": "ACTV-2",
+      "nextCursor": "ENDP-21"
+    },
+    "activity-state": {
+      "": "ACTV-4"
+    },
+    "activity": {
+      "": "ACTV-3",
+      "id": "ACTV-3",
+      "since": "ACTV-3",
+      "state": "ACTV-4",
+      "summary": "ACTV-3"
     },
     "alert-page": {
       "": "ALRT-2",

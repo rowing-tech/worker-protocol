@@ -1,0 +1,12 @@
+{
+  "schema": "activity",
+  "valid": false,
+  "rule": "ACTV-4",
+  "why": "A state of `done`. Three values and not four: an item that has finished, failed or been dropped is gone from the list, and what became of it is a metric or an event. Carrying `done` here would make this a job log with a retention question, when the question it answers is only ever asked in the present tense.",
+  "document": {
+    "id": "crawl:acme.com:2026-09-20T18",
+    "state": "done",
+    "since": "2026-09-20T18:41:00Z",
+    "summary": "Crawled acme.com, 200 pages."
+  }
+}

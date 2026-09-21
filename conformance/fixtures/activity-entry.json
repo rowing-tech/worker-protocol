@@ -1,0 +1,10 @@
+{
+  "schema": "activity-entry",
+  "valid": true,
+  "rule": "ACTV-1",
+  "why": "One address and nothing else. What a Worker counts as an activity is its own business — one item per file or one for the folder — so there is no catalog to declare, exactly as the `alerts` entry declares none.",
+  "document": {
+    "version": 1,
+    "address": "../activity"
+  }
+}

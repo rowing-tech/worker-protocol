@@ -146,5 +146,10 @@ export function bucketsIn(
   return buckets;
 }
 
-/** An RFC 3339 instant carrying an offset, which is what MET-13 and TASK-12 both travel as. */
-export const rfc3339 = (at: number): string => new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");
+/**
+ * An RFC 3339 instant carrying an offset, which is what MET-13, TASK-28, ALRT-3 and ACTV-3 travel
+ * as. It takes whichever of the two a caller already holds, so that reaching it never costs a
+ * `new Date` or a `.getTime()` at the call site.
+ */
+export const rfc3339 = (at: number | Date): string =>
+  (at instanceof Date ? at : new Date(at)).toISOString().replace(/\.\d{3}Z$/, "Z");

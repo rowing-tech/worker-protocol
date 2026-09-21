@@ -127,7 +127,7 @@ export const fleetWorker: WorkerBuilder<Env> = (env) => {
               id: "outbox-backed-up",
               severity: "warning" as const,
               // ALRT-3: when the condition began, which is when the oldest event was raised.
-              since: rfc3339(oldestAt),
+              since: new Date(oldestAt),
               summary: `${depth} events have not reached the broker.`,
               actions: [],
             },

@@ -28,6 +28,7 @@ a version of its own:
 | `metrics` | [metrics.md](metrics.md) | Named quantities accumulated over declared periods |
 | `actions` | [actions.md](actions.md) | Declaring and performing an operation, `configure` and settings included |
 | `alerts` | [alerts.md](alerts.md) | Conditions an operator should see |
+| `activity` | [activity.md](activity.md) | What a Worker is doing, and what it has undertaken to do |
 | `tasks` | [tasks.md](tasks.md) | Exposing the Tasks a condition holds open, and answering one |
 | `events` | [events.md](events.md) | The envelope, the broker, deduplication |
 
@@ -83,7 +84,7 @@ the exception *had to stay small* and named two. The register, the first time an
 question to every rule in turn, found sixteen. Whether that is too many is worth arguing about, and
 the argument is now possible — which is the point of the count living somewhere gated rather than
 in a sentence here that would drift the moment a rule was written. It has drifted since: the
-specification is ten files rather than six and the register counts twenty-one, which is a larger
+specification is eleven files rather than six and the register counts twenty-two, which is a larger
 number and the same proportion. Whether that is too many is still worth arguing about, and the
 argument is still there to be had.
 
@@ -167,6 +168,7 @@ so that two files never race for the same one:
 | [naming.md](naming.md) | `NAME` | [alerts.md](alerts.md) | `ALRT` |
 | | | [tasks.md](tasks.md) | `TASK` |
 | | | [events.md](events.md) | `EVT` |
+| | | [activity.md](activity.md) | `ACTV` |
 
 Numbers are issued in the order rules are written, not in the order they appear, so a file's ids
 need not read in sequence. **The number never restarts, and an id is never reused and never

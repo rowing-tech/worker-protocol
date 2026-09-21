@@ -1,4 +1,4 @@
-import type { alert, eventsEntry, health } from "@worker-protocol/schemas";
+import type { activityState, alertSeverity, eventsEntry, health } from "@worker-protocol/schemas";
 import type * as z from "zod";
 import type { ActionFacts } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
@@ -66,8 +66,17 @@ export type Worker = {
   metrics?: MetricFacts;
   /** `actions`: the Actions this Worker accepts, each with its input and what it does. */
   actions?: ActionFacts;
-  /** `alerts`: the Alerts whose conditions hold (ALRT-2). `mount()` pages them. */
-  alerts?: () => z.infer<typeof alert>[] | Promise<z.infer<typeof alert>[]>;
+  /** `alerts`: the Alerts whose conditions hold (ALRT-2). `mount()` orders, serializes and pages. */
+  alerts?: () => Alert[] | Promise<Alert[]>;
+  /**
+   * `activity`: what this Worker is doing and has undertaken to do (ACTV-2).
+   *
+   * The Worker answers its own domain — an id, a state, when it entered it, a line for a person —
+   * and `mount()` carries the rest: the instant's format, the order ENDP-23 requires, the page
+   * envelope. It is the consumer's own Fact about its work and not a Claim; `spec/activity.md`
+   * holds the argument.
+   */
+  activity?: () => Activity[] | Promise<Activity[]>;
   /** `events`: the entry and nothing else, because there is no address to serve (EVT-11). */
   events?: Omit<z.infer<typeof eventsEntry>, "version" | "address">;
   /** `tasks`: what the entry declares (TASK-27, TASK-2 to TASK-4), and which conditions hold. */
@@ -75,6 +84,38 @@ export type Worker = {
     /** TASK-2. Every Task type this Worker raises, with its payload schema and answering Actions. */
     raises: TaskTypes;
   } & TaskFacts;
+};
+
+/** What a Worker says about a condition an operator should see: the domain, and no more (ALRT-3). */
+export type Alert = {
+  /** ALRT-3. The Worker's own id for this Alert. Opaque to everyone else. */
+  id: string;
+  /** ALRT-4. `warning` or `critical`, and this edition defines no third value. */
+  severity: z.infer<typeof alertSeverity>;
+  /**
+   * ALRT-3. When the condition began — a `Date`, which `mount()` writes as the instant the rule
+   * fixes. It is what lets a console tell `this is new` from `this is the same as yesterday`.
+   */
+  since: Date;
+  /** ALRT-3. Human-readable, and parsed by nothing. */
+  summary: string;
+  /** ALRT-3, ALRT-7. The Actions this Alert offers, by the names the `actions` entry holds. */
+  actions: string[];
+};
+
+/** What a Worker says about one thing it holds: the domain, and the whole of it (ACTV-3). */
+export type Activity = {
+  /** ACTV-3. The Worker's own id, opaque to everyone else. */
+  id: string;
+  /** ACTV-4. `scheduled`, `pending` or `running`. */
+  state: z.infer<typeof activityState>;
+  /**
+   * ACTV-3. When it entered its current state — began running, joined the queue, was undertaken.
+   * A Worker that answers `new Date()` here is answering *now* and telling an operator nothing.
+   */
+  since: Date;
+  /** ACTV-3. For a person. Nothing parses it. */
+  summary: string;
 };
 
 /**

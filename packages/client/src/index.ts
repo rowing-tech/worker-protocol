@@ -1,4 +1,6 @@
 import {
+  activityPage,
+  type activity as activitySchema,
   type alert,
   alertPage,
   descriptor as descriptorSchema,
@@ -9,7 +11,7 @@ import {
   type task as taskSchema,
 } from "@worker-protocol/schemas";
 import type * as z from "zod";
-import { type CallerOptions, caller, pages } from "./call.ts";
+import { type CallerOptions, caller, collect } from "./call.ts";
 
 /**
  * `@worker-protocol/client` — read a Worker, and take work from it.
@@ -45,6 +47,7 @@ export {
 type Descriptor = z.infer<typeof descriptorSchema>;
 type Task = z.infer<typeof taskSchema>;
 type Alert = z.infer<typeof alert>;
+type Activity = z.infer<typeof activitySchema>;
 type Bucket = z.infer<typeof metricBucket>;
 
 /** What one Worker offers, read from its Descriptor and never guessed. */
@@ -65,6 +68,8 @@ export type Consumed = {
     settings?: () => Promise<unknown>;
   };
   alerts?: () => Promise<Alert[]>;
+  /** ACTV-2. What the Worker is doing and has undertaken to do. Read, never written. */
+  activity?: () => Promise<Activity[]>;
   tasks?: {
     /**
      * TASK-5. Every Task whose condition holds that this credential covers.
@@ -140,11 +145,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         // MET-16: a dimension is fixed with a parameter named exactly as the dimension.
         for (const [name, value] of Object.entries(read.fixed ?? {})) parameters[name] = value;
 
-        const buckets: Bucket[] = [];
-        for await (const page of pages(call, url.toString(), metricPage, "MET-14", parameters)) {
-          buckets.push(...page);
-        }
-        return buckets;
+        return collect<Bucket>(call, url.toString(), metricPage, "MET-14", parameters);
       },
     };
   }
@@ -182,26 +183,21 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
 
   const alertsAddress = addressOf("alerts");
   if (alertsAddress !== undefined) {
-    consumed.alerts = async () => {
-      const held: Alert[] = [];
-      for await (const page of pages(call, alertsAddress, alertPage, "ALRT-2")) held.push(...page);
-      return held;
-    };
+    consumed.alerts = () => collect<Alert>(call, alertsAddress, alertPage, "ALRT-2");
+  }
+
+  const activityAddress = addressOf("activity");
+  if (activityAddress !== undefined) {
+    consumed.activity = () => collect<Activity>(call, activityAddress, activityPage, "ACTV-2");
   }
 
   const tasksAddress = addressOf("tasks");
   if (tasksAddress !== undefined) {
     consumed.tasks = {
-      list: async (type) => {
-        const held: Task[] = [];
+      list: (type) =>
         // TASK-8 filters by type where one is asked for; absent, the read is unfiltered and a
         // `404` from it would be DESC-30's rather than a resource's, which `pages` works out.
-        const parameters: Record<string, string> = type === undefined ? {} : { type };
-        for await (const page of pages(call, tasksAddress, taskPage, "TASK-5", parameters)) {
-          held.push(...page);
-        }
-        return held;
-      },
+        collect<Task>(call, tasksAddress, taskPage, "TASK-5", type === undefined ? {} : { type }),
     };
   }
 

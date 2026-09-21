@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { EDITION } from "@worker-protocol/schemas";
 import type { Attribution } from "./attribution.ts";
 import { checkActions } from "./checks/actions.ts";
+import { checkActivity } from "./checks/activity.ts";
 import { checkAlerts } from "./checks/alerts.ts";
 import { checkArranged } from "./checks/arranged.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
@@ -134,6 +135,10 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   // Descriptor declared, so an address it could not see would read as the Worker's fault.
   const nested: string[] = [];
 
+  /** The address a Capability declared, resolved by `readDescriptor` per DESC-12. */
+  const surface = (name: string) =>
+    descriptor.surfaces.find((one) => one.capability === name)?.url ?? null;
+
   if (descriptor.document !== null && descriptor.url !== null) {
     results.push(
       ...(await callSurfaces(
@@ -141,9 +146,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         descriptor.url,
         // ENDP-6 is probed on the write this protocol has, which is the Actions address. It was
         // two until the claim address went with the lease.
-        [descriptor.surfaces.find((s) => s.capability === "actions")?.url].filter(
-          (url): url is string => url !== undefined,
-        ),
+        [surface("actions")].filter((url): url is string => url !== null),
         byId,
         tape,
         options.credential,
@@ -164,7 +167,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     // performed may have none left to read. Every check here is a GET and changes nothing.
     const listed = await checkTasks(
       descriptor.document.capabilities.tasks,
-      descriptor.surfaces.find((s) => s.capability === "tasks")?.url ?? null,
+      surface("tasks"),
       descriptor.document.skills ?? [],
       actionNames,
       byId,
@@ -175,7 +178,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     nested.push(...listed.addresses);
     const performed = await checkActions(
       descriptor.document.capabilities.actions,
-      descriptor.surfaces.find((s) => s.capability === "actions")?.url ?? null,
+      surface("actions"),
       descriptor.url,
       byId,
       attribution,
@@ -188,7 +191,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     results.push(
       ...(await checkMetrics(
         descriptor.document.capabilities.metrics,
-        descriptor.surfaces.find((s) => s.capability === "metrics")?.url ?? null,
+        surface("metrics"),
         byId,
         attribution,
         tape,
@@ -200,8 +203,17 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     results.push(
       ...(await checkAlerts(
         descriptor.document.capabilities.alerts,
-        descriptor.surfaces.find((s) => s.capability === "alerts")?.url ?? null,
+        surface("alerts"),
         actionNames,
+        byId,
+        attribution,
+        tape,
+      )),
+    );
+    results.push(
+      ...(await checkActivity(
+        descriptor.document.capabilities.activity,
+        surface("activity"),
         byId,
         attribution,
         tape,
@@ -210,7 +222,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     results.push(
       ...(await checkHealth(
         descriptor.document.capabilities.health,
-        descriptor.surfaces.find((s) => s.capability === "health")?.url ?? null,
+        surface("health"),
         byId,
         attribution,
         tape,
@@ -219,8 +231,6 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   }
 
   if (descriptor.document !== null) {
-    const surface = (name: string) =>
-      descriptor.surfaces.find((s) => s.capability === name)?.url ?? null;
     const configure = (
       descriptor.document.capabilities.actions as
         | { accepts?: Record<string, { readAddress?: string }> }
@@ -232,6 +242,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         {
           descriptorUrl: descriptor.url,
           alertsUrl: surface("alerts"),
+          activityUrl: surface("activity"),
           tasksUrl: surface("tasks"),
           settingsUrl:
             configure === undefined || descriptor.url === null

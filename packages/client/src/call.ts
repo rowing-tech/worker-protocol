@@ -230,6 +230,25 @@ const RETRY_STATUS = new Set([408, 429, 500, 502, 503, 504]);
  * ENDP-21: the cursor is opaque, is produced only by the Worker, and is never constructed here. It
  * goes back exactly as it arrived.
  */
+/**
+ * Every page of a collection, drained into one array.
+ *
+ * `pages` yields page by page so that a consumer may stop early; every caller in this package
+ * wants the whole thing, which is this. ENDP-20's envelope, ENDP-21's cursor and the bound on a
+ * Worker whose cursor never advances are all `pages`' — nothing is added here but the array.
+ */
+export async function collect<T>(
+  caller: Caller,
+  url: string,
+  schema: z.ZodType<{ items: T[]; nextCursor?: string }>,
+  rule: string,
+  parameters: Record<string, string> = {},
+): Promise<T[]> {
+  const held: T[] = [];
+  for await (const page of pages(caller, url, schema, rule, parameters)) held.push(...page);
+  return held;
+}
+
 export async function* pages<T>(
   caller: Caller,
   url: string,

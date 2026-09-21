@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "activity-page.json",
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "activity.json"
+      },
+      "description": "ACTV-2. The activities the Worker holds."
+    },
+    "nextCursor": {
+      "description": "ENDP-21. Opaque to the caller, produced only by the Worker, never constructed. A string because a caller sends it back as a request parameter. ENDP-20: absent at the end of the collection — absent, not null.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "title": "Activity page",
+  "description": "ACTV-2. One page of activities, in the envelope ENDP-20 fixes for every collection."
+}

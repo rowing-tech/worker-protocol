@@ -1,6 +1,6 @@
 import { eventsEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
-import type { Result, Rule } from "../report.ts";
+import { type Result, type Rule, verdicts } from "../report.ts";
 
 /**
  * The `events` Capability, which is as far as a Descriptor reaches.
@@ -21,11 +21,7 @@ export function checkEvents(
   rules: Map<string, Rule>,
   attribution: Attribution,
 ): Result[] {
-  const results: Result[] = [];
-  const say = (id: string, verdict: Result["verdict"], detail?: string) => {
-    const rule = rules.get(id);
-    if (rule) results.push({ rule, verdict, detail });
-  };
+  const { results, say } = verdicts(rules, CLAIMS);
 
   if (entry === undefined) {
     for (const id of CLAIMS) say(id, "notExercised", "the Worker declares no `events`");

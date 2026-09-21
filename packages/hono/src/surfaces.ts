@@ -1,5 +1,6 @@
 import { createRoute, type RouteConfig, z } from "@hono/zod-openapi";
 import {
+  activityPage,
   alertPage,
   DIMENSION_NAME,
   descriptor,
@@ -387,6 +388,25 @@ export const readAlerts = createRoute({
   },
 });
 
+export const readActivity = createRoute({
+  method: "get",
+  path: "/",
+  summary: "Read what the Worker is doing and has undertaken to do",
+  description: cite(
+    "ACTV-2",
+    "ACTV-6 answers the same activities to every caller the Worker authenticates: the party this surface is for is whoever operates the Worker, and that is enrollment rather than a Contract. Not a Claim — the Worker reports its own Fact, and nothing is held on anyone's behalf.",
+  ),
+  request: { query: z.object({ cursor }), headers: versionHeader },
+  responses: {
+    200: answer(
+      "ACTV-2",
+      "The activities the Worker holds, in the shared page envelope.",
+      activityPage,
+    ),
+    ...refusals([["unknown_filter", "ENDP-24"], ...SHARED]),
+  },
+});
+
 // ---- the documents ------------------------------------------------------------------------------
 
 export type Surface = {
@@ -474,6 +494,15 @@ export const SURFACES: Surface[] = [
     description:
       "Conditions an operator should see. An Alert ends when its condition stops holding and nobody dismisses one (ALRT-5), so there is no write here.",
     route: readAlerts,
+  },
+  {
+    document: "activity",
+    capability: "activity",
+    server: address("activity", "ACTV-1"),
+    title: "worker-protocol — activity",
+    description:
+      "What a Worker is doing and has undertaken to do. An activity ends when the Worker stops holding it and nobody declares that (ACTV-5), so there is no write here.",
+    route: readActivity,
   },
 ];
 

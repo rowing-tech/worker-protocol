@@ -12,10 +12,11 @@
  * `spec/tasks.md` carries the argument for withdrawing it.
  */
 
-import type { qualifiedName, taskPage } from "@worker-protocol/schemas";
+import type { qualifiedName } from "@worker-protocol/schemas";
 import type * as z from "zod";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
+import { collection, type Page } from "./collection.ts";
 import type { Refusal } from "./worker.ts";
 
 /** What a Worker says about a Task whose condition holds: the domain, and the whole of it. */
@@ -65,13 +66,11 @@ export type TaskFacts = {
 
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
 
-/** The parameters TASK-5 and ENDP-20 define on this read; ENDP-24 refuses everything else. */
-const READ_PARAMETERS = new Set(["type", "cursor"]);
-
-type TaskPage = z.infer<typeof taskPage>;
+/** What TASK-5 defines on this read beyond the cursor; `collection` refuses everything else. */
+const READ_PARAMETERS = ["type"] as const;
 
 export type TaskSurface = {
-  read: (query: URLSearchParams, token: string | undefined) => Promise<Refusal | TaskPage>;
+  read: (query: URLSearchParams, token: string | undefined) => Promise<Refusal | Page>;
 };
 
 export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
@@ -79,14 +78,6 @@ export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
 
   return {
     async read(query, token) {
-      // ENDP-24: an unrecognized filter is `400` and is never ignored. A filter dropped in silence
-      // answers with MORE than the caller asked for, in a shape it will happily parse.
-      for (const key of query.keys()) {
-        if (!READ_PARAMETERS.has(key)) {
-          return refuse("unknown_filter", `This address takes no parameter named ${key}.`);
-        }
-      }
-
       // TASK-8: a type the entry does not declare. The surface exists and the caller asked about
       // something this Worker never raises, which is a parameter whose VALUE it will not accept.
       const type = query.get("type");
@@ -100,24 +91,21 @@ export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
         .filter((task) => covers === undefined || covers.includes(task.id))
         .filter((task) => type === null || task.type === type);
 
-      // ENDP-19 (recommended): the Worker caps rather than negotiating. ENDP-23: the collection
-      // declares an order and holds it, so paging terminates — by id, which the owner mints and
-      // which is the only field every Task has that nothing else here reorders.
-      const ordered = [...matching].sort((a, b) => a.id.localeCompare(b.id));
-      const from = Number(query.get("cursor") ?? "0");
-      if (!Number.isInteger(from) || from < 0) {
-        return refuse("invalid_parameter", "That cursor was not produced by this Worker.");
-      }
-      const items = ordered.slice(from, from + cap).map((task) => ({
-        id: task.id,
-        type: task.type,
-        payload: task.payload,
-        since: rfc3339(task.since.getTime()),
-      }));
-      const next = from + cap;
-
-      // ENDP-20: the cursor is absent at the end of the collection — absent, not null.
-      return next < ordered.length ? { items, nextCursor: String(next) } : { items };
+      // ENDP-19's cap, ENDP-20's envelope, ENDP-21's cursor and ENDP-23's order are the same for
+      // every collection in this protocol, and `collection.ts` carries them. What is left here is
+      // what only Tasks know: which ones this credential covers, and what a Task looks like.
+      return collection(
+        matching,
+        query,
+        (task) => ({
+          id: task.id,
+          type: task.type,
+          payload: task.payload,
+          since: rfc3339(task.since),
+        }),
+        cap,
+        READ_PARAMETERS,
+      );
     },
   };
 }

@@ -1,0 +1,12 @@
+{
+  "schema": "activity",
+  "valid": true,
+  "rule": "ACTV-3",
+  "why": "Something a Worker is doing right now, with the instant it began and a line for a person. No type and no payload: a payload with no declared schema would be JSON nobody outside the Worker could validate or render, and the state is the whole of what a program acts on.",
+  "document": {
+    "id": "crawl:acme.com:2026-09-21T00",
+    "state": "running",
+    "since": "2026-09-21T00:03:12Z",
+    "summary": "Crawling acme.com, 37 of 200 pages."
+  }
+}

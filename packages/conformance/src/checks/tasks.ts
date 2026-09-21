@@ -1,6 +1,6 @@
 import { taskPage, tasksEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
-import type { Result, Rule } from "../report.ts";
+import { type Result, type Rule, verdicts } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
 /**
@@ -36,15 +36,8 @@ export async function checkTasks(
   attribution: Attribution,
   transcript: Transcript,
 ): Promise<{ results: Result[]; addresses: string[] }> {
-  const results: Result[] = [];
+  const { results, say, allExcept } = verdicts(rules, CLAIMS);
   const addresses: string[] = [];
-  const say = (id: string, verdict: Result["verdict"], detail?: string) => {
-    const rule = rules.get(id);
-    if (rule) results.push({ rule, verdict, detail });
-  };
-  const allExcept = (verdict: Result["verdict"], why: string, except: string[] = []) => {
-    for (const id of CLAIMS) if (!except.includes(id)) say(id, verdict, why);
-  };
 
   // NAME-7 and TASK-4 are about the NAMES, wherever they were declared. A Worker that only answers
   // Tasks has them under `skills` alone, and judging them only through a `tasks` entry would have

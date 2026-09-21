@@ -1,5 +1,5 @@
 import { error as errorSchema } from "@worker-protocol/schemas";
-import type { Result, Rule } from "../report.ts";
+import { type Result, type Rule, verdicts } from "../report.ts";
 import { type Exchange, isJson } from "../transcript.ts";
 
 /**
@@ -29,11 +29,7 @@ export function judgeTranscript(
   declared: Set<string>,
   rules: Map<string, Rule>,
 ): Result[] {
-  const results: Result[] = [];
-  const say = (id: string, verdict: Result["verdict"], detail?: string) => {
-    const rule = rules.get(id);
-    if (rule) results.push({ rule, verdict, detail });
-  };
+  const { results, say } = verdicts(rules, CLAIMS);
 
   if (exchanges.length === 0) {
     for (const id of CLAIMS) say(id, "notExercised", "no response was collected");

@@ -33,10 +33,11 @@ export { type ExecutionCtx, mount, type WorkerBuilder, type WorkerSource } from 
 export {
   performAction,
   pollHealth,
+  readActivity,
   readAlerts,
   readDescriptor,
   readMetric,
   readTasks,
 } from "./surfaces.ts";
 export type { OpenTask, TaskFacts, TaskTypes } from "./tasks.ts";
-export type { Answer, Refusal, Worker } from "./worker.ts";
+export type { Activity, Alert, Answer, Refusal, Worker } from "./worker.ts";

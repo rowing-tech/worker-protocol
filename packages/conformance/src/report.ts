@@ -99,3 +99,31 @@ export const tally = (results: Result[]): Record<Verdict, number> => {
   for (const result of results) counts[result.verdict] += 1;
   return counts;
 };
+
+/**
+ * Where a check module accumulates its verdicts.
+ *
+ * Every one of them was opening with the same seven lines — an array, a `say` that looks the rule
+ * up and drops what this verifier does not hold, and an `allExcept` that answers for the rest of
+ * its claims. None of it decides anything: which id, which verdict and which reason are the
+ * module's, and are still written there, beside the rule each one argues for.
+ *
+ * `say` drops an id the universe does not carry rather than throwing, and that is deliberate: a
+ * verifier holding an older `rules.json` than the module was written against reports what it can
+ * and stays silent about what it cannot, which is DESC-25's posture one level down.
+ */
+export function verdicts(rules: Map<string, Rule>, claims: readonly string[]) {
+  const results: Result[] = [];
+
+  const say = (id: string, verdict: Verdict, detail?: string) => {
+    const rule = rules.get(id);
+    if (rule) results.push({ rule, verdict, detail });
+  };
+
+  /** The claims this module has not already spoken for, all at one verdict and one reason. */
+  const allExcept = (verdict: Verdict, why: string, except: string[] = []) => {
+    for (const id of claims) if (!except.includes(id)) say(id, verdict, why);
+  };
+
+  return { results, say, allExcept };
+}

@@ -100,7 +100,7 @@ export const fleetWorker: WorkerBuilder<Env> = (env) => ({
           {
             id: "many-silent",
             severity: "warning" as const,
-            since: new Date(Date.now() - 3_600_000).toISOString().replace(/\.\d{3}Z$/, "Z"),
+            since: new Date(Date.now() - 3_600_000),
             summary: `${silent.size} vehicles have gone quiet.`,
             actions: [],
           },

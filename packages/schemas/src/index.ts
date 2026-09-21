@@ -57,7 +57,7 @@ export const registry = z.registry<{ id: string }>();
  * list a verifier checks an undotted name against. `spec/README.md`'s table is a reading aid.
  */
 export const capabilityName = z
-  .enum(["health", "metrics", "actions", "alerts", "tasks", "events"])
+  .enum(["health", "metrics", "actions", "alerts", "activity", "tasks", "events"])
   .meta({
     title: "Capability name",
     description: "DESC-8. The Capability names the current edition of worker-protocol defines.",
@@ -931,6 +931,73 @@ export const alertsEntry = capabilityEntry.extend({ address }).meta({
 });
 
 /**
+ * ACTV-4 — the three states an activity may be in, and the only three.
+ *
+ * Three rather than Alerts' two, on health's argument rather than alerts': a Worker that will run
+ * something at midnight and a Worker with four hundred items queued are both `not running`, and one
+ * word for both would make an operator unable to tell `backing up` from `waiting for its time`.
+ */
+export const activityState = z.enum(["scheduled", "pending", "running"]).meta({
+  title: "Activity state",
+  description:
+    "ACTV-4. `scheduled` is undertaken for a later moment the Worker knows, and nothing is wrong. " +
+    "`pending` is undertaken and waiting to start, and the length of that list is what an " +
+    "operator watches. `running` is under way. No fourth value.",
+});
+
+/**
+ * ACTV-3 — one activity.
+ *
+ * No type and no payload, deliberately: a payload with no declared schema is JSON nobody outside
+ * the Worker can validate or render, which is the blob alerts.md argues a protocol must not offer.
+ * The summary is for a person; the state is what a program acts on.
+ */
+export const activity = z
+  .strictObject({
+    id: z.string().min(1).meta({
+      description: "ACTV-3. The Worker's own id for this activity. Opaque to everyone else.",
+    }),
+    state: activityState,
+    since: instant(
+      "ACTV-3. When the activity entered its current state, as an RFC 3339 instant carrying an " +
+        "offset. For `running`, when work began; for `pending`, when it joined the queue, which " +
+        "is what makes a stuck one visible; for `scheduled`, when the Worker undertook it — and " +
+        "never when it will next run, which is scheduling and a non-goal.",
+    ),
+    summary: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "ACTV-3. Human-readable, and parsed by nothing. The reader this surface exists for is a " +
+          "person asking what a Worker is doing; what a program acts on is the state.",
+      }),
+  })
+  .meta({
+    title: "Activity",
+    description: "ACTV-3. One thing a Worker is doing or has undertaken to do, while it holds it.",
+  });
+
+/** ACTV-2 — what a read answers: the page envelope with its items narrowed to activities. */
+export const activityPage = page
+  .extend({
+    items: z.array(activity).meta({ description: "ACTV-2. The activities the Worker holds." }),
+  })
+  .meta({
+    title: "Activity page",
+    description:
+      "ACTV-2. One page of activities, in the envelope ENDP-20 fixes for every collection.",
+  });
+
+/** ACTV-1 — the `activity` Capability entry. The address is required: this is answered over HTTP. */
+export const activityEntry = capabilityEntry.extend({ address }).meta({
+  title: "Activity capability entry",
+  description:
+    "ACTV-1. The shared Capability entry with the address required. Nothing else: what a Worker " +
+    "counts as an activity is its own business, so there is no catalog to declare.",
+});
+
+/**
  * EVT-11 — where an event lands on the broker its entry declares.
  *
  * An object and not a string, because what a consumer needs in order to attach is not alike across
@@ -1053,6 +1120,10 @@ registry.add(alertSeverity, { id: "alert-severity" });
 registry.add(alert, { id: "alert" });
 registry.add(alertPage, { id: "alert-page" });
 registry.add(alertsEntry, { id: "alerts-entry" });
+registry.add(activityState, { id: "activity-state" });
+registry.add(activity, { id: "activity" });
+registry.add(activityPage, { id: "activity-page" });
+registry.add(activityEntry, { id: "activity-entry" });
 registry.add(eventDestination, { id: "event-destination" });
 registry.add(eventTypeDeclaration, { id: "event-type-declaration" });
 registry.add(eventsEntry, { id: "events-entry" });

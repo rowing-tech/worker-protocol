@@ -3,14 +3,17 @@ import { EDITION } from "@worker-protocol/schemas";
 import type { Context, MiddlewareHandler } from "hono";
 import { actions as actionsSurface, IN_MEMORY, jsonSchema, type OutcomeStore } from "./actions.ts";
 import { byCode } from "./codes.ts";
+import { collection, serializeSince } from "./collection.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
 import {
   performAction,
   pollHealth,
+  readActivity,
   readAlerts,
   readDescriptor,
   readMetric,
   readTasks,
+  SURFACES,
 } from "./surfaces.ts";
 import { tasks as taskSurface } from "./tasks.ts";
 import type { Answer, Refusal, Worker } from "./worker.ts";
@@ -226,7 +229,11 @@ function forgetful(first: OutcomeStore | undefined, now: OutcomeStore | undefine
 function descriptorOf(worker: Worker, edition: string): string {
   const capabilities: Record<string, unknown> = {};
 
-  if (worker.health) capabilities.health = { version: 1, address: "../health" };
+  // The Capabilities whose entry is the shared one and an address: what a Worker declares about
+  // them is that it implements them. The rest add something of their own below.
+  for (const name of ["health", "alerts", "activity"] as const) {
+    if (worker[name]) capabilities[name] = { version: 1, address: `../${name}` };
+  }
 
   if (worker.metrics) {
     const { read, pageSize, ...declared } = worker.metrics;
@@ -252,7 +259,6 @@ function descriptorOf(worker: Worker, edition: string): string {
     capabilities.actions = { version: 1, address: "../actions", accepts: declared };
   }
 
-  if (worker.alerts) capabilities.alerts = { version: 1, address: "../alerts" };
   if (worker.events) capabilities.events = { version: 1, ...worker.events };
 
   if (worker.tasks) {
@@ -351,9 +357,9 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     typeof source === "function"
       ? null
       : new Set(
-          (["health", "metrics", "actions", "alerts", "tasks"] as const).filter(
-            (name) => source[name] !== undefined,
-          ),
+          SURFACES.map((surface) => surface.capability)
+            .filter((name) => name !== "descriptor")
+            .filter((name) => source[name as keyof Worker] !== undefined),
         );
 
   // DESC-23. Read from the static Worker where there is one, so the header is right before any
@@ -478,8 +484,29 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   });
 
   // ALRT-2, ENDP-20: the Alerts whose conditions hold, in the page envelope this app builds.
-  serve("alerts", "/alerts", readAlerts, async (c, worker) =>
-    worker.alerts ? c.json({ items: await worker.alerts() }, 200) : undeclared("alerts"),
+  serve(
+    "alerts",
+    "/alerts",
+    readAlerts,
+    async (c, worker) =>
+      worker.alerts
+        ? page(c, collection(await worker.alerts(), query(c), serializeSince))
+        : undeclared("alerts"),
+    true,
+  );
+
+  // ACTV-2, ENDP-20, ENDP-23: what this Worker holds, serialized and ordered here so that a Worker
+  // writes neither the instant's format nor the order. By id, which the Worker mints and nothing
+  // else here reorders — the same order the Tasks surface declares, for the same reason.
+  serve(
+    "activity",
+    "/activity",
+    readActivity,
+    async (c, worker) =>
+      worker.activity
+        ? page(c, collection(await worker.activity(), query(c), serializeSince))
+        : undeclared("activity"),
+    true,
   );
 
   // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers.

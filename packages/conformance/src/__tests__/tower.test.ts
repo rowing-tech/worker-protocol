@@ -135,6 +135,7 @@ describe("a Control Tower, over Workers that answer", () => {
     const capabilities = (held?.descriptor as { capabilities: object } | undefined)?.capabilities;
     expect(Object.keys(capabilities ?? {}).sort()).toEqual([
       "actions",
+      "activity",
       "alerts",
       "events",
       "health",
@@ -238,6 +239,11 @@ describe("a Control Tower, over Workers that answer", () => {
     const seen = await consume(worker.url, { credential: "a-token" });
     expect((await seen.health?.())?.status).toBe("healthy");
     expect((await seen.alerts?.())?.length).toBeGreaterThan(0);
+    expect((await seen.activity?.())?.map((one) => one.state).sort()).toEqual([
+      "pending",
+      "running",
+      "scheduled",
+    ]);
     expect((await seen.tasks?.list())?.length).toBeGreaterThan(0);
     expect(await seen.actions?.settings?.()).toEqual({ label: "reference", pollSeconds: 60 });
 

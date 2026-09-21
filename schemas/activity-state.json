@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "activity-state.json",
+  "type": "string",
+  "enum": [
+    "scheduled",
+    "pending",
+    "running"
+  ],
+  "title": "Activity state",
+  "description": "ACTV-4. `scheduled` is undertaken for a later moment the Worker knows, and nothing is wrong. `pending` is undertaken and waiting to start, and the length of that list is what an operator watches. `running` is under way. No fourth value."
+}

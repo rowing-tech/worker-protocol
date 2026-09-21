@@ -1,6 +1,6 @@
 import { health as healthSchema, taskPage } from "@worker-protocol/schemas";
 import type { Arrangement } from "../index.ts";
-import type { Result, Rule } from "../report.ts";
+import { type Result, type Rule, verdicts } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
 /**
@@ -20,15 +20,42 @@ export const CLAIMS = [
   "REG-28",
   "REG-32",
   "ALRT-6",
+  "ACTV-6",
   "TASK-6",
   "HLTH-4",
   "ACT-14",
   "EVT-1",
 ] as const;
 
+/**
+ * The surfaces where two credentials must be served one list, and the rule each one is.
+ *
+ * A table rather than a block each, because the rule is mechanical: any read-only surface whose
+ * audience is whoever operates the Worker gets one, and the two that exist derive from each other
+ * by substitution. TASK-6 is deliberately not here — the comment below says why it reads the
+ * other way.
+ */
+const SAME_TO_BOTH = [
+  { rule: "ALRT-6", url: "alertsUrl", capability: "alerts", one: "the Alerts", many: "Alerts" },
+  {
+    rule: "ACTV-6",
+    url: "activityUrl",
+    capability: "activity",
+    one: "the activity",
+    many: "activities",
+  },
+] as const satisfies readonly {
+  rule: string;
+  url: keyof Surfaces;
+  capability: string;
+  one: string;
+  many: string;
+}[];
+
 type Surfaces = {
   descriptorUrl: string | null;
   alertsUrl: string | null;
+  activityUrl: string | null;
   tasksUrl: string | null;
   settingsUrl: string | null;
   workerId: string | null;
@@ -42,22 +69,18 @@ export async function checkArranged(
   rules: Map<string, Rule>,
   transcript: Transcript,
 ): Promise<Result[]> {
-  const results: Result[] = [];
-  const say = (id: string, verdict: Result["verdict"], detail?: string) => {
-    const rule = rules.get(id);
-    if (rule) results.push({ rule, verdict, detail });
-  };
+  const { results, say } = verdicts(rules, CLAIMS);
 
   const asSecond = (url: string, intent: string) =>
     transcript.send(url, intent, {
       headers: { authorization: `Bearer ${arrangement.secondCredential}` },
     });
 
-  // REG-28 (recommended), REG-8 and ALRT-6 all need a second credential, and it is one arrangement
-  // because it is one thing an operator issues.
+  // REG-28 (recommended), REG-8, ALRT-6 and ACTV-6 all need a second credential, and it is one
+  // arrangement because it is one thing an operator issues.
   const second = arrangement.secondCredential;
   if (second === undefined || surfaces.descriptorUrl === null) {
-    for (const id of ["REG-28", "REG-8", "ALRT-6"]) {
+    for (const id of ["REG-28", "REG-8", ...SAME_TO_BOTH.map((one) => one.rule)]) {
       say(id, "notExercised", "no second credential was given to the verifier");
     }
   } else {
@@ -81,17 +104,23 @@ export async function checkArranged(
       say("REG-8", "fails", "the two credentials were served different Descriptors");
     }
 
-    if (surfaces.alertsUrl === null) {
-      say("ALRT-6", "notExercised", "the Worker declares no `alerts`");
-    } else {
-      const a = await transcript.send(surfaces.alertsUrl, "the Alerts, first credential");
-      const b = await asSecond(surfaces.alertsUrl, "the Alerts, second credential");
-      if (a.status !== 200 || b.status !== 200) {
-        say("ALRT-6", "notExercised", "one of the two credentials did not read the Alerts");
-      } else if (a.body === b.body) {
-        say("ALRT-6", "passes");
+    // ALRT-6 and ACTV-6 are one rule read on two surfaces: both are for whoever OPERATES the
+    // Worker, which is a relationship of enrollment, so every credential it authenticates sees one
+    // list. A third read-only surface with that audience gets a row here rather than a block.
+    for (const { rule, url, capability, one, many } of SAME_TO_BOTH) {
+      const address = surfaces[url];
+      if (address === null) {
+        say(rule, "notExercised", `the Worker declares no \`${capability}\``);
+        continue;
+      }
+      const first = await transcript.send(address, `${one}, first credential`);
+      const second = await asSecond(address, `${one}, second credential`);
+      if (first.status !== 200 || second.status !== 200) {
+        say(rule, "notExercised", `one of the two credentials did not read ${one}`);
+      } else if (first.body === second.body) {
+        say(rule, "passes");
       } else {
-        say("ALRT-6", "fails", "the two credentials were served different Alerts");
+        say(rule, "fails", `the two credentials were served different ${many}`);
       }
     }
   }

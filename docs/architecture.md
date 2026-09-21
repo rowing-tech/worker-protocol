@@ -4,7 +4,7 @@
 > is a **Worker**: it keeps its own state and stays authoritative over it. What it offers outward is
 > **Events it publishes** through a broker, and a small **Worker API it answers when polled** — a
 > Descriptor of what it implements, then health, metrics, the Actions it accepts, the settings
-> it holds, and the Tasks and Alerts it has raised.
+> it holds, the Tasks and Alerts it has raised, and the activity it holds.
 >
 > One role stands apart, and it is a role and not a kind of node. The **Control Tower** knows who
 > exists, what each offers and how each is doing; it brokers the Contracts by which one Worker comes
@@ -53,7 +53,7 @@ argument earns each of these in turn.
 |---|---|
 | **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
-| **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, metrics, actions, alerts, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
+| **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, metrics, actions, alerts, activity, tasks, events — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
 | **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; its Skill, if it has one, beside that id because a Skill is served at no address; the Capabilities it implements, with the schemas of each and, where one answers over HTTP, its address; and the edition of this protocol it speaks. Everything anyone knows about a Worker before calling it is read from here. |
 | **Control Tower** | A role, not a kind of node — the Tower, for short: the registry and the operator's console. It catalogs what Workers declare in their Descriptors, brokers the Contracts between them, and polls how each is doing. It holds no Worker's state, and nothing it offers is in the path of a call. A Tower that serves a Descriptor is a Worker like any other; what stays asymmetric is that every Worker reaches it by configuration rather than by discovery. |
 | **Metric** | A named quantity a Worker exposes over a period it declares, with a unit and no valuation — cost, volume, outcomes. Health says whether a Worker works; metrics say what it did. |
@@ -65,7 +65,8 @@ argument earns each of these in turn.
 | **Event** | A Fact published for anyone to consume, with a shape declared in the Worker's own Descriptor. No addressee, no commitment. |
 | **Broker** | The transport Events travel over. Each Worker declares which one it publishes to; the protocol names none, and nothing but Events crosses it. |
 | **Alert** | A condition an operator should see. May carry Actions; requires no Skill. |
-| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, metrics, the Actions it accepts, the settings it holds, and the Tasks and Alerts it has raised. |
+| **Activity** | Something a Worker is doing or has undertaken to do — `scheduled`, `pending` or `running` — with the instant it entered that state and a summary for a person. The Worker's own Fact about its work, and not a Claim: nothing is held on anyone's behalf, and it ends when the Worker stops holding it. |
+| **Worker API** | What a Worker answers when polled, over HTTP and JSON Schema: its Descriptor, and behind it the Capabilities it declares — health, metrics, the Actions it accepts, the settings it holds, the Tasks and Alerts it has raised, and the activity it holds. |
 | **Alarm** | A Worker waking itself at a future time to re-evaluate. Neither a Task nor an Alert. |
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
 | **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
@@ -309,7 +310,7 @@ a route the spec fixes, and it is the first thing anyone reads about it: the Wor
 HTTP, the address it answers at; and its versions.
 
 A Capability is a part of this protocol — health, metrics, actions with settings inside them,
-alerts, tasks, events — and the list is closed; the spec names them. The word follows the
+alerts, activity, tasks, events — and the list is closed; the spec names them. The word follows the
 convention of LSP, MCP and WebDriver, where *capabilities* already means exactly this. A prefix is
 reserved for a Worker to declare something of its own without breaking verification: a verifier
 ignores what it does not know. Endpoints, registration and naming are not Capabilities; they cut

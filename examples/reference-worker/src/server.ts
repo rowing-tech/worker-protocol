@@ -3,6 +3,7 @@ import { getRequestListener } from "@hono/node-server";
 import { mount, type Worker } from "@worker-protocol/hono";
 import { Hono } from "hono";
 import { createActions } from "./actions.ts";
+import { activity } from "./activity.ts";
 import { alerts } from "./alerts.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
 import { createTasks, RAISES, SKILLS } from "./tasks.ts";
@@ -158,6 +159,10 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     },
 
     alerts,
+
+    // ACTV-2: one activity in each state, so every state a check can read is read. What this Worker
+    // is "doing" is arranged, like everything else here; what is real is the shape.
+    activity,
 
     // EVT-11: no address at all, which is the one case DESC-22 leaves the shared entry's address
     // optional for. An event travels over a broker, and this Worker names the broker, the binding

@@ -1,6 +1,6 @@
 import { alertPage, alertsEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
-import type { Result, Rule } from "../report.ts";
+import { type Result, type Rule, verdicts } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
 /**
@@ -24,14 +24,7 @@ export async function checkAlerts(
   attribution: Attribution,
   transcript: Transcript,
 ): Promise<Result[]> {
-  const results: Result[] = [];
-  const say = (id: string, verdict: Result["verdict"], detail?: string) => {
-    const rule = rules.get(id);
-    if (rule) results.push({ rule, verdict, detail });
-  };
-  const allExcept = (verdict: Result["verdict"], why: string, except: string[] = []) => {
-    for (const id of CLAIMS) if (!except.includes(id)) say(id, verdict, why);
-  };
+  const { results, say, allExcept } = verdicts(rules, CLAIMS);
 
   if (entry === undefined) {
     allExcept("notExercised", "the Worker declares no `alerts`");
