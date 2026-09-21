@@ -40,5 +40,5 @@
   ],
   "additionalProperties": false,
   "title": "Metric declaration",
-  "description": "MET-2. One metric, held under its name in the `metrics` entry. The Descriptor is the catalog: the surface itself never lists what exists."
+  "description": "MET-21. One metric, held under its name in the `metrics` entry. The Descriptor is the catalog: the surface itself never lists what exists."
 }

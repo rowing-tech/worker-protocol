@@ -18,17 +18,17 @@
     "broker": {
       "type": "string",
       "minLength": 1,
-      "description": "EVT-10. WHICH broker this Worker publishes to, named however its operators name it — the cluster or the service, not the place on it, which is `destination`. Nothing here parses it, exactly as nothing parses a metric unit."
+      "description": "EVT-11. WHICH broker this Worker publishes to, named however its operators name it — the cluster or the service, not the place on it, which is `destination`. Nothing here parses it, exactly as nothing parses a metric unit."
     },
-    "binding": {
+    "protocolBinding": {
       "type": "string",
       "minLength": 1,
-      "description": "EVT-10. Which CloudEvents binding the attributes are laid out under. Not fixed and not parsed: a binding is a property of a transport, and fixing one would mean naming a broker or publishing a list of the ones somebody had thought of."
+      "description": "EVT-11. Which CloudEvents protocol binding the attributes are laid out under. Not fixed and not parsed: a protocol binding is a property of a transport, and fixing one would mean naming a broker or publishing a list of the ones somebody had thought of. It is spelled in full because `binding` alone is what a deployment calls a resource it was handed, which is a different thing that sits a few lines away in the same config."
     },
     "destination": {
       "$ref": "event-destination.json"
     },
-    "events": {
+    "publishes": {
       "type": "object",
       "propertyNames": {
         "$ref": "qualified-name.json"
@@ -36,7 +36,7 @@
       "additionalProperties": {
         "$ref": "event-type-declaration.json"
       },
-      "description": "EVT-3. Every event type this Worker publishes, keyed by name."
+      "description": "EVT-12. Every event type this Worker publishes, keyed by name."
     },
     "republishWindowSeconds": {
       "type": "integer",
@@ -47,12 +47,12 @@
   "required": [
     "version",
     "broker",
-    "binding",
+    "protocolBinding",
     "destination",
-    "events",
+    "publishes",
     "republishWindowSeconds"
   ],
   "additionalProperties": {},
   "title": "Events capability entry",
-  "description": "EVT-10. The shared Capability entry with NO address: the broker, the binding and the destination this Worker publishes to, what it publishes, and how long it may republish one."
+  "description": "EVT-11. The shared Capability entry with NO address: the broker, the protocol binding and the destination this Worker publishes to, what it publishes, and how long it may republish one."
 }

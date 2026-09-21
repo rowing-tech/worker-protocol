@@ -155,9 +155,9 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     const actionNames = Object.keys(
       (
         descriptor.document.capabilities.actions as
-          | { actions?: Record<string, unknown> }
+          | { accepts?: Record<string, unknown> }
           | undefined
-      )?.actions ?? {},
+      )?.accepts ?? {},
     );
     // Tasks before Actions, and the order is not a preference: an Action that answers a Task
     // resolves its condition (TASK-15), so a Worker whose Tasks are read after its Actions are
@@ -165,6 +165,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     const listed = await checkTasks(
       descriptor.document.capabilities.tasks,
       descriptor.surfaces.find((s) => s.capability === "tasks")?.url ?? null,
+      descriptor.document.skills ?? [],
       actionNames,
       byId,
       attribution,
@@ -222,9 +223,9 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       descriptor.surfaces.find((s) => s.capability === name)?.url ?? null;
     const configure = (
       descriptor.document.capabilities.actions as
-        | { actions?: Record<string, { readAddress?: string }> }
+        | { accepts?: Record<string, { readAddress?: string }> }
         | undefined
-    )?.actions?.configure?.readAddress;
+    )?.accepts?.configure?.readAddress;
 
     results.push(
       ...(await checkArranged(
@@ -238,8 +239,8 @@ export async function verify(options: VerifyOptions): Promise<Report> {
               : new URL(configure, descriptor.url).toString(),
           workerId: descriptor.document.id,
           eventTypes: Object.keys(
-            (descriptor.document.capabilities.events as { events?: Record<string, unknown> })
-              ?.events ?? {},
+            (descriptor.document.capabilities.events as { publishes?: Record<string, unknown> })
+              ?.publishes ?? {},
           ),
         },
         {

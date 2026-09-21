@@ -59,7 +59,8 @@ export type ActionCall = {
 export type ActionDeclarations = Record<string, Action>;
 
 export type ActionFacts = {
-  actions: ActionDeclarations;
+  /** ACT-16. Every Action this Worker accepts, keyed by name. */
+  accepts: ActionDeclarations;
   /** ACT-15. The document `configure` would accept, where the Worker accepts settings. */
   settings?: () => unknown | Promise<unknown>;
   /**
@@ -204,7 +205,7 @@ export function actions(facts: ActionFacts) {
     token: string | undefined,
   ): Promise<Answer | Refusal> {
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
-    const declaration = facts.actions[name];
+    const declaration = facts.accepts[name];
     if (declaration === undefined) {
       return refuse("not_found", `No Action named ${name} is declared.`);
     }

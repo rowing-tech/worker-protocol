@@ -14,7 +14,7 @@ import type { Transcript } from "../transcript.ts";
  */
 export const CLAIMS = [
   "MET-1",
-  "MET-2",
+  "MET-21",
   "MET-3",
   "MET-4",
   "MET-5",
@@ -120,16 +120,16 @@ export async function checkMetrics(
     return results;
   }
 
-  const { timeZone, metrics } = declared.data as unknown as {
+  const { timeZone, publishes } = declared.data as unknown as {
     timeZone: string;
-    metrics: Record<string, Declaration>;
+    publishes: Record<string, Declaration>;
   };
-  for (const id of ["MET-1", "MET-2", "MET-3", "MET-4", "MET-6"]) say(id, "passes");
+  for (const id of ["MET-1", "MET-21", "MET-3", "MET-4", "MET-6"]) say(id, "passes");
 
   // MET-5: a dimension named after a parameter this protocol defines on a read would be
   // unreachable — the Worker could never tell the filter from the parameter.
   const collisions: string[] = [];
-  for (const [metric, declaration] of Object.entries(metrics)) {
+  for (const [metric, declaration] of Object.entries(publishes)) {
     for (const dimension of Object.keys(declaration.dimensions)) {
       if (OWN_PARAMETERS.includes(dimension)) collisions.push(`${metric}.${dimension}`);
     }
@@ -143,7 +143,7 @@ export async function checkMetrics(
   if (url === null) {
     allExcept("notExercised", "the declared address did not resolve", [
       "MET-1",
-      "MET-2",
+      "MET-21",
       "MET-3",
       "MET-4",
       "MET-5",
@@ -165,7 +165,7 @@ export async function checkMetrics(
   // that declares one metric with one granularity and no dimension is checked on less, and the
   // report says which rules that left unexercised rather than passing them.
   const [name, declaration] =
-    Object.entries(metrics).sort(
+    Object.entries(publishes).sort(
       ([, a], [, b]) =>
         b.granularities.length - a.granularities.length ||
         Object.keys(b.dimensions).length - Object.keys(a.dimensions).length,
@@ -174,7 +174,7 @@ export async function checkMetrics(
   if (name === undefined || declaration === undefined) {
     allExcept("notExercised", "the entry declares no metric to read", [
       "MET-1",
-      "MET-2",
+      "MET-21",
       "MET-3",
       "MET-4",
       "MET-5",
@@ -242,7 +242,7 @@ export async function checkMetrics(
         : `the answer did not validate: ${page.success ? "" : page.error.issues[0]?.message}`;
     allExcept("notExercised", why, [
       "MET-1",
-      "MET-2",
+      "MET-21",
       "MET-3",
       "MET-4",
       "MET-5",
@@ -281,7 +281,7 @@ export async function checkMetrics(
   if (buckets.length === 0) {
     allExcept("notExercised", "the Worker has accumulated nothing over the last month", [
       "MET-1",
-      "MET-2",
+      "MET-21",
       "MET-3",
       "MET-4",
       "MET-5",

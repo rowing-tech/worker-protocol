@@ -48,7 +48,8 @@ export type MetricSample = {
 
 export type MetricFacts = {
   timeZone: string;
-  metrics: MetricDeclarations;
+  /** MET-21. Every metric this Worker publishes, keyed by name. */
+  publishes: MetricDeclarations;
   /** The Worker's own facts. Everything around this call is the specification's. */
   read: (query: MetricQuery) => MetricSample[] | Refusal | Promise<MetricSample[] | Refusal>;
   /** ENDP-19 (recommended). The most buckets one page carries. */
@@ -70,7 +71,7 @@ export function metrics(facts: MetricFacts) {
     // does not exist, which is MET-10's division — the name is wrong, not the parameter.
     const name = query.get("metric");
     if (name === null) return refuse("invalid_parameter", "A read names one metric.");
-    const declaration = facts.metrics[name];
+    const declaration = facts.publishes[name];
     if (declaration === undefined) {
       return refuse("not_found", `No metric named ${name} is declared.`);
     }

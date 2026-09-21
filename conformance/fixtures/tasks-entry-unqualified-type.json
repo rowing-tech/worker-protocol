@@ -12,7 +12,6 @@
         "payload": { "type": "object" },
         "answeredBy": ["record-verification"]
       }
-    },
-    "answers": []
+    }
   }
 }

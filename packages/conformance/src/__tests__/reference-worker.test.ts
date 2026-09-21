@@ -112,6 +112,28 @@ describe("the reference worker, verified", () => {
     // localhost, because a verifier that quietly excused a rule would be deciding something the
     // specification did not.
     expect(failing).toEqual(["DESC-3"]);
+
+    // TASK-29's positive witness. This is the only Worker here that HAS a Skill, so it is the only
+    // place the rule can be seen passing — the other two suites assert its absence, and a pair of
+    // tests that only ever saw a field missing would prove nothing about the field.
+    expect(report.results.find((r) => r.rule.id === "TASK-29")?.verdict).toBe("passes");
+  });
+
+  it("declares its Skill on the Descriptor root, where TASK-29 puts it", async () => {
+    const descriptor = await fetch(new URL("/.well-known/worker-protocol", worker.url), {
+      headers: { authorization: "Bearer a-token" },
+    });
+    const document = (await descriptor.json()) as {
+      skills?: string[];
+      capabilities: { tasks?: Record<string, unknown> };
+    };
+
+    // Beside the id, not inside a Capability — read off the bytes on the wire rather than off the
+    // TypeScript that produced them. The verdict itself is asserted on the report the test above
+    // already ran; a second full sweep to look up one rule id is a whole verification wasted.
+    expect(document.skills).toEqual(["tech.rowing.worker-protocol.verify-vehicle"]);
+    expect(document.capabilities.tasks).not.toHaveProperty("skills");
+    expect(document.capabilities.tasks).not.toHaveProperty("answers");
   });
 
   it("judges every rule a tool can observe but the one nothing has provoked", async () => {
@@ -192,7 +214,7 @@ describe("the reference worker, verified", () => {
 
     // What the Descriptor alone establishes is judged either way: asking permission costs the
     // rules that need a request, and none of the ones that need only the document.
-    for (const id of ["ACT-1", "ACT-2", "ACT-3", "ACT-4", "ACT-12", "ACT-15", "ENDP-15"]) {
+    for (const id of ["ACT-16", "ACT-2", "ACT-3", "ACT-4", "ACT-12", "ACT-15", "ENDP-15"]) {
       expect(result(id)?.verdict, `${id} needs no POST`).toBe("passes");
     }
   });
@@ -387,7 +409,7 @@ describe("the reference worker, verified", () => {
               version: 1,
               address: "../metrics",
               timeZone: "UTC",
-              metrics: {
+              publishes: {
                 "tasks-resolved": {
                   unit: "tasks",
                   additive: true,

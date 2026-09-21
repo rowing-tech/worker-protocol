@@ -1,12 +1,12 @@
 {
   "schema": "actions-entry",
   "valid": true,
-  "rule": "ACT-1",
+  "rule": "ACT-16",
   "why": "One address for the Capability and the Actions keyed by name, each carrying the schema a console renders a form from. `configure` declares the reading address ACT-15 requires, without which a console shows an empty form and an operator replaces everything they did not remember.",
   "document": {
     "version": 1,
     "address": "../actions",
-    "actions": {
+    "accepts": {
       "configure": {
         "input": { "type": "object", "properties": { "label": { "type": "string" } } },
         "completesWithinCall": true,

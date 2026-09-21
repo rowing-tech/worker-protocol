@@ -33,6 +33,14 @@ export type Worker = {
   /** The edition this Worker speaks (DESC-23). Defaults to the one `@worker-protocol/schemas` encodes. */
   edition?: string;
   /**
+   * TASK-29. The Task types this Worker answers, which IS its Skill.
+   *
+   * Beside the id rather than inside `tasks`, because a Skill is served at no address: it is what
+   * this Worker is, and a Capability is what it serves. A Worker that only ANSWERS Tasks declares
+   * this and no `tasks` Capability at all.
+   */
+  skills?: string[];
+  /**
    * Whether a presented credential is good, on every address this protocol defines (REG-21).
    *
    * `token` is what followed `Bearer ` (REG-3), or `undefined` where nothing readable was
@@ -60,14 +68,12 @@ export type Worker = {
   actions?: ActionFacts;
   /** `alerts`: the Alerts whose conditions hold (ALRT-2). `mount()` pages them. */
   alerts?: () => z.infer<typeof alert>[] | Promise<z.infer<typeof alert>[]>;
-  /** `events`: the entry and nothing else, because there is no address to serve (EVT-10). */
+  /** `events`: the entry and nothing else, because there is no address to serve (EVT-11). */
   events?: Omit<z.infer<typeof eventsEntry>, "version" | "address">;
   /** `tasks`: what the entry declares (TASK-27, TASK-2 to TASK-4), and which conditions hold. */
   tasks?: {
     /** TASK-2. Every Task type this Worker raises, with its payload schema and answering Actions. */
     raises: TaskTypes;
-    /** TASK-3. The Task types this Worker answers, which IS its Skill. */
-    answers: string[];
   } & TaskFacts;
 };
 

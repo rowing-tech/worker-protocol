@@ -169,7 +169,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
 
     consumed.actions = { perform };
 
-    const configure = (entry("actions")?.actions as Record<string, { readAddress?: string }>)
+    const configure = (entry("actions")?.accepts as Record<string, { readAddress?: string }>)
       ?.configure;
     if (typeof configure?.readAddress === "string") {
       const settingsUrl = call.resolve(configure.readAddress);

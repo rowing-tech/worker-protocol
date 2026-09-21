@@ -1,13 +1,13 @@
 {
   "schema": "events-entry",
   "valid": false,
-  "rule": "EVT-10",
+  "rule": "EVT-11",
   "why": "A Worker that says which broker it publishes to and how the envelope is laid out, and not where on that broker its events land. It reads complete and leaves a consumer holding a cluster, a format and a list of type names it cannot attach to anything — which is the one fact a catalog exists to carry, and the reason the rule this replaced was withdrawn.",
   "document": {
     "version": 1,
     "broker": "kafka",
-    "binding": "cloudevents/kafka-1.0",
-    "events": {
+    "protocolBinding": "cloudevents/kafka-1.0",
+    "publishes": {
       "tech.rowing.fleet.vehicle-verified": {
         "data": { "type": "object", "properties": { "vehicle": { "type": "string" } } }
       }

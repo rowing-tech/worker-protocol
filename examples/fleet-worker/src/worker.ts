@@ -1,7 +1,13 @@
-import { defineWorker, mount, type OpenTask, type OutcomeStore } from "@worker-protocol/hono";
+import {
+  mount,
+  type OpenTask,
+  type OutcomeStore,
+  rfc3339,
+  type WorkerBuilder,
+} from "@worker-protocol/hono";
 import * as z from "zod";
 import type { Env } from "./env.ts";
-import type { Reading } from "./fleet.ts";
+import { type Fleet, fleetOf, QUIET_AFTER_MS, type Reading } from "./fleet.ts";
 
 /**
  * A Worker on Cloudflare whose Facts live in a Durable Object.
@@ -17,11 +23,10 @@ import type { Reading } from "./fleet.ts";
  * is the protocol's side and not SOAP.
  */
 
-const TYPE = "tech.rowing.fleet.check-quiet-vehicle";
-const QUIET_AFTER_MS = 15 * 60_000;
+const QUIET_VEHICLE = "tech.rowing.fleet.inspect-quiet-vehicle";
 
-/** One instance: this Worker watches one fleet, so there is one object to be authoritative. */
-const fleetOf = (env: Env) => env.FLEET.get(env.FLEET.idFromName("fleet"));
+/** HLTH-3 and ALRT-2 both turn on this one number, so it is written once. */
+const BACKED_UP = 20;
 
 /**
  * ENDP-16's store, over the durable object.
@@ -31,8 +36,7 @@ const fleetOf = (env: Env) => env.FLEET.get(env.FLEET.idFromName("fleet"));
  * interleaves between finding the key free and taking it. This is the first implementation in this
  * repository that is not a `Map`, and it is four lines, which is the claim the interface was making.
  */
-const durableOutcomes = (env: Env): OutcomeStore => {
-  const fleet = fleetOf(env);
+const durableOutcomes = (fleet: DurableObjectStub<Fleet>): OutcomeStore => {
   return {
     begin: (key, until) => fleet.beginOutcome(key, until),
     complete: (key, held) => fleet.completeOutcome(key, held),
@@ -40,7 +44,7 @@ const durableOutcomes = (env: Env): OutcomeStore => {
   };
 };
 
-export const fleetWorker = defineWorker<Env>((env) => {
+export const fleetWorker: WorkerBuilder<Env> = (env) => {
   const fleet = fleetOf(env);
 
   return {
@@ -53,23 +57,19 @@ export const fleetWorker = defineWorker<Env>((env) => {
     // HLTH-2: one status and named checks. HLTH-3 forbids `healthy` while a check is not, so the
     // outbox backing up takes the whole Worker to `degraded` and says which check said so.
     health: async () => {
-      const depth = await fleet.depth();
+      const { depth } = await fleet.outbox();
+      const status = depth > BACKED_UP ? ("degraded" as const) : ("healthy" as const);
       return {
-        status: depth > 20 ? ("degraded" as const) : ("healthy" as const),
-        checks: {
-          outbox: {
-            status: depth > 20 ? ("degraded" as const) : ("healthy" as const),
-            detail: `${depth} events waiting for the broker`,
-          },
-        },
+        status,
+        checks: { outbox: { status, detail: `${depth} events waiting for the broker` } },
       };
     },
 
-    // MET-2 to MET-6. Both are additive, so `mount()` may be asked for a day and this sums the
+    // MET-21 to MET-6. Both are additive, so `mount()` may be asked for a day and this sums the
     // hours it keeps — which is what declaring `additive` is for and why a reader never assumes it.
     metrics: {
       timeZone: "America/Mexico_City",
-      metrics: {
+      publishes: {
         "readings-ingested": {
           unit: "readings",
           additive: true,
@@ -99,14 +99,14 @@ export const fleetWorker = defineWorker<Env>((env) => {
     actions: {
       // ENDP-16: over the durable object, so a retry that reaches another isolate finds what the
       // first recorded. A `Map` here would have been one per isolate and the Action would run twice.
-      outcomes: durableOutcomes(env),
-      actions: {
-        "record-check": {
+      outcomes: durableOutcomes(fleet),
+      accepts: {
+        "record-inspection": {
           input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
           result: z.object({ recordedAt: z.string() }),
           idempotency: { required: true, from: "header", windowSeconds: 3600 },
           run: async ({ vehicle }: { vehicle: string }) => {
-            await fleet.check(vehicle, Date.now());
+            await fleet.inspect(vehicle, Date.now());
             return { recordedAt: new Date().toISOString() };
           },
         },
@@ -120,14 +120,14 @@ export const fleetWorker = defineWorker<Env>((env) => {
 
     // ALRT-2, ALRT-3: a condition an operator should see, while it holds.
     alerts: async () => {
-      const waiting = await fleet.pending(1);
-      const depth = await fleet.depth();
-      return depth > 20 && waiting[0] !== undefined
+      const { depth, oldestAt } = await fleet.outbox();
+      return depth > BACKED_UP && oldestAt !== undefined
         ? [
             {
               id: "outbox-backed-up",
               severity: "warning" as const,
-              since: new Date(waiting[0].at).toISOString().replace(/\.\d{3}Z$/, "Z"),
+              // ALRT-3: when the condition began, which is when the oldest event was raised.
+              since: rfc3339(oldestAt),
               summary: `${depth} events have not reached the broker.`,
               actions: [],
             },
@@ -137,33 +137,32 @@ export const fleetWorker = defineWorker<Env>((env) => {
 
     tasks: {
       raises: {
-        [TYPE]: {
+        [QUIET_VEHICLE]: {
           payload: {
             type: "object",
             properties: { vehicle: { type: "string" } },
             required: ["vehicle"],
           },
-          answeredBy: ["record-check"],
+          answeredBy: ["record-inspection"],
         },
       },
-      answers: [],
       // TASK-15: the condition, read from the store rather than derived from a Map in a process.
-      open: async (): Promise<OpenTask[]> =>
+      current: async (): Promise<OpenTask[]> =>
         (await fleet.quiet(Date.now(), QUIET_AFTER_MS)).map((one) => ({
           id: `quiet:${one.vehicle}`,
-          type: TYPE,
+          type: QUIET_VEHICLE,
           payload: { vehicle: one.vehicle },
           since: new Date(one.since),
         })),
     },
 
-    // EVT-10: the broker, the layout of the envelope, and WHERE on that broker these land. The
+    // EVT-11: the broker, the layout of the envelope, and WHERE on that broker these land. The
     // keys of `destination` are this Worker's own and nothing in the protocol parses them.
     events: {
       broker: "kafka",
-      binding: "cloudevents/kafka-1.0",
+      protocolBinding: "cloudevents/kafka-1.0",
       destination: { bootstrapServers: "kafka.rowing.invalid:9092", topic: "fleet.telemetry" },
-      events: {
+      publishes: {
         "tech.rowing.fleet.vehicle-went-quiet": {
           data: {
             type: "object",
@@ -176,7 +175,7 @@ export const fleetWorker = defineWorker<Env>((env) => {
       republishWindowSeconds: 3600,
     },
   };
-});
+};
 
 /**
  * One cycle: read what the source says, record it, and drain what is waiting for the broker.
@@ -207,13 +206,13 @@ export async function cycle(
       id: event.id,
       source: "tech.rowing.fleet.tracker",
       type: event.type,
-      time: new Date(event.at).toISOString(),
+      time: rfc3339(event.at),
       data: event.data,
     });
     if (!published) break; // In order, and no further: the next cycle starts where this stopped.
     gone.push(event.id);
   }
-  await fleet.published(gone);
+  if (gone.length > 0) await fleet.published(gone);
   return { readings: ingested, published: gone.length };
 }
 

@@ -132,9 +132,11 @@ jobs:
       # packages/hono checks the shape of openapi/ — one server per document, every $ref
       # resolving, every refusal status in the vocabulary. packages/client holds one test per rule
       # that binds a CONSUMER rather than a Worker, which is eleven required rules that had no
-      # subject anywhere until that package existed. packages/conformance starts both example
+      # subject anywhere until that package existed. packages/conformance starts all three example
       # Workers over a real socket and verifies them, and simulates a Control Tower over them,
-      # which is the half that needs something answering.
+      # which is the half that needs something answering. Two of those three are Node servers in
+      # its own process; the third is workerd, booted from examples/fleet-worker/wrangler.jsonc, so
+      # that the tool is shown reaching a Worker it does not share a runtime with.
       #
       # examples/fleet-worker is the one that runs on workerd rather than on Node, through
       # @cloudflare/vitest-pool-workers: a real durable object, real input gates, real isolate

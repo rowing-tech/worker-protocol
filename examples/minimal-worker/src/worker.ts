@@ -19,7 +19,7 @@
  * quiet, and closes it when somebody records a check.
  */
 
-import { defineWorker, memoryOutcomes, mount, type OpenTask } from "@worker-protocol/hono";
+import { memoryOutcomes, mount, type OpenTask, type WorkerBuilder } from "@worker-protocol/hono";
 import * as z from "zod";
 
 const TYPE = "tech.rowing.fleet.check-silent-vehicle";
@@ -43,7 +43,7 @@ const checked = new Set<string>();
  */
 const outcomes = memoryOutcomes();
 
-export const fleetWorker = defineWorker<Env>((env) => ({
+export const fleetWorker: WorkerBuilder<Env> = (env) => ({
   // DESC-6: the Worker's own id, which is not the URL it is served from.
   id: "tech.rowing.fleet.watcher",
 
@@ -56,10 +56,10 @@ export const fleetWorker = defineWorker<Env>((env) => ({
     checks: { store: { status: "healthy", detail: `${silent.size} vehicles tracked` } },
   }),
 
-  // MET-2 to MET-6: what this Worker publishes, and the calendar every boundary is cut in.
+  // MET-21 to MET-6: what this Worker publishes, and the calendar every boundary is cut in.
   metrics: {
     timeZone: "Europe/Madrid",
-    metrics: {
+    publishes: {
       "vehicles-silent": {
         unit: "vehicles",
         additive: false,
@@ -79,7 +79,7 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   // Schema a console renders a form from, and a request is validated against the same object.
   actions: {
     outcomes,
-    actions: {
+    accepts: {
       "record-check": {
         input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
         result: z.object({ recordedAt: z.string() }),
@@ -108,19 +108,18 @@ export const fleetWorker = defineWorker<Env>((env) => ({
       : [],
 
   tasks: {
-    // TASK-2, TASK-3: what this Worker asks of others, and what it answers itself.
+    // TASK-2, TASK-29: what this Worker asks of others, and what it answers itself.
     raises: {
       [TYPE]: {
         payload: { type: "object", properties: { vehicle: { type: "string" } } },
         answeredBy: ["record-check"],
       },
     },
-    answers: [],
     // TASK-15: the condition, and the whole of what this Worker owes. A Task exists while its
     // vehicle is quiet and unchecked, and it closes when that stops being true — which nobody
     // declares, and which is why `record-check` above needs to know nothing about Tasks.
     // TASK-28's `since` is the instant the condition began, not the instant this was asked.
-    open: (): OpenTask[] =>
+    current: (): OpenTask[] =>
       [...silent.entries()]
         .filter(([vehicle]) => !checked.has(vehicle))
         .map(([vehicle, since]) => ({
@@ -130,7 +129,7 @@ export const fleetWorker = defineWorker<Env>((env) => ({
           since,
         })),
   },
-}));
+});
 
 /**
  * `mount()` serves the Descriptor and every Capability declared above, at addresses it fixes.

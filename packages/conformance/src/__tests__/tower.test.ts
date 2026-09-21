@@ -85,15 +85,14 @@ function tower() {
     },
 
     /**
-     * TASK-3: the unit of discovery. An owner names a Task type and never an actor, and this is
+     * TASK-29: the unit of discovery. An owner names a Task type and never an actor, and this is
      * the question it asks — *who answers this* — over what each Worker declared about itself.
      */
     bySkill(type: string): string[] {
       const answering: string[] = [];
       for (const enrollment of enrolled.values()) {
-        const tasks = (enrollment.descriptor as { capabilities?: Record<string, unknown> })
-          ?.capabilities?.tasks as { answers?: string[] } | undefined;
-        if (tasks?.answers?.includes(type) && enrollment.id !== undefined) {
+        const { skills } = (enrollment.descriptor ?? {}) as { skills?: string[] };
+        if (skills?.includes(type) && enrollment.id !== undefined) {
           answering.push(enrollment.id);
         }
       }

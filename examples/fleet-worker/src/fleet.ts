@@ -19,8 +19,25 @@ import type { Env } from "./env.ts";
  * have got from two calls.
  */
 
+/** What `wrangler.jsonc`'s cron runs at. `ingest` rewinds by it to find what crossed this cycle. */
+const CYCLE_MS = 60_000;
+
+/** How long a vehicle may say nothing before it is quiet. The domain's number, not the protocol's. */
+export const QUIET_AFTER_MS = 15 * CYCLE_MS;
+
+/**
+ * The one object this Worker is authoritative over. It watches one fleet, so there is one.
+ *
+ * It lives here rather than in `worker.ts` for a reason worth knowing before writing a Worker on
+ * this platform: **the entrypoint module may export only handlers and Durable Object classes.** A
+ * constant exported beside them is refused by the runtime at startup — `Incorrect type for map
+ * entry` — and refused at DEPLOY time rather than by the compiler, so the tests that import the
+ * module rather than deploy it go on passing while `wrangler dev` will not start.
+ */
+export const fleetOf = (env: Env) => env.FLEET.get(env.FLEET.idFromName("fleet"));
+
 const READING = "reading:";
-const CHECK = "check:";
+const INSPECTION = "inspection:";
 const COUNTER = "counter:";
 const OUTBOX = "outbox:";
 const OUTCOME = "outcome:";
@@ -44,8 +61,11 @@ export type Quiet = { vehicle: string; since: number };
  */
 export type Json = Record<string, string | number | boolean>;
 
-/** One event waiting to reach the broker, in the order it was raised. */
-export type Pending = { id: string; type: string; at: number; data: Json };
+/** One event waiting to reach the broker, as it is stored: its id is the key it is held under. */
+type Row = { type: string; at: number; data: Json };
+
+/** One event waiting to reach the broker, in the order it was raised, with its id read off the key. */
+export type Pending = Row & { id: string };
 
 /** A reservation is a row with no answer yet; both carry the instant they expire. */
 type Outcome = { until: number; answer?: Recorded };
@@ -60,37 +80,51 @@ export class Fleet extends DurableObject<Env> {
    * under a name that says *changed*.
    */
   async ingest(readings: Reading[], now: number, quietAfterMs: number): Promise<number> {
-    const before = await this.quiet(now - 60_000, quietAfterMs);
+    // Who was already quiet one cycle ago. The window is a rewind rather than `now` on purpose: a
+    // vehicle that crosses the threshold during THIS cycle is quiet at `now` and was not quiet a
+    // cycle earlier, which is exactly the difference an event is raised for. Asking at `now` both
+    // times would put every vehicle in both sets and raise nothing, ever.
+    const before = await this.quiet(now - CYCLE_MS, quietAfterMs);
     const wasQuiet = new Set(before.map((one) => one.vehicle));
 
-    for (const reading of readings) {
-      await this.ctx.storage.put(`${READING}${reading.vehicle}`, reading.at);
-      // A reading is a sign of life, so it ends a check: the vehicle is not the one that was quiet.
-      await this.ctx.storage.delete(`${CHECK}${reading.vehicle}`);
+    // One write for every reading and one delete for every inspection it ends, rather than a pair
+    // of awaits per vehicle. A reading is a sign of life, so it ends an inspection: this is not the
+    // vehicle that was quiet, and the next silence is a new condition rather than the one somebody
+    // already looked at.
+    if (readings.length > 0) {
+      await this.ctx.storage.put(
+        Object.fromEntries(readings.map((one) => [`${READING}${one.vehicle}`, one.at])),
+      );
+      await this.ctx.storage.delete(readings.map((one) => `${INSPECTION}${one.vehicle}`));
     }
     await this.bump("readings-ingested", now, readings.length);
 
-    const nowQuiet = await this.quiet(now, quietAfterMs);
-    await this.bump("vehicles-quiet", now, nowQuiet.length - before.length);
-    for (const one of nowQuiet) {
-      if (wasQuiet.has(one.vehicle)) continue;
-      await this.enqueue("tech.rowing.fleet.vehicle-went-quiet", now, {
-        vehicle: one.vehicle,
-        since: new Date(one.since).toISOString(),
-      });
-    }
+    // The crossings, derived once. Counting them as `nowQuiet.length - before.length` would have
+    // been a second derivation of the same number, and the two disagree on any cycle where one
+    // vehicle crossed into quiet while another reported its way out of it.
+    const crossed = (await this.quiet(now, quietAfterMs)).filter(
+      (one) => !wasQuiet.has(one.vehicle),
+    );
+    await this.bump("vehicles-quiet", now, crossed.length);
+    await this.enqueue(
+      now,
+      crossed.map((one) => ({
+        type: "tech.rowing.fleet.vehicle-went-quiet",
+        data: { vehicle: one.vehicle, since: new Date(one.since).toISOString() },
+      })),
+    );
     return readings.length;
   }
 
-  /** TASK-15: the condition. A vehicle is quiet while its last reading is old and unchecked. */
+  /** TASK-15: the condition. A vehicle is quiet while its last reading is old and uninspected. */
   async quiet(now: number, quietAfterMs: number): Promise<Quiet[]> {
     const readings = await this.ctx.storage.list<number>({ prefix: READING });
-    const checks = await this.ctx.storage.list<number>({ prefix: CHECK });
+    const inspections = await this.ctx.storage.list<number>({ prefix: INSPECTION });
     const held: Quiet[] = [];
     for (const [key, at] of readings) {
       const vehicle = key.slice(READING.length);
       if (now - at < quietAfterMs) continue;
-      if (checks.has(`${CHECK}${vehicle}`)) continue;
+      if (inspections.has(`${INSPECTION}${vehicle}`)) continue;
       // TASK-28: the instant the condition began, which is when the vehicle fell silent and not
       // when somebody asked. A Worker that answered `now` here would tell an operator nothing.
       held.push({ vehicle, since: at + quietAfterMs });
@@ -98,9 +132,9 @@ export class Fleet extends DurableObject<Env> {
     return held.sort((a, b) => a.vehicle.localeCompare(b.vehicle));
   }
 
-  /** What `record-check` does: a verification is on record, so the condition stops holding. */
-  async check(vehicle: string, at: number): Promise<void> {
-    await this.ctx.storage.put(`${CHECK}${vehicle}`, at);
+  /** What `record-inspection` does: somebody looked, so the condition stops holding. */
+  async inspect(vehicle: string, at: number): Promise<void> {
+    await this.ctx.storage.put(`${INSPECTION}${vehicle}`, at);
   }
 
   // ---- metrics -----------------------------------------------------------------------------
@@ -121,15 +155,19 @@ export class Fleet extends DurableObject<Env> {
    * assuming it.
    */
   async counters(metric: string, buckets: { start: number; end: number }[]): Promise<number[]> {
-    const held = await this.ctx.storage.list<number>({ prefix: `${COUNTER}${metric}:` });
-    return buckets.map((bucket) => {
-      let total = 0;
-      for (const [key, value] of held) {
-        const at = Number(key.slice(`${COUNTER}${metric}:`.length));
-        if (at >= bucket.start && at < bucket.end) total += value;
-      }
-      return total;
-    });
+    const prefix = `${COUNTER}${metric}:`;
+    const held = await this.ctx.storage.list<number>({ prefix });
+    // Parsed once, not once per bucket: a year of hourly rows read over a month of daily buckets
+    // is thirty passes of `slice` and `Number` over the same keys, for one pass of arithmetic.
+    const hours = [...held].map(
+      ([key, value]) => [Number(key.slice(prefix.length)), value] as const,
+    );
+    return buckets.map((bucket) =>
+      hours.reduce(
+        (total, [at, value]) => (at >= bucket.start && at < bucket.end ? total + value : total),
+        0,
+      ),
+    );
   }
 
   // ---- the outbox --------------------------------------------------------------------------
@@ -141,18 +179,35 @@ export class Fleet extends DurableObject<Env> {
    * because a broker was down. EVT-8's republish window is what makes retrying safe: `source` and
    * `id` do not change between attempts, so a consumer that remembers them sees one event.
    */
-  private async enqueue(type: string, at: number, data: Json): Promise<void> {
-    const id = `${at}-${crypto.randomUUID()}`;
-    await this.ctx.storage.put(`${OUTBOX}${id}`, { id, type, at, data } satisfies Pending);
+  private async enqueue(at: number, events: { type: string; data: Json }[]): Promise<void> {
+    if (events.length === 0) return;
+    // The id is the key and is not repeated in the value: two copies of one fact are two things to
+    // keep in step, and `pending` reads it back off the key it already has.
+    await this.ctx.storage.put(
+      Object.fromEntries(
+        events.map((one) => [
+          `${OUTBOX}${at}-${crypto.randomUUID()}`,
+          { ...one, at } satisfies Row,
+        ]),
+      ),
+    );
   }
 
   async pending(limit = 50): Promise<Pending[]> {
-    const held = await this.ctx.storage.list<Pending>({ prefix: OUTBOX, limit });
-    return [...held.values()];
+    const held = await this.ctx.storage.list<Row>({ prefix: OUTBOX, limit });
+    return [...held].map(([key, row]) => ({ id: key.slice(OUTBOX.length), ...row }));
   }
 
-  async depth(): Promise<number> {
-    return (await this.ctx.storage.list({ prefix: OUTBOX })).size;
+  /**
+   * How deep the outbox is and when the oldest event was raised, in one read.
+   *
+   * Both facts come off the same scan because both callers want them together: HLTH-3 takes the
+   * Worker to `degraded` on the depth and ALRT-3 needs the instant the condition began. Asking
+   * twice was two round trips to this object for one list.
+   */
+  async outbox(): Promise<{ depth: number; oldestAt: number | undefined }> {
+    const held = await this.ctx.storage.list<Row>({ prefix: OUTBOX });
+    return { depth: held.size, oldestAt: [...held.values()][0]?.at };
   }
 
   /** What went is forgotten; what did not stays, in order, for the next cycle. */

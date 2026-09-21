@@ -1,6 +1,7 @@
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { fleetOf, QUIET_AFTER_MS } from "../src/fleet.ts";
 
 /**
  * The protocol's surfaces, over the deployed Worker.
@@ -12,7 +13,6 @@ import { describe, expect, it } from "vitest";
  */
 
 const MINUTE = 60_000;
-const QUIET_AFTER_MS = 15 * MINUTE;
 const TOKEN = "a-token";
 
 const at = (path: string, init: RequestInit = {}) =>
@@ -21,7 +21,7 @@ const at = (path: string, init: RequestInit = {}) =>
     headers: { authorization: `Bearer ${TOKEN}`, ...init.headers },
   });
 
-const fleet = () => env.FLEET.get(env.FLEET.idFromName("fleet"));
+const fleet = () => fleetOf(env);
 
 describe("what a Tower reads first", () => {
   it("serves the Descriptor at the address DESC-3 fixes, declaring this Worker's Capabilities", async () => {
@@ -67,7 +67,7 @@ describe("the Facts, read across isolates", () => {
       items: { id: string; type: string; payload: unknown; since: string }[];
     };
     const one = page.items.find((task) => task.id === "quiet:ZZZ-999");
-    expect(one?.type).toBe("tech.rowing.fleet.check-quiet-vehicle");
+    expect(one?.type).toBe("tech.rowing.fleet.inspect-quiet-vehicle");
     expect(one?.payload).toEqual({ vehicle: "ZZZ-999" });
     // TASK-28: an RFC 3339 instant carrying an offset, and the instant the condition BEGAN.
     expect(Date.parse(one?.since ?? "")).toBe(now - 20 * MINUTE + QUIET_AFTER_MS);
@@ -108,21 +108,21 @@ describe("the Facts, read across isolates", () => {
 
 describe("ENDP-16, over a store that outlives the request", () => {
   const key = "one-key";
-  const check = (body: unknown, headers: Record<string, string> = {}) =>
-    at("/actions?action=record-check", {
+  const inspection = (body: unknown, headers: Record<string, string> = {}) =>
+    at("/actions?action=record-inspection", {
       method: "POST",
       headers: { "content-type": "application/json", "idempotency-key": key, ...headers },
       body: JSON.stringify(body),
     });
 
   it("replays the recorded outcome for a retry under the same key", async () => {
-    const first = await check({ vehicle: "RRR-111", reachable: true });
+    const first = await inspection({ vehicle: "RRR-111", reachable: true });
     expect(first.status).toBe(200);
     const recorded = await first.text();
 
     // This is the case a `Map` in a process gets wrong the moment there are two isolates, and it is
     // the reason this example exists: the retry replays what the first performance recorded.
-    const again = await check({ vehicle: "RRR-111", reachable: true });
+    const again = await inspection({ vehicle: "RRR-111", reachable: true });
     expect(again.status).toBe(200);
     expect(await again.text()).toBe(recorded);
   });
@@ -130,7 +130,7 @@ describe("ENDP-16, over a store that outlives the request", () => {
   it("refuses the same key over a different body", async () => {
     // ENDP-17: a key is a promise about ONE request. Answering the first request's outcome to a
     // different one would be replaying something the caller never sent.
-    const response = await check({ vehicle: "SOMETHING-ELSE", reachable: false });
+    const response = await inspection({ vehicle: "SOMETHING-ELSE", reachable: false });
     expect(response.status).toBe(409);
   });
 });

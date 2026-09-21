@@ -14,6 +14,7 @@
 
 import type { qualifiedName, taskPage } from "@worker-protocol/schemas";
 import type * as z from "zod";
+import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import type { Refusal } from "./worker.ts";
 
@@ -45,7 +46,7 @@ export type TaskFacts = {
    * It is called on every read, so it answers the present rather than a cache: a Task closes when
    * its condition stops holding, and nothing else in this protocol closes one.
    */
-  open: () => OpenTask[] | Promise<OpenTask[]>;
+  current: () => OpenTask[] | Promise<OpenTask[]>;
   /**
    * TASK-6. Which Task ids the credential presented covers, or `undefined` for all of them.
    *
@@ -73,8 +74,6 @@ export type TaskSurface = {
   read: (query: URLSearchParams, token: string | undefined) => Promise<Refusal | TaskPage>;
 };
 
-const rfc3339 = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, "Z");
-
 export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
   const cap = facts.pageSize ?? 50;
 
@@ -97,7 +96,7 @@ export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
 
       // TASK-6: only what this credential covers. Absent, it covers everything.
       const covers = await facts.covers?.(token);
-      const matching = (await facts.open())
+      const matching = (await facts.current())
         .filter((task) => covers === undefined || covers.includes(task.id))
         .filter((task) => type === null || task.type === type);
 
@@ -113,7 +112,7 @@ export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
         id: task.id,
         type: task.type,
         payload: task.payload,
-        since: rfc3339(task.since),
+        since: rfc3339(task.since.getTime()),
       }));
       const next = from + cap;
 

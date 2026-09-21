@@ -280,6 +280,17 @@ export const descriptor = z
           "zeros are refused so that one edition has one spelling and string equality agrees " +
           "with numeric comparison.",
       }),
+    skills: z
+      .array(qualifiedName)
+      .optional()
+      .meta({
+        description:
+          "TASK-29. The Task types this Worker answers, which IS its Skill — the unit of " +
+          "discovery the Tower catalogs by. It is at the root rather than in the `tasks` entry " +
+          "because a Skill is served at no address and answered by no surface: it is what a " +
+          "Worker IS, like its id, and a Capability is what a Worker SERVES. Omitted by a Worker " +
+          "with no Skill, which is the ordinary case for one that only raises Tasks of its own.",
+      }),
     capabilities: z.record(z.union([capabilityName, vendorCapabilityName]), capabilityEntry).meta({
       description:
         "DESC-22. Keyed by Capability name, which is what makes a Capability declared at most " +
@@ -460,7 +471,7 @@ export const metricDimension = z
   });
 
 /**
- * MET-2, MET-3, MET-4 — what a Worker declares about one metric.
+ * MET-21, MET-3, MET-4 — what a Worker declares about one metric.
  *
  * Closed: MET-3 and MET-4 enumerate the declaration, and no open question in metrics.md asks for
  * another member of it. A member added later is what an edition is for, which is DESC-23.
@@ -505,7 +516,7 @@ export const metricDeclaration = z
   .meta({
     title: "Metric declaration",
     description:
-      "MET-2. One metric, held under its name in the `metrics` entry. The Descriptor is the " +
+      "MET-21. One metric, held under its name in the `metrics` entry. The Descriptor is the " +
       "catalog: the surface itself never lists what exists.",
   });
 
@@ -534,7 +545,7 @@ export const timeZone = z
   });
 
 /**
- * MET-1, MET-2, MET-6 — the `metrics` Capability entry.
+ * MET-1, MET-21, MET-6 — the `metrics` Capability entry.
  *
  * The address is required, as HLTH-1 requires it, because this Capability is answered over HTTP.
  */
@@ -542,9 +553,9 @@ export const metricsEntry = capabilityEntry
   .extend({
     address,
     timeZone,
-    metrics: z.record(z.string().min(1), metricDeclaration).meta({
+    publishes: z.record(z.string().min(1), metricDeclaration).meta({
       description:
-        "MET-2. Every metric the Worker publishes, keyed by name. A name not here is `404` " +
+        "MET-21. Every metric the Worker publishes, keyed by name. A name not here is `404` " +
         "under MET-9. The key carries no pattern: it is spelled into the VALUE of a query " +
         "parameter, which is percent-encoded, and naming.md leaves a Worker's own names alone.",
     }),
@@ -573,7 +584,7 @@ const instant = (description: string) =>
  * MET-12, MET-13, MET-15, MET-19 — one bucket.
  *
  * Closed, and it carries no name, unit or granularity: MET-8 has the caller name the metric and,
- * where there is a choice, the granularity, and MET-2 has it read the unit from the Descriptor
+ * where there is a choice, the granularity, and MET-21 has it read the unit from the Descriptor
  * before it calls. Repeating any of them here would be a second place for them to disagree.
  *
  * It carries no status and no judgment of any kind. metrics.md answers `how much` and stops: a
@@ -727,7 +738,7 @@ export const actionDeclaration = z
   });
 
 /**
- * ACT-1 — the `actions` Capability entry.
+ * ACT-16 — the `actions` Capability entry.
  *
  * The address is required, as HLTH-1 and MET-1 require it, because this Capability is answered
  * over HTTP. One address for the Capability and a parameter naming the Action, which is the shape
@@ -736,9 +747,9 @@ export const actionDeclaration = z
 export const actionsEntry = capabilityEntry
   .extend({
     address,
-    actions: z.record(z.string().min(1), actionDeclaration).meta({
+    accepts: z.record(z.string().min(1), actionDeclaration).meta({
       description:
-        "ACT-1. Every Action the Worker accepts, keyed by name. An Action not here is `404` " +
+        "ACT-16. Every Action the Worker accepts, keyed by name. An Action not here is `404` " +
         "under ACT-6. The key carries no pattern: it travels as the VALUE of the `action` " +
         "parameter and is percent-encoded like any other.",
     }),
@@ -746,12 +757,12 @@ export const actionsEntry = capabilityEntry
   .meta({
     title: "Actions capability entry",
     description:
-      "ACT-1. The shared Capability entry with the address required, and the Actions this Worker " +
+      "ACT-16. The shared Capability entry with the address required, and the Actions this Worker " +
       "accepts. The Descriptor is the catalog: the surface performs and never lists what exists.",
   });
 
 /**
- * TASK-2, TASK-3 — one Task type a Worker raises.
+ * TASK-2 — one Task type a Worker raises.
  *
  * The Actions named here are the OWNER's own, declared in its `actions` entry: a Response is an
  * Action posted into the owner, so the closed list is a list of names that entry holds.
@@ -781,11 +792,15 @@ export const taskTypeDeclaration = z
   });
 
 /**
- * TASK-27, TASK-2, TASK-3 — the `tasks` Capability entry.
+ * TASK-27, TASK-2 — the `tasks` Capability entry.
  *
  * One address, and a read. The entry carried a second one a claim was posted to until the Claim
  * lifecycle was withdrawn; `spec/tasks.md` holds the argument, and the short of it is that a lease
  * over a unit of work is orchestration, which this specification names a non-goal.
+ *
+ * It carried a third thing until TASK-29 moved it: what the Worker ANSWERS, which is served at no
+ * address and is now `skills` on the Descriptor's root. What is left here is what the declared
+ * address actually answers instances of.
  */
 export const tasksEntry = capabilityEntry
   .extend({
@@ -795,18 +810,12 @@ export const tasksEntry = capabilityEntry
         "TASK-2. Every Task type this Worker raises. A Worker that raises none declares an empty " +
         "map rather than omitting it, so that every reader parses one shape.",
     }),
-    answers: z.array(qualifiedName).meta({
-      description:
-        "TASK-3. The Task types this Worker answers, which IS its Skill — the unit of discovery " +
-        "the Tower catalogs by. May be empty: a Worker that raises Tasks and answers none is the " +
-        "ordinary case rather than the exception.",
-    }),
   })
   .meta({
     title: "Tasks capability entry",
     description:
-      "TASK-27. The shared Capability entry with the reading address required, what this Worker " +
-      "raises and what it answers.",
+      "TASK-27. The shared Capability entry with the reading address required, and the Task " +
+      "types this Worker raises. What it ANSWERS is TASK-29's `skills`, on the Descriptor root.",
   });
 
 /**
@@ -922,7 +931,7 @@ export const alertsEntry = capabilityEntry.extend({ address }).meta({
 });
 
 /**
- * EVT-10 — where an event lands on the broker its entry declares.
+ * EVT-11 — where an event lands on the broker its entry declares.
  *
  * An object and not a string, because what a consumer needs in order to attach is not alike across
  * brokers: a Kafka topic beside its bootstrap servers, an Event Hub inside a namespace, an SNS ARN
@@ -936,36 +945,36 @@ export const alertsEntry = capabilityEntry.extend({ address }).meta({
 export const eventDestination = z.looseObject({}).meta({
   title: "Event destination",
   description:
-    "EVT-10. Where on the declared broker these events land, in whatever shape that broker needs " +
+    "EVT-11. Where on the declared broker these events land, in whatever shape that broker needs " +
     "— a topic beside its servers, an Event Hub in a namespace, an ARN. The keys are the " +
     "Worker's own and nothing here parses them. A Worker that publishes and does not say where " +
     "leaves a consumer holding a cluster, an envelope layout and a list of names it cannot attach " +
     "to anything.",
 });
 
-/** EVT-3, EVT-10 — one event type a Worker publishes. */
+/** EVT-12, EVT-11 — one event type a Worker publishes. */
 export const eventTypeDeclaration = z
   .strictObject({
     data: z.looseObject({}).meta({
       description:
-        "EVT-3. The JSON Schema of this event type's data — the `data` of the CloudEvents " +
+        "EVT-12. The JSON Schema of this event type's data — the `data` of the CloudEvents " +
         "envelope EVT-1 fixes. The Worker's own shape: this protocol has no data model.",
     }),
     destination: eventDestination.optional().meta({
       description:
-        "EVT-10. Where THIS type lands, for a Worker that divides its events by subject. Absent, " +
+        "EVT-11. Where THIS type lands, for a Worker that divides its events by subject. Absent, " +
         "it lands at the entry's destination, which is the ordinary case.",
     }),
   })
   .meta({
     title: "Event type declaration",
     description:
-      "EVT-3. One event type, held under a qualified name (EVT-4, NAME-7) because a subscriber " +
+      "EVT-12. One event type, held under a qualified name (EVT-4, NAME-7) because a subscriber " +
       "matches it against what it decided to consume, having never met the team that minted it.",
   });
 
 /**
- * EVT-10, EVT-3, EVT-8 — the `events` Capability entry.
+ * EVT-11, EVT-12, EVT-8 — the `events` Capability entry.
  *
  * The one entry with NO address, which is the single reason DESC-22 leaves the address optional in
  * the shared entry at all. An event travels over a broker this protocol declines to name, and a
@@ -978,22 +987,24 @@ export const eventsEntry = capabilityEntry
       .min(1)
       .meta({
         description:
-          "EVT-10. WHICH broker this Worker publishes to, named however its operators name it — " +
+          "EVT-11. WHICH broker this Worker publishes to, named however its operators name it — " +
           "the cluster or the service, not the place on it, which is `destination`. Nothing here " +
           "parses it, exactly as nothing parses a metric unit.",
       }),
-    binding: z
+    protocolBinding: z
       .string()
       .min(1)
       .meta({
         description:
-          "EVT-10. Which CloudEvents binding the attributes are laid out under. Not fixed and not " +
-          "parsed: a binding is a property of a transport, and fixing one would mean naming a " +
-          "broker or publishing a list of the ones somebody had thought of.",
+          "EVT-11. Which CloudEvents protocol binding the attributes are laid out under. Not fixed " +
+          "and not parsed: a protocol binding is a property of a transport, and fixing one would " +
+          "mean naming a broker or publishing a list of the ones somebody had thought of. It is " +
+          "spelled in full because `binding` alone is what a deployment calls a resource it was " +
+          "handed, which is a different thing that sits a few lines away in the same config.",
       }),
     destination: eventDestination,
-    events: z.record(qualifiedName, eventTypeDeclaration).meta({
-      description: "EVT-3. Every event type this Worker publishes, keyed by name.",
+    publishes: z.record(qualifiedName, eventTypeDeclaration).meta({
+      description: "EVT-12. Every event type this Worker publishes, keyed by name.",
     }),
     republishWindowSeconds: z
       .number()
@@ -1011,8 +1022,9 @@ export const eventsEntry = capabilityEntry
   .meta({
     title: "Events capability entry",
     description:
-      "EVT-10. The shared Capability entry with NO address: the broker, the binding and the " +
-      "destination this Worker publishes to, what it publishes, and how long it may republish one.",
+      "EVT-11. The shared Capability entry with NO address: the broker, the protocol binding and " +
+      "the destination this Worker publishes to, what it publishes, and how long it may " +
+      "republish one.",
   });
 
 registry.add(capabilityName, { id: "capability-name" });

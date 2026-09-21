@@ -88,10 +88,16 @@ describe("the minimal worker", () => {
   it("carries the whole tasks surface it never wrote a line of", () => {
     // What a Worker would otherwise implement: the page envelope, the cursor, the ordering that
     // makes paging terminate, the filter that must be refused rather than ignored.
-    // `examples/minimal-worker` declares `raises`, `answers` and `open()` and nothing else.
-    for (const id of ["TASK-27", "TASK-2", "TASK-3", "TASK-4", "TASK-5", "TASK-8", "TASK-28"]) {
+    // `examples/minimal-worker` declares `raises` and `current()` and nothing else.
+    for (const id of ["TASK-27", "TASK-2", "TASK-4", "TASK-5", "TASK-8", "TASK-28"]) {
       expect(verdict(id), id).toBe("passes");
     }
+
+    // TASK-29 is the one this Worker exercises by NOT having it. It raises Tasks for somebody else
+    // and answers none of anybody's, which the file says is the ordinary case rather than the
+    // exception — so it declares no Skill, and `notExercised` is the honest verdict. A `passes`
+    // here would have been the tool claiming to have checked a declaration that is not there.
+    expect(verdict("TASK-29")).toBe("notExercised");
 
     // TASK-6 cannot pass here, and the tool saying so is the point rather than a gap: showing that
     // an owner filters needs a second credential covering something different, and a Worker nobody

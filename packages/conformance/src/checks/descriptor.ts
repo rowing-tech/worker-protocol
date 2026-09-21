@@ -28,11 +28,17 @@ export const CLAIMS = [
   "DESC-14",
   "DESC-22",
   "DESC-23",
+  // TASK-29 lives here rather than in the tasks check because `skills` is on the ROOT: a Worker
+  // that only ANSWERS Tasks declares a Skill and no `tasks` Capability at all, and a verdict
+  // reached only through that Capability would have been silent about exactly that Worker.
+  "TASK-29",
 ] as const;
 
 export type Descriptor = {
   id: string;
   edition: string;
+  /** TASK-29. Absent for a Worker with no Skill, which DESC-2 admits of anything it does not do. */
+  skills?: string[];
   capabilities: Record<string, Record<string, unknown>>;
 };
 
@@ -172,6 +178,14 @@ export async function readDescriptor(
 
   const document = validation.data as Descriptor;
   say("DESC-1", "passes");
+  // TASK-29: what this Worker answers, which is what a Tower catalogs it by. Absent is conformant
+  // and is not a pass — a Worker with no Skill exercised nothing, and saying so is the difference
+  // between a report that was checked and one that had nothing to check.
+  if (document.skills === undefined) {
+    say("TASK-29", "notExercised", "the Worker declares no Skill");
+  } else {
+    say("TASK-29", "passes");
+  }
 
   // DESC-6: the id is not the URL it is served from. DESC-27 and DESC-28 carry the clauses nothing
   // outside can reach, and the report marks those unverified rather than passing them here.

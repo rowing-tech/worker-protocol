@@ -24,22 +24,14 @@
         "$ref": "task-type-declaration.json"
       },
       "description": "TASK-2. Every Task type this Worker raises. A Worker that raises none declares an empty map rather than omitting it, so that every reader parses one shape."
-    },
-    "answers": {
-      "type": "array",
-      "items": {
-        "$ref": "qualified-name.json"
-      },
-      "description": "TASK-3. The Task types this Worker answers, which IS its Skill — the unit of discovery the Tower catalogs by. May be empty: a Worker that raises Tasks and answers none is the ordinary case rather than the exception."
     }
   },
   "required": [
     "version",
     "address",
-    "raises",
-    "answers"
+    "raises"
   ],
   "additionalProperties": {},
   "title": "Tasks capability entry",
-  "description": "TASK-27. The shared Capability entry with the reading address required, what this Worker raises and what it answers."
+  "description": "TASK-27. The shared Capability entry with the reading address required, and the Task types this Worker raises. What it ANSWERS is TASK-29's `skills`, on the Descriptor root."
 }

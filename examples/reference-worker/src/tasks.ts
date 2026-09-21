@@ -41,8 +41,8 @@ export const RAISES: Record<string, z.infer<typeof taskTypeDeclaration>> = {
   },
 };
 
-/** TASK-3: the Task types this Worker answers, which is its Skill. */
-export const ANSWERS: string[] = [VERIFY_VEHICLE];
+/** TASK-29: the Task types this Worker answers, which is its Skill. */
+export const SKILLS: string[] = [VERIFY_VEHICLE];
 
 const HOUR = 3_600_000;
 
@@ -83,7 +83,7 @@ export function createTasks() {
      * TASK-15: the condition, derived from this Worker's own Facts and from nothing anybody
      * declared. A verify-vehicle Task exists while its vehicle has no verification on record.
      */
-    open: (): OpenTask[] =>
+    current: (): OpenTask[] =>
       RAISED.filter((task) => task.vehicle === undefined || !verified.has(task.vehicle)).map(
         ({ id, type, payload, since }) => ({ id, type, payload, since }),
       ),

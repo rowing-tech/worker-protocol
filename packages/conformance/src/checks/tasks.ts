@@ -14,7 +14,6 @@ import type { Transcript } from "../transcript.ts";
 export const CLAIMS = [
   "TASK-27",
   "TASK-2",
-  "TASK-3",
   "TASK-4",
   "TASK-5",
   "TASK-8",
@@ -24,12 +23,14 @@ export const CLAIMS = [
 
 type Entry = {
   raises: Record<string, { payload: unknown; answeredBy: string[] }>;
-  answers: string[];
 };
 
 export async function checkTasks(
   entry: Record<string, unknown> | undefined,
   url: string | null,
+  /** TASK-29, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
+   * them — and reach them even for a Worker that declares a Skill and no `tasks` entry. */
+  skills: string[],
   actionNames: string[],
   rules: Map<string, Rule>,
   attribution: Attribution,
@@ -45,8 +46,22 @@ export async function checkTasks(
     for (const id of CLAIMS) if (!except.includes(id)) say(id, verdict, why);
   };
 
+  // NAME-7 and TASK-4 are about the NAMES, wherever they were declared. A Worker that only answers
+  // Tasks has them under `skills` alone, and judging them only through a `tasks` entry would have
+  // reported nothing about the one Worker the root declaration exists for.
+  const crossing = (raised: number) => {
+    if (raised + skills.length === 0) {
+      say("NAME-7", "notExercised", "the Worker neither raises nor answers a Task type");
+      say("TASK-4", "notExercised", "the Worker declares no Task type");
+    } else {
+      say("NAME-7", "passes");
+      say("TASK-4", "passes");
+    }
+  };
+
   if (entry === undefined) {
-    allExcept("notExercised", "the Worker declares no `tasks`");
+    crossing(0);
+    allExcept("notExercised", "the Worker declares no `tasks`", ["NAME-7", "TASK-4"]);
     return { results, addresses };
   }
 
@@ -63,21 +78,14 @@ export async function checkTasks(
     return { results, addresses };
   }
 
-  const { raises, answers } = declared.data as unknown as Entry;
-  for (const id of ["TASK-27", "TASK-3"]) say(id, "passes");
+  const { raises } = declared.data as unknown as Entry;
+  say("TASK-27", "passes");
 
   // NAME-7: a name this protocol expects one party to match against a name that came from
   // somewhere else is namespaced. A Task type is the first such name the protocol actually serves,
   // and TASK-4 is that rule applied — so the schema's qualified-name key carries both, and this
   // says so per rule rather than once, because a report naming one of them is the point.
-  const crossing = [...Object.keys(raises), ...answers];
-  if (crossing.length === 0) {
-    say("NAME-7", "notExercised", "the Worker neither raises nor answers a Task type");
-    say("TASK-4", "notExercised", "the Worker declares no Task type");
-  } else {
-    say("NAME-7", "passes");
-    say("TASK-4", "passes");
-  }
+  crossing(Object.keys(raises).length);
 
   // TASK-2: the closed list is a list of the OWNER's own Actions. A Task type naming an Action the
   // Worker does not accept is a Descriptor disagreeing with itself, which is DESC-18's fault one
@@ -102,7 +110,6 @@ export async function checkTasks(
     allExcept("notExercised", "the reading address did not resolve", [
       "TASK-27",
       "TASK-2",
-      "TASK-3",
       "TASK-4",
       "NAME-7",
     ]);

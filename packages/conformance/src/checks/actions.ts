@@ -20,7 +20,7 @@ import type { Transcript } from "../transcript.ts";
  * tool's to assume.
  */
 export const CLAIMS = [
-  "ACT-1",
+  "ACT-16",
   "ACT-2",
   "ACT-3",
   "ACT-4",
@@ -77,13 +77,13 @@ export async function checkActions(
     return { results, addresses };
   }
 
-  // ACT-1 to ACT-4, ACT-12 and ENDP-15 are read off the Descriptor, and a verifier fails the
+  // ACT-16 to ACT-4, ACT-12 and ENDP-15 are read off the Descriptor, and a verifier fails the
   // Worker on them without sending anything at all.
   const declared = actionsEntry.safeParse(entry);
   if (!declared.success) {
     const blamed = new Set<string>();
     for (const issue of declared.error.issues) {
-      const id = ruleFor(attribution, "actions-entry", issue.path) ?? "ACT-1";
+      const id = ruleFor(attribution, "actions-entry", issue.path) ?? "ACT-16";
       if (blamed.has(id)) continue;
       blamed.add(id);
       say(id, "fails", `${issue.path.join(".") || "(root)"}: ${issue.message}`);
@@ -92,8 +92,10 @@ export async function checkActions(
     return { results, addresses };
   }
 
-  const { actions } = declared.data as unknown as { actions: Record<string, Declaration> };
-  for (const id of ["ACT-1", "ACT-2", "ACT-3", "ACT-4"]) say(id, "passes");
+  const { accepts: actions } = declared.data as unknown as {
+    accepts: Record<string, Declaration>;
+  };
+  for (const id of ["ACT-16", "ACT-2", "ACT-3", "ACT-4"]) say(id, "passes");
 
   // ACT-12 and ENDP-15 are the same declaration seen from two files: ENDP-15 requires it and
   // ACT-12 says where it lives and what it carries. Where no Action takes a key there is nothing
@@ -144,7 +146,7 @@ export async function checkActions(
 
   if (url === null) {
     allExcept("notExercised", "the `actions` address did not resolve", [
-      "ACT-1",
+      "ACT-16",
       "ACT-2",
       "ACT-3",
       "ACT-4",

@@ -23,8 +23,8 @@ schema can state. Rules carry ids and a class; the convention is in [spec/README
 
 **MET-1 (required). A `metrics` entry declares an address.**
 
-**MET-2 (required). The entry declares every metric the Worker publishes, keyed by name. The
-Descriptor is the catalog: this surface answers values and never lists what exists.**
+**MET-21 (required). The entry declares under `publishes` every metric the Worker publishes, keyed
+by name. The Descriptor is the catalog: this surface answers values and never lists what exists.**
 
 **MET-3 (required). Each metric declares a unit, whether it is additive, and at least one
 granularity, from `hour`, `day`, `week`, `month` and `year`.**
@@ -35,7 +35,7 @@ string.**
 
 **MET-5 (required). A dimension is not named after a parameter this protocol defines on a read.**
 
-MET-2 is the same division the rest of the protocol already makes: everything anyone knows about a
+MET-21 is the same division the rest of the protocol already makes: everything anyone knows about a
 Worker before calling it is read from the Descriptor, so a console that renders a chart knows the
 name, the unit and the periods before it asks for a number. A surface that also listed its metrics
 would be a second catalog to keep in step with the first, and the two would disagree on the day a
@@ -308,4 +308,11 @@ monitoring system. The period is the distinction.
 
 ## Withdrawn
 
-Nothing yet.
+- **MET-2** — required the same declaration, keyed by name under `metrics`. Replaced by **MET-21**,
+  which puts it under `publishes`. A Descriptor written against MET-2 fails MET-21 and the other
+  way round, so the verdict moves and the id did not survive.
+
+  The old name repeated the Capability's own name one level down, which names a container instead of
+  making a claim. `publishes` is the verb MET-2's own sentence already used, and it is what
+  [actions](actions.md) is deliberately not: a Worker accepts Actions and publishes metrics, and a
+  reader can see which of the two it is holding without reading past the key.

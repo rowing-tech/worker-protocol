@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { createActions } from "./actions.ts";
 import { alerts } from "./alerts.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
-import { ANSWERS, createTasks, RAISES } from "./tasks.ts";
+import { createTasks, RAISES, SKILLS } from "./tasks.ts";
 
 /**
  * A Worker that conforms, built to be checked.
@@ -111,6 +111,10 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     id: options.id ?? DEFAULT_ID,
     edition: options.edition,
 
+    // TASK-29: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
+    // at no address — it is what this Worker IS, and a Capability is what it serves.
+    skills: SKILLS,
+
     // REG-21 on every address. `403` for the credential this Worker reads and that carries no
     // right, because ENDP-29 divides `401` from `403` at whether it could be READ.
     authenticate: (token) => {
@@ -128,26 +132,25 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
         ? { status: "unhealthy", checks: {} }
         : { status: "healthy", checks: {} },
 
-    // MET-1, MET-2, MET-6: the calendar every boundary is cut in, and the whole catalog of what
+    // MET-1, MET-21, MET-6: the calendar every boundary is cut in, and the whole catalog of what
     // this Worker publishes. The surface itself never lists what exists.
     metrics: {
       timeZone: TIME_ZONE,
-      metrics: DECLARATIONS,
+      publishes: DECLARATIONS,
       read: (query) => read(query, Date.now()),
     },
 
-    // ACT-1: the Actions this Worker accepts, keyed by name. `mount()` generates each one's JSON
+    // ACT-16: the Actions this Worker accepts, keyed by name. `mount()` generates each one's JSON
     // Schema from the Zod object beside it and writes `configure`'s reading address (ACT-15).
     // ENDP-16: `outcomes` travels with them, because `record-verification` declares a key and a
     // Worker that declares one and names nowhere to record it is refused at construction.
-    actions: { actions, settings, outcomes },
+    actions: { accepts: actions, settings, outcomes },
 
     // TASK-6: only what the credential covers, because a list showing every Task to every holder
     // of any Contract is a disclosure the owner cannot take back.
     tasks: {
       raises: RAISES,
-      answers: ANSWERS,
-      open: tasks.open,
+      current: tasks.current,
       covers: (token: string | undefined) => options.visibleTasks?.[token ?? ""],
       // ENDP-19: a cap of two, so that this Worker's own three Tasks actually page — a cap nothing
       // ever reaches is a cap nobody has seen work.
@@ -156,16 +159,16 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
 
     alerts,
 
-    // EVT-10: no address at all, which is the one case DESC-22 leaves the shared entry's address
+    // EVT-11: no address at all, which is the one case DESC-22 leaves the shared entry's address
     // optional for. An event travels over a broker, and this Worker names the broker, the binding
     // and where on it the events land — none of which anything here parses.
     events: {
       broker: "nats",
-      binding: "cloudevents/nats-1.0",
+      protocolBinding: "cloudevents/nats-1.0",
       // The shape NATS needs, under keys this Worker chose. On Kafka it would be bootstrap
       // servers and a topic; on Event Hubs a namespace and a hub. Nothing here reads a key.
       destination: { servers: "nats://events.invalid:4222", subject: "worker-protocol.reference" },
-      events: {
+      publishes: {
         "tech.rowing.worker-protocol.vehicle-verified": {
           data: {
             type: "object",

@@ -1,13 +1,13 @@
 {
   "schema": "metrics-entry",
   "valid": true,
-  "rule": "MET-2",
+  "rule": "MET-21",
   "why": "The whole catalog of what a Worker publishes, a closed dimension beside a free one, and the calendar every bucket boundary is cut in. The surface itself never lists what exists — the Descriptor is the catalog, so a console knows the name, the unit and the periods before it asks for a number.",
   "document": {
     "version": 1,
     "address": "../metrics",
     "timeZone": "America/Montevideo",
-    "metrics": {
+    "publishes": {
       "tasks-resolved": {
         "unit": "tasks",
         "additive": true,

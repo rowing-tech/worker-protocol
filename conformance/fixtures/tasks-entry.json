@@ -2,7 +2,7 @@
   "schema": "tasks-entry",
   "valid": true,
   "rule": "TASK-27",
-  "why": "One address, which a read answers Tasks from. `raises` is what this Worker asks of others and `answers` is its Skill, which is the unit the Tower catalogs by. The entry declared a second address a claim was posted to until the Claim lifecycle was withdrawn.",
+  "why": "One address, which a read answers Tasks from, and `raises` \u2014 what this Worker asks of others, and what the Tasks read at that address are instances of. What this Worker ANSWERS is not here: TASK-29 puts its Skill on the Descriptor root, because a Skill is served at no address. The entry declared a second address a claim was posted to until the Claim lifecycle was withdrawn.",
   "document": {
     "version": 1,
     "address": "../tasks",
@@ -11,7 +11,6 @@
         "payload": { "type": "object", "properties": { "vehicle": { "type": "string" } } },
         "answeredBy": ["record-verification"]
       }
-    },
-    "answers": ["tech.rowing.pricing.price-a-quote"]
+    }
   }
 }

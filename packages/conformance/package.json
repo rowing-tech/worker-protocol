@@ -31,6 +31,7 @@
     "@worker-protocol/minimal-worker": "workspace:*",
     "@worker-protocol/reference-worker": "workspace:*",
     "typescript": "7.0.2",
-    "vitest": "5.0.0"
+    "vitest": "5.0.0",
+    "wrangler": "4.131.1"
   }
 }

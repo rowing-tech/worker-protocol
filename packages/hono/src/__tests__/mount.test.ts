@@ -84,8 +84,7 @@ describe("mount(), with the Worker answered per request", () => {
       raises: {
         "tech.rowing.test.a-thing": { payload: {}, answeredBy: ["count"] },
       },
-      answers: [],
-      open: () => [
+      current: () => [
         { id: "t-1", type: "tech.rowing.test.a-thing", payload: {}, since: new Date(0) },
       ],
     },
@@ -94,7 +93,7 @@ describe("mount(), with the Worker answered per request", () => {
       // `mount()` answers a different Worker on every request and a Map built here would start
       // again with each. This one is built once, above, and closed over.
       outcomes,
-      actions: {
+      accepts: {
         count: {
           input: z.object({}),
           result: z.object({ n: z.number() }),
@@ -194,7 +193,7 @@ describe("mount(), with the recorded outcomes somewhere durable", () => {
         id: "tech.rowing.worker-protocol.durable",
         actions: {
           outcomes,
-          actions: {
+          accepts: {
             count: {
               input: z.object({}),
               result: z.object({ n: z.number() }),
@@ -244,7 +243,7 @@ describe("mount(), refusing a Worker that cannot keep ENDP-16", () => {
   it("refuses a Worker handed in whole that names nowhere to record", () => {
     // A shape this app can read before a request exists, so the fault is refused where somebody is
     // still looking at it rather than six weeks later in somebody else's log.
-    expect(() => mount({ id: "tech.rowing.test.unrecorded", actions: { actions: keyed } })).toThrow(
+    expect(() => mount({ id: "tech.rowing.test.unrecorded", actions: { accepts: keyed } })).toThrow(
       /ENDP-16.*names nowhere to record/s,
     );
   });
@@ -257,7 +256,7 @@ describe("mount(), refusing a Worker that cannot keep ENDP-16", () => {
     const original = console.error;
     console.error = (line: string) => void said.push(line);
     try {
-      const app = mount(() => ({ id: "tech.rowing.test.unrecorded", actions: { actions: keyed } }));
+      const app = mount(() => ({ id: "tech.rowing.test.unrecorded", actions: { accepts: keyed } }));
       const answer = await app.fetch(new Request("http://worker.invalid/health"), {});
       expect(answer.status).toBe(404);
     } finally {
@@ -276,7 +275,7 @@ describe("mount(), refusing a Worker that cannot keep ENDP-16", () => {
     try {
       const app = mount(() => ({
         id: "tech.rowing.test.forgetful",
-        actions: { outcomes: memoryOutcomes(), actions: keyed },
+        actions: { outcomes: memoryOutcomes(), accepts: keyed },
       }));
       const call = () => app.fetch(new Request("http://worker.invalid/health"), {});
       await call();
@@ -291,7 +290,7 @@ describe("mount(), refusing a Worker that cannot keep ENDP-16", () => {
     const outcomes = memoryOutcomes();
     const perRequest = mount(() => ({
       id: "tech.rowing.test.recorded",
-      actions: { outcomes, actions: keyed },
+      actions: { outcomes, accepts: keyed },
     }));
     const call = () => perRequest.fetch(new Request("http://worker.invalid/health"), {});
     expect((await call()).status).toBe(404);
@@ -318,7 +317,7 @@ describe("mount(), with two requests under one idempotency key", () => {
       id: "tech.rowing.test.concurrent",
       actions: {
         outcomes: memoryOutcomes(),
-        actions: {
+        accepts: {
           count: {
             input: z.object({}),
             result: z.object({ n: z.number() }),
@@ -364,7 +363,7 @@ describe("mount(), with two requests under one idempotency key", () => {
       id: "tech.rowing.test.refusing",
       actions: {
         outcomes: memoryOutcomes(),
-        actions: {
+        accepts: {
           fussy: {
             input: z.object({ ok: z.boolean() }),
             result: z.object({ n: z.number() }),
@@ -414,15 +413,14 @@ describe("mount(), with a Worker that awaits", () => {
         (await Promise.resolve(presented === settings.token)) ? "accepted" : "unauthenticated",
       metrics: {
         timeZone: settings.zone,
-        metrics: {
+        publishes: {
           seen: { unit: "things", additive: true, granularities: ["day"], dimensions: {} },
         },
         read: async () => [],
       },
       tasks: {
         raises: {},
-        answers: [],
-        open: async () => [
+        current: async () => [
           { id: "t-1", type: "tech.rowing.test.a-thing", payload: {}, since: new Date(0) },
           { id: "t-2", type: "tech.rowing.test.a-thing", payload: {}, since: new Date(0) },
         ],

@@ -118,7 +118,7 @@ Who *the minting team* is has one trap worth naming, because the error is silent
 the one controlled by whoever wrote the definition of the work — the team that decided what
 `verify-vehicle` means and what its payload carries — and never the deployment that happens to run
 it. A process installed twice, each installation prefixing with its own host, publishes two Skills
-for one Task type, and the catalog TASK-3 exists for cannot join them: the Tower answers *who
+for one Task type, and the catalog TASK-29 exists for cannot join them: the Tower answers *who
 answers this* with half of the Workers that do. Nothing detects it, for the reason NAME-8
 recommends rather than binds, which is why it is said here rather than left to be found.
 

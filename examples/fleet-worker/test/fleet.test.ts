@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { fleetOf, QUIET_AFTER_MS } from "../src/fleet.ts";
 import { cycle } from "../src/worker.ts";
 
 /**
@@ -9,10 +10,9 @@ import { cycle } from "../src/worker.ts";
  * isolation a durable object offers, because its whole purpose is that its storage survives.
  */
 const MINUTE = 60_000;
-const QUIET_AFTER_MS = 15 * MINUTE;
 
-let n = 0;
-const fresh = () => env.FLEET.get(env.FLEET.idFromName(`test-${++n}`));
+/** A Durable Object of this test's own, so nothing it writes reaches the next one. */
+const fresh = () => env.FLEET.get(env.FLEET.newUniqueId());
 
 describe("the condition a Task is derived from", () => {
   it("holds for a vehicle whose last reading is older than the window", async () => {
@@ -34,15 +34,15 @@ describe("the condition a Task is derived from", () => {
     expect(quiet[0]?.since).toBe(now - 20 * MINUTE + QUIET_AFTER_MS);
   });
 
-  it("stops holding once a check is on record, and holds again when the vehicle stays silent", async () => {
+  it("stops holding once an inspection is on record, and holds again when the vehicle stays silent", async () => {
     const fleet = fresh();
     const now = Date.now();
     await fleet.ingest([{ vehicle: "ABC-123", at: now - 20 * MINUTE }], now, QUIET_AFTER_MS);
 
-    await fleet.check("ABC-123", now);
+    await fleet.inspect("ABC-123", now);
     expect(await fleet.quiet(now, QUIET_AFTER_MS)).toEqual([]);
 
-    // A reading is the sign of life that ends the check, so silence after one is quiet again.
+    // A reading is the sign of life that ends the inspection, so silence after one is quiet again.
     await fleet.ingest([{ vehicle: "ABC-123", at: now - 40 * MINUTE }], now, QUIET_AFTER_MS);
     expect((await fleet.quiet(now, QUIET_AFTER_MS)).map((one) => one.vehicle)).toEqual(["ABC-123"]);
   });
@@ -54,12 +54,12 @@ describe("the outbox", () => {
     const now = Date.now();
 
     await fleet.ingest([{ vehicle: "ABC-123", at: now - 20 * MINUTE }], now, QUIET_AFTER_MS);
-    expect(await fleet.depth()).toBe(1);
+    expect((await fleet.outbox()).depth).toBe(1);
 
     // The same vehicle, still quiet, on the next cycle. `vehicle-went-quiet` is a Fact about a
     // moment: publishing it again would be publishing a state under a name that says CHANGED.
     await fleet.ingest([], now + MINUTE, QUIET_AFTER_MS);
-    expect(await fleet.depth()).toBe(1);
+    expect((await fleet.outbox()).depth).toBe(1);
 
     const [event] = await fleet.pending();
     expect(event?.type).toBe("tech.rowing.fleet.vehicle-went-quiet");
@@ -68,7 +68,7 @@ describe("the outbox", () => {
 
   it("keeps what the broker did not take, and stops at the refusal rather than past it", async () => {
     // `cycle` reaches the one instance the Worker is authoritative over, so this test uses it too.
-    const fleet = env.FLEET.get(env.FLEET.idFromName("fleet"));
+    const fleet = fleetOf(env);
     const now = Date.now();
     await fleet.ingest(
       [
@@ -83,7 +83,7 @@ describe("the outbox", () => {
 
     // A broker that is down. A Fact that was true does not stop being true because nobody took it.
     expect((await cycle(env, async () => false)).published).toBe(0);
-    expect(await fleet.depth()).toBe(2);
+    expect((await fleet.outbox()).depth).toBe(2);
 
     // A broker that takes one and then refuses. Draining stops there rather than skipping past it:
     // a consumer reading these in order would otherwise see the second before the first arrived.
@@ -92,7 +92,7 @@ describe("the outbox", () => {
     expect((await fleet.pending()).map((one) => one.id)).toEqual(raised.slice(1));
 
     expect((await cycle(env, async () => true)).published).toBe(1);
-    expect(await fleet.depth()).toBe(0);
+    expect((await fleet.outbox()).depth).toBe(0);
   });
 });
 

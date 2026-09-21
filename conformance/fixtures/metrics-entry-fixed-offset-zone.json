@@ -7,6 +7,6 @@
     "version": 1,
     "address": "../metrics",
     "timeZone": "-03:00",
-    "metrics": {}
+    "publishes": {}
   }
 }

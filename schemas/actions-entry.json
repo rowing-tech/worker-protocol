@@ -15,7 +15,7 @@
       "format": "uri-reference",
       "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
     },
-    "actions": {
+    "accepts": {
       "type": "object",
       "propertyNames": {
         "type": "string",
@@ -24,15 +24,15 @@
       "additionalProperties": {
         "$ref": "action-declaration.json"
       },
-      "description": "ACT-1. Every Action the Worker accepts, keyed by name. An Action not here is `404` under ACT-6. The key carries no pattern: it travels as the VALUE of the `action` parameter and is percent-encoded like any other."
+      "description": "ACT-16. Every Action the Worker accepts, keyed by name. An Action not here is `404` under ACT-6. The key carries no pattern: it travels as the VALUE of the `action` parameter and is percent-encoded like any other."
     }
   },
   "required": [
     "version",
     "address",
-    "actions"
+    "accepts"
   ],
   "additionalProperties": {},
   "title": "Actions capability entry",
-  "description": "ACT-1. The shared Capability entry with the address required, and the Actions this Worker accepts. The Descriptor is the catalog: the surface performs and never lists what exists."
+  "description": "ACT-16. The shared Capability entry with the address required, and the Actions this Worker accepts. The Descriptor is the catalog: the surface performs and never lists what exists."
 }

@@ -14,7 +14,7 @@ import type { Result, Rule } from "../report.ts";
  *
  * It takes no transcript for the same reason. A check that sent nothing is the honest shape here.
  */
-export const CLAIMS = ["EVT-10", "EVT-3", "EVT-4", "EVT-8"] as const;
+export const CLAIMS = ["EVT-11", "EVT-12", "EVT-4", "EVT-8"] as const;
 
 export function checkEvents(
   entry: Record<string, unknown> | undefined,
@@ -36,7 +36,7 @@ export function checkEvents(
   if (!declared.success) {
     const blamed = new Set<string>();
     for (const issue of declared.error.issues) {
-      const id = ruleFor(attribution, "events-entry", issue.path) ?? "EVT-10";
+      const id = ruleFor(attribution, "events-entry", issue.path) ?? "EVT-11";
       if (blamed.has(id)) continue;
       blamed.add(id);
       say(id, "fails", `${issue.path.join(".") || "(root)"}: ${issue.message}`);
@@ -47,22 +47,22 @@ export function checkEvents(
     return results;
   }
 
-  const { events } = declared.data as unknown as { events: Record<string, unknown> };
+  const { publishes } = declared.data as unknown as { publishes: Record<string, unknown> };
 
-  // EVT-10 and EVT-8 are what validation established: a broker, a binding, a destination and the window a
-  // consumer sizes its deduplication store against. Neither string is parsed — this protocol names
-  // no broker and fixes no binding — so what a check can say is that both are there.
-  say("EVT-10", "passes");
+  // EVT-11 and EVT-8 are what validation established: a broker, a protocol binding, a destination
+  // and the window a consumer sizes its deduplication store against. Neither string is parsed —
+  // this protocol names no broker and fixes no protocol binding — so a check says both are there.
+  say("EVT-11", "passes");
   say("EVT-8", "passes");
 
-  // EVT-3 and EVT-4: every event type it publishes, each with the schema of its data, under a
+  // EVT-12 and EVT-4: every event type it publishes, each with the schema of its data, under a
   // qualified name. A Worker that publishes none exercises neither, and an empty map is
   // conformant — DESC-2 needs no qualification for a Capability declared with nothing in it.
-  if (Object.keys(events).length === 0) {
-    say("EVT-3", "notExercised", "the entry declares no event type");
+  if (Object.keys(publishes).length === 0) {
+    say("EVT-12", "notExercised", "the entry declares no event type");
     say("EVT-4", "notExercised", "the entry declares no event type");
   } else {
-    say("EVT-3", "passes");
+    say("EVT-12", "passes");
     say("EVT-4", "passes");
   }
 

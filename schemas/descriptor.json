@@ -13,6 +13,13 @@
       "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$",
       "description": "DESC-23. The edition of worker-protocol this Worker speaks, written MAJOR.MINOR. Editions are ordered by comparing MAJOR and then MINOR as numbers, which is the ordering DESC-25 spends when a verifier reports itself older than a Worker. DESC-24 gives the two components their meaning: MAJOR is what a reader cannot survive not knowing, MINOR is what an older reader may ignore and still be correct. Leading zeros are refused so that one edition has one spelling and string equality agrees with numeric comparison."
     },
+    "skills": {
+      "description": "TASK-29. The Task types this Worker answers, which IS its Skill — the unit of discovery the Tower catalogs by. It is at the root rather than in the `tasks` entry because a Skill is served at no address and answered by no surface: it is what a Worker IS, like its id, and a Capability is what a Worker SERVES. Omitted by a Worker with no Skill, which is the ordinary case for one that only raises Tasks of its own.",
+      "type": "array",
+      "items": {
+        "$ref": "qualified-name.json"
+      }
+    },
     "capabilities": {
       "type": "object",
       "propertyNames": {

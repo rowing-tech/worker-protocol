@@ -17,9 +17,9 @@ schema can state. Rules carry ids and a class; the convention is in [spec/README
 
 ## What a Worker declares
 
-**ACT-1 (required). An `actions` entry declares an address, and declares every Action the Worker
-accepts, keyed by name. The Descriptor is the catalog: this surface performs and never lists what
-exists.**
+**ACT-16 (required). An `actions` entry declares an address, and declares under `accepts` every
+Action the Worker accepts, keyed by name. The Descriptor is the catalog: this surface performs and
+never lists what exists.**
 
 **ACT-2 (required). Each Action declares the JSON Schema of its input.**
 
@@ -28,7 +28,7 @@ a result.**
 
 **ACT-4 (required). Each Action declares whether it completes within the call.**
 
-ACT-1 is the same division the rest of this protocol already makes, and it is made for the third
+ACT-16 is the same division the rest of this protocol already makes, and it is made for the third
 time here because it keeps earning it: everything anyone knows about a Worker before calling it is
 read from the Descriptor, so a console renders a form and decides whether to offer a button before
 it sends anything. A surface that also listed its Actions would be a second catalog to keep in step
@@ -210,4 +210,12 @@ that writing it is an Action like any other.
 
 ## Withdrawn
 
-Nothing yet.
+- **ACT-1** — required the same entry, with the Actions keyed by name under `actions`. Replaced by
+  **ACT-16**, which puts them under `accepts`. A Descriptor written against ACT-1 fails ACT-16 and
+  the other way round, so the verdict moves and the id did not survive.
+
+  The old name was the Capability's name repeated one level down, which reads as a container rather
+  than as a claim: `actions.actions` says *these are the actions* twice and says nothing about what
+  the Worker does with them. `accepts` is the verb ACT-1's own sentence already used, and it is the
+  one a reader wants at that exact point — a Descriptor's whole job is to say what may be sent
+  here, and [events](events.md) and [metrics](metrics.md) publish where this one accepts.

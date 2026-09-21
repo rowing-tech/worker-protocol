@@ -2,12 +2,6 @@
   "$comment": "Generated from spec/ and conformance/verifiability.md by packages/conformance/src/generate-rules.ts. Do not edit: run `pnpm rules:generate`.",
   "rules": [
     {
-      "id": "ACT-1",
-      "file": "actions.md",
-      "class": "required",
-      "reach": "W"
-    },
-    {
       "id": "ACT-2",
       "file": "actions.md",
       "class": "required",
@@ -87,6 +81,12 @@
     },
     {
       "id": "ACT-15",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-16",
       "file": "actions.md",
       "class": "required",
       "reach": "W"
@@ -452,12 +452,6 @@
       "reach": "H"
     },
     {
-      "id": "EVT-3",
-      "file": "events.md",
-      "class": "required",
-      "reach": "W"
-    },
-    {
       "id": "EVT-4",
       "file": "events.md",
       "class": "required",
@@ -494,7 +488,13 @@
       "reach": "N"
     },
     {
-      "id": "EVT-10",
+      "id": "EVT-11",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "EVT-12",
       "file": "events.md",
       "class": "required",
       "reach": "W"
@@ -531,12 +531,6 @@
     },
     {
       "id": "MET-1",
-      "file": "metrics.md",
-      "class": "required",
-      "reach": "W"
-    },
-    {
-      "id": "MET-2",
       "file": "metrics.md",
       "class": "required",
       "reach": "W"
@@ -645,6 +639,12 @@
     },
     {
       "id": "MET-20",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-21",
       "file": "metrics.md",
       "class": "required",
       "reach": "W"
@@ -812,12 +812,6 @@
       "reach": "W"
     },
     {
-      "id": "TASK-3",
-      "file": "tasks.md",
-      "class": "required",
-      "reach": "W"
-    },
-    {
       "id": "TASK-4",
       "file": "tasks.md",
       "class": "required",
@@ -861,6 +855,12 @@
     },
     {
       "id": "TASK-28",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "TASK-29",
       "file": "tasks.md",
       "class": "required",
       "reach": "W"
@@ -971,17 +971,17 @@
       "result": "ACT-3"
     },
     "actions-entry": {
-      "": "ACT-1",
-      "actions": "ACT-1",
-      "actions/*": "ACT-2",
-      "actions/*/completesWithinCall": "ACT-4",
-      "actions/*/idempotency": "ACT-12",
-      "actions/*/idempotency/from": "ENDP-15",
-      "actions/*/idempotency/member": "ACT-12",
-      "actions/*/idempotency/required": "ENDP-18",
-      "actions/*/input": "ACT-2",
-      "actions/*/readAddress": "ACT-15",
-      "actions/*/result": "ACT-3",
+      "": "ACT-16",
+      "accepts": "ACT-16",
+      "accepts/*": "ACT-2",
+      "accepts/*/completesWithinCall": "ACT-4",
+      "accepts/*/idempotency": "ACT-12",
+      "accepts/*/idempotency/from": "ENDP-15",
+      "accepts/*/idempotency/member": "ACT-12",
+      "accepts/*/idempotency/required": "ENDP-18",
+      "accepts/*/input": "ACT-2",
+      "accepts/*/readAddress": "ACT-15",
+      "accepts/*/result": "ACT-3",
       "address": "DESC-12",
       "version": "DESC-9"
     },
@@ -1020,7 +1020,8 @@
       "capabilities/*/address": "DESC-12",
       "capabilities/*/version": "DESC-9",
       "edition": "DESC-23",
-      "id": "DESC-6"
+      "id": "DESC-6",
+      "skills": "TASK-29"
     },
     "error": {
       "": "ENDP-25",
@@ -1029,23 +1030,23 @@
       "message": "ENDP-25"
     },
     "event-destination": {
-      "": "EVT-10"
+      "": "EVT-11"
     },
     "event-type-declaration": {
-      "": "EVT-3",
-      "data": "EVT-3",
-      "destination": "EVT-10"
+      "": "EVT-12",
+      "data": "EVT-12",
+      "destination": "EVT-11"
     },
     "events-entry": {
-      "": "EVT-10",
+      "": "EVT-11",
       "address": "DESC-12",
-      "binding": "EVT-10",
-      "broker": "EVT-10",
-      "destination": "EVT-10",
-      "events": "EVT-3",
-      "events/*": "EVT-3",
-      "events/*/data": "EVT-3",
-      "events/*/destination": "EVT-10",
+      "broker": "EVT-11",
+      "destination": "EVT-11",
+      "protocolBinding": "EVT-11",
+      "publishes": "EVT-12",
+      "publishes/*": "EVT-12",
+      "publishes/*/data": "EVT-12",
+      "publishes/*/destination": "EVT-11",
       "republishWindowSeconds": "EVT-8",
       "version": "DESC-9"
     },
@@ -1078,7 +1079,7 @@
       "start": "MET-13"
     },
     "metric-declaration": {
-      "": "MET-2",
+      "": "MET-21",
       "additive": "MET-3",
       "dimensions": "MET-4",
       "dimensions/*": "MET-4",
@@ -1101,14 +1102,14 @@
     "metrics-entry": {
       "": "MET-1",
       "address": "DESC-12",
-      "metrics": "MET-2",
-      "metrics/*": "MET-2",
-      "metrics/*/additive": "MET-3",
-      "metrics/*/dimensions": "MET-4",
-      "metrics/*/dimensions/*": "MET-4",
-      "metrics/*/dimensions/*/values": "MET-4",
-      "metrics/*/granularities": "MET-3",
-      "metrics/*/unit": "MET-3",
+      "publishes": "MET-21",
+      "publishes/*": "MET-21",
+      "publishes/*/additive": "MET-3",
+      "publishes/*/dimensions": "MET-4",
+      "publishes/*/dimensions/*": "MET-4",
+      "publishes/*/dimensions/*/values": "MET-4",
+      "publishes/*/granularities": "MET-3",
+      "publishes/*/unit": "MET-3",
       "timeZone": "MET-6",
       "version": "DESC-9"
     },
@@ -1140,7 +1141,6 @@
     "tasks-entry": {
       "": "TASK-27",
       "address": "DESC-12",
-      "answers": "TASK-3",
       "raises": "TASK-2",
       "raises/*": "TASK-2",
       "raises/*/answeredBy": "TASK-2",

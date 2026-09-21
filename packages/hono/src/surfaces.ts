@@ -441,13 +441,13 @@ export const SURFACES: Surface[] = [
     server: address("metrics", "MET-1"),
     title: "worker-protocol — metrics",
     description:
-      "Named quantities accumulated over declared periods. The Descriptor is the catalog: this surface answers values and never lists what exists (MET-2).",
+      "Named quantities accumulated over declared periods. The Descriptor is the catalog: this surface answers values and never lists what exists (MET-21).",
     route: readMetric,
   },
   {
     document: "actions",
     capability: "actions",
-    server: address("actions", "ACT-1"),
+    server: address("actions", "ACT-16"),
     title: "worker-protocol — actions",
     description:
       "Performing an operation a Worker accepts. The `configure` reading address of ACT-15 is not described here: its address is declared inside an Action rather than beside the Capability, and the document it answers is shaped by that Action's own input schema, which is the Worker's.",

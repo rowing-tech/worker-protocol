@@ -65,7 +65,7 @@ export type ExecutionCtx = { waitUntil?: (promise: Promise<unknown>) => void };
  * export default {
  *   fetch: mount<Env>(async (env) => {
  *     const settings = await configuration(env); // cached; see below
- *     return { id: "…", metrics: { timeZone: settings.zone, metrics: published(settings), read } };
+ *     return { id: "…", metrics: { timeZone: settings.zone, publishes: published(settings), read } };
  *   }).fetch,
  * }
  * ```
@@ -78,31 +78,27 @@ export type ExecutionCtx = { waitUntil?: (promise: Promise<unknown>) => void };
  * changes gives every caller a new Descriptor, which is ordinary, and configuration read per
  * caller is the thing REG-8 forbids.
  */
-export type WorkerSource<E = unknown> =
-  | Worker
-  | ((env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>);
+export type WorkerSource<E = unknown> = Worker | WorkerBuilder<E>;
 
 /**
- * Write the function `mount()` takes, and have a mistake reported where you made it.
+ * Annotate a builder with this, and a mistake is reported where you made it.
  *
- * It returns its argument and does nothing at all at runtime. What it does is at the type level,
- * and it is worth four lines: a builder written on its own needs `: Worker` — or `: Promise<Worker>`
- * — for TypeScript to check the object literal against the interface, and without it the first
- * complaint arrives at the `mount()` call, about a type nested six levels deep, naming a property
- * three files away. With it, a missing `since` is reported on `since`.
+ * A builder declared apart from the `mount()` call has nothing to check its object literal
+ * against, so the first complaint arrives at `mount()`, about a type nested six levels deep,
+ * naming a property three files away. Annotated, a missing `since` is reported on `since`.
  *
  * ```ts
- * export const fleetWorker = defineWorker<Env>((env) => ({ id: "…", health: () => … }))
+ * export const fleetWorker: WorkerBuilder<Env> = (env) => ({ id: "…", health: () => … })
  * export default { fetch: mount(fleetWorker).fetch }
  * ```
  *
- * It also spares the author naming the promise. An `async` builder is the same call, and the type
- * that has to be right — `Worker | Promise<Worker>` — is written here once instead of at every
- * Worker that happens to await something.
+ * It also spares the author naming the promise: an `async` builder takes the same annotation,
+ * because `Worker | Promise<Worker>` is written here once instead of at every Worker that happens
+ * to await something. It is a type and not a function on purpose — `packages/README.md` asks
+ * whether a rule id can be cited for a line of this package, and none can be cited for an identity
+ * function that exists to please the compiler.
  */
-export const defineWorker = <E = unknown>(
-  build: (env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>,
-): ((env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>) => build;
+export type WorkerBuilder<E = unknown> = (env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>;
 
 const JSON_UTF8 = { "content-type": "application/json; charset=utf-8" };
 
@@ -197,7 +193,7 @@ const complainer = () => {
  */
 function unrecorded(worker: Worker): string | null {
   if (worker.actions === undefined || worker.actions.outcomes !== undefined) return null;
-  const keyed = Object.entries(worker.actions.actions)
+  const keyed = Object.entries(worker.actions.accepts)
     .filter(([, action]) => action.idempotency !== undefined)
     .map(([name]) => name);
   if (keyed.length === 0) return null;
@@ -242,7 +238,7 @@ function descriptorOf(worker: Worker, edition: string): string {
     // declared — one declaration, so the form a console renders and the validation a request meets
     // are the same document and cannot drift.
     const declared: Record<string, unknown> = {};
-    for (const [name, action] of Object.entries(worker.actions.actions)) {
+    for (const [name, action] of Object.entries(worker.actions.accepts)) {
       declared[name] = {
         input: jsonSchema(action.input),
         ...(action.result === undefined ? {} : { result: jsonSchema(action.result) }),
@@ -253,14 +249,14 @@ function descriptorOf(worker: Worker, edition: string): string {
         ...(name === "configure" && worker.actions.settings ? { readAddress: "../settings" } : {}),
       };
     }
-    capabilities.actions = { version: 1, address: "../actions", actions: declared };
+    capabilities.actions = { version: 1, address: "../actions", accepts: declared };
   }
 
   if (worker.alerts) capabilities.alerts = { version: 1, address: "../alerts" };
   if (worker.events) capabilities.events = { version: 1, ...worker.events };
 
   if (worker.tasks) {
-    const { raises, answers } = worker.tasks;
+    const { raises } = worker.tasks;
     capabilities.tasks = {
       version: 1,
       address: "../tasks",
@@ -270,11 +266,17 @@ function descriptorOf(worker: Worker, edition: string): string {
           { payload: declaration.payload, answeredBy: declaration.answeredBy },
         ]),
       ),
-      answers,
     };
   }
 
-  return JSON.stringify({ id: worker.id, edition, capabilities });
+  // TASK-29: at the root, beside the id, and omitted by a Worker with no Skill — which is what
+  // DESC-2 lets a Worker do with anything it does not implement.
+  return JSON.stringify({
+    id: worker.id,
+    edition,
+    ...(worker.skills === undefined ? {} : { skills: worker.skills }),
+    capabilities,
+  });
 }
 
 export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
@@ -471,7 +473,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   app.get("/settings", async (c) => {
     const worker = await audited(c);
     const settings = worker.actions?.settings;
-    if (!settings || !worker.actions?.actions.configure) return undeclared("configure");
+    if (!settings || !worker.actions?.accepts.configure) return undeclared("configure");
     return c.json((await settings()) as Record<string, unknown>);
   });
 

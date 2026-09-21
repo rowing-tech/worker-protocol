@@ -99,7 +99,9 @@ rule here needs to outlive a request — the Tasks whose conditions hold, the co
 read from, the outcome ENDP-16 promised to replay — lived in process memory in every example this
 repository had, which is right in one deployment shape and wrong in the one its own architecture
 names first. That one keeps all of it in a Durable Object and runs its tests on workerd rather than
-on Node, so the claim is made where it can fail. It failed on the first run, which is the point.
+on Node, so the claim is made where it can fail. It failed on the first run, which is the point. The
+verifier reaches it over a real socket like any other Worker, and
+[its README](examples/fleet-worker/README.md) says how to run both.
 
 ## Status
 

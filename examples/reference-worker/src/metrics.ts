@@ -17,7 +17,7 @@ const DAY = 24 * HOUR;
 /** MET-6: a zone that observes daylight saving, so a day is sometimes 23 hours and sometimes 25. */
 export const TIME_ZONE = "Europe/Madrid";
 
-/** MET-2, MET-3, MET-4 — what the Descriptor declares, and the whole catalog of what exists. */
+/** MET-21, MET-3, MET-4 — what the Descriptor declares, and the whole catalog of what exists. */
 export const DECLARATIONS: Record<string, z.infer<typeof metricDeclaration>> = {
   "tasks-resolved": {
     unit: "tasks",

@@ -132,7 +132,7 @@ that the role is implementable and vouches for no product.
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
-| ACT-1 | W | The `actions` entry carries an address and a map of Actions |
+| ACT-16 | W | The `actions` entry carries an address and an `accepts` map of Actions |
 | ACT-2 | W | Each Action carries the schema of its input |
 | ACT-3 | W | Each Action says what it answers on success |
 | ACT-4 | W | Each Action says whether it completes within the call |
@@ -154,7 +154,7 @@ that the role is implementable and vouches for no product.
 |---|---|---|
 | TASK-27 | W | The entry carries one address, which a read answers Tasks from |
 | TASK-2 | W | Every Task type it raises, with a payload schema and a non-empty list of answering Actions |
-| TASK-3 | W | The Task types it answers, read off the entry |
+| TASK-29 | W | The Task types it answers, read off the Descriptor root under `skills` |
 | TASK-4 | W | Every Task type name is a qualified name |
 | TASK-5 | W | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
 | TASK-6 | H | Two credentials covering different Tasks must exist before two lists can be compared |
@@ -184,8 +184,8 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
 | EVT-1 | H | The verifier holds no broker and sees no event. An arrangement would have to hand it one the Worker published |
-| EVT-10 | W | The entry declares a broker, a binding and a destination |
-| EVT-3 | W | Every event type it publishes, each with the schema of its data |
+| EVT-11 | W | The entry declares a broker, a `protocolBinding` and a destination |
+| EVT-12 | W | Every event type it publishes under `publishes`, each with the schema of its data |
 | EVT-4 | W | Every event type name is a qualified name |
 | EVT-5 | P | Binds the Tower, which brokers the Contract, and states a negative about what does NOT travel here |
 | EVT-6 | P | Recommended. Binds a consumer, about a component this protocol does not see |
@@ -226,7 +226,7 @@ then echoed, where no party's correctness turns on the spelling and nothing is l
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
 | MET-1 | W | The entry carries an address |
-| MET-2 | W | Every metric read is one the entry declared, and the surface lists none |
+| MET-21 | W | Every metric read is one the entry declared under `publishes`, and the surface lists none |
 | MET-3 | W | Unit, additivity, at least one granularity, from the five |
 | MET-4 | W | Dimensions keyed by name, closed set or none |
 | MET-5 | W | No dimension named `metric`, `granularity`, `from`, `to`, `by` or the cursor parameter. The rule the file says has no schema witness — it has a verifier witness |

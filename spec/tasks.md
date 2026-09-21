@@ -26,8 +26,8 @@ than buried in the list, because a reader who remembers them is owed it.
 **TASK-2 (required). The entry declares every Task type the Worker raises, keyed by name, each with
 the schema of its payload and the closed list of Actions that may answer it.**
 
-**TASK-3 (required). The entry declares the Task types the Worker answers, which is its Skill. A
-Worker declares either list, both, or neither.**
+**TASK-29 (required). The Descriptor declares under `skills`, at its root and not inside a
+Capability, the Task types the Worker answers — which is its Skill. A Worker with none omits it.**
 
 **TASK-4 (required). A Task type is a qualified name under NAME-7.**
 
@@ -41,11 +41,25 @@ tell an Action performed *because of* a Task from one performed for any other re
 the same request. The list tells a consumer what would answer, and nothing refuses a performance
 that answers nothing.
 
-TASK-3 is the other side of the same name, and putting both in one entry is what makes the
+TASK-29 is the other side of the same name, and it is what makes the
 [architecture](../docs/architecture.md)'s *unit of discovery* concrete: the Tower catalogs Workers
 by the Task types they answer, so a Worker that answers `tech.rowing.fleet.verify-vehicle` says so
-where every reader already looks. A Worker that raises Tasks and answers none, or answers and
-raises none, is the ordinary case rather than the exception — which is why neither list is required.
+where every reader already looks. Both lists are drawn from one vocabulary, and NAME-7 reaches both
+for the same reason — `raises` says *I need this done* and `skills` says *I can do this*, and the
+two are joined by a party that met neither.
+
+**It sits at the root rather than in the `tasks` entry, and where it sits is an argument.** A
+Capability is something a Worker *serves*: DESC-12 gives each entry an address, and a read of the
+`tasks` address answers instances of the types under `raises`. A Skill is served at no address and
+answered by no surface — it is what a Worker *is*, like its id, and the Tower reads it the way it
+reads the id. Inside the entry it also made the pure answerer absurd: a field crew that knows how
+to verify a vehicle and raises nothing of its own had to declare a `tasks` Capability, with a
+reading address, in order to serve an empty page at it forever. At the root it declares a Skill and
+no `tasks` Capability at all, which is what DESC-2 says a Worker may do with any Capability it does
+not implement.
+
+A Worker that raises Tasks and answers none, or answers and raises none, is the ordinary case
+rather than the exception — which is why neither declaration is required.
 
 TASK-4 is NAME-7 applied and adds nothing to it. A Task type is matched by a party that did not
 mint it, which is the whole test NAME-7 states: two teams that never spoke both raising
@@ -114,7 +128,7 @@ the protocol that runs from an owner *to* a consumer without any of the machiner
 would otherwise need — no new surface, no second address, no delivery guarantee to specify.
 
 Making it an Action is what removes the machinery. The consumer already declares Actions with
-schemas and addresses (ACT-1, ACT-2), a Contract already names which Actions a party may post, and
+schemas and addresses (ACT-16, ACT-2), a Contract already names which Actions a party may post, and
 REG-3 already fixes how the credential is presented — so the nudge needs exactly nothing from this
 file beyond the name. It recommends rather than binds because a Worker that reads only on a nudge
 is one dropped request away from stalling silently: the schedule is what the design rests on, and
@@ -156,7 +170,7 @@ anybody did about it.
 
 ## Still open here
 
-- **Who verifies that a Worker answers the Task types it declares under TASK-3.** The Tower at
+- **Who verifies that a Worker answers the Task types it declares under TASK-29.** The Tower at
   registration, the owner at claim time, or nobody. Open in [undecided](../docs/undecided.md).
 - Whether a Task may carry a deadline of its own.
 - **Whether a consumer can say it is working on something, without a lease.** An advisory note on
@@ -167,6 +181,24 @@ anybody did about it.
   it. Open in [undecided](../docs/undecided.md).
 
 ## Withdrawn
+
+- **TASK-3** — required the list inside the `tasks` entry, under `answers`. Replaced by
+  **TASK-29**, which moves it to the Descriptor's root and calls it `skills`. An entry carrying
+  `answers` satisfied TASK-3 and does not satisfy TASK-29, so the verdict moves and the id did not
+  survive.
+
+  Two things were wrong and only one of them was the name. *Answer* had three jobs in this file and
+  could not keep them apart: a read **answers** Tasks (TASK-5, TASK-27), which is a response; a
+  raised type names the Actions that may **answer** it (TASK-2, `answeredBy`), which is resolving a
+  condition; and the entry declared what the Worker **answers**, which is neither — it is a
+  standing capability, true before any Task exists and before anybody asks. TASK-3's own sentence
+  already named that one: *which is its Skill*. The other two senses stay, because they are what
+  the word means and they are told apart by what they are about.
+
+  The second was the place, and it is the one a reader trips over rather than argues with. A Skill
+  has no surface. Putting it in a Capability entry filed *what a Worker is* under *what a Worker
+  serves*, and charged a Worker that only answers Tasks a whole `tasks` Capability — address
+  included — for the privilege of serving nothing at it.
 
 **Sixteen rules of the Claim lifecycle, withdrawn together, for the argument above.** They are
 listed individually rather than summarized because a report citing one of them stays true about the

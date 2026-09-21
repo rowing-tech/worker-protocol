@@ -3,7 +3,7 @@
   "info": {
     "title": "worker-protocol — metrics",
     "version": "0.1",
-    "description": "Named quantities accumulated over declared periods. The Descriptor is the catalog: this surface answers values and never lists what exists (MET-2).",
+    "description": "Named quantities accumulated over declared periods. The Descriptor is the catalog: this surface answers values and never lists what exists (MET-21).",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"

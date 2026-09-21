@@ -7,10 +7,10 @@
       "type": "object",
       "properties": {},
       "additionalProperties": {},
-      "description": "EVT-3. The JSON Schema of this event type's data — the `data` of the CloudEvents envelope EVT-1 fixes. The Worker's own shape: this protocol has no data model."
+      "description": "EVT-12. The JSON Schema of this event type's data — the `data` of the CloudEvents envelope EVT-1 fixes. The Worker's own shape: this protocol has no data model."
     },
     "destination": {
-      "description": "EVT-10. Where THIS type lands, for a Worker that divides its events by subject. Absent, it lands at the entry's destination, which is the ordinary case.",
+      "description": "EVT-11. Where THIS type lands, for a Worker that divides its events by subject. Absent, it lands at the entry's destination, which is the ordinary case.",
       "$ref": "event-destination.json"
     }
   },
@@ -19,5 +19,5 @@
   ],
   "additionalProperties": false,
   "title": "Event type declaration",
-  "description": "EVT-3. One event type, held under a qualified name (EVT-4, NAME-7) because a subscriber matches it against what it decided to consume, having never met the team that minted it."
+  "description": "EVT-12. One event type, held under a qualified name (EVT-4, NAME-7) because a subscriber matches it against what it decided to consume, having never met the team that minted it."
 }

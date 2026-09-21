@@ -1,14 +1,14 @@
 {
   "schema": "events-entry",
   "valid": true,
-  "rule": "EVT-10",
+  "rule": "EVT-11",
   "why": "The one entry with no address, which is the single case DESC-22 leaves it optional for. The broker and the binding are strings nothing here parses; the destination is an object whose keys this Worker chose, because what a consumer needs in order to attach is not alike across brokers. The window is what a consumer sizes its deduplication store against — `remember forever` being the promise EVT-8 refuses to make.",
   "document": {
     "version": 1,
     "broker": "kafka",
-    "binding": "cloudevents/kafka-1.0",
+    "protocolBinding": "cloudevents/kafka-1.0",
     "destination": { "bootstrapServers": "kafka.example.com:9092", "topic": "fleet.telemetry" },
-    "events": {
+    "publishes": {
       "tech.rowing.fleet.vehicle-verified": {
         "data": { "type": "object", "properties": { "vehicle": { "type": "string" } } }
       }
