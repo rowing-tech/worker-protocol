@@ -59,7 +59,13 @@ no `tasks` Capability at all, which is what DESC-2 says a Worker may do with any
 not implement.
 
 A Worker that raises Tasks and answers none, or answers and raises none, is the ordinary case
-rather than the exception — which is why neither declaration is required.
+rather than the exception. **Both rules bind anyway, and they say the empty case differently.** A
+Worker that raises nothing still declares `raises` as an empty map, because the entry exists and
+every reader parses one shape; a Worker that answers nothing omits `skills` entirely, because
+TASK-29 is a root field and DESC-2 already has a Worker leave out what it does not implement. What
+neither rule requires is *content* — and both require that what content there is be complete. A
+Worker that answers a Task type and leaves it out of `skills` is not conformant; it is merely
+undiscoverable, which is the same thing from the Tower's side and is why nothing outside can tell.
 
 TASK-4 is NAME-7 applied and adds nothing to it. A Task type is matched by a party that did not
 mint it, which is the whole test NAME-7 states: two teams that never spoke both raising
