@@ -20,7 +20,7 @@ this document, and separating them moved six rules.
 | **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 86 |
 | **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 17 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 25 |
-| **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
+| **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 23 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
 ## Where a `P` rule has a witness anyway
@@ -128,11 +128,12 @@ that the role is implementable and vouches for no product.
 | REG-32 | H | Recommended. A credential must exist that authenticates and lacks a right, so two refusals can be compared |
 | REG-33 | N | Who issued a credential is not in the credential |
 
-## actions.md — 15
+## actions.md — 16
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
 | ACT-16 | W | The `actions` entry carries an address and an `accepts` map of Actions |
+| ACT-17 | N | A Worker that declares `nudge` meaning something else is indistinguishable from one that means this, exactly as ACT-13's reservation is. What a name is reserved FOR has no witness |
 | ACT-2 | W | Each Action carries the schema of its input |
 | ACT-3 | W | Each Action says what it answers on success |
 | ACT-4 | W | Each Action says whether it completes within the call |
@@ -263,15 +264,15 @@ a weaker class.
 
 ## Where this stands
 
-150 rules across eleven files, none of them `open`, under edition 0.1. Every rule the register marks
+151 rules across eleven files, none of them `open`, under edition 0.1. Every rule the register marks
 `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over a
 real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.
 
-What no tool reaches is 47 rules, and the two kinds are not the same thing. Twenty-five bind a
+What no tool reaches is 48 rules, and the two kinds are not the same thing. Twenty-five bind a
 party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
 specification — and a report calls those *another subject's* because it never contacted whoever
-they oblige. Twenty-two have the Worker as their subject and no witness anywhere, and a report
+they oblige. Twenty-three have the Worker as their subject and no witness anywhere, and a report
 calls those *unverified*. Counting either as compliance would be vouching for something nobody
 checked, which is the whole reason this file exists.
 

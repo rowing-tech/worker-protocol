@@ -130,9 +130,12 @@ would otherwise need — no new surface, no second address, no delivery guarante
 Making it an Action is what removes the machinery. The consumer already declares Actions with
 schemas and addresses (ACT-16, ACT-2), a Contract already names which Actions a party may post, and
 REG-3 already fixes how the credential is presented — so the nudge needs exactly nothing from this
-file beyond the name. It recommends rather than binds because a Worker that reads only on a nudge
-is one dropped request away from stalling silently: the schedule is what the design rests on, and
-a consumer that declares no nudge is slower and never wrong.
+file beyond the name. **The name is ACT-17's**, reserved there for the reason `configure` is: an
+owner reading a consumer's Descriptor has to be able to tell which Action is the nudge, and a name
+two parties agreed between themselves is not something a Descriptor can carry. It recommends rather
+than binds because a Worker that reads only on a nudge is one dropped request away from stalling
+silently: the schedule is what the design rests on, and a consumer that declares no nudge is slower
+and never wrong.
 
 ## Why there is no lease here
 

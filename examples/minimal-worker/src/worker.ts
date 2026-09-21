@@ -46,7 +46,9 @@ const silent = new Map<string, Date>([
   ["DEF-456", new Date(Date.now() - 7_200_000)],
 ]);
 const checked = new Set<string>();
-let settings = { label: "fleet watcher", quietAfterMinutes: 15 };
+/** Task types somebody told us about, to read before the next scheduled sweep (ACT-17). */
+const pending = new Set<string>();
+let configuration = { label: "fleet watcher", quietAfterMinutes: 15 };
 
 /**
  * ENDP-16: where a repeat under the same key finds the outcome already recorded.
@@ -98,9 +100,10 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   // Schema a console renders a form from, and a request is validated against the same object.
   actions: {
     outcomes,
-    // ACT-15: the settings `configure` would accept. `mount()` serves them at a reading address it
-    // writes into the declaration itself, so the two cannot disagree about where they are.
-    settings: () => settings,
+    // ACT-15: `settings` READS the document, `configure` below WRITES it. Both exist because
+    // ACT-14 replaces the whole document — without the read, a console would show an empty form
+    // and everything the operator did not remember would go back to a default.
+    settings: () => configuration,
     accepts: {
       "record-check": {
         input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
@@ -112,13 +115,26 @@ export const fleetWorker = defineWorker<Env>((env) => ({
           return { recordedAt: new Date().toISOString() };
         },
       },
-      // ACT-13: `configure` is the one Action name this protocol reserves, and it takes the whole
-      // document — an operator replaces settings rather than patching them, so what they saw in
-      // the form is what they send back.
+      // ACT-17: `nudge` is the other reserved name — a POST from a Worker that raised a Task of a
+      // type this one answers, saying only that there is work of that type. It carries no Task and
+      // no payload: the owner decides whether the condition still holds, so this reads rather than
+      // trusts. Declaring it is optional; without it this Worker is told nothing and is read on its
+      // own schedule, which is slower and never wrong.
+      nudge: {
+        input: z.object({ type: z.string() }),
+        run: ({ type }: { type: string }) => {
+          pending.add(type);
+          return null;
+        },
+      },
+
+      // ACT-13: `configure` is one of the two Action names this protocol reserves, and it takes the
+      // whole document — an operator replaces the settings rather than patching them, so what they
+      // saw in the form is what they send back.
       configure: {
         input: z.object({ label: z.string().min(1), quietAfterMinutes: z.number().int().min(1) }),
-        run: (replacement: typeof settings) => {
-          settings = replacement;
+        run: (replacement: typeof configuration) => {
+          configuration = replacement;
           return null;
         },
       },
@@ -148,7 +164,7 @@ export const fleetWorker = defineWorker<Env>((env) => ({
       // ACTV-3: when it undertook this, not when it will next run — that is scheduling, and this
       // protocol fixes none. The summary carries it for a person.
       since: new Date(Date.now() - 86_400_000),
-      summary: `Poll the GPS source every ${settings.quietAfterMinutes} minutes.`,
+      summary: `Poll the GPS source every ${configuration.quietAfterMinutes} minutes.`,
     },
     ...[...silent.keys()]
       .filter((vehicle) => !checked.has(vehicle))
