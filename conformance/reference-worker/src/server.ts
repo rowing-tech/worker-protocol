@@ -217,7 +217,7 @@ export function createWorker(options: WorkerOptions = {}): Server {
   return createServer(getRequestListener((request) => app.fetch(request, options)));
 }
 
-/** `node examples/reference-worker/src/server.ts` runs it on 8787, or on `PORT`. */
+/** `node conformance/reference-worker/src/server.ts` runs it on 8787, or on `PORT`. */
 if (process.argv[1] === import.meta.filename) {
   const port = Number(process.env.PORT ?? 8787);
   createWorker({ credential: process.env.CREDENTIAL }).listen(port, () => {

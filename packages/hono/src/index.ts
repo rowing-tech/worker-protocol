@@ -11,7 +11,7 @@
  * This package carries behaviour, and `packages/README.md` says what standing that has: what is
  * forbidden is behaviour of its OWN — something `spec/` does not say — and what is wanted is all of
  * what `spec/` does say, because the alternative is every Worker deriving the same rules again.
- * Every line here cites the rule it carries. `examples/reference-worker` is `mount()` over an
+ * Every line here cites the rule it carries. `conformance/reference-worker` is `mount()` over an
  * implementation arranged to be checked, and `@worker-protocol/conformance` passing against it is
  * what vouches for this package; `examples/minimal-worker` is what says it is cheap.
  */

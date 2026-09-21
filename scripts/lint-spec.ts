@@ -174,7 +174,7 @@ for (const dir of [
   "packages/schemas/src",
   "packages/conformance/src",
   "packages/conformance/src/checks",
-  "examples/reference-worker/src",
+  "conformance/reference-worker/src",
   ".",
 ]) {
   const abs = join(ROOT, dir);

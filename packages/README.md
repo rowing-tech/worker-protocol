@@ -48,8 +48,9 @@ line count. It exists because complying being cheap is a claim like any other he
 nobody gates is a claim nobody verifies. When it grows, the question is which rule `mount()` failed
 to carry — not whether the budget should be raised.
 
-`examples/reference-worker` is a different thing and is not a template: it is arranged so that the
-rules `conformance/verifiability.md` marks `H` have something to be observed against.
+`conformance/reference-worker` is a different thing and is not a template: it is arranged so that
+the rules `conformance/verifiability.md` marks `H` have something to be observed against. It sits
+under `conformance/` rather than `examples/` because it is evidence, not a starting point.
 
 ## The rules that bind the other side
 

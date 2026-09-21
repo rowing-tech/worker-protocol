@@ -1,6 +1,9 @@
 packages:
   - packages/*
   - examples/*
+  # Not an example and deliberately not under `examples/`: it is a Worker built to be OBSERVED,
+  # which is evidence, so it lives beside the fixtures that are evidence without HTTP.
+  - conformance/reference-worker
 
 # Refuse any package version published less than seven days ago (10080 minutes).
 #

@@ -5,7 +5,7 @@ import { type Report, verify } from "../index.ts";
 /**
  * The claim `packages/README.md` makes, verified rather than asserted.
  *
- * `examples/reference-worker` proves that a Worker CAN conform: it is arranged so that every rule
+ * `conformance/reference-worker` proves that a Worker CAN conform: it is arranged so that every rule
  * with a witness has one, and it is explicitly not a template. This suite proves the other half,
  * which is the one a reader actually cares about — that a Worker written the way somebody would
  * write one, with nothing in it but its own domain, conforms without being arranged to.

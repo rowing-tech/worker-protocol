@@ -6,11 +6,22 @@ The evidence behind every claim of compliance, and the record of what evidence c
 |---|---|
 | [verifiability.md](verifiability.md) | Every rule in the `draft` files, classified by what a check would observe — the audit [spec/README.md](../spec/README.md) demands of itself, and what `packages/conformance` implements |
 | [fixtures/](fixtures/) | Documents this protocol accepts or refuses, each one evidence for a named rule |
+| [reference-worker/](reference-worker/) | A Worker arranged so that a rule with no ordinary witness has one. Evidence that answers over HTTP |
 
 The fixtures are kept here rather than inside a package so that a verifier in any language can use
 them. They judge a **document** against a schema, which is the half of conformance that needs
 nothing answering over HTTP; `packages/conformance` is the one that runs the other half against a
 live Worker. `pnpm test` runs them from TypeScript today.
+
+**The reference Worker is here for the same reason, and it used to be under `examples/`.** That was
+a promise the directory makes and this Worker does not keep: it is not a template and nobody should
+copy it. Most of it is a `WorkerOptions` surface that exists so the suite can configure a Worker
+*wrong* on purpose — an edition of `banana`, an id that does not match, a boot window held open —
+because that is how DESC-23, DESC-25, DESC-27, HLTH-4 and ENDP-1 are provoked. It is a test double,
+and a reader who opened it looking for how to write a Worker was reading the wrong file. What it
+buys is thirteen of the seventeen rules the register marks `H`. `examples/` now holds two Workers
+and both are templates: [minimal-worker](../examples/minimal-worker) to copy, and
+[fleet-worker](../examples/fleet-worker) to copy on Cloudflare.
 
 ## What a report says about a rule
 

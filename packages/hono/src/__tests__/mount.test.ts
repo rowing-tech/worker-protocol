@@ -8,7 +8,7 @@ import type { Worker } from "../worker.ts";
 /**
  * What `mount()` promises a Worker author, checked without a socket.
  *
- * The verifier against `examples/reference-worker` is what vouches for `mount()`'s conformance;
+ * The verifier against `conformance/reference-worker` is what vouches for `mount()`'s conformance;
  * this holds the two things that test cannot see. A Worker declaring one Capability gets one
  * address and no other, and the app it gets can describe itself — its own routes, under the paths
  * it actually serves — which is the reason the surface is declared as routes at all.

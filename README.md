@@ -63,16 +63,17 @@ A worker states which sections it implements, and the conformance tool reports t
 spec/            the normative prose: endpoints, lifecycles, envelopes — one file per subject
 schemas/         the JSON Schemas, generated and versioned here — the normative artifact
 openapi/         one document per declared address, generated from the surface declaration
-conformance/     fixtures independent of any language, and the register of what a check can reach
+conformance/     the evidence: fixtures, the reference Worker, and the register of what a check can reach
+  fixtures/          documents this protocol accepts or refuses — evidence that needs no HTTP
+  reference-worker/  a Worker arranged so the verifier can observe the rules that need arranging
 packages/
   schemas/       the Zod objects that generate schemas/
   hono/          the surface as Hono routes, which generate openapi/, and mount() over them
   client/        consume(): read a Worker and take work from it — the consumer half
   conformance/   the verifier: point it at a worker, get a report of what it complies with
-examples/
+examples/          two Workers, and both are templates
   minimal-worker/    a conformant Worker in under 150 lines. Copy this one
   fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, tested on workerd
-  reference-worker/  a worker arranged so the verifier can observe the rules that need arranging
 docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```
 
