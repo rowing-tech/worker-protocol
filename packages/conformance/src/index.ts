@@ -153,7 +153,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         options.mayPerform === true,
       )),
     );
-    // TASK-2 is an agreement between two entries rather than a shape inside one, so the tasks
+    // TASK-32 is an agreement between two entries rather than a shape inside one, so the tasks
     // check is handed the Action names the `actions` entry holds.
     const actionNames = Object.keys(
       (

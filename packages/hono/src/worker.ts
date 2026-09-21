@@ -39,7 +39,7 @@ export type Worker = {
   /** The edition this Worker speaks (DESC-23). Defaults to the one `@worker-protocol/schemas` encodes. */
   edition?: string;
   /**
-   * TASK-30. The Task types this Worker answers, which IS its Skill, keyed by type.
+   * TASK-31. The Task types this Worker answers, which IS its Skill, keyed by type.
    *
    * Beside the id rather than inside `tasks`, because a Skill is served at no address: it is what
    * this Worker is, and a Capability is what it serves. A Worker that only ANSWERS Tasks declares
@@ -107,7 +107,7 @@ export type Worker = {
 };
 
 /**
- * TASK-30. What a Worker declares about one Skill: the payload it needs to receive to answer one.
+ * TASK-31. What a Worker declares about one Skill: the payload it needs to receive to answer one.
  *
  * A Zod object, as an Action's input and a Task's payload are, and `mount()` writes the JSON Schema
  * the Descriptor carries. It is this Worker's own requirement — NAME-6 judges it against what an
@@ -116,7 +116,12 @@ export type Worker = {
  * Optional: `{}` claims the type and says nothing about what it needs, which is what a Worker that
  * takes whatever arrives should say. It costs the check, and nothing else.
  */
-export type SkillDeclaration = { payload?: z.ZodType };
+export type SkillDeclaration = {
+  /** What this Worker needs to RECEIVE in order to answer one. */
+  payload?: z.ZodType;
+  /** What this Worker PRODUCES in answer, judged against the owner's answering Action. */
+  produces?: z.ZodType;
+};
 
 /** What a Worker says about a condition an operator should see: the domain, and no more (ALRT-3). */
 export type Alert = {

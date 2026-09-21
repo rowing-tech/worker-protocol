@@ -141,7 +141,7 @@ export const fleetWorker = defineWorker<Env>((env) => {
         [QUIET_VEHICLE]: {
           // A Zod object, as an Action's input is; `mount()` writes the JSON Schema.
           payload: z.object({ vehicle: z.string() }),
-          answeredBy: ["record-inspection"],
+          answeredBy: "record-inspection",
         },
       },
       // TASK-15: the condition, read from the store rather than derived from a Map in a process.

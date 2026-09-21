@@ -113,7 +113,7 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     id: options.id ?? DEFAULT_ID,
     edition: options.edition,
 
-    // TASK-30: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
+    // TASK-31: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
     // at no address — it is what this Worker IS, and a Capability is what it serves.
     skills: SKILLS,
 

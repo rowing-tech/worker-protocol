@@ -9,8 +9,10 @@
     "claimAddress": "../claims",
     "raises": {
       "verify-vehicle": {
-        "payload": { "type": "object" },
-        "answeredBy": ["record-verification"]
+        "payload": {
+          "type": "object"
+        },
+        "answeredBy": "record-verification"
       }
     }
   }

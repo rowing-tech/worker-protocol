@@ -270,7 +270,7 @@ function descriptorOf(worker: Worker, edition: string): string {
     capabilities.actions = { version: 1, address: "../actions", accepts: declared };
   }
 
-  // EVT-12, TASK-2, TASK-30: the Descriptor carries JSON Schema, generated from the Zod object the
+  // EVT-12, TASK-32, TASK-31: the Descriptor carries JSON Schema, generated from the Zod object the
   // Worker declared — the same move ACT-2 makes, so a Worker writes one declaration and never two.
   if (worker.events) {
     capabilities.events = {
@@ -295,13 +295,14 @@ function descriptorOf(worker: Worker, edition: string): string {
   }
 
   const document: Record<string, unknown> = { id: worker.id, edition };
-  // TASK-30: at the root, beside the id, and omitted by a Worker with no Skill — which is what
+  // TASK-31: at the root, beside the id, and omitted by a Worker with no Skill — which is what
   // DESC-2 lets a Worker do with anything it does not implement. A Skill that states no
   // requirement travels as `{}`: the claim, and nothing about what it needs.
   if (worker.skills !== undefined) {
-    document.skills = mapValues(worker.skills, (skill) =>
-      skill.payload === undefined ? {} : { payload: jsonSchema(skill.payload) },
-    );
+    document.skills = mapValues(worker.skills, (skill) => ({
+      ...(skill.payload === undefined ? {} : { payload: jsonSchema(skill.payload) }),
+      ...(skill.produces === undefined ? {} : { produces: jsonSchema(skill.produces) }),
+    }));
   }
   document.capabilities = capabilities;
   return JSON.stringify(document);

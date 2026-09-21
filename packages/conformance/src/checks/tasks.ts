@@ -13,7 +13,7 @@ import type { Transcript } from "../transcript.ts";
  */
 export const CLAIMS = [
   "TASK-27",
-  "TASK-2",
+  "TASK-32",
   "TASK-4",
   "TASK-5",
   "TASK-8",
@@ -22,13 +22,13 @@ export const CLAIMS = [
 ] as const;
 
 type Entry = {
-  raises: Record<string, { payload: unknown; answeredBy: string[] }>;
+  raises: Record<string, { payload: unknown; answeredBy: string }>;
 };
 
 export async function checkTasks(
   entry: Record<string, unknown> | undefined,
   url: string | null,
-  /** TASK-30, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
+  /** TASK-31, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
    * them — and reach them even for a Worker that declares a Skill and no `tasks` entry. */
   skills: string[],
   actionNames: string[],
@@ -80,29 +80,26 @@ export async function checkTasks(
   // says so per rule rather than once, because a report naming one of them is the point.
   crossing(Object.keys(raises).length);
 
-  // TASK-2: the closed list is a list of the OWNER's own Actions. A Task type naming an Action the
+  // TASK-32: the closed list is a list of the OWNER's own Actions. A Task type naming an Action the
   // Worker does not accept is a Descriptor disagreeing with itself, which is DESC-18's fault one
-  // level down — and it is the one part of TASK-2 the schema cannot reach, because it is an
+  // level down — and it is the one part of TASK-32 the schema cannot reach, because it is an
   // agreement between two entries rather than a shape inside one.
   const accepted = new Set(actionNames);
-  const dangling: string[] = [];
-  for (const [type, declaration] of Object.entries(raises)) {
-    for (const action of declaration.answeredBy) {
-      if (!accepted.has(action)) dangling.push(`${type} names \`${action}\``);
-    }
-  }
+  const dangling = Object.entries(raises)
+    .filter(([, declaration]) => !accepted.has(declaration.answeredBy))
+    .map(([type, declaration]) => `${type} names \`${declaration.answeredBy}\``);
   if (Object.keys(raises).length === 0) {
-    say("TASK-2", "notExercised", "the Worker raises no Task type");
+    say("TASK-32", "notExercised", "the Worker raises no Task type");
   } else if (dangling.length === 0) {
-    say("TASK-2", "passes");
+    say("TASK-32", "passes");
   } else {
-    say("TASK-2", "fails", `${dangling.join("; ")}, which its \`actions\` entry does not accept`);
+    say("TASK-32", "fails", `${dangling.join("; ")}, which its \`actions\` entry does not accept`);
   }
 
   if (url === null) {
     allExcept("notExercised", "the reading address did not resolve", [
       "TASK-27",
-      "TASK-2",
+      "TASK-32",
       "TASK-4",
       "NAME-7",
     ]);

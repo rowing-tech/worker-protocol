@@ -176,12 +176,12 @@ and an owner that holds a Contract covering it may post; a consumer that does no
 own schedule and is never wrong, which is TASK-19's own position and is why that rule recommends
 rather than binds. What is fixed here is only that the two spellings cannot disagree.
 
-**The alternative was a pointer, and it is the one this protocol uses everywhere else.** TASK-2's
+**The alternative was a pointer, and it is the one this protocol uses everywhere else.** TASK-32's
 `answeredBy` does not reserve Action names — it names them, from the entry that needs them — and a
 consumer could have declared which of its own Actions is the nudge the same way, keeping the word.
 It is rejected on what it costs the reader: a pointer is a third agreement between two entries, it
 can name an Action the Worker does not accept, and a verifier then has to check it exactly as it
-already checks TASK-2's list and ALRT-7's. A reserved name has nothing to keep in step and nothing
+already checks TASK-32's list and ALRT-7's. A reserved name has nothing to keep in step and nothing
 to dangle. Two words is what this edition spends in total, and a Worker that wanted either for
 something else has two words to avoid.
 

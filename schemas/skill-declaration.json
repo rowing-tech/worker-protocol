@@ -4,7 +4,13 @@
   "type": "object",
   "properties": {
     "payload": {
-      "description": "TASK-30. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task of this type — its own requirement, and not a copy of what any owner sends. NAME-6 judges the two in the direction the document travels: a Tower validates the Tasks an owner actually raises against this, and knows before any work is handed over whether this Worker can read it. May ask for less than an owner sends; a Tower that finds it asking for more has its answer. OPTIONAL: a Skill that states no requirement claims the capability and nothing about what it needs, which is conformant and is where this protocol stood before the field existed. What it costs is the check.",
+      "description": "TASK-31. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task of this type — its own requirement, and not a copy of what any owner sends. NAME-6 judges the two in the direction the document travels: a Tower validates the Tasks an owner actually raises against this, and knows before any work is handed over whether this Worker can read it. May ask for less than an owner sends; a Tower that finds it asking for more has its answer. OPTIONAL: a Skill that states no requirement claims the capability and nothing about what it needs, which is conformant and is where this protocol stood before the field existed. What it costs is the check.",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": {}
+    },
+    "produces": {
+      "description": "TASK-31. The JSON Schema of what this Worker PRODUCES in answer to a Task of this type — its own capability, and not a copy of any owner's Action. NAME-6 judges it against the input of the Action that answers the type at each owner: a Tower knows before any work is handed over whether this Worker can produce what that owner takes, and two owners asking for the same fact under different names are, correctly, two different answers. OPTIONAL, on the same terms as `payload`.",
       "type": "object",
       "properties": {},
       "additionalProperties": {}
@@ -12,5 +18,5 @@
   },
   "additionalProperties": false,
   "title": "Skill declaration",
-  "description": "TASK-30. What this Worker declares about one Task type it answers. The owner's `raises` says what is sent; this says what the answerer requires, where it says anything at all, and the two are what a Tower compares."
+  "description": "TASK-31. What this Worker declares about one Task type it answers. The owner's `raises` says what is sent and its `actions` what is taken back; this says what the answerer requires and what it produces, where it says anything at all, and each pair is what a Tower compares."
 }

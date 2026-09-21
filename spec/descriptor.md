@@ -94,7 +94,7 @@ reader holding the id alone, with no knowledge of the deployment it came from, k
 is meant.**
 
 The root carries one more thing about the Worker itself, and it is declared in
-[tasks](tasks.md) rather than here because its vocabulary is that file's: **TASK-30's `skills`**,
+[tasks](tasks.md) rather than here because its vocabulary is that file's: **TASK-31's `skills`**,
 the Task types this Worker answers. It sits beside the id for the same reason the id does — it is
 what a Worker *is* and not what it serves, no surface answers it, and the Tower reads both on the
 same fetch. A Worker with no Skill omits it, exactly as DESC-2 lets it omit a Capability.

@@ -70,13 +70,19 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   // DESC-6: the Worker's own id, which is not the URL it is served from.
   id: "tech.rowing.fleet.watcher",
 
-  // TASK-30: the Task types this Worker ANSWERS, which is its Skill — beside the id and not inside
+  // TASK-31: the Task types this Worker ANSWERS, which is its Skill — beside the id and not inside
   // `tasks`, because a Skill is served at no address. Note it is NOT the type raised below: this
   // Worker needs a person to go and look at a quiet vehicle, and it cannot do that itself. What it
-  // can do is say where a vehicle is, because it holds the readings, and to do that it needs the
-  // plate — which is what the payload declares. A Tower compares that against the Tasks whoever
-  // raises `locate-vehicle` actually sends, and knows at enrollment whether the work can be read.
-  skills: { [LOCATE_VEHICLE]: { payload: z.object({ vehicle: z.string() }) } },
+  // can do is say where a vehicle is, because it holds the readings. `payload` is what it needs to
+  // be handed for that — the plate — and `produces` is what it hands back: a position. A Tower
+  // compares the first against what an owner sends and the second against what that owner's
+  // answering Action takes, and knows at enrollment whether the pairing works, on both halves.
+  skills: {
+    [LOCATE_VEHICLE]: {
+      payload: z.object({ vehicle: z.string() }),
+      produces: z.object({ vehicle: z.string(), lat: z.number(), lng: z.number() }),
+    },
+  },
 
   // REG-3, REG-21: what makes a credential good is this Worker's business, and nobody else's.
   authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
@@ -115,8 +121,22 @@ export const fleetWorker = defineWorker<Env>((env) => ({
     // and everything the operator did not remember would go back to a default.
     settings: () => configuration,
     accepts: {
-      "record-check": action({
-        input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
+      // The ONE Action that answers `check-silent-vehicle`, and a Task can end two ways — so both
+      // are variants of its input, told apart by `outcome`. That is what lets somebody who can only
+      // ever report `found` still answer: they produce a subtype of what this takes.
+      "answer-check": action({
+        input: z.discriminatedUnion("outcome", [
+          z.object({
+            outcome: z.literal("found"),
+            vehicle: z.string().min(1),
+            reachable: z.boolean(),
+          }),
+          z.object({
+            outcome: z.literal("missing"),
+            vehicle: z.string().min(1),
+            lastSeen: z.string(),
+          }),
+        ]),
         result: z.object({ recordedAt: z.string() }),
         // ACT-12: performed once however many times it is posted, within the declared window.
         idempotency: { required: true, from: "header", windowSeconds: 3600 },
@@ -188,13 +208,14 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   ],
 
   tasks: {
-    // TASK-2: every Task type this Worker raises, with the Actions of its own that may answer one.
+    // TASK-32: every Task type this Worker raises, with the one Action of its own that answers it.
     raises: {
       [SILENT_VEHICLE]: {
         // A Zod object, as an Action's input is. `mount()` writes the JSON Schema the Descriptor
         // carries, so the shape a consumer reads and the shape this Worker means are one line.
         payload: z.object({ vehicle: z.string() }),
-        answeredBy: ["record-check"],
+        // TASK-32: ONE Action, and the two ways this Task can end are variants of its input.
+        answeredBy: "answer-check",
       },
     },
     // TASK-15: the condition, and the whole of what this Worker owes. A Task exists while its

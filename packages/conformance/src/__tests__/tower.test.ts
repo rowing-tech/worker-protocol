@@ -85,7 +85,7 @@ function tower() {
     },
 
     /**
-     * TASK-30: the unit of discovery. An owner names a Task type and never an actor, and this is
+     * TASK-31: the unit of discovery. An owner names a Task type and never an actor, and this is
      * the question it asks — *who answers this* — over what each Worker declared about itself.
      */
     bySkill(type: string): string[] {
@@ -100,7 +100,7 @@ function tower() {
     },
 
     /**
-     * TASK-30, NAME-6: can this Worker take that one's Tasks of this type?
+     * TASK-31, NAME-6: can this Worker take that one's Tasks of this type?
      *
      * `bySkill` says who declared the name. This says whether the work can be READ, and it is the
      * question an operator asks at enrollment — so it is answered from the two dated Descriptors
@@ -249,7 +249,7 @@ describe("a Control Tower, over Workers that answer", () => {
   it("answers at ENROLLMENT whether a Worker can read another's Tasks", async () => {
     // The question an operator asks when pasting a URL: can this Worker take that one's work?
     // Answered from the two Descriptors, so it arrives before any Task exists — which is the whole
-    // reason TASK-30 has the answerer declare what it requires instead of everyone finding out
+    // reason TASK-31 has the answerer declare what it requires instead of everyone finding out
     // when work is handed over.
     const registry = tower();
     registry.enroll(worker.url, "a-token");
@@ -258,10 +258,11 @@ describe("a Control Tower, over Workers that answer", () => {
     const VERIFY_VEHICLE = "tech.rowing.worker-protocol.verify-vehicle";
     const PRICE_A_QUOTE = "tech.rowing.worker-protocol.price-a-quote";
 
-    // It raises `verify-vehicle` sending `{ vehicle }` and declares it needs `{ vehicle }`.
+    // It raises `verify-vehicle` sending `{ vehicle }`, declares it needs `{ vehicle }`, produces
+    // `{ vehicle, verified }`, and its `record-verification` takes exactly that: both halves hold.
     expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
       verdict: "compatible",
-      why: "everything it requires is something the owner sends",
+      why: "it can read what the owner sends and produce what it takes",
     });
 
     // A type it declared no Skill for is not a shape that disagrees: it is no claim at all.
@@ -273,16 +274,36 @@ describe("a Control Tower, over Workers that answer", () => {
     // The remaining cases are about what the ANSWERER declares, so the simulation edits the dated
     // copy the registry holds (DESC-20): what is being shown is the comparison, not the fetch.
     const held = registry.entry(worker.url)?.descriptor as {
-      skills: Record<string, { payload?: unknown }>;
+      skills: Record<string, { payload?: unknown; produces?: unknown }>;
     };
     const { skills } = held;
 
-    // TASK-30's third answer: the Skill is claimed and nothing is said about what it needs. Not a
+    // TASK-31's third answer: the Skill is claimed and nothing is said about either half. Not a
     // refusal — reporting one would invent an obligation the rule does not carry.
     skills[VERIFY_VEHICLE] = {};
     expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
       verdict: "unknown",
-      why: "it declares the Skill and states no requirement",
+      why: "it states no requirement for what it receives; it states nothing about what it produces",
+    });
+
+    // The sending half alone: it can read the Task but cannot produce what the owner's Action
+    // takes. This is the case a name match hides — a Worker that knows WHERE a vehicle is may have
+    // no way of knowing whether it was VERIFIED.
+    skills[VERIFY_VEHICLE] = {
+      payload: {
+        type: "object",
+        properties: { vehicle: { type: "string" } },
+        required: ["vehicle"],
+      },
+      produces: {
+        type: "object",
+        properties: { vehicle: { type: "string" } },
+        required: ["vehicle"],
+      },
+    };
+    expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
+      verdict: "incompatible",
+      why: "the owner's Action requires what it does not produce: verified",
     });
 
     // And the case the field exists for: asking for MORE than the owner sends.
@@ -295,7 +316,7 @@ describe("a Control Tower, over Workers that answer", () => {
     };
     expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
       verdict: "incompatible",
-      why: "it requires plate, which the owner does not send",
+      why: "it requires what the owner does not send: plate",
     });
   });
 

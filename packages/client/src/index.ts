@@ -79,22 +79,23 @@ export type Consumed = {
      */
     list: (type?: string) => Promise<Task[]>;
     /**
-     * How to answer a Task of this type: which Action to post, and the shape it takes.
+     * How to answer a Task of this type: the Action to post, and the shape it takes.
      *
      * A Task carries its id, its type, its payload and when its condition began — and nothing about
      * how to answer it, because that belongs to the Worker that raised it and is declared twice
-     * over in its Descriptor: the Task type names the Actions that may answer it (TASK-2), and each
-     * of those declares the JSON Schema of its input (ACT-2). Reading both is two walks down a
+     * over in its Descriptor: the Task type names the Action that answers it (TASK-32), and that
+     * Action declares the JSON Schema of its input (ACT-2). Reading both is two walks down a
      * document a consumer already holds, and every consumer was doing them by hand.
      *
      * The schema is handed back as it travels, so a console can render a form from it and an agent
-     * can build the document, neither having been told anything about this Worker.
+     * can build the document, neither having been told anything about this Worker. Where the Task
+     * can end several ways, that schema is a discriminated union and each ending is a variant.
      *
-     * Empty where the type is one this Worker does not raise, or where it raises it and names no
-     * Action — which TASK-2 admits: the list tells a consumer what would answer, and a Worker whose
-     * condition is resolved some other way names none.
+     * `undefined` where this Worker does not raise the type, or names an Action its own `actions`
+     * entry does not accept — a Descriptor disagreeing with itself is the verifier's to report
+     * against that Worker, and handing back a call that would answer `404` is not a consumer's job.
      */
-    answers: (type: string) => { action: string; input: unknown }[];
+    answers: (type: string) => { action: string; input: unknown } | undefined;
   };
 };
 
@@ -218,19 +219,17 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         // `404` from it would be DESC-30's rather than a resource's, which `pages` works out.
         collect<Task>(call, tasksAddress, taskPage, "TASK-5", type === undefined ? {} : { type }),
 
-      // TASK-2 names the Actions; ACT-2 declares each one's input. Both are already in the document
-      // this consumer read, so this walks it rather than calling anything.
+      // TASK-32 names the Action; ACT-2 declares its input. Both are already in the document this
+      // consumer read, so this walks it rather than calling anything.
       answers: (type) => {
-        const raises = (entry("tasks") as { raises?: Record<string, { answeredBy: string[] }> })
+        const raises = (entry("tasks") as { raises?: Record<string, { answeredBy: string }> })
           ?.raises;
         const accepts = (entry("actions") as { accepts?: Record<string, { input: unknown }> })
           ?.accepts;
-        return (raises?.[type]?.answeredBy ?? [])
-          .filter((action) => accepts?.[action] !== undefined)
-          .map((action) => ({
-            action,
-            input: (accepts as Record<string, { input: unknown }>)[action].input,
-          }));
+        const action = raises?.[type]?.answeredBy;
+        if (action === undefined) return undefined;
+        const taken = accepts?.[action];
+        return taken === undefined ? undefined : { action, input: taken.input };
       },
     };
   }

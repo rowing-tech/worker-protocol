@@ -23,43 +23,65 @@ than buried in the list, because a reader who remembers them is owed it.
 
 **TASK-27 (required). A `tasks` entry declares one address, which a read answers Tasks from.**
 
-**TASK-2 (required). The entry declares every Task type the Worker raises, keyed by name, each with
-the schema of its payload and the closed list of Actions that may answer it.**
+**TASK-32 (required). The entry declares every Task type the Worker raises, keyed by name, each
+with the schema of its payload and the one Action of its own that answers it. Where a Task can end
+more than one way, the ways are variants of that Action's input, told apart by a discriminator.**
 
-**TASK-30 (required). The Descriptor declares under `skills`, at its root and not inside a
+**TASK-31 (required). The Descriptor declares under `skills`, at its root and not inside a
 Capability, the Task types the Worker answers — which is its Skill. It is a map keyed by Task type,
-as `raises` is, and each entry may declare the JSON Schema of the payload that Worker requires in
-order to answer one. A Worker with no Skill omits `skills`; a Skill that states no requirement is a
-claim of capability and nothing more.**
+as `raises` is, and each entry may declare two JSON Schemas: the payload that Worker requires in
+order to answer one, and what it produces in answer. A Worker with no Skill omits `skills`; a Skill
+that states neither is a claim of capability and nothing more.**
 
 **TASK-4 (required). A Task type is a qualified name under NAME-7.**
 
-TASK-2's closed list is a *list of the owner's own Actions*: answering a Task is performing one of
-them, so they are declared in that same Worker's `actions` entry and named here by their names. A
-Task type that names an Action the Worker does not accept is a Descriptor disagreeing with itself,
-which is the fault DESC-18 already describes one level up.
+TASK-32 names *one of the owner's own Actions*: answering a Task is performing it, so it is
+declared in that same Worker's `actions` entry and named here by its name. A Task type that names an
+Action the Worker does not accept is a Descriptor disagreeing with itself, which is the fault
+DESC-18 already describes one level up.
 
-**What the list does not do is bind on a call, and that is worth saying plainly.** A Worker cannot
+**One Action and not a list, and the outcomes go inside it.** A Task that can end several ways — the
+vehicle was found and checked, the vehicle was not where it should be — used to name one Action per
+ending, and that put the mapping between *what a consumer produces* and *which Action takes it*
+nowhere anybody could declare it: the answerer does not know the owner's Action names, and the type
+has no registry to fix them in. With one Action, there is nothing to map. The endings are variants
+of its input, a discriminated union whose discriminator is the ending's name, minted by the owner
+beside the payload where every other name of that type already lives. A consumer that can produce
+one variant is answering a subtype of what the Action takes, which is ordinary assignability and
+needs no rule of its own; a Tower reading both schemas can see which endings it will never report.
+
+**What the name does not do is bind on a call, and that is worth saying plainly.** A Worker cannot
 tell an Action performed *because of* a Task from one performed for any other reason: the two are
-the same request. The list tells a consumer what would answer, and nothing refuses a performance
+the same request. The name tells a consumer what would answer, and nothing refuses a performance
 that answers nothing.
 
-TASK-30 is the other side of the same name, and it is what makes the
+TASK-31 is the other side of the same name, and it is what makes the
 [architecture](../docs/architecture.md)'s *unit of discovery* concrete: the Tower catalogs Workers
 by the Task types they answer, so a Worker that answers `tech.rowing.fleet.verify-vehicle` says so
 where every reader already looks. Both lists are drawn from one vocabulary, and NAME-7 reaches both
 for the same reason — `raises` says *I need this done* and `skills` says *I can do this*, and the
 two are joined by a party that met neither.
 
-**Each side declares the payload, and they are not the same declaration.** The owner's, under
-`raises`, is what it *sends*: the shape of what it knows about the condition. The answerer's,
-under `skills`, is what it *needs to receive* in order to do the work — and it is the answerer who
-knows that, because the answerer is the one who has to act on it. NAME-6 already says which way to
-judge the two: for a document a Worker receives, against the party that sends it. So a Tower holding
-both can answer the question an operator asks at enrollment — *can this Worker take that one's
-Tasks?* — by validating the Tasks the owner actually raises against what the answerer says it
-requires, and can answer it again on every poll, so that an owner that changes what it sends is
-caught before a consumer is handed work it cannot read.
+**The answerer declares both halves of the exchange from its own side, and neither is a copy of
+the owner's.** A Task travels one way and its answer travels back, so there are two documents and
+two questions. Under `raises` the owner says what it *sends*; under `skills` the answerer says what
+it *needs to receive* in order to act — and it is the answerer who knows that, because it is the one
+who has to act on it. Under `actions` the owner says what its answering Action *takes*; under
+`skills` the answerer says what it *produces* — and again it is the answerer who knows, because a
+Worker that can tell you where a vehicle is may have no way of knowing whether it is reachable.
+NAME-6 says which way to judge each pair: a document is judged against the party that sends it. So
+a Tower holding both Descriptors answers the question an operator asks at enrollment — *can this
+Worker take that one's Tasks?* — on both halves, before any Task exists, and asks again on every
+poll so that an owner that changes either shape is caught before work is handed over.
+
+**Why the answerer declares what it produces rather than the type fixing it.** A Task type is a
+name shared across owners, and it would be tidier if the type fixed the answer's shape so that one
+consumer served every owner unchanged. It cannot, here: this protocol keeps no registry of Task
+types, on purpose, so there is nowhere for a shape to be fixed that is not one owner's `raises` —
+and a shape each owner writes for itself fixes nothing across them. What the answerer's own
+declaration buys instead is the true answer to a true question: two owners of one type that ask for
+the same fact under different names *are* asking for different documents, and a consumer that can
+produce one and not the other should be told so rather than paired with both.
 
 **What that establishes, and what it does not.** That the shapes agree is checkable, and it is the
 difference between *the names matched* and *this Worker can understand the work*. That the Worker
@@ -72,14 +94,14 @@ The answerer's schema may ask for less than the owner sends — a consumer that 
 ten-field payload declares one — and every document the owner produces then satisfies it. It may
 not ask for more, and a Tower that finds it asking for more has found the answer to the question.
 
-**The requirement is optional, and leaving it out means what it says.** A Worker that states none
-has claimed it answers the type and claimed nothing about what it needs, which is where this
-protocol stood before the field existed and is still a conformant thing to say — a Worker that
-takes whatever arrives has no requirement to state, and inventing one so that a field is filled
-would be a declaration written to satisfy a schema rather than a reader. What it costs is the
-check: a Tower reads a name it can catalog and has nothing to compare, so the pairing is judged
-when the work arrives rather than when the operator asked. That is the trade, and it belongs to the
-Worker that made it.
+**Both schemas are optional, and leaving one out means what it says.** A Worker that states
+neither has claimed it answers the type and claimed nothing about how, which is where this protocol
+stood before the field existed and is still a conformant thing to say — a Worker that takes
+whatever arrives has no requirement to state, and inventing one so that a field is filled would be
+a declaration written to satisfy a schema rather than a reader. What it costs is the check, half by
+half: a Tower reads a name it can catalog and has nothing to compare on that side, so that half of
+the pairing is judged when the work arrives rather than when the operator asked. That is the trade,
+and it belongs to the Worker that made it.
 
 **It sits at the root rather than in the `tasks` entry, and where it sits is an argument.** A
 Capability is something a Worker *serves*: DESC-12 gives each entry an address, and a read of the
@@ -95,7 +117,7 @@ A Worker that raises Tasks and answers none, or answers and raises none, is the 
 rather than the exception. **Both rules bind anyway, and they say the empty case differently.** A
 Worker that raises nothing still declares `raises` as an empty map, because the entry exists and
 every reader parses one shape; a Worker that answers nothing omits `skills` entirely, because
-TASK-30 is a root field and DESC-2 already has a Worker leave out what it does not implement. What
+TASK-31 is a root field and DESC-2 already has a Worker leave out what it does not implement. What
 neither rule requires is *content* — and both require that what content there is be complete. A
 Worker that answers a Task type and leaves it out of `skills` is not conformant; it is merely
 undiscoverable, which is the same thing from the Tower's side and is why nothing outside can tell.
@@ -212,7 +234,7 @@ anybody did about it.
 
 ## Still open here
 
-- **Who verifies that a Worker answers the Task types it declares under TASK-30.** The Tower at
+- **Who verifies that a Worker answers the Task types it declares under TASK-31.** The Tower at
   registration, the owner at claim time, or nobody. Open in [undecided](../docs/undecided.md).
 - Whether a Task may carry a deadline of its own.
 - **Whether a consumer can say it is working on something, without a lease.** An advisory note on
@@ -223,6 +245,29 @@ anybody did about it.
   it. Open in [undecided](../docs/undecided.md).
 
 ## Withdrawn
+
+- **TASK-2** — required the same declaration with a *closed list* of Actions that may answer the
+  type. Replaced by **TASK-32**, which names one Action and puts a Task's several endings inside its
+  input as a discriminated union. An entry carrying a list satisfied TASK-2 and does not satisfy
+  TASK-32, so the verdict moves and the id did not survive.
+
+  The list was the natural first shape and it broke on the first question anybody asked of it. Once
+  an answerer could declare what it produces (TASK-31), the question became *which of the N Actions
+  does that fit* — and there was nowhere to answer it: the answerer cannot name the owner's Actions,
+  and this protocol keeps no registry of Task types to fix outcome names in. Every option for
+  declaring the mapping was a copy of something that could drift. One Action dissolves it: the
+  endings are variants of one schema, the discriminator is the owner's own word for each, and
+  covering some of them is a subtype of covering all — which is a fact about schemas, not a rule.
+
+- **TASK-30** — required the same map, each entry able to declare the payload it requires. Replaced
+  by **TASK-31**, which lets an entry also declare what it produces in answer. A Descriptor that
+  declared `produces` was refused under TASK-30 and is accepted under TASK-31, so the verdict moves
+  and the id did not survive.
+
+  It declared one half of an exchange that has two. Knowing that a Worker can read a Task says
+  nothing about whether it can produce the answer the owner's Action takes — a Worker that knows
+  where a vehicle is may have no way to know whether it is reachable — and the question a Tower is
+  asked at enrollment is whether the pairing works, not whether half of it does.
 
 - **TASK-29** — required the same declaration, at the same place, as a list of Task type names.
   Replaced by **TASK-30**, which makes it a map keyed by Task type. A Descriptor carrying an array

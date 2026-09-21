@@ -7,16 +7,12 @@
       "type": "object",
       "properties": {},
       "additionalProperties": {},
-      "description": "TASK-2. The JSON Schema of this Task type's payload. The Worker's own — this protocol has no data model — and what a consumer renders or validates against."
+      "description": "TASK-32. The JSON Schema of this Task type's payload. The Worker's own — this protocol has no data model — and what a consumer renders or validates against."
     },
     "answeredBy": {
-      "minItems": 1,
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "description": "TASK-2. The closed list of Actions that may answer a Task of this type, by the names the Worker's own `actions` entry holds them under. A closed list and not an instruction: the owner names what would answer, never who."
+      "type": "string",
+      "minLength": 1,
+      "description": "TASK-32. The one Action of this Worker's own that answers a Task of this type, by the name its `actions` entry holds it under. One and not a list: where a Task can end several ways, the endings are variants of that Action's input, told apart by a discriminator. A name and not an instruction: the owner says what would answer, never who."
     }
   },
   "required": [
@@ -25,5 +21,5 @@
   ],
   "additionalProperties": false,
   "title": "Task type declaration",
-  "description": "TASK-2. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched by a party that did not mint it."
+  "description": "TASK-32. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched by a party that did not mint it."
 }

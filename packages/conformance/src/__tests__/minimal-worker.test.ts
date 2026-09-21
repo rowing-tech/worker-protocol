@@ -30,7 +30,12 @@ import { type Report, verify } from "../index.ts";
  * what its operators have to say.
  */
 const ARRANGEMENT = {
-  safeAction: { name: "record-check", input: { vehicle: "ABC-123", reachable: true } },
+  // One Action answers the Task, and its input is a union of the ways it can end (TASK-32): the
+  // arrangement picks the `found` ending, which is what a safe performance looks like here.
+  safeAction: {
+    name: "answer-check",
+    input: { outcome: "found", vehicle: "ABC-123", reachable: true },
+  },
 };
 
 describe("the minimal worker", () => {
@@ -89,9 +94,9 @@ describe("the minimal worker", () => {
     // What a Worker would otherwise implement: the page envelope, the cursor, the ordering that
     // makes paging terminate, the filter that must be refused rather than ignored.
     // `examples/minimal-worker` declares `raises`, `current()` and a Skill, and nothing else.
-    // TASK-30 is the Skill, read off the Descriptor ROOT rather than the entry — so a Worker that
+    // TASK-31 is the Skill, read off the Descriptor ROOT rather than the entry — so a Worker that
     // only ever answered Tasks would pass it while declaring no `tasks` Capability at all.
-    for (const id of ["TASK-27", "TASK-2", "TASK-4", "TASK-5", "TASK-8", "TASK-28", "TASK-30"]) {
+    for (const id of ["TASK-27", "TASK-32", "TASK-4", "TASK-5", "TASK-8", "TASK-28", "TASK-31"]) {
       expect(verdict(id), id).toBe("passes");
     }
 

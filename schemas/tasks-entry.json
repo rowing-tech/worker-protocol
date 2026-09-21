@@ -23,7 +23,7 @@
       "additionalProperties": {
         "$ref": "task-type-declaration.json"
       },
-      "description": "TASK-2. Every Task type this Worker raises. A Worker that raises none declares an empty map rather than omitting it, so that every reader parses one shape."
+      "description": "TASK-32. Every Task type this Worker raises. A Worker that raises none declares an empty map rather than omitting it, so that every reader parses one shape."
     }
   },
   "required": [
@@ -33,5 +33,5 @@
   ],
   "additionalProperties": {},
   "title": "Tasks capability entry",
-  "description": "TASK-27. The shared Capability entry with the reading address required, and the Task types this Worker raises. What it ANSWERS is TASK-30's `skills`, on the Descriptor root."
+  "description": "TASK-27. The shared Capability entry with the reading address required, and the Task types this Worker raises. What it ANSWERS is TASK-31's `skills`, on the Descriptor root."
 }

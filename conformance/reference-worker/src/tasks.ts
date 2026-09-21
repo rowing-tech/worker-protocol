@@ -19,19 +19,19 @@ export const PRICE_A_QUOTE = `${NAMESPACE}.price-a-quote`;
 export const RAISES: TaskTypes = {
   [VERIFY_VEHICLE]: {
     payload: z.strictObject({ vehicle: z.string().min(1) }),
-    // TASK-2: the closed list is a list of the OWNER's own Actions, by the names its `actions`
+    // TASK-32: the closed list is a list of the OWNER's own Actions, by the names its `actions`
     // entry holds them under. A name that entry does not hold is a Descriptor disagreeing with
     // itself, which is the fault DESC-18 describes one level up.
-    answeredBy: ["record-verification"],
+    answeredBy: "record-verification",
   },
   [PRICE_A_QUOTE]: {
     payload: z.strictObject({ amount: z.number() }),
-    answeredBy: ["price-quote"],
+    answeredBy: "price-quote",
   },
 };
 
 /**
- * TASK-30: the Task types this Worker answers, each with the payload it needs to receive.
+ * TASK-31: the Task types this Worker answers, each with the payload it needs to receive.
  *
  * It answers the type it also raises, which `examples/minimal-worker` deliberately does not — a
  * Worker that needs somebody to go and look at a vehicle cannot be that somebody, and the template
@@ -40,7 +40,11 @@ export const RAISES: TaskTypes = {
  * sides, and one arranged Worker standing on both is one server to start instead of two.
  */
 export const SKILLS: Record<string, SkillDeclaration> = {
-  [VERIFY_VEHICLE]: { payload: z.strictObject({ vehicle: z.string().min(1) }) },
+  [VERIFY_VEHICLE]: {
+    payload: z.strictObject({ vehicle: z.string().min(1) }),
+    // What `record-verification` takes, which is what lets this Worker answer its own Task type.
+    produces: z.strictObject({ vehicle: z.string().min(1), verified: z.boolean() }),
+  },
 };
 
 const HOUR = 3_600_000;

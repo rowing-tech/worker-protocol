@@ -82,7 +82,7 @@ describe("mount(), with the Worker answered per request", () => {
     health: () => ({ status: "healthy", checks: {} }),
     tasks: {
       raises: {
-        "tech.rowing.test.a-thing": { payload: z.object({}), answeredBy: ["count"] },
+        "tech.rowing.test.a-thing": { payload: z.object({}), answeredBy: "count" },
       },
       current: () => [
         { id: "t-1", type: "tech.rowing.test.a-thing", payload: {}, since: new Date(0) },

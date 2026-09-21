@@ -254,7 +254,7 @@ export const healthEntry = capabilityEntry.extend({ address }).meta({
  * consumer and a Python one would otherwise reach opposite verdicts on one Descriptor.
  */
 /**
- * TASK-30 — what a Worker declares about one Skill, which today is nothing.
+ * TASK-31 — what a Worker declares about one Skill, which today is nothing.
  *
  * Empty and strict on purpose. A Skill carries no declaration yet, and the shape for *nothing yet*
  * is the one an optional member can join without invalidating a document already written — which
@@ -268,7 +268,7 @@ export const skillDeclaration = z
       .optional()
       .meta({
         description:
-          "TASK-30. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task " +
+          "TASK-31. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task " +
           "of this type — its own requirement, and not a copy of what any owner sends. NAME-6 " +
           "judges the two in the direction the document travels: a Tower validates the Tasks an " +
           "owner actually raises against this, and knows before any work is handed over whether " +
@@ -277,13 +277,26 @@ export const skillDeclaration = z
           "the capability and nothing about what it needs, which is conformant and is where this " +
           "protocol stood before the field existed. What it costs is the check.",
       }),
+    produces: z
+      .looseObject({})
+      .optional()
+      .meta({
+        description:
+          "TASK-31. The JSON Schema of what this Worker PRODUCES in answer to a Task of this type " +
+          "— its own capability, and not a copy of any owner's Action. NAME-6 judges it against " +
+          "the input of the Action that answers the type at each owner: a Tower knows before any " +
+          "work is handed over whether this Worker can produce what that owner takes, and two " +
+          "owners asking for the same fact under different names are, correctly, two different " +
+          "answers. OPTIONAL, on the same terms as `payload`.",
+      }),
   })
   .meta({
     title: "Skill declaration",
     description:
-      "TASK-30. What this Worker declares about one Task type it answers. The owner's `raises` " +
-      "says what is sent; this says what the answerer requires, where it says anything at all, " +
-      "and the two are what a Tower compares.",
+      "TASK-31. What this Worker declares about one Task type it answers. The owner's `raises` " +
+      "says what is sent and its `actions` what is taken back; this says what the answerer " +
+      "requires and what it produces, where it says anything at all, and each pair is what a " +
+      "Tower compares.",
   });
 
 export const descriptor = z
@@ -318,7 +331,7 @@ export const descriptor = z
       .optional()
       .meta({
         description:
-          "TASK-30. The Task types this Worker answers, which IS its Skill — the unit of " +
+          "TASK-31. The Task types this Worker answers, which IS its Skill — the unit of " +
           "discovery the Tower catalogs by. It is at the root rather than in the `tasks` entry " +
           "because a Skill is served at no address and answered by no surface: it is what a " +
           "Worker IS, like its id, and a Capability is what a Worker SERVES. Omitted by a Worker " +
@@ -795,7 +808,7 @@ export const actionsEntry = capabilityEntry
   });
 
 /**
- * TASK-2 — one Task type a Worker raises.
+ * TASK-32 — one Task type a Worker raises.
  *
  * The Actions named here are the OWNER's own, declared in its `actions` entry: a Response is an
  * Action posted into the owner, so the closed list is a list of names that entry holds.
@@ -804,34 +817,36 @@ export const taskTypeDeclaration = z
   .strictObject({
     payload: z.looseObject({}).meta({
       description:
-        "TASK-2. The JSON Schema of this Task type's payload. The Worker's own — this protocol " +
+        "TASK-32. The JSON Schema of this Task type's payload. The Worker's own — this protocol " +
         "has no data model — and what a consumer renders or validates against.",
     }),
     answeredBy: z
-      .array(z.string().min(1))
+      .string()
       .min(1)
       .meta({
         description:
-          "TASK-2. The closed list of Actions that may answer a Task of this type, by the names " +
-          "the Worker's own `actions` entry holds them under. A closed list and not an " +
-          "instruction: the owner names what would answer, never who.",
+          "TASK-32. The one Action of this Worker's own that answers a Task of this type, by the " +
+          "name its `actions` entry holds it under. One and not a list: where a Task can end " +
+          "several ways, the endings are variants of that Action's input, told apart by a " +
+          "discriminator. A name and not an instruction: the owner says what would answer, never " +
+          "who.",
       }),
   })
   .meta({
     title: "Task type declaration",
     description:
-      "TASK-2. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched " +
+      "TASK-32. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched " +
       "by a party that did not mint it.",
   });
 
 /**
- * TASK-27, TASK-2 — the `tasks` Capability entry.
+ * TASK-27, TASK-32 — the `tasks` Capability entry.
  *
  * One address, and a read. The entry carried a second one a claim was posted to until the Claim
  * lifecycle was withdrawn; `spec/tasks.md` holds the argument, and the short of it is that a lease
  * over a unit of work is orchestration, which this specification names a non-goal.
  *
- * It carried a third thing until TASK-30 moved it: what the Worker ANSWERS, which is served at no
+ * It carried a third thing until TASK-31 moved it: what the Worker ANSWERS, which is served at no
  * address and is now `skills` on the Descriptor's root. What is left here is what the declared
  * address actually answers instances of.
  */
@@ -840,7 +855,7 @@ export const tasksEntry = capabilityEntry
     address,
     raises: z.record(qualifiedName, taskTypeDeclaration).meta({
       description:
-        "TASK-2. Every Task type this Worker raises. A Worker that raises none declares an empty " +
+        "TASK-32. Every Task type this Worker raises. A Worker that raises none declares an empty " +
         "map rather than omitting it, so that every reader parses one shape.",
     }),
   })
@@ -848,7 +863,7 @@ export const tasksEntry = capabilityEntry
     title: "Tasks capability entry",
     description:
       "TASK-27. The shared Capability entry with the reading address required, and the Task " +
-      "types this Worker raises. What it ANSWERS is TASK-30's `skills`, on the Descriptor root.",
+      "types this Worker raises. What it ANSWERS is TASK-31's `skills`, on the Descriptor root.",
   });
 
 /**

@@ -38,13 +38,18 @@ export type OpenTask = {
 };
 
 /**
- * TASK-2. What a Worker declares about one Task type it raises.
+ * TASK-32. What a Worker declares about one Task type it raises.
  *
  * `payload` is a Zod object and not a JSON Schema written by hand, for the reason ACT-2's input is
  * one: the Descriptor carries the JSON Schema a console renders a form from, `mount()` generates it
  * from this, and there is one declaration rather than two that can drift.
  */
-export type TaskTypes = Record<string, { payload: z.ZodType; answeredBy: string[] }>;
+/**
+ * TASK-32. What a Worker declares about one Task type it raises: what it sends, and the ONE Action
+ * of its own that answers it. A Task with several endings has them as variants of that Action's
+ * input — `z.discriminatedUnion` — and an answerer that produces one variant is answering a subtype.
+ */
+export type TaskTypes = Record<string, { payload: z.ZodType; answeredBy: string }>;
 
 /** What a Worker author implements for `tasks`, beside the declaration itself. */
 export type TaskFacts = {

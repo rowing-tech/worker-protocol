@@ -17,7 +17,7 @@ every poller in order to reach one operator. Fold Alerts into health and a Worke
 misreport its own state or never mention the thing a person has three days to fix.
 
 Against [tasks](tasks.md): a Task is delegation, and an Alert delegates nothing. A Task requires a
-Skill and is discovered by it — TASK-30 makes the Task types a Worker answers the unit a Tower
+Skill and is discovered by it — TASK-31 makes the Task types a Worker answers the unit a Tower
 catalogs by — and an Alert has no Skill, because its audience is whoever operates this Worker and
 that is a relationship of enrollment rather than of Contract. TASK-6 follows from the same place: a
 Task is shown only to the consumer whose Contract covers it, where ALRT-6 answers the same Alerts
@@ -64,7 +64,7 @@ honest spelling. Here there is no such gap: the only decision an operator takes 
 whether to look now or look later, and a third value would be a place for a Worker to hedge rather
 than a state it needed to express. A protocol that offers a middle value gets middle values.
 
-ALRT-7 is TASK-2's agreement in the other Capability, and it is checked the same way: an Alert that
+ALRT-7 is TASK-32's agreement in the other Capability, and it is checked the same way: an Alert that
 offered an Action its own `actions` entry does not accept would be a Descriptor disagreeing with
 itself, which is DESC-18 one level down. It carries names and not schemas because the schema is
 already in the `actions` entry, and a second copy is a second thing to keep in step.
