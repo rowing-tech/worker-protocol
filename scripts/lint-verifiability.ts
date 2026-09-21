@@ -53,6 +53,9 @@ const specFiles = (await readdir(SPEC))
   .sort();
 const ruleFile = new Map<string, string>();
 
+/** Ids this edition has issued and taken back. `lint-spec.ts` owns the list; this counts it. */
+let retired = 0;
+
 for (const file of specFiles) {
   const prefix = prefixOf.get(file);
   if (!prefix) continue; // lint-spec.ts owns this finding
@@ -64,6 +67,8 @@ for (const file of specFiles) {
   )) {
     ruleFile.set(`${prefix}-${m[1]}`, file);
   }
+  const withdrawn = cut === -1 ? "" : text.slice(cut);
+  retired += [...withdrawn.matchAll(new RegExp(`^- \\*\\*${prefix}-\\d+\\*\\*`, "gm"))].length;
 }
 
 /**
@@ -177,25 +182,48 @@ const P = counted.get("P") ?? 0;
 const N = counted.get("N") ?? 0;
 const all = classified.size;
 
-/** `\d+` in the pattern is where the count goes; every other character matches literally. */
-const claims: [file: string, pattern: string, expected: number][] = [
-  ["README.md", "What stands behind that: \\d+ rules", all],
-  ["README.md", "every one of the \\d+ a tool can observe", W],
-  ["README.md", "The remaining \\d+ are reported rather than passed", P + N],
-  ["README.md", "passed, and the two kinds are not the same: \\d+ bind a", P],
-  ["README.md", "whoever they oblige, and \\d+ have no witness", N],
-  ["conformance/README.md", "over a specification of \\d+ rules", all],
-  ["conformance/README.md", "Today that would be \\d+ of them", W + H],
-  ["conformance/verifiability.md", "^\\d+ rules across eleven files", all],
-  ["conformance/verifiability.md", "What no tool reaches is \\d+ rules", P + N],
+/** A count as the prose spells it, for the sentences that write the word rather than the digit. */
+const ONES = `zero one two three four five six seven eight nine ten eleven twelve thirteen
+  fourteen fifteen sixteen seventeen eighteen nineteen`.split(/\s+/);
+const TENS = "twenty thirty forty fifty sixty seventy eighty ninety".split(" ");
+const spell = (n: number): string => {
+  if (n < 20) return ONES[n] ?? `${n}`;
+  if (n >= 100) return `${n}`;
+  const tens = TENS[Math.floor(n / 10) - 2] ?? `${n}`;
+  return n % 10 === 0 ? tens : `${tens}-${ONES[n % 10]}`;
+};
+
+const files = spell(sections.length);
+
+/** The sentence's one capture group is the count it claims; `expected` is what it should read. */
+const claims: [file: string, pattern: string, expected: string][] = [
+  ["README.md", "What stands behind that: (\\d+) rules", `${all}`],
+  ["README.md", "every one of the (\\d+) a tool can observe", `${W}`],
+  ["README.md", "Another (\\d+) need a", `${H}`],
+  ["README.md", "The remaining (\\d+) are reported rather than passed", `${P + N}`],
+  ["README.md", "passed, and the two kinds are not the same: (\\d+) bind a", `${P}`],
+  ["README.md", "whoever they oblige, and (\\d+) have no witness", `${N}`],
+  ["README.md", "this edition has issued, (\\d+) are withdrawn", `${retired}`],
+  ["conformance/README.md", "over a specification of (\\d+) rules", `${all}`],
+  ["conformance/README.md", "Today that would be (\\d+) of them", `${W + H}`],
+  ["conformance/README.md", "thirteen of the ([\\w-]+) rules the register marks", spell(H)],
+  ["conformance/README.md", "verdict for the ([\\w-]+) rules that bind somebody", spell(P)],
+  ["conformance/verifiability.md", "^(\\d+) rules across", `${all}`],
+  ["conformance/verifiability.md", "rules across (\\w+) files", files],
+  ["conformance/verifiability.md", "Every rule in the (\\w+) `draft` files", files],
+  ["conformance/verifiability.md", "What no tool reaches is (\\d+) rules", `${P + N}`],
+  ["conformance/verifiability.md", "There are (\\d+) that bind", `${P}`],
+  ["conformance/verifiability.md", "The other (\\d+) have the Worker", `${N}`],
+  ["spec/README.md", "specification is (\\w+) files rather than six", files],
+  ["spec/README.md", "the register counts ([\\w-]+), which is a larger", spell(N)],
 ];
 
 for (const [file, pattern, expected] of claims) {
   const text = await readFile(join(ROOT, file), "utf8");
-  const found = text.match(new RegExp(pattern.replace("\\d+", "(\\d+)"), "m"));
+  const found = text.match(new RegExp(pattern, "m"));
   if (!found) {
     report(file, "-", "prose-count", `no sentence matching \`${pattern}\``);
-  } else if (Number(found[1]) !== expected) {
+  } else if (found[1] !== expected) {
     report(file, "-", "prose-count", `\`${found[0]}\` should say ${expected}`);
   }
 }

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nudge.json",
+  "type": "object",
+  "properties": {
+    "type": {
+      "description": "NDG-2. The Task type there is work of. Not the Task: TASK-15 makes the owner authoritative over whether the condition still holds, so a Task in flight is a claim that may be false by the time it lands. The receiver reads, and what it reads is true when it reads it.",
+      "$ref": "qualified-name.json"
+    }
+  },
+  "required": [
+    "type"
+  ],
+  "additionalProperties": false,
+  "title": "Nudge",
+  "description": "NDG-2. What a POST to the `nudges` address carries. Fixed here and not by the Worker, which is why this is an address of its own rather than an Action: ACT-2 has an Action's input be the Worker's own shape, and this one never was."
+}

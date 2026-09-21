@@ -1,0 +1,10 @@
+{
+  "schema": "nudges-entry",
+  "valid": true,
+  "rule": "NDG-1",
+  "why": "One address and nothing else. Which Task types this Worker will take a nudge for is already its `skills` (NDG-3), and what arrives is fixed by `nudge.json` rather than declared — so there is nothing here for a Worker to write and nothing for two documents to disagree about.",
+  "document": {
+    "version": 1,
+    "address": "../nudges"
+  }
+}

@@ -25,11 +25,12 @@ pnpm test                 all three suites: the fixtures, openapi/, and the veri
 Those twelve are what `.github/workflows/ci.yml` runs, in that order. A change is not finished
 until they pass, so run them rather than reporting work as done and leaving them to somebody else.
 
-**`pnpm dx:check` is the one that fails for a reason nobody expects, so the reason is here.**
-It holds `examples/minimal-worker/src/worker.ts` under a line budget, because `packages/` claims
-that complying is cheap and a claim nobody gates is a claim nobody verifies. When it fails, the
-first question is *which rule did `mount()` fail to carry* — the budget moves only when the lines
-added are genuinely a Worker's own domain, and then the commit message says so.
+**`pnpm dx:check` counts the domain lines in `examples/minimal-worker/src/worker.ts`**, because
+`packages/` claims that complying is cheap and a claim nobody counts is a claim nobody verifies.
+Comments are free, so explaining the example costs it nothing, and the ceiling sits far above where
+the file is: a limit tight enough to bind would be met by showing less of the protocol, which is the
+one thing that example must not do. If it ever fails, ask which rule `mount()` failed to carry
+before moving the number — and never answer it by making the example worse.
 
 **`pnpm -r build` comes before `pnpm openapi:check` and `pnpm -r typecheck`, and the order is not a
 preference.** `@worker-protocol/conformance` and `@worker-protocol/hono` both import

@@ -70,6 +70,19 @@ export type Consumed = {
   alerts?: () => Promise<Alert[]>;
   /** ACTV-2. What the Worker is doing and has undertaken to do. Read, never written. */
   activity?: () => Promise<Activity[]>;
+  /**
+   * NDG-2. Tell this Worker there is work of a Task type it answers.
+   *
+   * The one write in this package that is not an Action, and the one whose body this protocol
+   * fixes rather than the Worker: a type, and nothing else. It buys latency and nothing else —
+   * TASK-19 recommends it and binds nobody, because a consumer reading on its own schedule is
+   * slower and never wrong, while one that reads only when told is a single dropped request away
+   * from stalling silently. So this answers nothing and is safe to lose.
+   *
+   * NDG-3: a type this Worker declares no Skill for is refused, and `Refused` carries the code.
+   * `skills.canAnswer` in this package is how a caller knows before sending one.
+   */
+  nudges?: (type: string) => Promise<void>;
   tasks?: {
     /**
      * TASK-5. Every Task whose condition holds that this credential covers.
@@ -209,6 +222,16 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
   const activityAddress = addressOf("activity");
   if (activityAddress !== undefined) {
     consumed.activity = () => collect<Activity>(call, activityAddress, activityPage, "ACTV-2");
+  }
+
+  const nudgesAddress = addressOf("nudges");
+  if (nudgesAddress !== undefined) {
+    // NDG-2: a POST carrying the type and nothing else, answered `204`. Nothing comes back, so
+    // nothing is parsed — a body here would be the receiver holding state about work it has not
+    // looked at, which is the lease `spec/tasks.md` withdrew arriving through another door.
+    consumed.nudges = async (type) => {
+      await call.call({ url: nudgesAddress, method: "POST", body: JSON.stringify({ type }) });
+    };
   }
 
   const tasksAddress = addressOf("tasks");

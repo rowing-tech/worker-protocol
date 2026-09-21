@@ -27,9 +27,9 @@ export type Surface = { capability: string; url: string };
  * behind a POST, so the Actions address answers `404` to a GET while serving perfectly well, and a
  * check that read that as an undeclared surface would fail a conformant Worker on the one
  * Capability that does anything. `checks/actions.ts` judges that address instead, with the POST it
- * had to ask permission for.
+ * had to ask permission for, and `checks/nudges.ts` does the same for the other one.
  */
-const WRITTEN = new Set(["actions"]);
+const WRITTEN = new Set(["actions", "nudges"]);
 
 export async function callSurfaces(
   surfaces: Surface[],

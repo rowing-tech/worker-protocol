@@ -72,7 +72,7 @@ packages/
   client/        consume(): read a Worker and take work from it — the consumer half
   conformance/   the verifier: point it at a worker, get a report of what it complies with
 examples/          two Workers, and both are templates
-  minimal-worker/    all seven Capabilities in under 150 lines of domain. Copy this one
+  minimal-worker/    all eight Capabilities, written out and explained line by line. Copy this one
   fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, tested on workerd
 docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```
@@ -90,10 +90,12 @@ nothing the specification leaves to a Worker. Its standing is the verifier's: it
 from the surface declaration beside it, and `@worker-protocol/conformance` running against a Worker
 built on it is what vouches for it.
 
-**How much a Worker author writes is a number this repository gates**, because it is the one that
-decides whether any of the rest gets used. `examples/minimal-worker` is a conformant Worker in
-under 150 lines, `pnpm dx:check` fails when it grows, and everything above that line is a rule
-`mount()` should have carried.
+**How much a Worker author writes is a number this repository measures**, because it is the one
+that decides whether any of the rest gets used. `examples/minimal-worker` declares every Capability
+this protocol defines in a little over a hundred lines of domain, and `pnpm dx:check` counts them.
+The ceiling it enforces sits far above that on purpose: a count tight enough to bind would be
+satisfied by declaring one Capability less, and the example is worth more than the number. What
+grows the file is a rule `mount()` should have carried, and that is the question a rise asks.
 
 **`examples/fleet-worker` is the same Worker with its `Map`s taken away.** Every piece of state a
 rule here needs to outlive a request — the Tasks whose conditions hold, the counters a metric is
@@ -115,22 +117,22 @@ about trust. Each still carries a `Still open here` section, which is what `stab
 be empty of. What `draft` means here is what the table above says: shaped and implementable, still
 moving — and moving now costs a withdrawal rather than a silent edit.
 
-What stands behind that: 151 rules, every one classified in
+What stands behind that: 153 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
-is broken, and every one of the 86 a tool can observe against an ordinary Worker checked by
-[`@worker-protocol/conformance`](packages/conformance) over a real socket. Seventeen more need a
+is broken, and every one of the 88 a tool can observe against an ordinary Worker checked by
+[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 18 need a
 Worker *arranged* to be observed — a second credential, a boot window, an Action safe to perform —
 and pass when that arrangement is handed to the verifier out of band, as the base URL and the
 credential already are.
 
-The remaining 48 are reported rather than passed, and the two kinds are not the same: 25 bind a
-party who is not a Worker, so this tool never contacted whoever they oblige, and 23 have no witness
+The remaining 47 are reported rather than passed, and the two kinds are not the same: 25 bind a
+party who is not a Worker, so this tool never contacted whoever they oblige, and 22 have no witness
 anywhere.
 
-**Fifty rules are withdrawn, and sixteen of them went at once.** A Claim was an exclusive lease
-a consumer took on a Task, and [spec/tasks.md](spec/tasks.md) says why it is gone: a lease over a
-unit of work is the primitive of a work queue, orchestration is a declared non-goal, and the cost
-fell on the owner while the consumer's half of it was optional all along.
+**Of the ids this edition has issued, 53 are withdrawn, and sixteen of them went at once.** A Claim
+was an exclusive lease a consumer took on a Task, and [spec/tasks.md](spec/tasks.md) says why it is
+gone: a lease over a unit of work is the primitive of a work queue, orchestration is a declared
+non-goal, and the cost fell on the owner while the consumer's half of it was optional all along.
 
 A report that counted `other subject` or `unverified` as compliance would be vouching for something
 nobody checked, which is why neither is a pass.

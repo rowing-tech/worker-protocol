@@ -11,6 +11,7 @@ import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkEvents } from "./checks/events.ts";
 import { checkHealth } from "./checks/health.ts";
 import { checkMetrics } from "./checks/metrics.ts";
+import { checkNudges } from "./checks/nudges.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
 import { checkTasks } from "./checks/tasks.ts";
 import { type Report, type Result, type Rule, unclaimed } from "./report.ts";
@@ -144,9 +145,10 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       ...(await callSurfaces(
         descriptor.surfaces,
         descriptor.url,
-        // ENDP-6 is probed on the write this protocol has, which is the Actions address. It was
-        // two until the claim address went with the lease.
-        [surface("actions")].filter((url): url is string => url !== null),
+        // ENDP-6 is probed on every write this protocol has, and being wrong on a write is what
+        // the rule is for: a Worker that refuses an unanswerable version on a read and performs
+        // one here has done the thing it exists to prevent.
+        [surface("actions"), surface("nudges")].filter((url): url is string => url !== null),
         byId,
         tape,
         options.credential,
@@ -226,6 +228,19 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         byId,
         attribution,
         tape,
+      )),
+    );
+    // Last of the Capability checks, because it is the only one that sends the Worker somewhere: a
+    // nudge it accepts has it read a Task list. Everything above it is a read.
+    results.push(
+      ...(await checkNudges(
+        descriptor.document.capabilities.nudges,
+        surface("nudges"),
+        Object.keys(descriptor.document.skills ?? {}),
+        byId,
+        attribution,
+        tape,
+        options.mayPerform === true,
       )),
     );
   }

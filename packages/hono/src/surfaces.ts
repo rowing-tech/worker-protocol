@@ -373,6 +373,42 @@ export const readTasks = createRoute({
   },
 });
 
+export const takeNudge = createRoute({
+  method: "post",
+  path: "/",
+  summary: "Tell the Worker there is work of a Task type",
+  description: cite(
+    "NDG-2",
+    "A nudge carries a Task type and nothing else, and buys latency and nothing else: the receiver has not accepted the work and has not looked yet, and reads the Tasks at the address that raised them exactly as it would have on its next schedule. TASK-15 is why the Task itself does not travel — the owner is authoritative over whether the condition still holds, so a Task in flight is a claim that may already be false.",
+  ),
+  request: {
+    headers: versionHeader,
+    // The one body in this protocol whose shape is NOT the Worker's, which is the whole reason
+    // `nudges` is an address rather than an Action: ACT-2 has an Action's input be the shape its
+    // declarer chose, and this one is fixed here. Written as a reference rather than a Zod object
+    // because `mount()` validates it itself — every refusal from this address is then one this
+    // repository wrote, in the envelope ENDP-25 fixes.
+    body: {
+      required: true,
+      description: cite("NDG-2", "One Task type, and nothing else."),
+      content: { "application/json": { schema: { $ref: "#/components/schemas/nudge" } as never } },
+    },
+  },
+  responses: {
+    204: answer(
+      "NDG-2",
+      "The Worker was told. No body, because there is nothing to say: it has promised nothing and looked at nothing.",
+      null,
+    ),
+    ...refusals([
+      ["not_found", "NDG-3"],
+      ["schema_mismatch", "NDG-2"],
+      ["malformed_request", "ENDP-4"],
+      ...SHARED,
+    ]),
+  },
+});
+
 export const readAlerts = createRoute({
   method: "get",
   path: "/",
@@ -485,6 +521,15 @@ export const SURFACES: Surface[] = [
     description:
       "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
     route: readTasks,
+  },
+  {
+    document: "nudges",
+    capability: "nudges",
+    server: address("nudges", "NDG-1"),
+    title: "worker-protocol — nudges",
+    description:
+      "Being told there is work of a Task type. Declaring it is optional and what it buys is latency: a consumer that reads on its own schedule is slower and never wrong (TASK-19).",
+    route: takeNudge,
   },
   {
     document: "alerts",

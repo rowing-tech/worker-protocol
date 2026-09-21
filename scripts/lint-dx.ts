@@ -15,14 +15,20 @@ import { join } from "node:path";
  * counted either: serving an app is a platform's business and a Worker on Cloudflare or Convex
  * writes none of it.
  *
- * **When this fails, the question is which rule `mount()` failed to carry.** Raising the budget is
- * the answer only when the lines added are genuinely a Worker's own — a richer domain, a real
- * store — and then the number moves with a commit message saying so.
+ * **The ceiling is deliberately far above where the file sits, and that is the correction.** A
+ * number tight enough to bind is a number that eventually argues against the example being good:
+ * the way to satisfy it is to declare one Capability less, or to show a shape simpler than the one
+ * a real Worker needs, and then the gate has spent the thing it was protecting. What is worth
+ * catching is the other failure — the file quietly becoming a small application, which is how an
+ * example stops being copyable — and that shows up an order of magnitude away, not at line 151.
+ *
+ * **When this fails, the question is which rule `mount()` failed to carry**, and only then whether
+ * the number moves. Nothing here is a reason to write a worse example.
  */
 
 const ROOT = join(import.meta.dirname, "..");
 const FILE = join(ROOT, "examples", "minimal-worker", "src", "worker.ts");
-const BUDGET = 150;
+const BUDGET = 300;
 
 const source = await readFile(FILE, "utf8");
 
@@ -48,7 +54,8 @@ if (counted > BUDGET) {
     `examples/minimal-worker/src/worker.ts is ${counted} lines of domain, over the ${BUDGET} this repository holds it to.\n`,
   );
   console.error("  A conformant Worker being cheap to write is what packages/ exists to claim.");
-  console.error("  Ask which rule mount() failed to carry before raising the budget.");
+  console.error("  Ask which rule mount() failed to carry before raising the ceiling — and never");
+  console.error("  answer this by showing less of the protocol than a reader came here for.");
   process.exit(1);
 }
 

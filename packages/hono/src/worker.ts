@@ -88,6 +88,23 @@ export type Worker = {
    */
   activity?: () => Activity[] | Promise<Activity[]>;
   /**
+   * `nudges`: told that there is work of a Task type this Worker answers (NDG-2).
+   *
+   * Everything about the call is `mount()`'s, and more of it than usual: the body's shape is NDG-2's
+   * rather than this Worker's, a type it declares no Skill for is refused `404` before this is
+   * reached (NDG-3), and the answer is `204` because there is nothing to say. What is left is the
+   * one thing only the Worker knows — that it should go and read that work sooner than its next
+   * sweep would have.
+   *
+   * It is handed the type and nothing else, and TASK-15 is why: the owner is authoritative over
+   * whether the condition still holds, so a Task that travelled here would be a claim that may
+   * already be false. The Worker reads, and what it reads is true when it reads it.
+   *
+   * Declaring it is optional and what it buys is latency. Without it this Worker is told nothing and
+   * works from its own schedule, which is slower and never wrong (TASK-19).
+   */
+  nudges?: (type: string) => void | Promise<void>;
+  /**
    * `events`: the entry and nothing else, because there is no address to serve (EVT-11).
    *
    * Each event type's `data` is a Zod object, as an Action's input and a Task's payload are.

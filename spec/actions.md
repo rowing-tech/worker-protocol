@@ -49,8 +49,8 @@ about.
 
 An Action's name is the Worker's own, and [naming](naming.md) says why NAME-7 does not reach it: a
 consumer learns which Action answers from the Descriptor that declared it, and two Workers both
-declaring `record-verification` are never placed side by side. The exceptions are the two names
-this edition reserves: ACT-13's `configure` and ACT-17's `nudge`.
+declaring `record-verification` are never placed side by side. The one exception is ACT-13's
+reserved name.
 
 ## Performing one
 
@@ -158,39 +158,6 @@ the body, and asking a caller to invent a second one beside it is ceremony that 
 adds a way to get it wrong. Whether such a key is scoped to the caller that presented it or is
 global to the Action is [open](../docs/undecided.md), and it is `endpoints`'s to answer.
 
-## Being told there is work
-
-**ACT-17 (required). `nudge` is an Action name this edition reserves. A Worker that declares it
-means the Action [tasks](tasks.md) defines in TASK-19; a Worker that takes no nudge does not
-declare it.**
-
-This is ACT-13's argument with a different party doing the looking. TASK-19 makes a nudge an
-ordinary Action the consumer declares and the owner performs, which is what spares it a surface, an
-address and a delivery guarantee of its own — but it left the owner with no way to find it. A
-consumer's Descriptor listed `notify`, `poke` and `check-now` alongside its real work, and nothing
-said which of them an owner should post to. The name was therefore arranged between two parties by
-some route this protocol does not define, which is the one thing a Descriptor exists to remove.
-
-**It reserves the name and requires nothing.** A consumer that wants to be told declares `nudge`
-and an owner that holds a Contract covering it may post; a consumer that does not is read on its
-own schedule and is never wrong, which is TASK-19's own position and is why that rule recommends
-rather than binds. What is fixed here is only that the two spellings cannot disagree.
-
-**The alternative was a pointer, and it is the one this protocol uses everywhere else.** TASK-32's
-`answeredBy` does not reserve Action names — it names them, from the entry that needs them — and a
-consumer could have declared which of its own Actions is the nudge the same way, keeping the word.
-It is rejected on what it costs the reader: a pointer is a third agreement between two entries, it
-can name an Action the Worker does not accept, and a verifier then has to check it exactly as it
-already checks TASK-32's list and ALRT-7's. A reserved name has nothing to keep in step and nothing
-to dangle. Two words is what this edition spends in total, and a Worker that wanted either for
-something else has two words to avoid.
-
-Its input is the Worker's own, as every Action's is, and TASK-19 says what it carries: a Task type
-and nothing else. The owner does not send the Task, because the owner is authoritative over whether
-the condition still holds (TASK-15) and a payload in flight is a claim that may already be false by
-the time it lands. What the consumer does with the name is read, which is what it would have done
-anyway.
-
 ## Settings, and the form a console renders
 
 **ACT-13 (required). `configure` is an Action name this edition reserves. A Worker that declares it
@@ -202,8 +169,8 @@ performance replaces what the Worker holds. This edition defines no partial upda
 **ACT-15 (required). A Worker that declares `configure` declares a reading address for it, and a
 GET of that address answers a document its own `configure` would accept.**
 
-Every other Action name is the Worker's own; this one and ACT-17's are reserved for the same reason
-the undotted Capability names of DESC-14 are. A console that can show *this Worker's settings* for a
+Every other Action name is the Worker's own; this one is reserved for the same reason the undotted
+Capability names of DESC-14 are. A console that can show *this Worker's settings* for a
 Worker nobody told it about needs one name to look for, and a name a console matches against a name
 that came from elsewhere is exactly what a reserved word is for. Unlike DESC-14 there is no syntax
 to draw the line with, because Action names are never compared between Workers and need none: the

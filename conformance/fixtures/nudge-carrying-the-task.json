@@ -1,0 +1,15 @@
+{
+  "schema": "nudge",
+  "valid": false,
+  "rule": "NDG-2",
+  "why": "A nudge carrying the Task it is about. Refused, and TASK-15 is the reason: the owner is authoritative over whether the condition still holds, so a Task that travelled here would be a claim that may be false by the time it lands. The receiver reads at the address that raised it, and what it reads is true when it reads it.",
+  "document": {
+    "type": "tech.rowing.dispatch.locate-vehicle",
+    "task": {
+      "id": "task-1",
+      "type": "tech.rowing.dispatch.locate-vehicle",
+      "payload": { "vehicle": "ABC-123" },
+      "since": "2026-09-21T09:00:00Z"
+    }
+  }
+}

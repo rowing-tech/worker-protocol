@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the eleven `draft` files — all of them — classified by what a check would observe.
+Every rule in the twelve `draft` files — all of them — classified by what a check would observe.
 This is the audit [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place
 only if you can name what a conformance check would observe when it is broken* — run for the first
 time, and it is also the specification of what `packages/conformance` implements.
@@ -17,10 +17,10 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 86 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 17 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 88 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 18 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 25 |
-| **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 23 |
+| **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
 ## Where a `P` rule has a witness anyway
@@ -128,12 +128,11 @@ that the role is implementable and vouches for no product.
 | REG-32 | H | Recommended. A credential must exist that authenticates and lacks a right, so two refusals can be compared |
 | REG-33 | N | Who issued a credential is not in the credential |
 
-## actions.md — 16
+## actions.md — 15
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
 | ACT-16 | W | The `actions` entry carries an address and an `accepts` map of Actions |
-| ACT-17 | N | A Worker that declares `nudge` meaning something else is indistinguishable from one that means this, exactly as ACT-13's reservation is. What a name is reserved FOR has no witness |
 | ACT-2 | W | Each Action carries the schema of its input |
 | ACT-3 | W | Each Action says what it answers on success |
 | ACT-4 | W | Each Action says whether it completes within the call |
@@ -190,6 +189,14 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | ACTV-4 | W | Every state is one of the three |
 | ACTV-5 | N | An activity that disappears may have finished, failed or been dropped. Nothing outside can tell — the same shape as ALRT-5 and TASK-15, and the same reason it matters |
 | ACTV-6 | H | Two credentials must exist before two lists can be compared |
+
+## nudges.md — 3
+
+| Rule | Class | What a check observes, or why nothing does |
+|---|---|---|
+| NDG-1 | W | The `nudges` entry carries an address |
+| NDG-2 | H | A nudge that is accepted sends the Worker to read somebody's Tasks, so it needs a Worker arranged to be told — the same position ACT-5 is in, and the same permission |
+| NDG-3 | W | A nudge for a type the Worker declares no Skill for is `404` + `not_found`, and nothing happened. The same shape as ACT-6, and W for the same reason: the witness is a refusal |
 
 ## events.md — 9
 
@@ -264,15 +271,15 @@ a weaker class.
 
 ## Where this stands
 
-151 rules across eleven files, none of them `open`, under edition 0.1. Every rule the register marks
+153 rules across twelve files, none of them `open`, under edition 0.1. Every rule the register marks
 `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over a
 real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.
 
-What no tool reaches is 48 rules, and the two kinds are not the same thing. Twenty-five bind a
-party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
+What no tool reaches is 47 rules, and the two kinds are not the same thing. There are 25 that bind
+a party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
 specification — and a report calls those *another subject's* because it never contacted whoever
-they oblige. Twenty-three have the Worker as their subject and no witness anywhere, and a report
+they oblige. The other 22 have the Worker as their subject and no witness anywhere, and a report
 calls those *unverified*. Counting either as compliance would be vouching for something nobody
 checked, which is the whole reason this file exists.
 

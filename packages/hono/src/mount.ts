@@ -1,5 +1,5 @@
 import { OpenAPIHono, type RouteConfig } from "@hono/zod-openapi";
-import { EDITION } from "@worker-protocol/schemas";
+import { EDITION, nudge } from "@worker-protocol/schemas";
 import type { Context, MiddlewareHandler } from "hono";
 import { actions as actionsSurface, IN_MEMORY, jsonSchema, type OutcomeStore } from "./actions.ts";
 import { byCode } from "./codes.ts";
@@ -14,6 +14,7 @@ import {
   readMetric,
   readTasks,
   SURFACES,
+  takeNudge,
 } from "./surfaces.ts";
 import { tasks as taskSurface } from "./tasks.ts";
 import type { Answer, Refusal, Worker } from "./worker.ts";
@@ -242,7 +243,7 @@ function descriptorOf(worker: Worker, edition: string): string {
 
   // The Capabilities whose entry is the shared one and an address: what a Worker declares about
   // them is that it implements them. The rest add something of their own below.
-  for (const name of ["health", "alerts", "activity"] as const) {
+  for (const name of ["health", "alerts", "activity", "nudges"] as const) {
     if (worker[name]) capabilities[name] = { version: 1, address: `../${name}` };
   }
 
@@ -546,6 +547,41 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
         : undeclared("activity"),
     true,
   );
+
+  /**
+   * NDG-2, NDG-3: told there is work of a Task type, and answered `204`.
+   *
+   * Every refusal here is written out rather than left to the route's validator, because the body is
+   * the one in this protocol whose shape is fixed by the protocol: a Worker that declares `nudges`
+   * owes exactly these answers, and a library's own `400` for a body it could not parse is not one
+   * of them (ENDP-25).
+   */
+  serve("nudges", "/nudges", takeNudge, async (c, worker) => {
+    if (!worker.nudges) return undeclared("nudges");
+    let body: unknown;
+    try {
+      body = JSON.parse(await c.req.text());
+    } catch {
+      return envelope({ code: "malformed_request", message: "The body did not parse as JSON." });
+    }
+    const told = nudge.safeParse(body);
+    if (!told.success) {
+      return envelope({
+        code: "schema_mismatch",
+        message: "A nudge carries one Task type and nothing else.",
+      });
+    }
+    // NDG-3: a type this Worker declares no Skill for is `404`, and nothing happened. Taking one
+    // would tell an owner it had been told, and the owner would stop nudging whoever could help.
+    if (worker.skills?.[told.data.type] === undefined) {
+      return envelope({
+        code: "not_found",
+        message: `This Worker declares no Skill for ${told.data.type}.`,
+      });
+    }
+    await worker.nudges(told.data.type);
+    return c.body(null, 204);
+  });
 
   // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers.
   serve(

@@ -2,9 +2,9 @@
 
 A conformant Worker on Cloudflare, whose Facts live in a Durable Object.
 
-`examples/minimal-worker` is the one to copy for shape: it is the same Worker in 79 lines, and
-`pnpm dx:check` holds it there. This one exists for the question that file cannot answer, which is
-**where a Worker keeps what a rule needs between two requests**.
+`examples/minimal-worker` is the one to copy for shape: it is the same Worker with its Facts in
+memory, written out and explained. This one exists for the question that file cannot answer, which
+is **where a Worker keeps what a rule needs between two requests**.
 
 Four things here have to outlive a request: the condition a Task is derived from (TASK-15), the
 counters a metric is read from (MET-21), the outcome ENDP-16 promised to replay, and an outbox of

@@ -92,12 +92,6 @@
       "reach": "W"
     },
     {
-      "id": "ACT-17",
-      "file": "actions.md",
-      "class": "required",
-      "reach": "N"
-    },
-    {
       "id": "ACTV-1",
       "file": "activity.md",
       "class": "required",
@@ -746,6 +740,24 @@
       "reach": "N"
     },
     {
+      "id": "NDG-1",
+      "file": "nudges.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "NDG-2",
+      "file": "nudges.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "NDG-3",
+      "file": "nudges.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
       "id": "REG-3",
       "file": "registration.md",
       "class": "required",
@@ -1176,6 +1188,15 @@
       "publishes/*/granularities": "MET-3",
       "publishes/*/unit": "MET-3",
       "timeZone": "MET-6",
+      "version": "DESC-9"
+    },
+    "nudge": {
+      "": "NDG-2",
+      "type": "NAME-7"
+    },
+    "nudges-entry": {
+      "": "NDG-1",
+      "address": "DESC-12",
       "version": "DESC-9"
     },
     "page": {

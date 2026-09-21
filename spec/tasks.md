@@ -163,8 +163,9 @@ wanted a status for.
 
 **TASK-15 (required). A Task closes when its condition stops holding, and no party declares that.**
 
-**TASK-19 (recommended). A nudge is an Action the consumer declares and the owner performs. It
-carries a Task type and nothing else.**
+**TASK-19 (recommended). A nudge is one call from an owner to a consumer that can answer a Task
+type, saying that there is work of that type and nothing else. [nudges](nudges.md) fixes the
+surface; this rule fixes that it is best effort and that nothing follows from it.**
 
 TASK-15 is the sentence this whole file protects. The owner derives its Task from its own Facts, so
 a consumer declaring the work done is telling the owner something about the consumer, not about the
@@ -185,18 +186,15 @@ is the party that can. This protocol does not hold the lock, and the section bel
 
 A nudge is best-effort by construction: whoever receives one reads as it would have on its next
 schedule, and losing one costs latency and never work. That is what lets this be the one call in
-the protocol that runs from an owner *to* a consumer without any of the machinery such a direction
-would otherwise need — no new surface, no second address, no delivery guarantee to specify.
+the protocol that runs from an owner *to* a consumer without the machinery such a direction would
+otherwise need — no delivery guarantee to specify, and nothing a receiver holds afterwards.
 
-Making it an Action is what removes the machinery. The consumer already declares Actions with
-schemas and addresses (ACT-16, ACT-2), a Contract already names which Actions a party may post, and
-REG-3 already fixes how the credential is presented — so the nudge needs exactly nothing from this
-file beyond the name. **The name is ACT-17's**, reserved there for the reason `configure` is: an
-owner reading a consumer's Descriptor has to be able to tell which Action is the nudge, and a name
-two parties agreed between themselves is not something a Descriptor can carry. It recommends rather
-than binds because a Worker that reads only on a nudge is one dropped request away from stalling
-silently: the schedule is what the design rests on, and a consumer that declares no nudge is slower
-and never wrong.
+It was an Action until this edition, declared by the consumer under a name reserved for it, and
+[nudges](nudges.md) carries the argument for giving it an address of its own: a nudge's body is
+fixed *here* and not by the Worker, which is the one thing an Action's input may not be. It
+recommends rather than binds because a Worker that reads only on a nudge is one dropped request
+away from stalling silently: the schedule is what the design rests on, and a consumer that declares
+no nudge is slower and never wrong.
 
 ## Why there is no lease here
 

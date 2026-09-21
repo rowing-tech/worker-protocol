@@ -87,6 +87,9 @@ export function createFacts() {
     // HLTH-4: the window between a process starting and its first evaluation, which is a fact
     // about this deployment and not about the request asking.
     started: Date.now(),
+    // NDG-2: the Task types somebody has said there is work of. A Fact for the same reason as the
+    // rest — a Worker answered per request would forget every nudge the moment it answered one.
+    nudged: new Set<string>(),
   };
 }
 
@@ -100,7 +103,7 @@ export type Facts = ReturnType<typeof createFacts>;
  * resolved on every request, so anything it built itself would be built again.
  */
 export function referenceWorker(options: WorkerOptions = {}, facts: Facts = createFacts()): Worker {
-  const { tasks, actions, settings, outcomes, started } = facts;
+  const { tasks, actions, settings, outcomes, started, nudged } = facts;
   const readyAfter = options.readyAfterMs ?? 0;
 
   // REG-28: more than one valid credential for one holder at a time, so replacing one is an
@@ -157,6 +160,13 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
       // ENDP-19: a cap of two, so that this Worker's own three Tasks actually page — a cap nothing
       // ever reaches is a cap nobody has seen work.
       pageSize: 2,
+    },
+
+    // NDG-2, NDG-3: this Worker answers one Task type, so it can be told there is work of that one
+    // and of nothing else. It notes the type and does not act on it — what a nudge buys is that it
+    // reads sooner, and there is nothing here to read sooner than.
+    nudges: (type) => {
+      nudged.add(type);
     },
 
     alerts,

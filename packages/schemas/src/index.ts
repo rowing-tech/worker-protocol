@@ -57,7 +57,7 @@ export const registry = z.registry<{ id: string }>();
  * list a verifier checks an undotted name against. `spec/README.md`'s table is a reading aid.
  */
 export const capabilityName = z
-  .enum(["health", "metrics", "actions", "alerts", "activity", "tasks", "events"])
+  .enum(["health", "metrics", "actions", "alerts", "activity", "nudges", "tasks", "events"])
   .meta({
     title: "Capability name",
     description: "DESC-8. The Capability names the current edition of worker-protocol defines.",
@@ -134,9 +134,10 @@ export const address = z
 /**
  * DESC-22 — what a Worker declares about one Capability it implements.
  *
- * Loose on purpose, and the reason has changed since it was written. All six Capability files now
- * define their extension — `healthEntry`, `metricsEntry`, `actionsEntry`, `alertsEntry`,
- * `tasksEntry`, `eventsEntry` — so this is no longer holding a door open for something unwritten.
+ * Loose on purpose, and the reason has changed since it was written. Every Capability file now
+ * defines its extension — `healthEntry`, `metricsEntry`, `actionsEntry`, `alertsEntry`,
+ * `activityEntry`, `nudgesEntry`, `tasksEntry`, `eventsEntry` — so this is no longer holding a door
+ * open for something unwritten.
  * What keeps it loose is that `descriptor.json` still holds its entries as a record of THIS shape
  * rather than binding each reserved name to its own, so closing it here would refuse every
  * conformant Descriptor. Tightening that is a breaking change to the normative artifact and is
@@ -970,6 +971,34 @@ export const alertPage = page
     description: "ALRT-2. One page of Alerts, in the envelope ENDP-20 fixes for every collection.",
   });
 
+/** NDG-2 — one nudge on the wire: a Task type, and nothing else. */
+export const nudge = z
+  .strictObject({
+    type: qualifiedName.meta({
+      description:
+        "NDG-2. The Task type there is work of. Not the Task: TASK-15 makes the owner " +
+        "authoritative over whether the condition still holds, so a Task in flight is a claim that " +
+        "may be false by the time it lands. The receiver reads, and what it reads is true when it " +
+        "reads it.",
+    }),
+  })
+  .meta({
+    title: "Nudge",
+    description:
+      "NDG-2. What a POST to the `nudges` address carries. Fixed here and not by the Worker, which " +
+      "is why this is an address of its own rather than an Action: ACT-2 has an Action's input be " +
+      "the Worker's own shape, and this one never was.",
+  });
+
+/** NDG-1 — the `nudges` Capability entry. The address is required: this is answered over HTTP. */
+export const nudgesEntry = capabilityEntry.extend({ address }).meta({
+  title: "Nudges capability entry",
+  description:
+    "NDG-1. The shared Capability entry with the address required. Nothing else: what arrives is " +
+    "fixed by `nudge.json` rather than declared, and which Task types this Worker will take one " +
+    "for is already its `skills` (NDG-3).",
+});
+
 /** ALRT-1 — the `alerts` Capability entry. The address is required: this is answered over HTTP. */
 export const alertsEntry = capabilityEntry.extend({ address }).meta({
   title: "Alerts capability entry",
@@ -1169,6 +1198,8 @@ registry.add(alertSeverity, { id: "alert-severity" });
 registry.add(alert, { id: "alert" });
 registry.add(alertPage, { id: "alert-page" });
 registry.add(alertsEntry, { id: "alerts-entry" });
+registry.add(nudge, { id: "nudge" });
+registry.add(nudgesEntry, { id: "nudges-entry" });
 registry.add(activityState, { id: "activity-state" });
 registry.add(activity, { id: "activity" });
 registry.add(activityPage, { id: "activity-page" });

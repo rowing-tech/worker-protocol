@@ -455,3 +455,70 @@ describe("mount(), with a Worker that awaits", () => {
     expect(page.items.map((task) => task.id)).toEqual(["t-2"]);
   });
 });
+
+/**
+ * The one surface whose body this protocol fixes rather than the Worker.
+ *
+ * Every other write takes the shape its declarer chose — an Action's input is the Worker's own
+ * (ACT-2) — so `mount()` hands the body over unread and the Worker judges it. A nudge is the
+ * opposite: NDG-2 fixes what arrives and NDG-3 fixes which types may arrive, both from the
+ * Descriptor the Worker already serves. So every answer below is one no Worker author writes, and
+ * the reason `nudge` stopped being an Action is that it never could have been written once.
+ */
+describe("mount(), told there is work of a Task type", () => {
+  const LOCATE = "tech.rowing.dispatch.locate-vehicle";
+  const told: string[] = [];
+  const app = mount({
+    id: "tech.rowing.worker-protocol.test",
+    skills: { [LOCATE]: { payload: z.object({ vehicle: z.string() }) } },
+    nudges: (type) => {
+      told.push(type);
+    },
+  });
+
+  const nudge = (body: string) =>
+    app.fetch(
+      new Request("http://worker.invalid/nudges", {
+        method: "POST",
+        body,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+  it("declares the address, and nothing else — the types are already its Skills", async () => {
+    const answer = await app.fetch(
+      new Request("http://worker.invalid/.well-known/worker-protocol"),
+    );
+    const document = (await answer.json()) as { capabilities: Record<string, unknown> };
+    expect(document.capabilities.nudges).toEqual({ version: 1, address: "../nudges" });
+  });
+
+  it("answers 204 and no body for a type it declares a Skill for (NDG-2)", async () => {
+    const answer = await nudge(JSON.stringify({ type: LOCATE }));
+    expect(answer.status).toBe(204);
+    expect(await answer.text()).toBe("");
+    expect(told).toEqual([LOCATE]);
+  });
+
+  it("refuses a type it declares no Skill for, and does not call the Worker (NDG-3)", async () => {
+    const before = told.length;
+    const answer = await nudge(JSON.stringify({ type: "tech.rowing.somebody.else-entirely" }));
+    expect(answer.status).toBe(404);
+    expect(await answer.json()).toMatchObject({ code: "not_found", class: "reject" });
+    expect(told.length).toBe(before);
+  });
+
+  it("refuses a body carrying more than the type (NDG-2)", async () => {
+    // The whole point of the shape being the protocol's: a Task travelling here would be a claim
+    // the owner may already have stopped making (TASK-15), and nothing in a Worker has to know it.
+    const answer = await nudge(JSON.stringify({ type: LOCATE, task: { id: "t-1" } }));
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toMatchObject({ code: "schema_mismatch" });
+  });
+
+  it("refuses a body that does not parse, in the envelope ENDP-25 fixes", async () => {
+    const answer = await nudge("{");
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toMatchObject({ code: "malformed_request", class: "reject" });
+  });
+});

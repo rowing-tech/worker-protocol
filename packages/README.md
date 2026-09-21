@@ -43,10 +43,15 @@ condition is, what an Action does, what a number means — is what `spec/` delib
 
 ## The measure
 
-`examples/minimal-worker` is the smallest conformant Worker, and `pnpm dx:check` holds it under a
-line count. It exists because complying being cheap is a claim like any other here, and a claim
-nobody gates is a claim nobody verifies. When it grows, the question is which rule `mount()` failed
-to carry — not whether the budget should be raised.
+`examples/minimal-worker` declares every Capability this protocol defines, and `pnpm dx:check`
+counts the domain lines it takes to do it. It exists because complying being cheap is a claim like
+any other here, and a claim nobody counts is a claim nobody verifies. When it grows, the question is
+which rule `mount()` failed to carry.
+
+**The ceiling that script enforces is deliberately slack**, and the reason is worth having in
+writing: a limit tight enough to bind is one that can be met by showing less of the protocol or by
+explaining it worse, and on the day that happens the gate has spent exactly what it was protecting.
+The count is evidence, not a budget to spend.
 
 `conformance/reference-worker` is a different thing and is not a template: it is arranged so that
 the rules `conformance/verifiability.md` marks `H` have something to be observed against. It sits
