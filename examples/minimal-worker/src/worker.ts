@@ -19,7 +19,7 @@
  * quiet, and closes it when somebody records a check.
  */
 
-import { memoryOutcomes, mount, type OpenTask, type Worker } from "@worker-protocol/hono";
+import { defineWorker, memoryOutcomes, mount, type OpenTask } from "@worker-protocol/hono";
 import * as z from "zod";
 
 const TYPE = "tech.rowing.fleet.check-silent-vehicle";
@@ -43,7 +43,7 @@ const checked = new Set<string>();
  */
 const outcomes = memoryOutcomes();
 
-export const fleetWorker = (env: Env): Worker => ({
+export const fleetWorker = defineWorker<Env>((env) => ({
   // DESC-6: the Worker's own id, which is not the URL it is served from.
   id: "tech.rowing.fleet.watcher",
 
@@ -130,7 +130,7 @@ export const fleetWorker = (env: Env): Worker => ({
           since,
         })),
   },
-});
+}));
 
 /**
  * `mount()` serves the Descriptor and every Capability declared above, at addresses it fixes.
@@ -138,4 +138,4 @@ export const fleetWorker = (env: Env): Worker => ({
  * `app.fetch` is what every platform wants: `export default { fetch: app.fetch }` on Cloudflare,
  * Vercel edge and Deno Deploy; `serve({ fetch: app.fetch })` on Node, Bun and Deno.
  */
-export const app = mount<Env>((env) => fleetWorker(env));
+export const app = mount(fleetWorker);

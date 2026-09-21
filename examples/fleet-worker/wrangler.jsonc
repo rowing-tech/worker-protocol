@@ -1,0 +1,22 @@
+{
+  // The Worker as Cloudflare sees it. Nothing about the protocol lives here: `mount()` serves the
+  // Descriptor at the one route DESC-3 fixes, and every address below it is relative to that — so
+  // this file says where the Worker runs and never where its surfaces are.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fleet-worker",
+  "main": "src/worker.ts",
+  // The newest date the workerd that `@cloudflare/vitest-pool-workers` bundles will start on. A
+  // later one here is not a stricter setting, it is a Worker the test runtime refuses to load —
+  // so this moves when that runtime does and not when the calendar does.
+  "compatibility_date": "2026-08-22",
+  "durable_objects": {
+    "bindings": [{ "name": "FLEET", "class_name": "Fleet" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fleet"] }],
+  // A worker finds work on a schedule, and the schedule is what makes the nudge optional rather
+  // than load-bearing: losing one costs latency, and the cron is what makes it never cost work.
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": {
+    "SOURCE_VEHICLES": "ABC-123,DEF-456,GHI-789"
+  }
+}

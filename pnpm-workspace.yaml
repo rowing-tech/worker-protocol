@@ -16,4 +16,24 @@ packages:
 # exact version below, which is right when it is genuinely needed sooner — a security fix in the
 # dependency itself being the clearest case. Adding an entry is a claim that someone looked; the
 # list is kept short so that claim stays readable.
+# Which dependencies may run an install script, and why each one may.
+#
+# pnpm refuses them all by default, which is the right default: a postinstall script runs with the
+# privileges of whoever typed `pnpm install`, and it is the shortest path a compromised package has
+# to a developer's machine. The gate below buys time for a bad release to be found; this is the
+# separate question of which packages get to execute at all, and the answer is almost always none.
+#
+# Both of these are here for one reason and it is not convenience: each ships a platform binary its
+# script downloads and places, and neither works installed and unbuilt — there is no JavaScript
+# fallback to fall back to. `workerd` is Cloudflare's runtime, which is what makes
+# `examples/fleet-worker` a test ON the platform rather than a test of something shaped like it.
+# `esbuild` is what `@cloudflare/vitest-pool-workers` bundles with to get there.
+#
+# Adding a third is a claim that somebody read what its script does. Keep this list short for the
+# same reason the exclusions below are kept short.
+allowBuilds:
+  esbuild: true
+  workerd: true
+
 minimumReleaseAge: 10080
+

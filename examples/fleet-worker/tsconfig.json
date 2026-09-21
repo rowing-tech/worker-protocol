@@ -1,0 +1,14 @@
+{
+  "//": "Type-checks the example. It emits nothing: wrangler bundles it, and vitest runs it on workerd through @cloudflare/vitest-pool-workers. The runtime globals come from worker-configuration.d.ts, which the typecheck script regenerates from wrangler.jsonc before tsc runs.",
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": ["@cloudflare/vitest-pool-workers/types"]
+  },
+  "include": ["src", "test", "worker-configuration.d.ts"]
+}

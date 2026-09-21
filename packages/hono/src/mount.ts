@@ -82,6 +82,28 @@ export type WorkerSource<E = unknown> =
   | Worker
   | ((env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>);
 
+/**
+ * Write the function `mount()` takes, and have a mistake reported where you made it.
+ *
+ * It returns its argument and does nothing at all at runtime. What it does is at the type level,
+ * and it is worth four lines: a builder written on its own needs `: Worker` — or `: Promise<Worker>`
+ * — for TypeScript to check the object literal against the interface, and without it the first
+ * complaint arrives at the `mount()` call, about a type nested six levels deep, naming a property
+ * three files away. With it, a missing `since` is reported on `since`.
+ *
+ * ```ts
+ * export const fleetWorker = defineWorker<Env>((env) => ({ id: "…", health: () => … }))
+ * export default { fetch: mount(fleetWorker).fetch }
+ * ```
+ *
+ * It also spares the author naming the promise. An `async` builder is the same call, and the type
+ * that has to be right — `Worker | Promise<Worker>` — is written here once instead of at every
+ * Worker that happens to await something.
+ */
+export const defineWorker = <E = unknown>(
+  build: (env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>,
+): ((env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>) => build;
+
 const JSON_UTF8 = { "content-type": "application/json; charset=utf-8" };
 
 /** ENDP-25, ENDP-26: the envelope, with the status and class the code fixes and nothing chosen. */

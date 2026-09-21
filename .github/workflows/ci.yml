@@ -126,7 +126,7 @@ jobs:
       - name: type-check every workspace project
         run: pnpm -r typecheck
 
-      # Four suites. packages/schemas runs conformance/fixtures/ against the Zod objects —
+      # Five suites, and one of them does not run on Node. packages/schemas runs conformance/fixtures/ against the Zod objects —
       # documents against schemas, the half of conformance that needs no Worker, and a verdict
       # about the normative artifact because schemas:check above already proved the two agree.
       # packages/hono checks the shape of openapi/ — one server per document, every $ref
@@ -135,5 +135,12 @@ jobs:
       # subject anywhere until that package existed. packages/conformance starts both example
       # Workers over a real socket and verifies them, and simulates a Control Tower over them,
       # which is the half that needs something answering.
+      #
+      # examples/fleet-worker is the one that runs on workerd rather than on Node, through
+      # @cloudflare/vitest-pool-workers: a real durable object, real input gates, real isolate
+      # boundaries. It is here because every store in this repository that outlives a request was a
+      # Map in a process until it existed, and a Map in a process is right in one deployment shape
+      # and wrong in the one this protocol's architecture names first. It found its first bug on
+      # its first run.
       - name: conformance
         run: pnpm test

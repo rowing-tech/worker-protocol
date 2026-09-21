@@ -23,12 +23,13 @@ export type {
   ActionFacts,
   OutcomeStore,
   Recorded,
+  Reservation,
 } from "./actions.ts";
 export { jsonSchema, memoryOutcomes } from "./actions.ts";
 export { bucketsIn, endOf, type Granularity, rfc3339, startOf } from "./buckets.ts";
 export { CODES, type ErrorCode } from "./codes.ts";
 export type { Bucket, MetricFacts, MetricQuery, MetricSample } from "./metrics.ts";
-export { type ExecutionCtx, mount, type WorkerSource } from "./mount.ts";
+export { defineWorker, type ExecutionCtx, mount, type WorkerSource } from "./mount.ts";
 export {
   performAction,
   pollHealth,

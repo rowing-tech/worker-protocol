@@ -71,6 +71,7 @@ packages/
   conformance/   the verifier: point it at a worker, get a report of what it complies with
 examples/
   minimal-worker/    a conformant Worker in under 150 lines. Copy this one
+  fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, tested on workerd
   reference-worker/  a worker arranged so the verifier can observe the rules that need arranging
 docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```
@@ -92,6 +93,13 @@ built on it is what vouches for it.
 decides whether any of the rest gets used. `examples/minimal-worker` is a conformant Worker in
 under 150 lines, `pnpm dx:check` fails when it grows, and everything above that line is a rule
 `mount()` should have carried.
+
+**`examples/fleet-worker` is the same Worker with its `Map`s taken away.** Every piece of state a
+rule here needs to outlive a request — the Tasks whose conditions hold, the counters a metric is
+read from, the outcome ENDP-16 promised to replay — lived in process memory in every example this
+repository had, which is right in one deployment shape and wrong in the one its own architecture
+names first. That one keeps all of it in a Durable Object and runs its tests on workerd rather than
+on Node, so the claim is made where it can fail. It failed on the first run, which is the point.
 
 ## Status
 
