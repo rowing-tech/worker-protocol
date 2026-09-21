@@ -1,9 +1,9 @@
 import {
+  defineWorker,
   mount,
   type OpenTask,
   type OutcomeStore,
   rfc3339,
-  type WorkerBuilder,
 } from "@worker-protocol/hono";
 import * as z from "zod";
 import type { Env } from "./env.ts";
@@ -44,7 +44,7 @@ const durableOutcomes = (fleet: DurableObjectStub<Fleet>): OutcomeStore => {
   };
 };
 
-export const fleetWorker: WorkerBuilder<Env> = (env) => {
+export const fleetWorker = defineWorker<Env>((env) => {
   const fleet = fleetOf(env);
 
   return {
@@ -175,7 +175,7 @@ export const fleetWorker: WorkerBuilder<Env> = (env) => {
       republishWindowSeconds: 3600,
     },
   };
-};
+});
 
 /**
  * One cycle: read what the source says, record it, and drain what is waiting for the broker.

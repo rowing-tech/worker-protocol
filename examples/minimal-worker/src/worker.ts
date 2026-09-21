@@ -1,28 +1,41 @@
 /**
- * A conformant Worker, and the smallest honest one.
+ * A conformant Worker that declares everything this protocol defines.
  *
- * Copy this file. Everything in it is domain — what this Worker is, what it depends on, what it
- * counts, what it does, which conditions hold — and nothing in it is a rule. The addresses, the
- * headers, the error envelope, the page envelope and its cursor, the Claim lifecycle with its
- * lease and its fencing token, the bucket boundaries cut in a declared time zone, the idempotency
- * window: all of that is `mount()`'s, once, in `@worker-protocol/hono`.
+ * **Copy this file.** Every line in it is domain — what this Worker is, what it knows how to do,
+ * what it depends on, what it counts, what it does, which conditions hold, what it is working on,
+ * what it publishes — and not one line is a rule. The addresses, the headers, the error envelope,
+ * the page envelope with its cursor and its order, the bucket boundaries cut in a declared time
+ * zone, the idempotency window: all of that is `mount()`'s, once, in `@worker-protocol/hono`.
+ *
+ * It declares all seven Capabilities, because seeing one written is worth more than reading that it
+ * exists. A real Worker declares the ones it implements and leaves out the rest — DESC-2 admits any
+ * combination including none, and a Worker that serves only a Descriptor is already enrolled,
+ * catalogued and reachable.
  *
  * **It is written as a function of its environment, which is the form every platform admits.** A
  * Cloudflare Worker, a Vercel edge function and a Deno Deploy handler are handed their bindings and
  * secrets per request and have none at module scope; a Node or Bun process has them ambient and
  * loses nothing by being asked. Writing it the other way round works in one place and nowhere else.
  *
- * `pnpm dx:check` holds this file under a line count. When it grows, the question to ask is which
- * rule `mount()` failed to carry — not whether the budget should go up.
+ * `pnpm dx:check` holds this file under a line count, and the number is what `packages/` is
+ * claiming: that complying is cheap. When it grows, the question is which rule `mount()` failed to
+ * carry — the budget moves only for lines that are genuinely a Worker's own.
  *
  * The domain is small and real: a Worker that watches a fleet, raises a Task when a vehicle goes
  * quiet, and closes it when somebody records a check.
  */
 
-import { memoryOutcomes, mount, type OpenTask, type WorkerBuilder } from "@worker-protocol/hono";
+import {
+  type Activity,
+  defineWorker,
+  memoryOutcomes,
+  mount,
+  type OpenTask,
+} from "@worker-protocol/hono";
 import * as z from "zod";
 
-const TYPE = "tech.rowing.fleet.check-silent-vehicle";
+/** NAME-7: a name two parties who never spoke must match on is namespaced. */
+const SILENT_VEHICLE = "tech.rowing.fleet.check-silent-vehicle";
 
 /** What this Worker is deployed with. On Cloudflare these are bindings; on Node, `process.env`. */
 export type Env = { CREDENTIAL?: string };
@@ -33,6 +46,7 @@ const silent = new Map<string, Date>([
   ["DEF-456", new Date(Date.now() - 7_200_000)],
 ]);
 const checked = new Set<string>();
+let settings = { label: "fleet watcher", quietAfterMinutes: 15 };
 
 /**
  * ENDP-16: where a repeat under the same key finds the outcome already recorded.
@@ -43,9 +57,14 @@ const checked = new Set<string>();
  */
 const outcomes = memoryOutcomes();
 
-export const fleetWorker: WorkerBuilder<Env> = (env) => ({
+export const fleetWorker = defineWorker<Env>((env) => ({
   // DESC-6: the Worker's own id, which is not the URL it is served from.
   id: "tech.rowing.fleet.watcher",
+
+  // TASK-29: the Task types this Worker ANSWERS, which is its Skill — beside the id and not inside
+  // `tasks`, because a Skill is served at no address. It is what the Tower catalogs this Worker by,
+  // and it is how somebody else's quiet vehicle becomes this Worker's work.
+  skills: [SILENT_VEHICLE],
 
   // REG-3, REG-21: what makes a credential good is this Worker's business, and nobody else's.
   authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
@@ -79,6 +98,9 @@ export const fleetWorker: WorkerBuilder<Env> = (env) => ({
   // Schema a console renders a form from, and a request is validated against the same object.
   actions: {
     outcomes,
+    // ACT-15: the settings `configure` would accept. `mount()` serves them at a reading address it
+    // writes into the declaration itself, so the two cannot disagree about where they are.
+    settings: () => settings,
     accepts: {
       "record-check": {
         input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
@@ -88,6 +110,16 @@ export const fleetWorker: WorkerBuilder<Env> = (env) => ({
         run: ({ vehicle }: { vehicle: string }) => {
           checked.add(vehicle);
           return { recordedAt: new Date().toISOString() };
+        },
+      },
+      // ACT-13: `configure` is the one Action name this protocol reserves, and it takes the whole
+      // document — an operator replaces settings rather than patching them, so what they saw in
+      // the form is what they send back.
+      configure: {
+        input: z.object({ label: z.string().min(1), quietAfterMinutes: z.number().int().min(1) }),
+        run: (replacement: typeof settings) => {
+          settings = replacement;
+          return null;
         },
       },
     },
@@ -102,15 +134,36 @@ export const fleetWorker: WorkerBuilder<Env> = (env) => ({
             severity: "warning" as const,
             since: new Date(Date.now() - 3_600_000),
             summary: `${silent.size} vehicles have gone quiet.`,
-            actions: [],
+            actions: ["configure"],
           },
         ]
       : [],
 
+  // ACTV-2: what this Worker is doing and has undertaken to do — the other direction from `tasks`.
+  // A Task is work it needs from somebody else; an activity is work it has taken on itself.
+  activity: (): Activity[] => [
+    {
+      id: "poll-source",
+      state: "scheduled",
+      // ACTV-3: when it undertook this, not when it will next run — that is scheduling, and this
+      // protocol fixes none. The summary carries it for a person.
+      since: new Date(Date.now() - 86_400_000),
+      summary: `Poll the GPS source every ${settings.quietAfterMinutes} minutes.`,
+    },
+    ...[...silent.keys()]
+      .filter((vehicle) => !checked.has(vehicle))
+      .map((vehicle) => ({
+        id: `chase:${vehicle}`,
+        state: "pending" as const,
+        since: silent.get(vehicle) ?? new Date(),
+        summary: `Waiting for ${vehicle} to report in.`,
+      })),
+  ],
+
   tasks: {
-    // TASK-2, TASK-29: what this Worker asks of others, and what it answers itself.
+    // TASK-2: every Task type this Worker raises, with the Actions of its own that may answer one.
     raises: {
-      [TYPE]: {
+      [SILENT_VEHICLE]: {
         payload: { type: "object", properties: { vehicle: { type: "string" } } },
         answeredBy: ["record-check"],
       },
@@ -124,12 +177,33 @@ export const fleetWorker: WorkerBuilder<Env> = (env) => ({
         .filter(([vehicle]) => !checked.has(vehicle))
         .map(([vehicle, since]) => ({
           id: `silent:${vehicle}`,
-          type: TYPE,
+          type: SILENT_VEHICLE,
           payload: { vehicle },
           since,
         })),
   },
-});
+
+  // EVT-11, EVT-12: the broker, how the attributes sit on it, where on it these land, and what
+  // this Worker publishes. Nothing here parses any of the three — this protocol names no broker,
+  // and an event travels over one rather than over the Worker API.
+  events: {
+    broker: "kafka",
+    protocolBinding: "cloudevents/kafka-1.0",
+    destination: { bootstrapServers: "kafka.rowing.invalid:9092", topic: "fleet.telemetry" },
+    publishes: {
+      "tech.rowing.fleet.vehicle-went-quiet": {
+        data: {
+          type: "object",
+          properties: { vehicle: { type: "string" }, since: { type: "string" } },
+          required: ["vehicle", "since"],
+        },
+      },
+    },
+    // EVT-8: what a consumer sizes its deduplication store against. Declared, because `remember
+    // forever` is not implementable and a consumer that forgot too early would process one twice.
+    republishWindowSeconds: 3600,
+  },
+}));
 
 /**
  * `mount()` serves the Descriptor and every Capability declared above, at addresses it fixes.

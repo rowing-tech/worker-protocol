@@ -72,7 +72,7 @@ packages/
   client/        consume(): read a Worker and take work from it — the consumer half
   conformance/   the verifier: point it at a worker, get a report of what it complies with
 examples/          two Workers, and both are templates
-  minimal-worker/    a conformant Worker in under 150 lines. Copy this one
+  minimal-worker/    all seven Capabilities in under 150 lines of domain. Copy this one
   fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, tested on workerd
 docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```

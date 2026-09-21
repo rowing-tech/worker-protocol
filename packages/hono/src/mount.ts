@@ -83,25 +83,32 @@ export type ExecutionCtx = { waitUntil?: (promise: Promise<unknown>) => void };
  */
 export type WorkerSource<E = unknown> = Worker | WorkerBuilder<E>;
 
+/** What `mount()` takes when a Worker is answered from the environment of each request. */
+export type WorkerBuilder<E = unknown> = (env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>;
+
 /**
- * Annotate a builder with this, and a mistake is reported where you made it.
+ * Write the builder `mount()` takes, and have a mistake reported where you made it.
  *
- * A builder declared apart from the `mount()` call has nothing to check its object literal
- * against, so the first complaint arrives at `mount()`, about a type nested six levels deep,
- * naming a property three files away. Annotated, a missing `since` is reported on `since`.
+ * It returns its argument and does nothing at all at runtime. What it does is at the type level: a
+ * builder declared apart from the `mount()` call has nothing to check its object literal against,
+ * so the first complaint arrives at `mount()`, about a type nested six levels deep, naming a
+ * property three files away. Through this, a missing `since` is reported on `since`. An `async`
+ * builder is the same call, because `Worker | Promise<Worker>` is written here once instead of at
+ * every Worker that happens to await something.
  *
  * ```ts
- * export const fleetWorker: WorkerBuilder<Env> = (env) => ({ id: "…", health: () => … })
+ * export const fleetWorker = defineWorker<Env>((env) => ({ id: "…", health: () => … }))
  * export default { fetch: mount(fleetWorker).fetch }
  * ```
  *
- * It also spares the author naming the promise: an `async` builder takes the same annotation,
- * because `Worker | Promise<Worker>` is written here once instead of at every Worker that happens
- * to await something. It is a type and not a function on purpose — `packages/README.md` asks
- * whether a rule id can be cited for a line of this package, and none can be cited for an identity
- * function that exists to please the compiler.
+ * **No rule id can be cited for this line, and that is worth saying rather than dressing up.**
+ * `packages/README.md` asks that of everything in this package, and an identity function that
+ * exists to please a compiler answers nothing. It stays because the alternative — knowing that
+ * `WorkerBuilder` exists before you can annotate with it — is friction paid by every author, and
+ * `defineConfig`, `defineComponent` and `defineStore` have made this shape one a reader does not
+ * have to be taught. The type above is exported too, for a builder that was already written.
  */
-export type WorkerBuilder<E = unknown> = (env: E, ctx: ExecutionCtx) => Worker | Promise<Worker>;
+export const defineWorker = <E = unknown>(build: WorkerBuilder<E>): WorkerBuilder<E> => build;
 
 const JSON_UTF8 = { "content-type": "application/json; charset=utf-8" };
 
