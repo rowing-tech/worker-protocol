@@ -74,10 +74,27 @@ export type Consumed = {
     /**
      * TASK-5. Every Task whose condition holds that this credential covers.
      *
-     * Answering one is `actions.perform` with an Action the Task type names (TASK-2), and there is
-     * nothing to claim and nothing to close: the condition stops holding and the Task is gone.
+     * Answering one is `actions.perform` with an Action the Task type names, and there is nothing
+     * to claim and nothing to close: the condition stops holding and the Task is gone.
      */
     list: (type?: string) => Promise<Task[]>;
+    /**
+     * How to answer a Task of this type: which Action to post, and the shape it takes.
+     *
+     * A Task carries its id, its type, its payload and when its condition began — and nothing about
+     * how to answer it, because that belongs to the Worker that raised it and is declared twice
+     * over in its Descriptor: the Task type names the Actions that may answer it (TASK-2), and each
+     * of those declares the JSON Schema of its input (ACT-2). Reading both is two walks down a
+     * document a consumer already holds, and every consumer was doing them by hand.
+     *
+     * The schema is handed back as it travels, so a console can render a form from it and an agent
+     * can build the document, neither having been told anything about this Worker.
+     *
+     * Empty where the type is one this Worker does not raise, or where it raises it and names no
+     * Action — which TASK-2 admits: the list tells a consumer what would answer, and a Worker whose
+     * condition is resolved some other way names none.
+     */
+    answers: (type: string) => { action: string; input: unknown }[];
   };
 };
 
@@ -200,6 +217,21 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         // TASK-8 filters by type where one is asked for; absent, the read is unfiltered and a
         // `404` from it would be DESC-30's rather than a resource's, which `pages` works out.
         collect<Task>(call, tasksAddress, taskPage, "TASK-5", type === undefined ? {} : { type }),
+
+      // TASK-2 names the Actions; ACT-2 declares each one's input. Both are already in the document
+      // this consumer read, so this walks it rather than calling anything.
+      answers: (type) => {
+        const raises = (entry("tasks") as { raises?: Record<string, { answeredBy: string[] }> })
+          ?.raises;
+        const accepts = (entry("actions") as { accepts?: Record<string, { input: unknown }> })
+          ?.accepts;
+        return (raises?.[type]?.answeredBy ?? [])
+          .filter((action) => accepts?.[action] !== undefined)
+          .map((action) => ({
+            action,
+            input: (accepts as Record<string, { input: unknown }>)[action].input,
+          }));
+      },
     };
   }
 
