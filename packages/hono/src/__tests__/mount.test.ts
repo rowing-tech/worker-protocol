@@ -172,12 +172,19 @@ describe("mount(), with the Worker answered per request", () => {
  */
 describe("mount(), with the recorded outcomes somewhere durable", () => {
   it("records into and reads from the store the Worker declared", async () => {
-    // The store stands in for a durable object or a KV namespace: what matters is that it is ONE
+    // A store that stands in for a durable object or a table: what matters is that it is ONE
     // store, and that two Workers built separately — as two isolates would be — share it.
-    const shared = new Map<string, Recorded>();
+    const shared = new Map<string, Recorded | null>();
     const outcomes: OutcomeStore = {
-      get: (key) => shared.get(key),
-      put: (key, held) => void shared.set(key, held),
+      begin: (key) => {
+        const record = shared.get(key);
+        if (record === null) return "in-flight";
+        if (record !== undefined) return { held: record };
+        shared.set(key, null);
+        return "reserved";
+      },
+      complete: (key, held) => void shared.set(key, held),
+      release: (key) => void shared.delete(key),
     };
 
     let performed = 0;
@@ -288,5 +295,101 @@ describe("mount(), refusing a Worker that cannot keep ENDP-16", () => {
     const call = () => perRequest.fetch(new Request("http://worker.invalid/health"), {});
     expect((await call()).status).toBe(404);
     expect((await call()).status).toBe(404);
+  });
+});
+
+/**
+ * ENDP-16 when two callers arrive at once under one key.
+ *
+ * The case a `get` and then a `put` cannot cover, whatever the store is built on: the Action runs
+ * between the two calls, so both find nothing recorded and both perform. `begin` takes the key
+ * instead, and the second caller is refused rather than served a second performance.
+ */
+describe("mount(), with two requests under one idempotency key", () => {
+  it("performs the Action once and tells the other to come back", async () => {
+    let performed = 0;
+    let release!: () => void;
+    const started = new Promise<void>((done) => {
+      release = done;
+    });
+
+    const app = mount({
+      id: "tech.rowing.test.concurrent",
+      actions: {
+        outcomes: memoryOutcomes(),
+        actions: {
+          count: {
+            input: z.object({}),
+            result: z.object({ n: z.number() }),
+            idempotency: { required: true, from: "header", windowSeconds: 60 },
+            run: async () => {
+              performed += 1;
+              // Held open so the second request arrives while this one is still running, which is
+              // the only moment the race exists and the one a sequential test never reaches.
+              await started;
+              return { n: performed };
+            },
+          },
+        },
+      },
+    });
+
+    const call = () =>
+      app.fetch(
+        new Request("http://worker.invalid/actions?action=count", {
+          method: "POST",
+          body: "{}",
+          headers: { "idempotency-key": "k-1" },
+        }),
+      );
+
+    const first = call();
+    const second = await call();
+    release();
+
+    // ENDP-32: `retry`, so the caller comes back and ENDP-16 answers it the recorded outcome. A
+    // `reject` would have told it to stop over a condition that clears itself in a moment.
+    expect(second.status).toBe(503);
+    expect(await second.json()).toMatchObject({ code: "unavailable", class: "retry" });
+    expect(await (await first).json()).toEqual({ n: 1 });
+    expect(performed).toBe(1);
+  });
+
+  it("gives the key back when the Action refuses, so the next caller may take it", async () => {
+    // A refusal is not an outcome. A reservation kept over one would lock the Action out for the
+    // whole window over something that never happened.
+    let attempts = 0;
+    const app = mount({
+      id: "tech.rowing.test.refusing",
+      actions: {
+        outcomes: memoryOutcomes(),
+        actions: {
+          fussy: {
+            input: z.object({ ok: z.boolean() }),
+            result: z.object({ n: z.number() }),
+            idempotency: { required: true, from: "header", windowSeconds: 60 },
+            run: ({ ok }: { ok: boolean }) => {
+              attempts += 1;
+              return ok
+                ? { n: attempts }
+                : { code: "unprocessable_content" as const, message: "no" };
+            },
+          },
+        },
+      },
+    });
+
+    const call = (ok: boolean) =>
+      app.fetch(
+        new Request("http://worker.invalid/actions?action=fussy", {
+          method: "POST",
+          body: JSON.stringify({ ok }),
+          headers: { "idempotency-key": "k-1" },
+        }),
+      );
+
+    expect((await call(false)).status).toBe(422);
+    // The same key again, and it is free: the refusal recorded nothing.
+    expect(await (await call(true)).json()).toEqual({ n: 2 });
   });
 });

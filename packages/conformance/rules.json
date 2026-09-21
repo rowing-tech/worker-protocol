@@ -440,6 +440,12 @@
       "reach": "P"
     },
     {
+      "id": "ENDP-32",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
       "id": "EVT-1",
       "file": "events.md",
       "class": "required",

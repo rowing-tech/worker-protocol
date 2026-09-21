@@ -80,15 +80,56 @@ export type ActionFacts = {
 };
 
 /**
+ * What `begin` answers: the outcome already recorded, somebody else performing it now, or the
+ * reservation — which is the only one of the three that performs anything.
+ */
+export type Reservation =
+  /** ENDP-16. Within the window, this key already has an outcome. It is answered, not performed. */
+  | { held: Recorded }
+  /** Another request holds this key and has not finished. Nothing is performed; ENDP-29's `409`. */
+  | "in-flight"
+  /** Nobody held it. This request performs the Action and calls `complete` or `release`. */
+  | "reserved";
+
+/**
  * Where a Worker keeps what ENDP-16 promised, when a Map will not do.
  *
- * `put` carries the instant the record expires so that a store with its own time-to-live can use
- * it — a KV namespace, a durable object alarm — and one without may ignore it, because `get` is
- * asked to answer nothing for a record whose window has passed and `mount()` checks that anyway.
+ * **It reserves rather than reads, and that is the whole shape of it.** A `get` then a `put` with
+ * the Action running in between is a check-then-act: two requests arriving at once under one key
+ * both find nothing recorded, both perform, and both record. A durable object does not fix it,
+ * because the Action runs outside the durable object — between the two calls, which is exactly
+ * where the window is. So the first call *takes* the key, and only whoever took it performs.
+ *
+ * Every store has this in one operation already. A durable object is single-threaded, so reading
+ * and writing in one method is atomic by construction. SQL is `insert … on conflict do nothing`,
+ * and the rows affected say which of the three happened. A Map is `has` then `set` with nothing
+ * between them, because JavaScript does not interleave.
+ *
+ * `until` travels on `begin` so that a store with its own time-to-live can set it when it reserves
+ * — a KV namespace, a durable object alarm — and one without may ignore it: `begin` is asked to
+ * treat a record whose window has passed as absent, and `mount()` never sees the difference.
  */
 export type OutcomeStore = {
-  get: (key: string) => Recorded | undefined | Promise<Recorded | undefined>;
-  put: (key: string, held: Recorded) => void | Promise<void>;
+  /**
+   * Take the key, or say what is already there. Nothing is performed unless this answers
+   * `"reserved"`, and whoever gets that calls `complete` or `release`.
+   *
+   * **A reservation expires at `until`, and that is a requirement and not a hint.** A request that
+   * dies between `begin` and `complete` — the process evicted, the isolate killed, the machine
+   * gone — calls neither, so nothing gives the key back. Without an expiry every later request
+   * under it would meet `in-flight` forever, and one crash would lock an Action out permanently
+   * over work that never finished. With one, it costs a window. A store treats a reservation whose
+   * `until` has passed exactly as it treats one that was never taken.
+   */
+  begin: (key: string, until: number) => Reservation | Promise<Reservation>;
+  /** The Action ran and this is what it answered. The reservation becomes the record. */
+  complete: (key: string, held: Recorded) => void | Promise<void>;
+  /**
+   * The Action did not run, or refused. The reservation is given up so the next caller may take
+   * it — a refusal is not an outcome, and a key held by a request that failed would lock the
+   * Action out for the whole window over something that never happened.
+   */
+  release: (key: string) => void | Promise<void>;
   /** Set by `memoryOutcomes` alone, so `mount()` can tell one built per request from a durable one. */
   readonly [IN_MEMORY]?: true;
 };
@@ -123,11 +164,31 @@ export type Recorded = { body: string; answer: Answer; until: number };
  * deserve the helper and not common enough to deserve the default.
  */
 export const memoryOutcomes = (): OutcomeStore => {
-  const held = new Map<string, Recorded>();
+  /**
+   * A reservation and a record are one row, told apart by whether an answer arrived.
+   *
+   * Both carry `until`, and a row past it is treated as absent — which is what gives a reservation
+   * its expiry. In one process a crash takes the Map with it, so the expiry earns nothing here; it
+   * is written anyway because this is the shape every other store is being asked to implement, and
+   * one that quietly did less would be the wrong thing to copy.
+   */
+  const held = new Map<string, { until: number; answer?: Recorded }>();
+
   return {
     [IN_MEMORY]: true,
-    get: (key) => held.get(key),
-    put: (key, record) => void held.set(key, record),
+    begin: (key, until) => {
+      const row = held.get(key);
+      const live = row !== undefined && row.until > Date.now();
+      if (live && row.answer !== undefined) return { held: row.answer };
+      if (live) return "in-flight";
+      // Nothing runs between the read and the write: a store on a real backend needs one operation
+      // for this — a durable object method, an `insert … on conflict do nothing` — and this one
+      // needs none, because JavaScript does not interleave here.
+      held.set(key, { until });
+      return "reserved";
+    },
+    complete: (key, record) => void held.set(key, { until: record.until, answer: record }),
+    release: (key) => void held.delete(key),
   };
 };
 
@@ -189,22 +250,49 @@ export function actions(facts: ActionFacts) {
     }
 
     const now = Date.now();
-    const held =
-      recordedKey === undefined || recorded === undefined
+    const keyed =
+      recordedKey === undefined || recorded === undefined || idempotency === undefined
         ? undefined
-        : await recorded.get(`${name}:${recordedKey}`);
-    if (held !== undefined && held.until > now) {
-      // ENDP-17: a key reused with a different body is `409`. Only the caller can tell a retry
-      // from a genuine repeat, and this is the Worker declining to guess.
-      if (held.body !== raw) {
-        return refuse("idempotency_key_reused", "That key was used with another body.");
+        : { store: recorded, key: `${name}:${recordedKey}`, idempotency };
+
+    // ENDP-16: the key is TAKEN before the Action runs, not read. Reading and then writing with
+    // the Action in between is a check-then-act, and two callers under one key would both perform.
+    if (keyed !== undefined) {
+      const reservation = await keyed.store.begin(
+        keyed.key,
+        now + keyed.idempotency.windowSeconds * 1000,
+      );
+      if (reservation === "in-flight") {
+        // ENDP-32: `retry` and not `reject`, which is the whole point. The caller backs off and
+        // repeats under ENDP-30, and by then the first performance has recorded an outcome, so
+        // ENDP-16 answers it. A `reject` would have told the caller to stop — and ENDP-28 would
+        // have been right to make it, over a condition that resolves itself in a second.
+        return refuse("unavailable", "This idempotency key is being performed right now.");
       }
-      // ENDP-16: within the window, a repeat is not a second performance.
-      return held.answer;
+      if (reservation !== "reserved") {
+        // ENDP-17: a key reused with a different body is `409`. Only the caller can tell a retry
+        // from a genuine repeat, and this is the Worker declining to guess.
+        if (reservation.held.body !== raw) {
+          return refuse("idempotency_key_reused", "That key was used with another body.");
+        }
+        // ENDP-16: within the window, a repeat is not a second performance.
+        return reservation.held.answer;
+      }
     }
 
-    const produced = await declaration.run(input.data as never, { name, token });
-    if (isRefusal(produced)) return produced;
+    let produced: unknown;
+    try {
+      produced = await declaration.run(input.data as never, { name, token });
+    } catch (thrown) {
+      // The key is given back before the failure travels: a reservation held by a request that
+      // threw would lock the Action out for the whole window over something that never happened.
+      if (keyed !== undefined) await keyed.store.release(keyed.key);
+      throw thrown;
+    }
+    if (isRefusal(produced)) {
+      if (keyed !== undefined) await keyed.store.release(keyed.key);
+      return produced;
+    }
 
     // ACT-10, ACT-11: the status comes from what the Action DECLARED, so a caller knows which to
     // expect before it sends and a handler never picks one.
@@ -215,11 +303,11 @@ export function actions(facts: ActionFacts) {
           ? { status: 204, body: null }
           : { status: 200, body: produced };
 
-    if (recordedKey !== undefined && idempotency !== undefined && recorded !== undefined) {
-      await recorded.put(`${name}:${recordedKey}`, {
+    if (keyed !== undefined) {
+      await keyed.store.complete(keyed.key, {
         body: raw,
         answer,
-        until: now + idempotency.windowSeconds * 1000,
+        until: now + keyed.idempotency.windowSeconds * 1000,
       });
     }
     return answer;

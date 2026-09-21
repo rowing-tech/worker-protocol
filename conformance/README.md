@@ -17,8 +17,8 @@ live Worker. `pnpm test` runs them from TypeScript today.
 A run produces a verdict for **every** rule in the specification, never only for the ones it
 exercised. That is the whole design of this vocabulary, and the reason is the one this repository
 applies everywhere else: something is produced and a party reads it. A report listing the checks
-that ran, all green, over a specification of 143 rules tells an operator that a Worker was checked
-against the protocol. Today that would be 97 of them, and nothing on the page would say which — so
+that ran, all green, over a specification of 144 rules tells an operator that a Worker was checked
+against the protocol. Today that would be 98 of them, and nothing on the page would say which — so
 the reader concludes more than was established, which is the same fault as a generated artifact
 nobody compares.
 

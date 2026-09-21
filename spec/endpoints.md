@@ -157,7 +157,7 @@ the class named beside it. This protocol does not fix the status of a success.**
 | `422` | `reject` | The body is well-formed and matches the schema, and this Worker will not accept its content |
 | `429` | `retry` | Too many requests. Carries `Retry-After` |
 | `500` | `retry` | The Worker failed for its own reasons |
-| `503` | `retry` | The Worker cannot serve right now — starting, `unhealthy`, a dependency down |
+| `503` | `retry` | The Worker cannot serve right now — starting, `unhealthy`, a dependency down, an idempotency key whose performance has not finished |
 | `502`, `504` | `retry` | Something the Worker depends on did not answer |
 
 The table is closed and the success side is not, because the two sides are read by different
@@ -213,7 +213,7 @@ the argument beneath each code — why `502` and `504` are two of them, why `sch
 | `unprocessable_content` | `422` | `reject` | Well-formed, schema-valid, and refused on the Worker's own rules — ENDP-29, ENDP-12 |
 | `rate_limited` | `429` | `retry` | Too many requests — ENDP-29 |
 | `internal_error` | `500` | `retry` | The Worker failed for its own reasons — ENDP-29 |
-| `unavailable` | `503` | `retry` | Starting, `unhealthy`, or a dependency down — ENDP-29 |
+| `unavailable` | `503` | `retry` | Starting, `unhealthy`, a dependency down, or a key still being performed — ENDP-29, ENDP-32 |
 | `upstream_error` | `502` | `retry` | Something the Worker depends on answered badly — ENDP-29 |
 | `upstream_timeout` | `504` | `retry` | Something the Worker depends on did not answer in time — ENDP-29 |
 
@@ -274,6 +274,9 @@ the Worker answers the outcome it recorded.**
 
 **ENDP-18 (required). A required key that is absent is `400`.**
 
+**ENDP-32 (required). A request under a key whose performance has not finished is `503`, with the
+code `unavailable`.**
+
 **An Action that declares no key is at-least-once under retry, and a caller that retries one
 accepts that it may happen twice.** That is emphasis and not an obligation, deliberately: it
 forbids nothing and requires nothing of anybody, it states what guarantee a caller is buying. It
@@ -300,6 +303,31 @@ recorded outcome* is unimplementable as an open promise — no Worker remembers 
 has forgotten performs the Action again while the caller still believes it is protected. Declaring
 the window turns that from a silent assumption into a fact a caller can read and design against
 before it sends anything.
+
+**ENDP-32 is the case ENDP-16 alone does not reach, and it is the common one.** A caller that gets
+no answer retries, and it retries *promptly* — so the second request arrives while the first is
+still being performed, when there is no recorded outcome for ENDP-16 to answer with. A Worker that
+read, found nothing and performed would do the work twice, which is the whole of what the key was
+for. So the key is taken before the Action runs and a second request meets a key in use.
+
+**It is `retry` and not `reject`, and that is the part worth arguing.** The obvious code is
+`conflict` — the request does conflict with the current state — and it would have been wrong:
+`conflict` is `reject`, ENDP-28 forbids a caller from retrying one, and this is a condition that
+clears itself in a moment. Telling a caller to stop over it would lose the work for the one reason
+a caller is entitled to come back. `unavailable` carries `retry`, ENDP-30 has the caller back off
+and repeat, and by then the first performance has recorded an outcome and ENDP-16 answers it.
+
+A performance that fails gives the key back rather than holding it: a refusal is not an outcome,
+and a key held by a request that never completed would lock the Action out for the whole declared
+window over something that did not happen.
+
+**And a key in use expires, which is the clause that keeps this from being worse than what it
+fixes.** A request that dies mid-performance — the process evicted, the machine gone — gives
+nothing back, so a Worker that held keys until somebody returned them would answer `503` under that
+key for ever after one crash. The window a Worker already declares for the outcome bounds the
+reservation too: past it, a key in use is a key nobody holds. What that costs is the honest half —
+between the crash and the expiry, a retry is told to come back and cannot be served — and it is
+bounded by a number the Worker chose and published.
 
 **Where the Worker keeps what it recorded is its own, and the one thing worth saying about it is
 that a process is not a Worker.** A Worker that answers from several at once — which is every
