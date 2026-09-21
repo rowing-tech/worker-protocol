@@ -18,12 +18,15 @@
     "broker": {
       "type": "string",
       "minLength": 1,
-      "description": "EVT-2. Where this Worker publishes, named however its operators name it. Nothing here parses it — this protocol names no broker, exactly as it parses no metric unit."
+      "description": "EVT-10. WHICH broker this Worker publishes to, named however its operators name it — the cluster or the service, not the place on it, which is `destination`. Nothing here parses it, exactly as nothing parses a metric unit."
     },
     "binding": {
       "type": "string",
       "minLength": 1,
-      "description": "EVT-2. Which CloudEvents binding the attributes are laid out under. Not fixed and not parsed: a binding is a property of a transport, and fixing one would mean naming a broker or publishing a list of the ones somebody had thought of."
+      "description": "EVT-10. Which CloudEvents binding the attributes are laid out under. Not fixed and not parsed: a binding is a property of a transport, and fixing one would mean naming a broker or publishing a list of the ones somebody had thought of."
+    },
+    "destination": {
+      "$ref": "event-destination.json"
     },
     "events": {
       "type": "object",
@@ -45,10 +48,11 @@
     "version",
     "broker",
     "binding",
+    "destination",
     "events",
     "republishWindowSeconds"
   ],
   "additionalProperties": {},
   "title": "Events capability entry",
-  "description": "EVT-2. The shared Capability entry with NO address, the broker and binding this Worker publishes under, what it publishes, and how long it may republish one."
+  "description": "EVT-10. The shared Capability entry with NO address: the broker, the binding and the destination this Worker publishes to, what it publishes, and how long it may republish one."
 }

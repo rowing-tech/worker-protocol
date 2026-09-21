@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event-destination.json",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": {},
+  "title": "Event destination",
+  "description": "EVT-10. Where on the declared broker these events land, in whatever shape that broker needs — a topic beside its servers, an Event Hub in a namespace, an ARN. The keys are the Worker's own and nothing here parses them. A Worker that publishes and does not say where leaves a consumer holding a cluster, an envelope layout and a list of names it cannot attach to anything."
+}

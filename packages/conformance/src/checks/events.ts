@@ -14,7 +14,7 @@ import type { Result, Rule } from "../report.ts";
  *
  * It takes no transcript for the same reason. A check that sent nothing is the honest shape here.
  */
-export const CLAIMS = ["EVT-2", "EVT-3", "EVT-4", "EVT-8"] as const;
+export const CLAIMS = ["EVT-10", "EVT-3", "EVT-4", "EVT-8"] as const;
 
 export function checkEvents(
   entry: Record<string, unknown> | undefined,
@@ -36,7 +36,7 @@ export function checkEvents(
   if (!declared.success) {
     const blamed = new Set<string>();
     for (const issue of declared.error.issues) {
-      const id = ruleFor(attribution, "events-entry", issue.path) ?? "EVT-2";
+      const id = ruleFor(attribution, "events-entry", issue.path) ?? "EVT-10";
       if (blamed.has(id)) continue;
       blamed.add(id);
       say(id, "fails", `${issue.path.join(".") || "(root)"}: ${issue.message}`);
@@ -49,10 +49,10 @@ export function checkEvents(
 
   const { events } = declared.data as unknown as { events: Record<string, unknown> };
 
-  // EVT-2 and EVT-8 are what validation established: a broker, a binding, and the window a
+  // EVT-10 and EVT-8 are what validation established: a broker, a binding, a destination and the window a
   // consumer sizes its deduplication store against. Neither string is parsed — this protocol names
   // no broker and fixes no binding — so what a check can say is that both are there.
-  say("EVT-2", "passes");
+  say("EVT-10", "passes");
   say("EVT-8", "passes");
 
   // EVT-3 and EVT-4: every event type it publishes, each with the schema of its data, under a

@@ -8,6 +8,10 @@
       "properties": {},
       "additionalProperties": {},
       "description": "EVT-3. The JSON Schema of this event type's data — the `data` of the CloudEvents envelope EVT-1 fixes. The Worker's own shape: this protocol has no data model."
+    },
+    "destination": {
+      "description": "EVT-10. Where THIS type lands, for a Worker that divides its events by subject. Absent, it lands at the entry's destination, which is the ordinary case.",
+      "$ref": "event-destination.json"
     }
   },
   "required": [

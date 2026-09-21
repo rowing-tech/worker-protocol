@@ -48,7 +48,7 @@ export type Worker = {
   actions?: ActionFacts;
   /** `alerts`: the Alerts whose conditions hold (ALRT-2). `mount()` pages them. */
   alerts?: () => z.infer<typeof alert>[] | Promise<z.infer<typeof alert>[]>;
-  /** `events`: the entry and nothing else, because there is no address to serve (EVT-2). */
+  /** `events`: the entry and nothing else, because there is no address to serve (EVT-10). */
   events?: Omit<z.infer<typeof eventsEntry>, "version" | "address">;
   /** `tasks`: what the entry declares (TASK-27, TASK-2 to TASK-4), and which conditions hold. */
   tasks?: {

@@ -184,7 +184,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
 | EVT-1 | H | The verifier holds no broker and sees no event. An arrangement would have to hand it one the Worker published |
-| EVT-2 | W | The entry declares a broker and a binding |
+| EVT-10 | W | The entry declares a broker, a binding and a destination |
 | EVT-3 | W | Every event type it publishes, each with the schema of its data |
 | EVT-4 | W | Every event type name is a qualified name |
 | EVT-5 | P | Binds the Tower, which brokers the Contract, and states a negative about what does NOT travel here |

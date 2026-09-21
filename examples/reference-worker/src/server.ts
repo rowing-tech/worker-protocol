@@ -156,11 +156,15 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
 
     alerts,
 
-    // EVT-2: no address at all, which is the one case DESC-22 leaves the shared entry's address
-    // optional for. An event travels over a broker, and this Worker's is named and not parsed.
+    // EVT-10: no address at all, which is the one case DESC-22 leaves the shared entry's address
+    // optional for. An event travels over a broker, and this Worker names the broker, the binding
+    // and where on it the events land — none of which anything here parses.
     events: {
-      broker: "nats://events.invalid",
+      broker: "nats",
       binding: "cloudevents/nats-1.0",
+      // The shape NATS needs, under keys this Worker chose. On Kafka it would be bootstrap
+      // servers and a topic; on Event Hubs a namespace and a hub. Nothing here reads a key.
+      destination: { servers: "nats://events.invalid:4222", subject: "worker-protocol.reference" },
       events: {
         "tech.rowing.worker-protocol.vehicle-verified": {
           data: {

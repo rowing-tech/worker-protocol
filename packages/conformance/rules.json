@@ -452,12 +452,6 @@
       "reach": "H"
     },
     {
-      "id": "EVT-2",
-      "file": "events.md",
-      "class": "required",
-      "reach": "W"
-    },
-    {
       "id": "EVT-3",
       "file": "events.md",
       "class": "required",
@@ -498,6 +492,12 @@
       "file": "events.md",
       "class": "required",
       "reach": "N"
+    },
+    {
+      "id": "EVT-10",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
     },
     {
       "id": "HLTH-1",
@@ -1028,18 +1028,24 @@
       "code": "ENDP-25",
       "message": "ENDP-25"
     },
+    "event-destination": {
+      "": "EVT-10"
+    },
     "event-type-declaration": {
       "": "EVT-3",
-      "data": "EVT-3"
+      "data": "EVT-3",
+      "destination": "EVT-10"
     },
     "events-entry": {
-      "": "EVT-2",
+      "": "EVT-10",
       "address": "DESC-12",
-      "binding": "EVT-2",
-      "broker": "EVT-2",
+      "binding": "EVT-10",
+      "broker": "EVT-10",
+      "destination": "EVT-10",
       "events": "EVT-3",
       "events/*": "EVT-3",
       "events/*/data": "EVT-3",
+      "events/*/destination": "EVT-10",
       "republishWindowSeconds": "EVT-8",
       "version": "DESC-9"
     },

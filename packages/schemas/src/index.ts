@@ -921,13 +921,40 @@ export const alertsEntry = capabilityEntry.extend({ address }).meta({
     "raises an Alert about is its own business, so there is no catalog to declare.",
 });
 
-/** EVT-3 — one event type a Worker publishes. */
+/**
+ * EVT-10 — where an event lands on the broker its entry declares.
+ *
+ * An object and not a string, because what a consumer needs in order to attach is not alike across
+ * brokers: a Kafka topic beside its bootstrap servers, an Event Hub inside a namespace, an SNS ARN
+ * with a region in it. One string would have made every consumer parse this Worker's own way of
+ * packing several facts into one, which is the work a catalog exists to remove.
+ *
+ * Open, and nothing here reads a key of it — the same move an Action's input already makes. What
+ * that costs is that two Workers on one broker may spell it differently; `spec/events.md` argues
+ * why a namespaced name would not have fixed it and convention is what does.
+ */
+export const eventDestination = z.looseObject({}).meta({
+  title: "Event destination",
+  description:
+    "EVT-10. Where on the declared broker these events land, in whatever shape that broker needs " +
+    "— a topic beside its servers, an Event Hub in a namespace, an ARN. The keys are the " +
+    "Worker's own and nothing here parses them. A Worker that publishes and does not say where " +
+    "leaves a consumer holding a cluster, an envelope layout and a list of names it cannot attach " +
+    "to anything.",
+});
+
+/** EVT-3, EVT-10 — one event type a Worker publishes. */
 export const eventTypeDeclaration = z
   .strictObject({
     data: z.looseObject({}).meta({
       description:
         "EVT-3. The JSON Schema of this event type's data — the `data` of the CloudEvents " +
         "envelope EVT-1 fixes. The Worker's own shape: this protocol has no data model.",
+    }),
+    destination: eventDestination.optional().meta({
+      description:
+        "EVT-10. Where THIS type lands, for a Worker that divides its events by subject. Absent, " +
+        "it lands at the entry's destination, which is the ordinary case.",
     }),
   })
   .meta({
@@ -938,7 +965,7 @@ export const eventTypeDeclaration = z
   });
 
 /**
- * EVT-2, EVT-3, EVT-8 — the `events` Capability entry.
+ * EVT-10, EVT-3, EVT-8 — the `events` Capability entry.
  *
  * The one entry with NO address, which is the single reason DESC-22 leaves the address optional in
  * the shared entry at all. An event travels over a broker this protocol declines to name, and a
@@ -951,18 +978,20 @@ export const eventsEntry = capabilityEntry
       .min(1)
       .meta({
         description:
-          "EVT-2. Where this Worker publishes, named however its operators name it. Nothing here " +
-          "parses it — this protocol names no broker, exactly as it parses no metric unit.",
+          "EVT-10. WHICH broker this Worker publishes to, named however its operators name it — " +
+          "the cluster or the service, not the place on it, which is `destination`. Nothing here " +
+          "parses it, exactly as nothing parses a metric unit.",
       }),
     binding: z
       .string()
       .min(1)
       .meta({
         description:
-          "EVT-2. Which CloudEvents binding the attributes are laid out under. Not fixed and not " +
+          "EVT-10. Which CloudEvents binding the attributes are laid out under. Not fixed and not " +
           "parsed: a binding is a property of a transport, and fixing one would mean naming a " +
           "broker or publishing a list of the ones somebody had thought of.",
       }),
+    destination: eventDestination,
     events: z.record(qualifiedName, eventTypeDeclaration).meta({
       description: "EVT-3. Every event type this Worker publishes, keyed by name.",
     }),
@@ -982,8 +1011,8 @@ export const eventsEntry = capabilityEntry
   .meta({
     title: "Events capability entry",
     description:
-      "EVT-2. The shared Capability entry with NO address, the broker and binding this Worker " +
-      "publishes under, what it publishes, and how long it may republish one.",
+      "EVT-10. The shared Capability entry with NO address: the broker, the binding and the " +
+      "destination this Worker publishes to, what it publishes, and how long it may republish one.",
   });
 
 registry.add(capabilityName, { id: "capability-name" });
@@ -1012,5 +1041,6 @@ registry.add(alertSeverity, { id: "alert-severity" });
 registry.add(alert, { id: "alert" });
 registry.add(alertPage, { id: "alert-page" });
 registry.add(alertsEntry, { id: "alerts-entry" });
+registry.add(eventDestination, { id: "event-destination" });
 registry.add(eventTypeDeclaration, { id: "event-type-declaration" });
 registry.add(eventsEntry, { id: "events-entry" });

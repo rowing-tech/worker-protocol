@@ -1,0 +1,10 @@
+{
+  "schema": "event-type-declaration",
+  "valid": true,
+  "rule": "EVT-10",
+  "why": "One event type that lands somewhere other than the entry's destination, for a Worker that divides its events by subject. Absent, a type lands where the entry says, which is the ordinary case and the reason this is optional here and required there.",
+  "document": {
+    "data": { "type": "object", "properties": { "vehicle": { "type": "string" } } },
+    "destination": { "bootstrapServers": "kafka.example.com:9092", "topic": "fleet.alerts" }
+  }
+}

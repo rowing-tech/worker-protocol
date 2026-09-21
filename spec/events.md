@@ -23,8 +23,10 @@ class; the convention is in [spec/README.md](README.md).
 **EVT-1 (required). An event is a CloudEvents 1.0 event. Its `type` is one the entry declares, its
 `source` is the Worker's id, and `source` with `id` identifies one event uniquely.**
 
-**EVT-2 (required). This protocol fixes no binding and names no broker. The entry declares both,
-and nothing here parses either.**
+**EVT-10 (required). This protocol fixes no binding, names no broker and defines no destination.
+The entry declares all three: the broker, the binding, and where on that broker its events land —
+and nothing here parses any of them. An event type may declare a destination of its own, which is
+the one it lands at.**
 
 CloudEvents was listed as the candidate and it is adopted, for one reason that outweighs the cost of
 depending on a second specification: it already answers the question this file could not answer
@@ -42,9 +44,30 @@ kept its id (DESC-27) and did not keep its address.
 property of a transport — how the attributes sit on a Kafka record, an MQTT message, an HTTP POST —
 and this protocol has no transport to have an opinion about. Fixing one would mean either naming a
 broker or publishing a list of the ones we had thought of, which is a registry under another name.
-So the entry declares the broker and the binding as strings, and nothing here parses them, exactly
-as [metrics](metrics.md) declares a unit nothing parses. A consumer that does not recognise what it
-reads does not subscribe, which is the correct outcome and needs no machinery.
+So the broker and the binding are strings, and nothing here parses them, exactly as
+[metrics](metrics.md) declares a unit nothing parses.
+
+**The destination is the third, and it is an object rather than a string because a string would
+have flattened things that are not alike.** Where a message lands is not a property of the
+transport — it is a property of *this publication*, and every broker has a name for it: a Kafka
+topic, a NATS subject, an Event Hub in a namespace, an SNS ARN with a region in it. One string
+would have made each consumer parse this Worker's own convention for packing several facts into
+one, which is the work a catalog exists to remove. So the destination carries whatever that broker
+needs, under keys the Worker chooses, and nothing here reads them — the same move an Action's input
+already makes, and for the same reason: this protocol has no data model.
+
+**What it costs is that two Workers on one broker may spell it differently**, and nothing here
+stops them. Making them agree would mean either a registry of brokers or a namespaced name under
+NAME-7 — and NAME-8 asks that a namespace be a domain the minting team controls, which nobody
+here does for Kafka or for Azure. The names would be false or they would be local, and a local name
+is one nothing else matches. What makes it work instead is convention inside a network, and a Tower
+that renders what it recognises and shows the rest as it read it — which is what DESC-15 already
+has a verifier do with a Capability it does not know.
+
+A consumer that does not recognise what it reads does not subscribe, which is the correct outcome
+and needs no machinery. **Without the destination it could not subscribe even when it did
+recognise everything**, which is why the entry owes it: a Tower holding a cluster, an envelope
+layout and a list of type names still cannot say what to attach to.
 
 ## What a Worker declares
 
@@ -136,12 +159,23 @@ has to care.
 
 ## Still open here
 
-- Whether a Worker declares more than one broker, for a deployment migrating between two. Nothing
-  needs it yet and the entry would have to say which types go where.
+- Whether a Worker declares more than one broker, for a deployment migrating between two. A
+  destination per event type answers *which types go where* on one broker; a second broker is a
+  different question and nothing needs it yet.
 - Whether the lifecycle transitions of Tasks and Alerts are event types this specification names,
   or each Worker's own. Naming them would make one shape a subscriber could rely on across
   Workers; leaving them alone keeps this file out of a data model.
 
 ## Withdrawn
 
-Nothing yet.
+- **EVT-2** — required that the entry declare the broker and the binding, and that nothing here
+  parse either. Replaced by **EVT-10**, which requires a third thing: where on that broker the
+  events land. An entry declaring only a broker and a binding satisfied EVT-2 and does not satisfy
+  EVT-10, so the verdict moves and the id did not survive.
+
+  What the old rule left out was the one fact a consumer cannot proceed without. A Tower could
+  catalog the cluster, the envelope layout and every type name a Worker published, and still not
+  tell anybody what to subscribe to — so the catalog answered every question but the one somebody
+  had. The gap was easy to miss because the entry's `broker` reads as though it might already carry
+  it: *where this Worker publishes* is true of a cluster and of a topic alike, and the example in
+  this repository filled it with a server URL while nothing said it had to.
