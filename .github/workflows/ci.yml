@@ -13,11 +13,11 @@ jobs:
   schemas:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # pnpm, always. The version comes from the root `packageManager` field, so this
       # workflow and a developer's machine cannot drift apart.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       # Node 26 is a deliberate choice, not an incidental one. Generation runs
       # packages/schemas/src/generate.ts DIRECTLY, through Node's native TypeScript type
@@ -25,7 +25,7 @@ jobs:
       # generation with a syntax error in a .ts file, which does not obviously read as
       # "the Node version is too old". Raise it freely; lower it only by first adding a
       # compile step to the two scripts below.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '26'
           cache: pnpm
