@@ -113,6 +113,16 @@ that observed something the specification does not require would be this package
 standard. When this tool and the specification disagree, the specification is right and this is the
 bug.
 
+## Fixing what it reports, with a coding agent
+
+```
+npx skills add rowing-tech/worker-protocol --skill worker-protocol
+```
+
+An [Agent Skill](https://agentskills.io) carrying the protocol in any language: what each rule id
+means, where its file is, the surface an implementer without an SDK writes by hand, and the gotchas
+behind the failures this tool reports most. `--all` adds a second one for TypeScript on Hono.
+
 ## Related packages
 
 - `@worker-protocol/schemas` — the Zod objects that generate the normative JSON Schemas.

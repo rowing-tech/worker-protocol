@@ -80,17 +80,6 @@ skills/          what a coding agent reads before writing a Worker
 docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```
 
-Two [Agent Skills](https://agentskills.io), split the way `docs/roadmap.md` splits the SDKs.
-`worker-protocol` is what an implementer in **any** language needs — the Descriptor, the envelopes,
-the verification loop, and the rules that hold whatever it is written in; for C#, Python or Go, that
-is the whole of what exists today and it says so. `worker-protocol-hono` is the layer on top for
-TypeScript, and starts by pointing at the other. The day a repository per language exists, each one
-publishes its own second skill and refers back to the first rather than restating it.
-
-`npx skills add rowing-tech/worker-protocol` installs them for the agent you use. Every rule id they
-cite is checked against the verifier's own universe by `pnpm skill:lint`, so a skill cannot go on
-teaching a rule `spec/` has withdrawn.
-
 **Nothing in `packages/` may carry behavior of its *own*, and the word is load-bearing in the
 opposite direction to the one it is usually read in.** What is forbidden is a package doing
 something the specification does not say — that is how a package becomes the standard and the text
@@ -119,6 +108,33 @@ names first. That one keeps all of it in a Durable Object and runs its tests on 
 on Node, so the claim is made where it can fail. It failed on the first run, which is the point. The
 verifier reaches it over a real socket like any other Worker, and
 [its README](examples/fleet-worker/README.md) says how to run both.
+
+## Writing a Worker with a coding agent
+
+Two [Agent Skills](https://agentskills.io), split the way [the roadmap](docs/roadmap.md) splits the
+SDKs. Install them with the [`skills`](https://github.com/vercel-labs/skills) CLI, for Claude Code,
+Codex, Cursor, OpenCode or any other agent it supports:
+
+```
+npx skills add rowing-tech/worker-protocol --list                    # see both
+npx skills add rowing-tech/worker-protocol --skill worker-protocol   # the protocol alone
+npx skills add rowing-tech/worker-protocol --all                     # both, for TypeScript
+```
+
+**[`worker-protocol`](skills/worker-protocol)** is what an implementer in **any** language needs:
+which of the three artifacts above is normative and what each is for, the surface you write by hand
+when no SDK exists for your language — both headers, the error envelope and its eighteen codes, the
+page envelope and its cursor, version negotiation, the idempotency window — the gotchas that hold
+whatever it is written in, and the verification loop. For C#, Python or Go that is the whole of what
+exists at edition 0.1, and it says so rather than implying otherwise.
+
+**[`worker-protocol-hono`](skills/worker-protocol-hono)** is the TypeScript layer on top:
+`defineWorker`, `action()`, the outcome store, what `mount()` carries against what a Worker still
+owes. It opens by pointing at the other, so an agent holding both reads the rules once.
+
+Every rule id they cite is checked against the verifier's own universe by `pnpm skill:lint`, so
+neither can go on teaching a rule `spec/` has withdrawn. The day a repository per language exists,
+each publishes its own second skill and refers back to the first rather than restating it.
 
 ## Status
 

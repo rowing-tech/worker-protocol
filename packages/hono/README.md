@@ -139,6 +139,17 @@ carries. If `mount()` does something no rule requires, that is the bug.
 What vouches for it is not this README: it is `@worker-protocol/conformance` run against a Worker
 built on it.
 
+## Writing one with a coding agent
+
+```
+npx skills add rowing-tech/worker-protocol --all
+```
+
+Two [Agent Skills](https://agentskills.io): `worker-protocol` carries the rules and their ids, and
+`worker-protocol-hono` carries this package — what `mount()` writes, what you still owe, and the
+mistakes that cost a conformance failure. Every rule id they cite is checked against the verifier's
+own universe in CI, so neither teaches a rule the specification has withdrawn.
+
 ## Related packages
 
 - `@worker-protocol/schemas` — the Zod objects that generate the normative JSON Schemas.

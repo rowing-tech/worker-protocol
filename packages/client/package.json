@@ -1,6 +1,6 @@
 {
   "name": "@worker-protocol/client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "workerProtocolEdition": "0.1",
   "description": "Read a Worker, and take work from it. The consumer half of worker-protocol",
   "license": "Apache-2.0",
