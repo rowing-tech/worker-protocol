@@ -286,6 +286,14 @@ lives that "worker-protocol" and any conformance claim made in its name are *not
 Apache-2.0.
 
 Publishing needs one secret, `NPM_TOKEN`: a granular access token for the `@worker-protocol` npm
-organization, with read and write on those four packages and nothing else. The packages are
-published without provenance, because npm attests it only from a public repository and this one is
-private.
+organization, with read and write on those four packages and nothing else.
+
+**Every tarball carries a provenance attestation**, which for a repository whose product is a
+specification is not a formality: `spec/` can be read by anyone, and provenance is what says the
+bytes on npm were built from it, here, at a commit somebody can go and look at. It is signed with a
+short-lived OIDC token describing this workflow — hence `id-token: write` in `publish.yml` — and
+npm records it beside the package.
+
+`0.1.0` carries none and cannot be given any. npm attests provenance only from a public repository,
+this one became public after that release, and an attestation is made at publish time: a published
+version is never rewritten. From the next release on, every version has one.

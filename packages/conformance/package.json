@@ -9,7 +9,7 @@
     "url": "git+https://github.com/rowing-tech/worker-protocol.git",
     "directory": "packages/conformance"
   },
-  "homepage": "https://github.com/rowing-tech/worker-protocol#readme",
+  "homepage": "https://github.com/rowing-tech/worker-protocol/tree/main/packages/conformance#readme",
   "bugs": "https://github.com/rowing-tech/worker-protocol/issues",
   "publishConfig": {
     "access": "public"

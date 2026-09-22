@@ -26,6 +26,12 @@ on:
 
 permissions:
   contents: read
+  # What npm's provenance attestation is signed with. The runner asks GitHub for a short-lived
+  # OIDC token describing this workflow, this repository and this commit, and npm records it beside
+  # the tarball — so a consumer can check that what they installed was built here, from the source
+  # they can read, rather than uploaded from somebody's laptop. It grants nothing else: an OIDC
+  # token identifies the workflow and authorizes no write anywhere.
+  id-token: write
 
 jobs:
   publish:
@@ -132,8 +138,15 @@ jobs:
       # pnpm rewrites each `workspace:*` to the version being published as it packs, which is why
       # one bump across the repository is enough and no manifest pins a sibling.
       #
-      # No --provenance: npm attests provenance from a public repository, and this one is private.
-      # Passing it would fail the publish rather than weaken it.
+      # --provenance ties each tarball to the commit and the workflow that produced it, which is
+      # what a repository whose product is a SPECIFICATION owes its readers: `spec/` can be read,
+      # and provenance is what says the bytes on npm came from it. npm attests it only from a
+      # public repository, which this one was not until edition 0.1 had already shipped — so 0.1.0
+      # carries none and cannot be given any, since an attestation is made at publish time and a
+      # published version is never rewritten. From the next release on, every version has one.
+      #
+      # It also requires the `repository` field to name the repository the workflow runs in. The
+      # four manifests do, each with its own `directory`.
       #
       # A PRERELEASE MUST NOT BECOME `latest`, and npm's default is that it does. `0.1.0-rc.1` is
       # invisible to a `^0.1.0` range, which is what makes it safe to publish at all — but the
@@ -144,7 +157,7 @@ jobs:
         run: |
           DIST_TAG="$(node -p "require('./package.json').version.includes('-') ? 'next' : 'latest'")"
           echo "publishing under the $DIST_TAG dist-tag"
-          pnpm -r --filter "./packages/*" publish --no-git-checks --tag "$DIST_TAG"
+          pnpm -r --filter "./packages/*" publish --no-git-checks --provenance --tag "$DIST_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
