@@ -1,6 +1,6 @@
 {
   "name": "@worker-protocol/hono",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "workerProtocolEdition": "0.1",
   "description": "The protocol's surface as Hono routes, and mount(): a Worker author implements an interface and gets every address, header and refusal this protocol fixes",
   "license": "Apache-2.0",
