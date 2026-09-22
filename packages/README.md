@@ -242,6 +242,11 @@ id at an edition rather than at a commit: *a commit is not a release, a branch n
 a publication*, and nobody should reach a published number by accident. The tag is the deliberate
 act, and `pnpm release` is the only thing that makes one.
 
+`pnpm bump` does not write [CHANGELOG.md](../CHANGELOG.md) and nothing else does either: what a
+release carried is the one thing here no tool can derive. `pnpm release:check` refuses a version
+with no section there, and one whose heading names no edition — so it is written while somebody
+still remembers what they did, rather than reconstructed from a diff later.
+
 Before it publishes, that workflow checks the tag against the version in the tree, re-runs the
 three generated-artifact comparisons, the build, the type-check and the full conformance suite, and
 runs `pnpm release:check` — which holds the rule above: **a release that changes which edition a

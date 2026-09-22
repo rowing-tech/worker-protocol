@@ -72,7 +72,9 @@ packages to the public npm registry — where a version cannot be replaced, only
 the most irreversible thing this repository can do, and it is the user's to do. `--dry-run` on
 either is safe and is how to show what a release would be.
 
-`pnpm release:check` only reads git and is free to run. `packages/README.md` holds the whole
+`pnpm release:check` only reads git and `CHANGELOG.md`, and is free to run. It refuses a release
+whose version has no section there naming the edition it encodes, so the changelog is written before
+the tag rather than remembered after it. `packages/README.md` holds the whole
 procedure and the reasoning behind it.
 
 ## A generated artifact belongs in the same commit as the source that produces it

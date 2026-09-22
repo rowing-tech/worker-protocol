@@ -1,9 +1,19 @@
 {
   "name": "@worker-protocol/client",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "workerProtocolEdition": "0.1",
   "description": "Read a Worker, and take work from it. The consumer half of worker-protocol",
+  "keywords": [
+    "worker-protocol",
+    "worker",
+    "client",
+    "descriptor",
+    "json-schema",
+    "interoperability",
+    "rowing-tech"
+  ],
   "license": "Apache-2.0",
+  "author": "Rowing Tech, S.A. (https://rowing.tech)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rowing-tech/worker-protocol.git",

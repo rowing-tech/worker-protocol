@@ -88,6 +88,43 @@ if (!version) {
   process.exit(1);
 }
 
+/**
+ * CHANGELOG.md carries a section for the version being released, and names the edition it encodes.
+ *
+ * A changelog is the one artefact here that nothing derives and nobody compares, which is the shape
+ * of claim this repository writes gates against everywhere else: it is right until somebody cuts a
+ * release in a hurry, and then it is quietly wrong for as long as nobody goes looking. The tag is
+ * when it has to be true, so the tag is where it is checked.
+ *
+ * The edition is required in the heading for the reason `packages/README.md` argues at length: the
+ * two numbers are independent, and a reader who finds only a version has to go and work out which
+ * specification that release encoded. Writing it costs a phrase and answers it forever.
+ */
+const changelog = await readFile(join(ROOT, "CHANGELOG.md"), "utf8").catch(() => "");
+const heading = changelog
+  .split("\n")
+  .find((line) => line.startsWith(`## [${version}]`) || line.startsWith(`## ${version}`));
+
+if (heading === undefined) {
+  console.error(`CHANGELOG.md has no section for ${version}.\n`);
+  console.error("  Add one before the tag, in the form:");
+  console.error(`    ## [${version}] - <date> — edition <edition>`);
+  console.error(
+    "\n  A release nobody wrote down is one a consumer has to read a diff to understand.",
+  );
+  process.exit(1);
+}
+
+if (!/edition\s+\d+\.\d+/i.test(heading)) {
+  console.error(`CHANGELOG.md's section for ${version} names no edition:\n`);
+  console.error(`    ${heading.trim()}`);
+  console.error(
+    "\n  A package version and an edition are independent and neither can be read off the other,",
+  );
+  console.error("  so an entry that states only the first leaves the question it raises open.");
+  process.exit(1);
+}
+
 // Every release tag except the one naming the version being released, newest first. `-v:refname`
 // sorts them as versions rather than as strings, so v0.10.0 lands above v0.9.0.
 const previous = git("tag", "--list", "v*", "--sort=-v:refname")
