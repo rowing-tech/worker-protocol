@@ -1,8 +1,13 @@
 {
   "name": "worker-protocol",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rowing-tech/worker-protocol.git"
+  },
   "packageManager": "pnpm@12.4.1",
   "engines": {
     "node": ">=23.6"
@@ -18,6 +23,9 @@
     "openapi:check": "node packages/hono/src/generate-openapi.ts --check",
     "rules:generate": "node packages/conformance/src/generate-rules.ts",
     "rules:check": "node packages/conformance/src/generate-rules.ts --check",
+    "release:check": "node scripts/lint-release.ts",
+    "bump": "node scripts/bump.ts",
+    "release": "node scripts/release.ts",
     "typecheck": "tsc -p tsconfig.json",
     "build": "pnpm -r build",
     "test": "pnpm -r test",

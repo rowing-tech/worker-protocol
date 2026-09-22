@@ -46,7 +46,7 @@ describe("the minimal worker", () => {
     // REG-3: the minimal Worker reads its credential from the environment, as a deployed one
     // would, so this is set before the module is imported and its Worker is built.
     process.env.CREDENTIAL = "m-token";
-    const { server } = await import("@worker-protocol/minimal-worker");
+    const { server } = await import("../../../../examples/minimal-worker/src/server.ts");
     const listening = server();
     await new Promise<void>((done) => listening.listen(0, "127.0.0.1", () => done()));
     const { port } = listening.address() as AddressInfo;

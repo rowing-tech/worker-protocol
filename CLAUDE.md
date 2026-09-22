@@ -58,6 +58,22 @@ generator, or to reflow a paragraph somebody argued over.
 Git commands are a separate question and this file does not widen them: stage and commit only when
 asked, as the user's own instructions say.
 
+## Releasing is not on that list, and `pnpm release` least of all
+
+```
+pnpm bump <patch|minor|major|x.y.z>   rewrites the version in five manifests
+pnpm release                          tags the commit and pushes the tag
+```
+
+Neither is ever run unprompted. `pnpm bump` edits files somebody has to read before committing, and
+`pnpm release` pushes a tag that starts `.github/workflows/publish.yml`, which publishes four
+packages to the public npm registry — where a version cannot be replaced, only superseded. That is
+the most irreversible thing this repository can do, and it is the user's to do. `--dry-run` on
+either is safe and is how to show what a release would be.
+
+`pnpm release:check` only reads git and is free to run. `packages/README.md` holds the whole
+procedure and the reasoning behind it.
+
 ## A generated artifact belongs in the same commit as the source that produces it
 
 Three things here are generated **and** committed, and CI regenerates each in memory and fails when

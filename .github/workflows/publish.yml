@@ -1,0 +1,207 @@
+name: publish
+
+# A tag is the release, and it is the only thing that publishes.
+#
+# spec/README.md fixes a rule id at an edition and argues why the boundary is the edition rather
+# than the commit: a commit is not a release, a branch nobody pulled is not a publication, and
+# nobody should reach a published number by accident. This workflow is the mechanical half of that
+# sentence. Pushing to main publishes nothing; `pnpm release` pushes one tag, and that is the
+# deliberate act.
+#
+# The dispatch below takes a TAG and never a version, which is the one place this differs from the
+# same workflow in other repositories here. A dispatch that set versions in CI would publish a
+# number that no commit in this repository records, and the artifacts npm then served could not be
+# reproduced from any checkout — for a repository whose product is a specification, that is the
+# whole game. It exists to re-run a publish that failed halfway, against a tag that already exists.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing release tag to publish, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          # lint-release.ts compares this release against the one before it, which means it needs
+          # the tags and the history they point into. The default shallow fetch has neither.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      # Node 26, for the reason ci.yml gives: the tooling here runs .ts files DIRECTLY through
+      # Node's native type stripping, so >= 23.6 is a hard floor and a downgrade fails with a syntax
+      # error that does not read as a version problem.
+      #
+      # `registry-url` is what writes the .npmrc that carries NODE_AUTH_TOKEN. Without it the token
+      # below is set and simply unused, and the publish fails as unauthenticated.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+          scope: "@worker-protocol"
+
+      - run: pnpm install --frozen-lockfile
+
+      # Fail in seconds rather than after the suite, when the reason is the credential.
+      #
+      # This buys minutes and not safety: a publish that cannot authenticate publishes nothing, and
+      # is fixed by setting the secret and dispatching this workflow again at the same tag. What it
+      # is for is the first release and the day a token expires, where the thing that is wrong is
+      # known before anything is compiled.
+      #
+      # The empty check is separate from `npm whoami` on purpose, because the two failures read
+      # nothing alike: a secret that was never set is somebody's setup step, and a secret that no
+      # longer authenticates is a token to reissue. If `npm whoami` ever refuses a token that can in
+      # fact publish, this step is the one that is wrong — delete it, since the publish below is the
+      # real gate and always was.
+      - name: the credential authenticates
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN is not set on this repository, so nothing could be published."
+            echo "Add it under Settings > Secrets and variables > Actions, or:"
+            echo "  gh secret set NPM_TOKEN --repo ${{ github.repository }}"
+            exit 1
+          fi
+          echo "authenticated to npm as $(npm whoami)"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The tag names a version; the manifests carry one. `pnpm bump` writes both, so a disagreement
+      # means the bump was not committed before the tag was pushed — and what would then be
+      # published is a version nobody asked for, under a tag that says otherwise.
+      - name: the tag is the version in the tree
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          TREE="v$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$TREE" ]; then
+            echo "Tag $TAG does not match the root version $TREE."
+            echo "Run \`pnpm bump\`, commit the manifests, then \`pnpm release\`."
+            exit 1
+          fi
+          echo "$TAG"
+
+      # packages/README.md: a release that changes which edition a package encodes is never one a
+      # consumer's caret would take on its own. This is the only moment that claim is made to
+      # anybody, so it is the moment it is checked.
+      - name: an edition change is never a release a caret would take
+        run: pnpm release:check
+
+      # What follows re-runs the gates whose failure would make a PUBLISHED artifact wrong, and only
+      # those. ci.yml already ran on the commit this tag points at, and the prose and spec lints it
+      # also runs — spec:lint, verifiability:lint, prose:lint, dx:check — gate the repository's text
+      # rather than the tarball, so re-running them here would buy nothing and give two files to
+      # keep in step. The three generated artifacts below are a different matter: schemas/ and
+      # openapi/ are normative, rules.json travels INSIDE the published verifier, and a stale one
+      # ships a tool whose universe is missing an obligation.
+      - name: build what the packages publish
+        run: pnpm -r build
+
+      - name: schemas/ matches packages/schemas
+        run: pnpm schemas:check
+
+      - name: packages/conformance/rules.json matches spec/
+        run: pnpm rules:check
+
+      - name: openapi/ matches surfaces.ts
+        run: pnpm openapi:check
+
+      - name: type-check every workspace project
+        run: pnpm -r typecheck
+
+      - name: conformance
+        run: pnpm test
+
+      # `./packages/*` and nothing else. The examples and conformance/reference-worker are workspace
+      # members and are `private: true`, so this filter and that flag are two independent reasons a
+      # test double never reaches npm.
+      #
+      # pnpm rewrites each `workspace:*` to the version being published as it packs, which is why
+      # one bump across the repository is enough and no manifest pins a sibling.
+      #
+      # No --provenance: npm attests provenance from a public repository, and this one is private.
+      # Passing it would fail the publish rather than weaken it.
+      #
+      # A PRERELEASE MUST NOT BECOME `latest`, and npm's default is that it does. `0.1.0-rc.1` is
+      # invisible to a `^0.1.0` range, which is what makes it safe to publish at all — but the
+      # `latest` dist-tag is not a range, it is what a bare `npm i @worker-protocol/schemas`
+      # resolves to, and publishing a release candidate without saying otherwise hands it to
+      # everybody who asked for no version in particular.
+      - name: publish to npm
+        run: |
+          DIST_TAG="$(node -p "require('./package.json').version.includes('-') ? 'next' : 'latest'")"
+          echo "publishing under the $DIST_TAG dist-tag"
+          pnpm -r --filter "./packages/*" publish --no-git-checks --tag "$DIST_TAG"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # `npm i @worker-protocol/hono@edition-0.1` — an answer to the question a consumer of a
+      # SPECIFICATION actually has, which a semver range cannot express.
+      #
+      # packages/README.md argues at length that the package version and the edition are
+      # independent and that reading one off the other is a mistake. That argument is right and it
+      # leaves somebody stranded: a repository in another language pins itself to an edition, and
+      # has no way to ask for "the newest implementation of edition 0.1" — a range knows about
+      # versions and nothing else, and the edition is a field it cannot see. This is that question,
+      # answered by the registry rather than by the numbering, which is what keeps the numbering
+      # free to mean what semver says it means.
+      #
+      # It also survives the thing a range cannot: when edition 0.2 ships, `edition-0.1` keeps
+      # pointing at the last packages that encode 0.1, which is exactly what a consumer anchored
+      # there needs and exactly what `latest` stops being.
+      #
+      # A prerelease moves nothing here, for the reason it does not take `latest`: somebody
+      # anchored to an edition asked for the implementation of a specification, not for a candidate.
+      - name: point each edition tag at this release
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$(node -p "'$VERSION'.includes('-')")" = "true" ]; then
+            echo "$VERSION is a prerelease; leaving every edition tag where it is"
+            exit 0
+          fi
+
+          for manifest in packages/*/package.json; do
+            if [ "$(node -p "require('./$manifest').private === true")" = "true" ]; then continue; fi
+
+            NAME="$(node -p "require('./$manifest').name")"
+            EDITION="$(node -p "require('./$manifest').workerProtocolEdition ?? ''")"
+            if [ -z "$EDITION" ]; then
+              echo "$NAME declares no edition; nothing to tag"
+              continue
+            fi
+
+            # Retried, because the publish above and the registry's view of it are seconds apart and
+            # a failure here would leave the packages published with the tag still on the version
+            # before — a half-state that re-running this workflow cannot fix, since npm will refuse
+            # the publish the second time.
+            moved=""
+            for attempt in 1 2 3; do
+              if npm dist-tag add "$NAME@$VERSION" "edition-$EDITION"; then
+                moved=yes
+                break
+              fi
+              echo "  attempt $attempt failed; the registry may not hold this version yet"
+              sleep 5
+            done
+
+            if [ -z "$moved" ]; then
+              echo "Could not point edition-$EDITION at $NAME@$VERSION. The packages ARE published."
+              echo "Run by hand: npm dist-tag add $NAME@$VERSION edition-$EDITION"
+              exit 1
+            fi
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

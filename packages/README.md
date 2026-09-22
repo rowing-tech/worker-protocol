@@ -8,14 +8,14 @@ complying, and proving that you comply.
 | `schemas` | `@worker-protocol/schemas` — the Zod objects that generate `schemas/`, so an implementer never retypes the specification |
 | `hono` | `@worker-protocol/hono` — the surface as Hono routes, which generate `openapi/`; and `mount()`, which a Worker on Hono mounts to get every address, header and refusal the protocol fixes |
 | `client` | `@worker-protocol/client` — `consume()`: read a Worker, and take work from it. The consumer half, and what a Tower or a teams app is built on |
-| `conformance` | `@worker-protocol/conformance` — point it at a worker's base URL, get a report of what it complies with |
+| `conformance` | `@worker-protocol/conformance` — point it at a worker's base URL, get a report of what it complies with; `verify()` from TypeScript, or `npx @worker-protocol/conformance <url>` from anywhere |
 
 `client` is its own package and not a second export of `hono`, because a consumer is not a server:
 a Tower, a teams app or a Convex Worker that answers another Worker's Tasks runs no web
 framework, and making one install Hono and an OpenAPI generator in order to make HTTP requests is
 the same mistake as the one below, in the other direction. It depends on `schemas` and on `fetch`.
 
-All three are derivable from the specification and verifiable against the fixtures or the
+All four are derivable from the specification and verifiable against the fixtures or the
 verifier. `hono` is the one TypeScript SDK and lives here rather than in a repository of its own,
 because the routes it exports are also the source `openapi/` is generated from, and the declaration
 that generates the normative artifact does not leave the repository that publishes it.
@@ -104,15 +104,188 @@ the package exports. It has no protocol meaning at all, which is the clearest il
 two numbers being independent: the edition has no PATCH, because
 [descriptor.md](../spec/descriptor.md) argues a specification has no use for a component that by
 construction changes no verdict. One rule keeps the two honest: **a release that changes which
-edition a package encodes is never a PATCH.**
+edition a package encodes is never one a consumer's caret would take on its own.**
 
-All three packages declare `"workerProtocolEdition": "0.1"`, and `@worker-protocol/schemas`
+Which release that is depends on where these packages are in their own history, and the reason is
+npm's rather than this specification's. `^0.1.0` means `>=0.1.0 <0.2.0`, so while the packages sit
+on a zero MAJOR a MINOR is already a wall nobody crosses without editing their own manifest, and
+forbidding a PATCH is the whole of what the rule needs to say. `^1.0.0` takes every MINOR there is,
+so **from 1.0.0 an edition change is a MAJOR.** `scripts/lint-release.ts` knows both and picks
+between them; the day the second one starts to matter is not a day anybody will remember this
+paragraph.
+
+All four packages declare `"workerProtocolEdition": "0.1"`, and `@worker-protocol/schemas`
 exports it as `EDITION` so a consumer can read it without parsing a manifest.
 
 **The two `0.1`s in that sentence are unrelated, and the coincidence is worth naming rather than
 leaving to be noticed.** The package version moved from `0.0.0` to `0.1.0` because the rule above
-says a release that changes which edition a package encodes is never a PATCH, and `0.1.0` is the
-smallest number that obeys it. The edition is `0.1` because it is the first. They agree today and
-will diverge at the next release of either — a Zod major, a type made more precise, a build fixed,
-none of which is a change to the protocol. Reading one off the other is the mistake this section
-exists to prevent, and it is never more tempting than on the day they happen to match.
+says a release that changes which edition a package encodes is never a PATCH here, and `0.1.0` is
+the smallest number that obeys it. The edition is `0.1` because it is the first. They agree today
+and will diverge at the next release of either — a Zod major, a type made more precise, a build
+fixed, none of which is a change to the protocol. Reading one off the other is the mistake this
+section exists to prevent, and it is never more tempting than on the day they happen to match.
+
+## A Worker declares the edition its package encodes, and upgrading is how that changes
+
+Nothing in `examples/minimal-worker` mentions an edition, and the Descriptor it serves declares
+`0.1`. `mount()` writes it: both that Descriptor and the `worker-protocol-edition` header on every
+response come from the `EDITION` constant `@worker-protocol/schemas` exports. A Worker author never
+types the number, and there is no copy of it to keep in step with anything.
+
+**So upgrading `@worker-protocol/hono` changes what your Worker asserts to everyone who reads it,
+with no line of your own code changing.** That is intended rather than overlooked. The edition is a
+fact about which specification the code now running implements, and after an upgrade that is a
+different one; a Worker that went on declaring the old number would be the failure this arrangement
+exists to prevent — a claim maintained by hand, drifting away from the code that has to honour it.
+
+Within a MAJOR that is safe by construction, and DESC-24 is why: a MINOR only adds what a reader
+holding an earlier MINOR of the same MAJOR may ignore and still be correct. Declaring `0.2` while
+implementing nothing `0.2` introduced costs nothing, because everything it introduced is ignorable
+and everything already implemented still means what it meant.
+
+A MAJOR is the one that is not safe, and the protocol makes it visible rather than quiet. DESC-25
+has a verifier compare the edition it holds against the one a Worker declares and report *itself*
+older, judging nothing — so a Worker that moves a MAJOR ahead of the tooling around it stops being
+verifiable until that tooling follows. That is the cost of an edition change, and it is why the
+release rule above will not let one arrive in a release somebody's caret would take on its own.
+
+**`Worker.edition` is the way out, and there is one good reason to reach for it**: you want the
+Descriptor to keep asserting the edition you actually verified against, rather than whatever the
+next install brings. Set it and the number stops moving by itself — and becomes a line somebody has
+to remember, which is the whole of the trade. Leaving it out is right for almost every Worker.
+
+## The verifier is a command, because the promise was made to repositories that run no Node
+
+`docs/roadmap.md` says each language's repository ships its own reference Worker and runs
+`@worker-protocol/conformance` against it in CI, and that the report is what ties those
+repositories together: an SDK is right because its Worker passes, not because somebody read the
+prose carefully. What that offered a repository in Python, C# or Go was a TypeScript function — a
+toolchain to acquire and a program to write before it could learn anything about itself.
+
+```
+npx @worker-protocol/conformance https://worker.example.com
+```
+
+`--credential` presents the bearer token REG-3 fixes, though `WORKER_PROTOCOL_CREDENTIAL` is the
+better place for it in CI: argv is readable by every other process on the machine, and a log often
+keeps it. `--may-perform` allows POSTs to Actions and is off by default, because an Action is an
+operation somebody's operators chose to expose and a tool pointed at a Worker to inspect it does
+not perform work on it uninvited. `--json` writes the report instead of rendering it.
+
+**The exit code is the part a CI reads, and it has three values rather than two.** Zero when no
+rule failed, 1 when one did, and 2 when no verdict was reached at all — which is this verifier
+being older than the edition the Worker declares (DESC-25), and almost nothing else. A Worker that
+cannot be reached is not that case and exits 1: it fails DESC-1, because a Worker is not conformant
+at an address that does not answer.
+
+`notExercised` never fails a run, which is the distinction `conformance/README.md` spends a
+paragraph on. The Worker declares no such Capability, or nobody arranged what the check needs in
+order to be observed; both are gaps somebody can close, and neither is an obligation broken.
+
+## What a consumer installs, and what it has to bring
+
+`zod` is a **peer dependency** of `schemas`, `hono` and `client`, and `hono` is one of `hono`. What
+stands behind that is not tidiness: it is that these packages and the code using them have to be
+holding the *same* Zod, and the same Hono.
+
+`mount()` takes the `z.object()` schemas a Worker author wrote and hands them to
+`@hono/zod-openapi` beside the ones `@worker-protocol/schemas` exports. With two copies of Zod in
+the tree those are not the same kind of object — a schema built by one is not an instance of the
+other's `ZodType`, the OpenAPI registry does not recognise it, and what the author reads is a type
+error about two declarations that look identical. Declaring `zod` as an ordinary dependency pinned
+to an exact version is what *causes* that: everyone whose own app is on a different 4.x gets both.
+
+**`@hono/zod-openapi` stays an ordinary dependency, and the asymmetry is deliberate.** Its own peers
+are `hono` and `zod`, which the consumer now provides, so there is one Hono and one Zod however many
+copies of it exist — and it is a package a Worker author never imports by name, since `mount()`
+returns its `OpenAPIHono` and that is the whole of the contact. Making it a peer would put a line in
+every Worker's manifest for a name nobody in that repository types, against the one claim that
+`packages/` makes about itself.
+
+**`@worker-protocol/conformance` carries `zod` as an ordinary dependency although it never imports
+it, and that line is not dead weight.** It is the leaf: it is installed in order to be *run*, by the
+CI of a repository in another language that has no opinion about Zod and should not have to acquire
+one. Satisfying the peer that `schemas` declares, on its consumer's behalf, is the difference
+between installing the verifier and installing the verifier plus a warning whose consequence is a
+module that will not load.
+
+**A peer carries a range where the rest of this repository pins exactly, and the two state different
+things.** A pinned `4.5.4` in `devDependencies` is what this repository builds and tests against,
+which is a fact about CI. `^4.5.4` in `peerDependencies` is what it tolerates in somebody else's
+tree — and an exact peer would be the duplication problem again by another route, since it refuses
+every consumer who is not on that one patch. The floor is the version CI actually runs and not a
+lower one: a range claiming Zod 4.0 works would be a claim nothing here has ever checked.
+
+## Releasing
+
+Three commands, and the middle one is not a command:
+
+```
+pnpm bump <patch|minor|major|x.y.z>   set the root and the four packages to one version
+<commit the manifests>
+pnpm release                          tag that commit v<version> and push the tag
+```
+
+`pnpm bump --dry-run` prints what would change and writes nothing. `pnpm release --dry-run` prints
+the git commands and runs none of them.
+
+**The four packages carry one version, and it is the root's.** They are built together, tested
+together and released together; three of them exist only so the fourth is not re-derived by every
+consumer. A reader who found `client` at 0.4.0 beside `schemas` at 0.2.7 would learn nothing from
+the difference except that they now have to work out which pairs were ever released together.
+`workspace:*` does the rest — pnpm rewrites each internal dependency to the version being published
+as it packs, so no manifest here ever pins a sibling.
+
+**Nothing publishes from `main`.** `.github/workflows/publish.yml` triggers on a `v*` tag and on
+nothing else, which is the mechanical half of the argument `spec/README.md` makes for fixing a rule
+id at an edition rather than at a commit: *a commit is not a release, a branch nobody pulled is not
+a publication*, and nobody should reach a published number by accident. The tag is the deliberate
+act, and `pnpm release` is the only thing that makes one.
+
+Before it publishes, that workflow checks the tag against the version in the tree, re-runs the
+three generated-artifact comparisons, the build, the type-check and the full conformance suite, and
+runs `pnpm release:check` — which holds the rule above: **a release that changes which edition a
+package encodes is never one a consumer's caret would take on its own.** It compares this release
+against the previous tag, because an edition change is not something that happens in a commit.
+Until that check existed the rule was a sentence with nothing behind it, and the failure it catches
+is the quiet one: a consumer takes whatever their range allows without reading anything, exactly as
+they should, and would have silently taken a different specification with it.
+
+**A prerelease publishes under the `next` dist-tag, and the workflow works that out from the
+version rather than being told.** `pnpm bump 0.1.0-rc.1` produces a version no `^` range will ever
+resolve to, which is what makes a release candidate safe to publish — but `latest` is not a range.
+It is what a bare `npm i @worker-protocol/schemas` returns, and npm points it at whatever was
+published last unless told otherwise. A candidate that took `latest` would be served to everybody
+who asked for no version in particular, which is the opposite of what publishing a candidate was
+for.
+
+**Each release also points an `edition-<edition>` dist-tag at itself, which is how a consumer asks
+the question a range cannot express.**
+
+```
+npm i @worker-protocol/hono@edition-0.1
+```
+
+The section above argues that the package version and the edition are independent and that reading
+one off the other is a mistake. That is right, and on its own it strands somebody: a repository in
+another language pins itself to an edition, and a semver range knows about versions and nothing
+else — the edition is a manifest field it cannot see. Asking the registry instead keeps the
+numbering free to mean what SemVer says it means while still answering *give me the newest
+implementation of edition 0.1*.
+
+It also survives what a range does not. When edition 0.2 ships, `edition-0.1` goes on pointing at
+the last packages that encode 0.1, which is what a consumer anchored there needs and precisely what
+`latest` stops being. A prerelease moves no edition tag, for the reason it does not take `latest`.
+
+**What reaches npm is `packages/*` and nothing else.** The examples and
+`conformance/reference-worker` are workspace members, so the filter excludes them by path and their
+own `private: true` excludes them again. Each tarball carries a copy of the repository's `LICENSE`
+and `NOTICE`, written at pack time by `scripts/pack-legal.ts` rather than committed four times over
+— npm ships only what sits inside a package directory, and the `NOTICE` is where the reservation
+lives that "worker-protocol" and any conformance claim made in its name are *not* granted by
+Apache-2.0.
+
+Publishing needs one secret, `NPM_TOKEN`: a granular access token for the `@worker-protocol` npm
+organization, with read and write on those four packages and nothing else. The packages are
+published without provenance, because npm attests it only from a public repository and this one is
+private.

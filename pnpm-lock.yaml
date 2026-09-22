@@ -266,6 +266,9 @@ importers:
       '@worker-protocol/hono':
         specifier: workspace:*
         version: link:../hono
+      hono:
+        specifier: 4.13.7
+        version: 4.13.7
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -281,6 +284,9 @@ importers:
       '@worker-protocol/schemas':
         specifier: workspace:*
         version: link:../schemas
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
     devDependencies:
       '@types/node':
         specifier: 26.5.1
@@ -288,12 +294,6 @@ importers:
       '@worker-protocol/client':
         specifier: workspace:*
         version: link:../client
-      '@worker-protocol/minimal-worker':
-        specifier: workspace:*
-        version: link:../../examples/minimal-worker
-      '@worker-protocol/reference-worker':
-        specifier: workspace:*
-        version: link:../../conformance/reference-worker
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -312,28 +312,24 @@ importers:
       '@worker-protocol/schemas':
         specifier: workspace:*
         version: link:../schemas
+    devDependencies:
+      '@types/node':
+        specifier: 26.5.1
+        version: 26.5.1
       hono:
         specifier: 4.13.7
         version: 4.13.7
-      zod:
-        specifier: 4.5.4
-        version: 4.5.4
-    devDependencies:
-      '@types/node':
-        specifier: 26.5.1
-        version: 26.5.1
       typescript:
         specifier: 7.0.2
         version: 7.0.2
       vitest:
         specifier: 5.0.0
         version: 5.0.0(@types/node@26.5.1)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.1)(yaml@2.9.0))
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
 
   packages/schemas:
-    dependencies:
-      zod:
-        specifier: 4.5.4
-        version: 4.5.4
     devDependencies:
       '@types/node':
         specifier: 26.5.1
@@ -344,6 +340,9 @@ importers:
       vitest:
         specifier: 5.0.0
         version: 5.0.0(@types/node@26.5.1)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.1)(yaml@2.9.0))
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
 
 packages:
 

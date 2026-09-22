@@ -4,6 +4,16 @@
   "workerProtocolEdition": "0.1",
   "description": "The protocol's surface as Hono routes, and mount(): a Worker author implements an interface and gets every address, header and refusal this protocol fixes",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rowing-tech/worker-protocol.git",
+    "directory": "packages/hono"
+  },
+  "homepage": "https://github.com/rowing-tech/worker-protocol#readme",
+  "bugs": "https://github.com/rowing-tech/worker-protocol/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,22 +24,29 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build && node ../../scripts/pack-legal.ts",
     "test": "vitest run"
   },
   "dependencies": {
     "@hono/zod-openapi": "1.6.3",
-    "@worker-protocol/schemas": "workspace:*",
-    "hono": "4.13.7",
-    "zod": "4.5.4"
+    "@worker-protocol/schemas": "workspace:*"
+  },
+  "peerDependencies": {
+    "hono": "^4.13.7",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "26.5.1",
+    "hono": "4.13.7",
     "typescript": "7.0.2",
-    "vitest": "5.0.0"
+    "vitest": "5.0.0",
+    "zod": "4.5.4"
   }
 }

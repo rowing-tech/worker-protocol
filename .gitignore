@@ -3,6 +3,13 @@ dist/
 .DS_Store
 *.log
 
+# `scripts/pack-legal.ts` copies the root LICENSE and NOTICE into each package from `prepack`, so
+# that a tarball carries the terms it is published under — npm ships only what is inside the package
+# directory. Committing four copies of each would be committing four things that can disagree with
+# the original, and the day they do is the day somebody edited the original.
+packages/*/LICENSE
+packages/*/NOTICE
+
 # Where wrangler and miniflare keep a local deployment's state and their build scratch. It holds
 # the SQLite files a Durable Object was actually written to on this machine, which is several
 # megabytes of somebody's last `wrangler dev` and belongs to nobody else: a committed copy would be

@@ -1,6 +1,6 @@
 import type { AddressInfo } from "node:net";
-import { createWorker } from "@worker-protocol/reference-worker";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createWorker } from "../../../../conformance/reference-worker/src/server.ts";
 import { verify } from "../index.ts";
 import { tally } from "../report.ts";
 

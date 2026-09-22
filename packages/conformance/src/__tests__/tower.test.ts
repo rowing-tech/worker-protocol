@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { type Compatibility, canAnswer, consume, Refused } from "@worker-protocol/client";
-import { createWorker } from "@worker-protocol/reference-worker";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createWorker } from "../../../../conformance/reference-worker/src/server.ts";
 
 /**
  * A Control Tower, simulated, against Workers that actually answer.
