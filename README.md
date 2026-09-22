@@ -74,8 +74,22 @@ packages/
 examples/          two Workers, and both are templates
   minimal-worker/    all eight Capabilities, written out and explained line by line. Copy this one
   fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, tested on workerd
+skills/          what a coding agent reads before writing a Worker
+  worker-protocol/       the protocol, in any language: the rules, the surface, the gotchas
+  worker-protocol-hono/  the TypeScript layer over it — what mount() carries, and what you owe
 docs/            the architecture narrative, what is deliberately undecided, and the roadmap
 ```
+
+Two [Agent Skills](https://agentskills.io), split the way `docs/roadmap.md` splits the SDKs.
+`worker-protocol` is what an implementer in **any** language needs — the Descriptor, the envelopes,
+the verification loop, and the rules that hold whatever it is written in; for C#, Python or Go, that
+is the whole of what exists today and it says so. `worker-protocol-hono` is the layer on top for
+TypeScript, and starts by pointing at the other. The day a repository per language exists, each one
+publishes its own second skill and refers back to the first rather than restating it.
+
+`npx skills add rowing-tech/worker-protocol` installs them for the agent you use. Every rule id they
+cite is checked against the verifier's own universe by `pnpm skill:lint`, so a skill cannot go on
+teaching a rule `spec/` has withdrawn.
 
 **Nothing in `packages/` may carry behavior of its *own*, and the word is load-bearing in the
 opposite direction to the one it is usually read in.** What is forbidden is a package doing

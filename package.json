@@ -18,6 +18,7 @@
     "spec:lint": "node scripts/lint-spec.ts",
     "verifiability:lint": "node scripts/lint-verifiability.ts",
     "prose:lint": "node scripts/lint-prose.ts",
+    "skill:lint": "node scripts/lint-skill.ts",
     "dx:check": "node scripts/lint-dx.ts",
     "openapi:generate": "node packages/hono/src/generate-openapi.ts",
     "openapi:check": "node packages/hono/src/generate-openapi.ts --check",

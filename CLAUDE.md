@@ -12,6 +12,7 @@ pnpm schemas:check        compare schemas/ against the Zod source, byte for byte
 pnpm spec:lint            check the rule-id convention spec/README.md states
 pnpm verifiability:lint   check every rule is classified in conformance/verifiability.md
 pnpm prose:lint           check hand-wrapped Markdown holds the line width biome.jsonc states
+pnpm skill:lint           check every rule id skills/ cites is one rules.json holds
 pnpm dx:check             check examples/minimal-worker stays under its line budget
 pnpm rules:check          compare packages/conformance/rules.json against spec/
 pnpm typecheck            type-check scripts/
@@ -22,7 +23,7 @@ pnpm test                 all three suites: the fixtures, openapi/, and the veri
                           reference worker
 ```
 
-Those twelve are what `.github/workflows/ci.yml` runs, in that order. A change is not finished
+Those thirteen are what `.github/workflows/ci.yml` runs, in that order. A change is not finished
 until they pass, so run them rather than reporting work as done and leaving them to somebody else.
 
 **`pnpm dx:check` counts the domain lines in `examples/minimal-worker/src/worker.ts`**, because

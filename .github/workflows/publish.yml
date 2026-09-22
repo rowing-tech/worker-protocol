@@ -108,7 +108,7 @@ jobs:
 
       # What follows re-runs the gates whose failure would make a PUBLISHED artifact wrong, and only
       # those. ci.yml already ran on the commit this tag points at, and the prose and spec lints it
-      # also runs — spec:lint, verifiability:lint, prose:lint, dx:check — gate the repository's text
+      # also runs — spec:lint, verifiability:lint, prose:lint, skill:lint, dx:check — gate the text
       # rather than the tarball, so re-running them here would buy nothing and give two files to
       # keep in step. The three generated artifacts below are a different matter: schemas/ and
       # openapi/ are normative, rules.json travels INSIDE the published verifier, and a stale one

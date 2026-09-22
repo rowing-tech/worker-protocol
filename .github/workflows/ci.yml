@@ -70,6 +70,14 @@ jobs:
       - name: prose holds the line width biome.jsonc states
         run: pnpm prose:lint
 
+      # skills/ is prose an agent reads INSTEAD of spec/, which makes it the fastest way for this
+      # repository to state an obligation that spec/ no longer carries: a sentence cites an id, the
+      # id is withdrawn or renumbered, and the sentence goes on being obeyed. Every id a skill cites
+      # must be in rules.json — the verifier's own universe, regenerated from spec/ above — and the
+      # skill's name and description must be what the Agent Skills specification makes mechanical.
+      - name: skills/ cite only rules the specification holds
+        run: pnpm skill:lint
+
       # The one gate here that measures something about a READER rather than about an artifact.
       # packages/ claims that complying is cheap, and a claim nobody gates is a claim nobody
       # verifies — the same reasoning that has schemas/ regenerated above rather than trusted. When
