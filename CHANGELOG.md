@@ -17,6 +17,8 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-23 — edition 0.2
+
 ### Added
 
 - **`examples/fleet-worker` gained a Tail Worker, for what the producer cannot record about
@@ -33,8 +35,40 @@ justifies it. This file says what a release carried; those say what a rule becam
   capture `spec/logs.md` argues against, and it is also what stops the tail feeding itself, since a
   Durable Object call is traced too and comes back carrying `outcome: ok`.
 
-  Nothing in `packages/` changed, so nothing here is published: the example is `private: true` and
-  the version stands at 0.2.0.
+  Nothing in `packages/` changed for it, and the example itself is `private: true`, so it
+  publishes nothing.
+
+- **`@worker-protocol/client` gained `page()` beside every list, for a caller that keeps its own
+  cursor.** `alerts.page()`, `activity.page()`, `tasks.page({ type, cursor })` and
+  `metrics.page(metric, options)` each answer one page and `nextCursor` where there is more, and
+  `pages` and `collect` inside the package are now built on the same one-page read. `alerts` and
+  `activity` are still the functions they were, with `page` attached, so nothing that called them
+  changes. It is for work cut into invocations — a scheduled function, a serverless action — that
+  holds the cursor in a table between them, which is how a Control Tower on a serverless platform
+  has to run.
+
+  What it is not is a way to read only what is new since the last poll, and the package README
+  says so in as many words. `logs` walks from the most recent record towards the oldest (LOG-3), so
+  a kept cursor reaches nothing written since; a record carries no identity (LOG-4); `tasks`,
+  `alerts` and `activity` are derived on every read and a new item sorts anywhere; and no rule gives
+  a cursor a lifetime. Reading from the head with `from` (LOG-8), or comparing whole reads by `id`,
+  is the caller's, because `spec/` says nothing a package could carry. A cursor the Worker refuses
+  throws `Refused` with `kind: "reject"`, as every refusal of that class already did.
+
+  One behaviour moved with it: a `404` answered to a read that carries a cursor is now an ordinary
+  refusal rather than DESC-30's *this address serves nothing*. A cursor names a position, so the
+  address had already answered once, and marking it unserved for the rest of the consumer's life
+  on that evidence was wrong.
+
+### Fixed
+
+- **`@worker-protocol/client` had no `logs` member, although edition 0.2 added the Capability.**
+  Release 0.2.0 moved the client's version and its edition and changed nothing in its source, so a
+  consumer of a Worker declaring `logs` was handed nothing for it and no sign of the omission. It is
+  now `logs.read({ level, from, to })`, the whole window through `collect()`, and
+  `logs.page({ level, from, to, cursor })`, validated against `log-page` and cited as LOG-2. The
+  level travels as the floor LOG-7 names and the Worker expands, and the interval is spelled as
+  `metrics.read` spells MET-11's.
 
 ## [0.2.0] - 2026-09-23 — edition 0.2
 
@@ -246,7 +280,9 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/rowing-tech/worker-protocol/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/rowing-tech/worker-protocol/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.1.0...v0.1.1

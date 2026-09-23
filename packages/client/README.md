@@ -43,12 +43,49 @@ const buckets = await worker.metrics?.read("vehicles.quiet", {
   from: new Date("2026-09-01T00:00:00Z"),
   by: ["region"],
 });
+
+// What the Worker recorded, most recent first, from the window it still holds.
+const records = await worker.logs?.read({ level: "warn", from: new Date("2026-09-23T00:00:00Z") });
 ```
 
 Paging, the cursor, the ordering, the retry that must not happen on a refusal the caller cannot fix,
 and the classification of an answer that cannot be read are all carried here. Nine of the rules this
 package implements oblige a *consumer* rather than a Worker, and a consumer that wrote this itself
 would be deriving every one of them again.
+
+## One page at a time
+
+Every list above reads to the end of the collection. Beside each is `page()`, which answers one
+page and the cursor for the next — for a caller whose work is cut into invocations, a scheduled
+function or a serverless action, and which keeps the cursor in its own store between them:
+
+```ts
+const first = await worker.logs?.page({ level: "warn" });
+// ... store first.nextCursor, and in a later invocation:
+const next = await worker.logs?.page({ level: "warn", cursor: storedCursor });
+```
+
+`worker.alerts?.page()`, `worker.activity?.page()`, `worker.tasks?.page({ type })` and
+`worker.metrics?.page(metric, options)` are the same call. `nextCursor` is absent at the end. The
+cursor goes back exactly as it arrived and is never built here (ENDP-21), and a Worker that will not
+honour it — a deploy since, or simply one that never promised to — answers a refusal that throws
+`Refused` with `kind: "reject"`. Start the reading again from the top.
+
+**A cursor continues one reading. It does not find what is new since the last poll, and nothing in
+this package does.** The specification gives no cursor that points forward and gives a log record
+no identity, so that is the caller's to work out:
+
+- **`logs`** is answered most recent first (LOG-3), so a cursor walks towards *older* records and a
+  cursor kept from the last poll reaches nothing written since. Read again from the head with
+  `from` set to the newest instant you hold (LOG-8, inclusive), and drop the records at that instant
+  you already have. A record carries an instant, a level, a message and perhaps fields, and nothing
+  else (LOG-4), so two identical lines recorded at the same instant cannot be told apart.
+- **`tasks`, `alerts` and `activity`** are what holds *now*, derived on every read: each ends when
+  its condition stops holding, and a new one can sort anywhere in the order. Read the whole list
+  and compare it by `id` with what you stored last time.
+
+A cursor has no lifetime this protocol states, and ENDP-21 is what keeps it opaque, so none of that
+can be done by holding on to one.
 
 ## Taking work
 

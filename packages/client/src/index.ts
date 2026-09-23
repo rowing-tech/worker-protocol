@@ -5,13 +5,16 @@ import {
   alertPage,
   descriptor as descriptorSchema,
   health as healthSchema,
+  type logLevel,
+  logPage,
+  type logRecord,
   type metricBucket,
   metricPage,
   taskPage,
   type task as taskSchema,
 } from "@worker-protocol/schemas";
 import type * as z from "zod";
-import { type CallerOptions, caller, collect } from "./call.ts";
+import { type CallerOptions, caller, collect, type Page, page } from "./call.ts";
 
 /**
  * `@worker-protocol/client` — read a Worker, and take work from it.
@@ -40,6 +43,7 @@ export {
   type Caller,
   type CallerOptions,
   Malformed,
+  type Page,
   Refused,
   Unserved,
 } from "./call.ts";
@@ -49,6 +53,20 @@ type Task = z.infer<typeof taskSchema>;
 type Alert = z.infer<typeof alert>;
 type Activity = z.infer<typeof activitySchema>;
 type Bucket = z.infer<typeof metricBucket>;
+type LogRecord = z.infer<typeof logRecord>;
+type LogLevel = z.infer<typeof logLevel>;
+
+/**
+ * Where a reading resumes: exactly the `nextCursor` a page answered (ENDP-21), or absent for the
+ * first page. A continuation of one reading and not a bookmark — see `page` in `call.ts`.
+ */
+export type PageRead = { cursor?: string };
+
+/** A list read whole, with the one page of it a caller that keeps its own cursor asks for. */
+export type Listed<T> = (() => Promise<T[]>) & {
+  /** One page, and the cursor for the next one where there is more (ENDP-20). */
+  page: (read?: PageRead) => Promise<Page<T>>;
+};
 
 /** What one Worker offers, read from its Descriptor and never guessed. */
 export type Consumed = {
@@ -60,6 +78,8 @@ export type Consumed = {
   metrics?: {
     /** MET-8. One metric, every bucket in the interval, paged through (ENDP-20, ENDP-31). */
     read: (metric: string, options?: MetricRead) => Promise<Bucket[]>;
+    /** One page of the same read, for a caller that keeps the cursor itself. */
+    page: (metric: string, options?: MetricRead & PageRead) => Promise<Page<Bucket>>;
   };
   actions?: {
     /** ACT-5. The body is the input and carries nothing else. */
@@ -67,9 +87,23 @@ export type Consumed = {
     /** ACT-15. The document `configure` would accept, where this Worker exposes one. */
     settings?: () => Promise<unknown>;
   };
-  alerts?: () => Promise<Alert[]>;
+  /** ALRT-2. The Alerts whose conditions hold, whole; `.page()` for one page of them. */
+  alerts?: Listed<Alert>;
   /** ACTV-2. What the Worker is doing and has undertaken to do. Read, never written. */
-  activity?: () => Promise<Activity[]>;
+  activity?: Listed<Activity>;
+  /**
+   * LOG-2. What the Worker recorded, most recent first (LOG-3), from the window it still holds.
+   *
+   * `read` pages to the end of that window; `page` answers one page. Neither says what is new since
+   * a previous read: a cursor walks towards older records and a record carries no identity (LOG-4),
+   * so a caller that wants only the new ones reads again from the head with `from` (LOG-8) and drops
+   * the records at the boundary instant it already holds. That is the caller's, and it is said in
+   * this package's README rather than done here, because `spec/` says nothing about it.
+   */
+  logs?: {
+    read: (query?: LogRead) => Promise<LogRecord[]>;
+    page: (query?: LogRead & PageRead) => Promise<Page<LogRecord>>;
+  };
   /**
    * NDG-2. Tell this Worker there is work of a Task type it answers.
    *
@@ -91,6 +125,8 @@ export type Consumed = {
      * to claim and nothing to close: the condition stops holding and the Task is gone.
      */
     list: (type?: string) => Promise<Task[]>;
+    /** One page of the same read, for a caller that keeps the cursor itself. */
+    page: (read?: { type?: string } & PageRead) => Promise<Page<Task>>;
     /**
      * How to answer a Task of this type: the Action to post, and the shape it takes.
      *
@@ -120,6 +156,16 @@ export type MetricRead = {
   by?: string[];
   /** MET-16. Dimensions to fix, each spelled as a parameter of its own name. */
   fixed?: Record<string, string>;
+};
+
+/** LOG-7 and LOG-8. What a read of `logs` narrows to. */
+export type LogRead = {
+  /** LOG-7. A floor: this level and every level above it. */
+  level?: LogLevel;
+  /** LOG-8. Inclusive. */
+  from?: Date;
+  /** LOG-8. Exclusive. */
+  to?: Date;
 };
 
 export type PerformOptions = {
@@ -163,22 +209,30 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
 
   const metricsAddress = addressOf("metrics");
   if (metricsAddress !== undefined) {
+    const metricRead = (metric: string, read: MetricRead) => {
+      // MET-19 travels as a repeated parameter — `?by=a&by=b` — which is why it goes on the URL
+      // here rather than into the flat record of single-valued parameters below.
+      const url = new URL(metricsAddress);
+      for (const dimension of read.by ?? []) url.searchParams.append("by", dimension);
+
+      const parameters: Record<string, string> = { metric };
+      if (read.granularity !== undefined) parameters.granularity = read.granularity;
+      // MET-11: RFC 3339 instants carrying an offset, and the interval is half-open.
+      if (read.from !== undefined) parameters.from = rfc3339(read.from);
+      if (read.to !== undefined) parameters.to = rfc3339(read.to);
+      // MET-16: a dimension is fixed with a parameter named exactly as the dimension.
+      for (const [name, value] of Object.entries(read.fixed ?? {})) parameters[name] = value;
+
+      return { url: url.toString(), parameters };
+    };
     consumed.metrics = {
       read: async (metric, read = {}) => {
-        // MET-19 travels as a repeated parameter — `?by=a&by=b` — which is why it goes on the URL
-        // here rather than into the flat record of single-valued parameters below.
-        const url = new URL(metricsAddress);
-        for (const dimension of read.by ?? []) url.searchParams.append("by", dimension);
-
-        const parameters: Record<string, string> = { metric };
-        if (read.granularity !== undefined) parameters.granularity = read.granularity;
-        // MET-11: RFC 3339 instants carrying an offset, and the interval is half-open.
-        if (read.from !== undefined) parameters.from = rfc3339(read.from);
-        if (read.to !== undefined) parameters.to = rfc3339(read.to);
-        // MET-16: a dimension is fixed with a parameter named exactly as the dimension.
-        for (const [name, value] of Object.entries(read.fixed ?? {})) parameters[name] = value;
-
-        return collect<Bucket>(call, url.toString(), metricPage, "MET-14", parameters);
+        const { url, parameters } = metricRead(metric, read);
+        return collect<Bucket>(call, url, metricPage, "MET-14", parameters);
+      },
+      page: async (metric, { cursor, ...read } = {}) => {
+        const { url, parameters } = metricRead(metric, read);
+        return page<Bucket>(call, url, metricPage, "MET-14", parameters, cursor);
       },
     };
   }
@@ -216,12 +270,44 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
 
   const alertsAddress = addressOf("alerts");
   if (alertsAddress !== undefined) {
-    consumed.alerts = () => collect<Alert>(call, alertsAddress, alertPage, "ALRT-2");
+    consumed.alerts = Object.assign(
+      () => collect<Alert>(call, alertsAddress, alertPage, "ALRT-2"),
+      {
+        page: ({ cursor }: PageRead = {}) =>
+          page<Alert>(call, alertsAddress, alertPage, "ALRT-2", {}, cursor),
+      },
+    );
   }
 
   const activityAddress = addressOf("activity");
   if (activityAddress !== undefined) {
-    consumed.activity = () => collect<Activity>(call, activityAddress, activityPage, "ACTV-2");
+    consumed.activity = Object.assign(
+      () => collect<Activity>(call, activityAddress, activityPage, "ACTV-2"),
+      {
+        page: ({ cursor }: PageRead = {}) =>
+          page<Activity>(call, activityAddress, activityPage, "ACTV-2", {}, cursor),
+      },
+    );
+  }
+
+  const logsAddress = addressOf("logs");
+  if (logsAddress !== undefined) {
+    // LOG-7 passes the floor through as named — the ladder is the Worker's to expand — and LOG-8
+    // spells the interval as MET-11 does. Nothing here re-sorts a page: LOG-6 has the caller read
+    // the order it arrives in, never one rebuilt from the instant.
+    const logParameters = (query: LogRead): Record<string, string> => {
+      const parameters: Record<string, string> = {};
+      if (query.level !== undefined) parameters.level = query.level;
+      if (query.from !== undefined) parameters.from = rfc3339(query.from);
+      if (query.to !== undefined) parameters.to = rfc3339(query.to);
+      return parameters;
+    };
+    consumed.logs = {
+      read: (query = {}) =>
+        collect<LogRecord>(call, logsAddress, logPage, "LOG-2", logParameters(query)),
+      page: ({ cursor, ...query } = {}) =>
+        page<LogRecord>(call, logsAddress, logPage, "LOG-2", logParameters(query), cursor),
+    };
   }
 
   const nudgesAddress = addressOf("nudges");
@@ -241,6 +327,15 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         // TASK-8 filters by type where one is asked for; absent, the read is unfiltered and a
         // `404` from it would be DESC-30's rather than a resource's, which `pages` works out.
         collect<Task>(call, tasksAddress, taskPage, "TASK-5", type === undefined ? {} : { type }),
+      page: ({ type, cursor } = {}) =>
+        page<Task>(
+          call,
+          tasksAddress,
+          taskPage,
+          "TASK-5",
+          type === undefined ? {} : { type },
+          cursor,
+        ),
 
       // TASK-32 names the Action; ACT-2 declares its input. Both are already in the document this
       // consumer read, so this walks it rather than calling anything.

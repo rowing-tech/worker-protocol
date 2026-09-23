@@ -240,7 +240,7 @@ const RETRY_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 export async function collect<T>(
   caller: Caller,
   url: string,
-  schema: z.ZodType<{ items: T[]; nextCursor?: string }>,
+  schema: z.ZodType<Page<T>>,
   rule: string,
   parameters: Record<string, string> = {},
 ): Promise<T[]> {
@@ -252,25 +252,63 @@ export async function collect<T>(
 export async function* pages<T>(
   caller: Caller,
   url: string,
-  schema: z.ZodType<{ items: T[]; nextCursor?: string }>,
+  schema: z.ZodType<Page<T>>,
   rule: string,
   parameters: Record<string, string> = {},
 ): AsyncGenerator<T[]> {
   let cursor: string | undefined;
   // A bound, because a Worker whose cursor never advances would otherwise spin a consumer forever.
-  for (let page = 0; page < 10_000; page++) {
-    const target = new URL(url);
-    for (const [key, value] of Object.entries(parameters)) target.searchParams.set(key, value);
-    if (cursor !== undefined) target.searchParams.set("cursor", cursor);
-
-    const answered = await caller.validated(
-      { url: target.toString(), addressLevel: Object.keys(parameters).length === 0 },
-      schema,
-      rule,
-    );
+  for (let read = 0; read < 10_000; read++) {
+    const answered = await page(caller, url, schema, rule, parameters, cursor);
     yield answered.items;
     // ENDP-20: absent at the end of the collection — absent, not null, and not an empty page.
     if (answered.nextCursor === undefined) return;
     cursor = answered.nextCursor;
   }
+}
+
+/** One page of a collection: ENDP-20's envelope, the items and the cursor where there is more. */
+export type Page<T> = { items: T[]; nextCursor?: string };
+
+/**
+ * One page of a collection, and the cursor for the next one exactly as the Worker answered it.
+ *
+ * This is what `pages` is made of, and it is exported for the caller that cannot hold a loop open:
+ * one whose work is cut into invocations — a scheduled function, a serverless action — and which
+ * keeps the cursor in its own store between them. That is a continuation of ONE reading, and
+ * nothing more: a collection here is derived on every read (ENDP-33's argument), `logs` walks from
+ * the most recent record towards the oldest (LOG-3), and no rule says how long a cursor lives, so a
+ * cursor kept across polls reaches nothing new and may be refused. What such a refusal is, the
+ * Worker says: a `reject` throws `Refused` on the first answer (ENDP-28), and the caller starts
+ * the reading again from the top.
+ *
+ * ENDP-21: `cursor` is sent back exactly as it arrived and is never constructed here. ENDP-31: the
+ * page holds what was received, and only an absent `nextCursor` means the end.
+ */
+export async function page<T>(
+  caller: Caller,
+  url: string,
+  schema: z.ZodType<Page<T>>,
+  rule: string,
+  parameters: Record<string, string> = {},
+  cursor?: string,
+): Promise<Page<T>> {
+  const target = new URL(url);
+  for (const [key, value] of Object.entries(parameters)) target.searchParams.set(key, value);
+  if (cursor !== undefined) target.searchParams.set("cursor", cursor);
+
+  const answered = await caller.validated(
+    // DESC-30: a `404` from the bare address means the address serves nothing. With a filter on it
+    // — or a cursor, which names a position — it is about what was asked, and is an ordinary refusal.
+    {
+      url: target.toString(),
+      addressLevel: Object.keys(parameters).length === 0 && cursor === undefined,
+    },
+    schema,
+    rule,
+  );
+  // ENDP-20: absent, not null — handed on as absent so a caller testing `=== undefined` is right.
+  return answered.nextCursor === undefined
+    ? { items: answered.items }
+    : { items: answered.items, nextCursor: answered.nextCursor };
 }
