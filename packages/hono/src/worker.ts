@@ -8,6 +8,7 @@ import type {
 import type * as z from "zod";
 import type { ActionFacts } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
+import type { LogFacts } from "./logs.ts";
 import type { MetricFacts } from "./metrics.ts";
 import type { TaskFacts, TaskTypes } from "./tasks.ts";
 
@@ -87,6 +88,19 @@ export type Worker = {
    * holds the argument.
    */
   activity?: () => Activity[] | Promise<Activity[]>;
+  /**
+   * `logs`: what this Worker recorded while it was working (LOG-2).
+   *
+   * Unlike `alerts` and `activity`, this is a read the Worker performs rather than a list it hands
+   * over, and `logs.ts` says why: a feed is not bounded by what is happening now, so the store that
+   * holds it is the only thing that can filter and page it. What `mount()` carries is the decoding
+   * — LOG-7's floor expanded into the levels it means, LOG-8's half-open interval, the instant's
+   * format, the refusals and the envelope.
+   *
+   * What is left with the Worker is LOG-3's order and ENDP-33's cursor, and no library can take
+   * either: both are properties of a query against a store this package never sees.
+   */
+  logs?: LogFacts;
   /**
    * `nudges`: told that there is work of a Task type this Worker answers (NDG-2).
    *

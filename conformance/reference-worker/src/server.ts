@@ -6,6 +6,7 @@ import * as z from "zod";
 import { createActions } from "./actions.ts";
 import { activity } from "./activity.ts";
 import { alerts } from "./alerts.ts";
+import { createLogs } from "./logs.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
 import { createTasks, RAISES, SKILLS } from "./tasks.ts";
 
@@ -84,6 +85,9 @@ export function createFacts() {
   return {
     tasks,
     ...createActions(tasks.verify),
+    // LOG-2: the records, and the one thing that writes them. `logs.ts` says why a Worker that
+    // records a line per request is what puts LOG-3 and ENDP-33 within reach of a check.
+    logs: createLogs(),
     // HLTH-4: the window between a process starting and its first evaluation, which is a fact
     // about this deployment and not about the request asking.
     started: Date.now(),
@@ -103,7 +107,7 @@ export type Facts = ReturnType<typeof createFacts>;
  * resolved on every request, so anything it built itself would be built again.
  */
 export function referenceWorker(options: WorkerOptions = {}, facts: Facts = createFacts()): Worker {
-  const { tasks, actions, settings, outcomes, started, nudged } = facts;
+  const { tasks, actions, settings, outcomes, started, nudged, logs } = facts;
   const readyAfter = options.readyAfterMs ?? 0;
 
   // REG-28: more than one valid credential for one holder at a time, so replacing one is an
@@ -175,6 +179,10 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     // is "doing" is arranged, like everything else here; what is real is the shape.
     activity,
 
+    // LOG-2: the store, read through `mount()`. What is arranged is that something writes to it on
+    // every request — see `createWorker` below, and `logs.ts` for why that is what a check needs.
+    logs: logs.facts,
+
     // EVT-11: no address at all, which is the one case DESC-22 leaves the shared entry's address
     // optional for. An event travels over a broker, and this Worker names the broker, the binding
     // and where on it the events land — none of which anything here parses.
@@ -210,7 +218,28 @@ export function createWorker(options: WorkerOptions = {}): Server {
   // The Facts are built once, here, and the Worker is answered from them on every request.
   const facts = createFacts();
   const mounted = mount<WorkerOptions>((env) => referenceWorker(env, facts));
-  const serve = (request: Request) => mounted.fetch(request, options);
+  // LOG-3, ENDP-33: the arrangement, and the whole of it. A verifier holding no knowledge of this
+  // Worker's domain still has a way to make a record exist — read anything — which is what lets it
+  // see that a newer record reaches the top of the feed and that a cursor never carries it back.
+  //
+  // It records its own traffic, which is a thing real Workers do and is not what `spec/logs.md`
+  // declines: what that file refuses is capturing a runtime's output, and this writes a record on
+  // purpose like any other. It is here in the plumbing rather than behind a `WorkerOptions` flag
+  // because it is the arrangement itself — a double that could be run without it could not be
+  // checked against LOG-3 or ENDP-33 at all.
+  let served = 0;
+  const serve = async (request: Request): Promise<Response> => {
+    const answer = await mounted.fetch(request, options);
+    // The count is in the record because two requests for one address inside one millisecond would
+    // otherwise be byte-identical, and a verifier comparing records has nothing else to tell them
+    // apart — LOG-4 gives a record no identity. A Worker whose every line is identical makes ENDP-33
+    // unobservable, which is a property of that Worker; this one does not make the check guess.
+    facts.logs.record(answer.status >= 500 ? "error" : "info", `${request.method} ${request.url}`, {
+      status: answer.status,
+      served: ++served,
+    });
+    return answer;
+  };
   const base = (options.basePath ?? "").replace(/\/*$/, "");
   if (base === "") return createServer(getRequestListener(serve));
 

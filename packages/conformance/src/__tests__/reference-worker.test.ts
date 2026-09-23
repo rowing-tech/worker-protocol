@@ -45,6 +45,9 @@ const ARRANGEMENT = {
   consumerCredential: "d-token",
   unprivilegedCredential: "c-token",
   replaceableSettings: true,
+  // LOG-3 and ENDP-33: this Worker records what it serves, which is the whole arrangement — a
+  // verifier with no knowledge of its domain can make a record exist by reading anything.
+  recordsEveryRequest: true,
   publishedEvent: {
     specversion: "1.0",
     id: "e-1",
@@ -84,7 +87,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.1");
+    expect(report.edition).toBe("0.2");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -194,11 +197,19 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(25);
+    expect(counts.otherSubject).toBe(26);
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(22);
+    // How many of the rules that need a Worker ARRANGED to be observed this double actually buys.
+    // `conformance/README.md` states the number in prose and `scripts/lint-verifiability.ts` can
+    // only locate that sentence, not compute it — the count lives here, where the report does.
+    const arranged = report.results.filter(
+      (r) => r.rule.reach === "H" && (r.verdict === "passes" || r.verdict === "fails"),
+    );
+    expect(arranged.length).toBe(19);
+
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(103);
+    expect(counts.passes).toBe(113);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -268,7 +279,7 @@ describe("the reference worker, verified", () => {
   });
 
   it("verifies nothing against a Worker whose edition it does not hold", async () => {
-    // DESC-25 binds a verifier, and publishing edition 0.1 is what made it ours to obey. A tool
+    // DESC-25 binds a verifier, and publishing an edition is what made it ours to obey. A tool
     // that met an edition it could not read and failed the Worker for it would be blaming a party
     // for what is the reader's problem — so it verifies nothing and says which of the two is
     // behind, which is a sentence an operator can act on.
@@ -278,9 +289,9 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.1");
+      expect(report.verifierEdition).toBe("0.2");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.1");
+      expect(report.results[0]?.detail).toContain("holds edition 0.2");
     } finally {
       await ahead.close();
     }

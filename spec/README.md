@@ -32,10 +32,41 @@ a version of its own:
 | `nudges` | [nudges.md](nudges.md) | Being told there is work, best effort and carrying nothing |
 | `tasks` | [tasks.md](tasks.md) | Exposing the Tasks a condition holds open, and answering one |
 | `events` | [events.md](events.md) | The envelope, the broker, deduplication |
+| `logs` | [logs.md](logs.md) | What a Worker recorded while it was working, most recent first |
 
 The Capability names in that table are a reading aid. The normative list is
 [schemas/capability-name.json](../schemas/capability-name.json), and where the two differ the
 schema wins — see [descriptor.md](descriptor.md).
+
+## Which one answers which question
+
+The table above says what each file is about. This one says which to reach for, because the
+question a Worker author actually has is *where does this belong*, and until now the answer was
+spread across four files each arguing from its own side.
+
+| The question | The surface | What makes it that one |
+|---|---|---|
+| Can I rely on it right now? | `health` | One status, and never better than its checks (HLTH-3) |
+| What should I look at right now? | `alerts` | A condition that **holds**, and ends by itself when it stops (ALRT-5) |
+| What is it working on right now? | `activity` | Undertaken and not finished; gone when the Worker stops holding it (ACTV-5) |
+| What does it need somebody to do? | `tasks` | A condition only *another* party's Action resolves (TASK-15) |
+| How much of something happened? | `metrics` | Accumulated over declared periods; a number, never an occurrence |
+| What happened, and is over? | `logs` | Written deliberately, past tense, acted on by nobody |
+| What can I make it do? | `actions` | An operation with a declared input, performed on request |
+| What does it tell others about? | `events` | Pushed to a broker, for whoever contracted for it |
+| How do I say there is work? | `nudges` | Best effort, carries a Task type and nothing else (NDG-2) |
+
+**The two that are confused are `alerts` and `logs`, and they only overlap on failure.** *Twelve
+files compressed* is a record and is no kind of Alert: an Alert is never good news, and half of
+what a Worker is worth recording is nothing going wrong. Where both could fit, the test is one
+sentence: **if it stops being true on its own, it is an Alert.** A record written every time a
+condition starts holding is a worse Alert — nothing clears it and nothing can act on it. An Alert
+raised for something already over is a condition nobody can make go away. [logs.md](logs.md)
+carries the contrast at length.
+
+**The next two are `activity` and `tasks`, and the test is whose work it is.** An activity is what
+this Worker took on; a Task is what it needs from somebody else. Both are present tense, and a
+reader asking *whose tasks are these* has already been told the wrong thing.
 
 The four cross-cutting files are `draft`: they were answered first because every other file leans
 on them — the Descriptor route, the addresses, the versioning rule, the error envelope, how either
@@ -85,7 +116,7 @@ the exception *had to stay small* and named two. The register, the first time an
 question to every rule in turn, found sixteen. Whether that is too many is worth arguing about, and
 the argument is now possible — which is the point of the count living somewhere gated rather than
 in a sentence here that would drift the moment a rule was written. It has drifted since: the
-specification is twelve files rather than six and the register counts twenty-two, which is a larger
+specification is thirteen files rather than six; the register counts twenty-two, which is a larger
 number and the same proportion. Whether that is too many is still worth arguing about, and the
 argument is still there to be had.
 
@@ -171,6 +202,7 @@ so that two files never race for the same one:
 | | | [events.md](events.md) | `EVT` |
 | | | [activity.md](activity.md) | `ACTV` |
 | | | [nudges.md](nudges.md) | `NDG` |
+| | | [logs.md](logs.md) | `LOG` |
 
 Numbers are issued in the order rules are written, not in the order they appear, so a file's ids
 need not read in sequence. **The number never restarts, and an id is never reused and never
@@ -192,13 +224,20 @@ break — an author would have to know what had been pushed where in order to kn
 allowed to fix a typo. An edition is a deliberate act with a number on it, it is already the thing
 a Worker declares and a report names, and nobody reaches it by accident.
 
-**Edition 0.1 is published, so every id below is now fixed.** Until it was, a rule could be
-reworded, narrowed, widened or reclassified in place and nothing was owed to anybody; from here a
-rewrite that could change a verdict costs a withdrawal and a new number, permanently. That is the
-whole of what publishing bought and the whole of what it cost, and it was worth taking at this
-point rather than later for a reason that is about evidence: every rule in this directory that any
-tool can observe now has a check that has run against a live Worker, which is the strongest
-statement available that the ones being frozen say what their authors meant.
+**Edition 0.2 is published, so every id below is now fixed.** Until an id appears in an edition it
+can be reworded, narrowed, widened, reclassified or renumbered in place and nothing is owed to
+anybody; from the edition that publishes it, a rewrite that could change a verdict costs a
+withdrawal and a new number, permanently. That is the whole of what publishing buys and the whole
+of what it costs, and it is taken at this point rather than later for a reason that is about
+evidence: every rule in this directory that any tool can observe has a check that has run against a
+live Worker, which is the strongest statement available that the ones being frozen say what their
+authors meant.
+
+`logs.md` is what that freedom looks like while it lasts. Between 0.1 and 0.2 its rules were
+renumbered twice: the paging rule was a `logs` rule of its own before it became ENDP-33 in
+[endpoints.md](endpoints.md), and the rule below it moved down into the number that left. Neither
+move cost a `Withdrawn` entry, because no report had cited either id and outlived it. From this
+edition they cost one.
 
 The `Withdrawn` lists these files already carry predate the edition and are not obligations under
 this rule — they record changes that *stand*, and the reasoning behind them is worth a reader's

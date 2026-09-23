@@ -7,7 +7,7 @@ header, envelope and refusal worker-protocol fixes.
 people who did not build them.** HTTP and JSON Schema, no runtime. A *Worker* describes itself in a
 Descriptor served at `/.well-known/worker-protocol` — the one address this protocol fixes — and
 declares there which of its Capabilities it implements: `health`, `metrics`, `actions`, `alerts`,
-`activity`, `nudges`, `tasks`, `events`. Any combination is allowed, including none.
+`activity`, `nudges`, `tasks`, `events`, `logs`. Any combination is allowed, including none.
 
 This package is what makes complying cheap. You write what your Worker *is* — what it knows how to
 do, what it counts, which conditions hold, what it is working on — and `mount()` writes the rest,

@@ -1,6 +1,7 @@
 import {
   action,
   defineWorker,
+  LEVELS,
   mount,
   type OpenTask,
   type OutcomeStore,
@@ -8,7 +9,7 @@ import {
 } from "@worker-protocol/hono";
 import * as z from "zod";
 import type { Env } from "./env.ts";
-import { type Fleet, fleetOf, QUIET_AFTER_MS, type Reading } from "./fleet.ts";
+import { type Fleet, fleetOf, type LogRow, QUIET_AFTER_MS, type Reading } from "./fleet.ts";
 
 /**
  * A Worker on Cloudflare whose Facts live in a Durable Object.
@@ -168,6 +169,33 @@ export const fleetWorker = defineWorker<Env>((env) => {
       // EVT-8: what a consumer sizes its deduplication store against.
       republishWindowSeconds: 3600,
     },
+
+    // LOG-2: what this Worker recorded while it was working, read from the durable object. A buffer
+    // in the isolate would pass every local test and be wrong in production, because a read can
+    // land somewhere that never saw the write. `mount()` decodes the query; this is the store.
+    logs: {
+      // ENDP-19: the cap this Worker holds a page to, handed on as `limit`.
+      pageSize: 50,
+      read: async ({ levels, from, to, cursor, limit }) => {
+        const page = await fleet.logs({
+          // LOG-7's floor: the levels arrive in order, so the first is the lowest asked for.
+          minRank: LEVELS.indexOf(levels[0] ?? "debug"),
+          before: cursor === undefined ? null : Number(cursor),
+          from: from?.getTime() ?? null,
+          to: to?.getTime() ?? null,
+          limit,
+        });
+        return {
+          records: page.rows.map((row) => ({
+            at: new Date(row.at),
+            level: row.level,
+            message: row.message,
+            ...(row.fields === undefined ? {} : { fields: row.fields }),
+          })),
+          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+        };
+      },
+    },
   };
 });
 
@@ -192,6 +220,8 @@ export async function cycle(
 
   const waiting = await fleet.pending();
   const gone: string[] = [];
+  /** LOG-2. What this cycle is worth saying, written to the store in one call at the end. */
+  const lines: LogRow[] = [];
   for (const event of waiting) {
     // EVT-1: a CloudEvents 1.0 event, whose `source` is the Worker's id and whose `id` with it
     // identifies this event uniquely — which is what lets a consumer deduplicate a republish.
@@ -203,10 +233,30 @@ export async function cycle(
       time: rfc3339(event.at),
       data: event.data,
     });
-    if (!published) break; // In order, and no further: the next cycle starts where this stopped.
+    if (!published) {
+      lines.push({
+        at: Date.now(),
+        level: "warn",
+        message: "the broker did not take an event",
+        fields: { id: event.id, type: event.type },
+      });
+      break; // In order, and no further: the next cycle starts where this stopped.
+    }
     gone.push(event.id);
   }
   if (gone.length > 0) await fleet.published(gone);
+
+  // LOG-2: the records, written on purpose and in one call. This is the whole of what a Worker
+  // does for this Capability — it decides what is worth a line and where that line is kept. There
+  // is no `console` patched behind its back, which is what keeps a record attributable to the work
+  // that produced it rather than to whichever isolate happened to be running.
+  lines.push({
+    at: Date.now(),
+    level: "info",
+    message: "cycle complete",
+    fields: { readings: ingested, published: gone.length, waiting: waiting.length },
+  });
+  await fleet.record(lines);
   return { readings: ingested, published: gone.length };
 }
 

@@ -41,6 +41,7 @@ describe("what a Tower reads first", () => {
       "alerts",
       "events",
       "health",
+      "logs",
       "metrics",
       "tasks",
     ]);
@@ -132,5 +133,90 @@ describe("ENDP-16, over a store that outlives the request", () => {
     // different one would be replaying something the caller never sent.
     const response = await inspection({ vehicle: "SOMETHING-ELSE", reachable: false });
     expect(response.status).toBe(409);
+  });
+});
+
+/**
+ * The `logs` surface, over the deployed Worker.
+ *
+ * This is the file that has to exist on Cloudflare rather than on Node, because the question the
+ * Capability raises is a platform question: a feed kept in the isolate is one feed per isolate, so
+ * the records have to live where every isolate can reach them. `SELF.fetch` runs the real
+ * entrypoint, and the records it answers were written by a cycle in a different one.
+ */
+describe("what the Worker recorded while it was working", () => {
+  const page = async (query = "") => {
+    const response = await at(`/logs${query}`);
+    expect(response.status).toBe(200);
+    return (await response.json()) as {
+      items: { at: string; level: string; message: string; fields?: Record<string, unknown> }[];
+      nextCursor?: string;
+    };
+  };
+
+  it("answers what a cycle recorded, most recent first, with its structured fields", async () => {
+    // A cycle records on purpose, in the Worker's own code path.
+    await at("/actions?action=run-cycle", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+
+    const answered = await page();
+    expect(answered.items.length).toBeGreaterThan(0);
+    // LOG-4: every record carries an instant, a level and a message.
+    for (const record of answered.items) {
+      expect(record.at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(["debug", "info", "warn", "error"]).toContain(record.level);
+      expect(record.message.length).toBeGreaterThan(0);
+    }
+    // LOG-9: a single trailing object of scalars became `fields` rather than part of the message.
+    const structured = answered.items.find((record) => record.fields !== undefined);
+    expect(structured?.fields).toBeTypeOf("object");
+  });
+
+  it("holds the order while the feed is being written to, which is ENDP-33", async () => {
+    // Enough records to page, written the way every other record here was.
+    await fleet().record(
+      Array.from({ length: 60 }, (_, i) => ({
+        at: Date.now() + i,
+        level: "info" as const,
+        message: `cycle note ${i}`,
+        fields: { i },
+      })),
+    );
+
+    const first = await page();
+    expect(first.nextCursor).toBeTruthy();
+
+    // More arrive between the two reads — which is the case the rule is about, and the one an
+    // offset gets wrong by pushing the collection along under the caller.
+    await fleet().record([{ at: Date.now(), level: "warn", message: "arrived mid-paging" }]);
+
+    const second = await page(`?cursor=${first.nextCursor}`);
+    const seen = new Set(first.items.map((item) => JSON.stringify(item)));
+    expect(second.items.some((item) => seen.has(JSON.stringify(item)))).toBe(false);
+    expect(second.items.some((item) => item.message === "arrived mid-paging")).toBe(false);
+  });
+
+  it("filters by a level floor and refuses a name outside the four", async () => {
+    await fleet().record([
+      { at: Date.now(), level: "error", message: "upload failed", fields: { attempt: 3 } },
+    ]);
+
+    // LOG-7: a floor, so `warn` answers `warn` and `error` and nothing below either.
+    const filtered = await page("?level=warn");
+    expect(filtered.items.every((record) => ["warn", "error"].includes(record.level))).toBe(true);
+    expect(filtered.items.some((record) => record.level === "error")).toBe(true);
+
+    // ENDP-24, LOG-7: a level outside the vocabulary is refused rather than ignored.
+    const invented = await at("/logs?level=chatter");
+    expect(invented.status).toBe(400);
+    expect(((await invented.json()) as { code: string }).code).toBe("invalid_parameter");
+
+    // ENDP-24: and so is a parameter this address never defined.
+    const unknown = await at("/logs?vehicle=ABC-123");
+    expect(unknown.status).toBe(400);
+    expect(((await unknown.json()) as { code: string }).code).toBe("unknown_filter");
   });
 });

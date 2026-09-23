@@ -3,14 +3,14 @@ name: worker-protocol-hono
 description: >-
   Build a worker-protocol Worker in TypeScript with @worker-protocol/hono. You write
   defineWorker({ id, authenticate, health, metrics, actions, alerts, activity, nudges, tasks,
-  skills, events }) and mount() carries every address, header, envelope, refusal, cursor and
+  skills, events, logs }) and mount() carries every address, header, envelope, refusal, cursor and
   bucket boundary the specification fixes; then app.fetch runs on Cloudflare, Vercel edge, Deno
   Deploy, Node or Bun. Use when writing or changing a Worker in TypeScript, declaring an Action
   with action(), wiring an outcome store for idempotency, mounting on Hono, or when tsc complains
   about a Worker member. Load the worker-protocol skill first for the rules themselves.
 license: Apache-2.0
 metadata:
-  workerProtocolEdition: "0.1"
+  workerProtocolEdition: "0.2"
   version: "1.0.0"
 ---
 
@@ -20,9 +20,15 @@ metadata:
 Capabilities, the rules and their ids, and the gotchas that hold in every language. This one is the
 TypeScript layer only — what that package writes for you, and what you still write.
 
+**In particular, decide which Capability a fact belongs on before you write the member for it.**
+That skill has the table, and the two pairs worth knowing before you start: `alerts` is a condition
+that stops being true on its own and `logs` is what is already over, and `activity` is what this
+Worker took on while `tasks` is what it needs from somebody else. A member on the wrong one is the
+mistake that costs most later, because consoles get built against where you put it.
+
 You declare what only the Worker knows: who it is, whether a credential is good, how it is doing,
 which conditions hold, how much of something happened, what an Action does. `mount()` writes the
-rest. A Worker declaring all eight Capabilities is about 140 lines of domain; growing much past that
+rest. A Worker declaring all nine Capabilities is about 175 lines of domain; growing much past that
 means re-deriving a rule `mount()` already carries.
 
 ## Gotchas — the ones this package adds
@@ -95,7 +101,7 @@ Beside `id`, and not a Capability:
 - `authenticate: (token) => "accepted" | "unauthenticated" | "forbidden"`, or a promise of one.
 - `edition?` — only to pin the edition you verified against; otherwise the package's.
 
-The eight Capabilities:
+The nine Capabilities:
 
 - `health: () => ({ status, checks })` — one status, named checks beneath it.
 - `metrics: { timeZone, publishes, read({ metric, granularity, buckets, fixed, by }) }`.
@@ -108,13 +114,22 @@ The eight Capabilities:
 - `tasks: { raises: { [type]: { payload, answeredBy } }, current(), covers?, pageSize? }`.
 - `events: { broker, protocolBinding, destination, publishes: { [type]: { data } },
   republishWindowSeconds? }` — a declaration only; no address is served.
+- `logs: { read({ levels, from, to, cursor, limit }), pageSize? }` — answer
+  `{ records: [{ at, level, message, fields? }], nextCursor? }`, most recent first.
+
+**`logs` is a read you perform, not a list you hand over**, which is `metrics`' division and not
+`alerts`': a feed is not bounded by what is happening now, so only the store holding it can filter
+and page it. `mount()` decodes the level floor into `levels` — in order, lowest first — the
+half-open interval, the instant's format, the refusals and the envelope. What stays yours is the
+order (LOG-3) and the cursor (ENDP-33), and neither can be carried by a library that never sees
+your store. Key the cursor on something that only grows and both are free.
 
 ## Also exported
 
 `jsonSchema()` for a schema you need in hand; `CODES` and `ErrorCode` for the refusal vocabulary;
 `bucketsIn`, `startOf`, `endOf`, `rfc3339` for metric boundaries; and the route objects
 (`readDescriptor`, `pollHealth`, `readMetric`, `performAction`, `readTasks`, `readAlerts`,
-`readActivity`) that `openapi/` is generated from.
+`readActivity`, `readLogs`) that `openapi/` is generated from.
 
 ## Where the detail is
 
@@ -128,7 +143,7 @@ Load these when you need them. The first three are on disk after `npm i`.
 - **The consumer half** — `@worker-protocol/client`: `consume()` reads a Worker and takes work from
   it, with no web framework. A Tower, a console or a Worker that answers another's Tasks is built
   on it.
-- **All eight Capabilities, explained line by line** —
+- **All nine Capabilities, explained line by line** —
   https://github.com/rowing-tech/worker-protocol/blob/main/examples/minimal-worker/src/worker.ts —
   and the same Worker on Cloudflare with a Durable Object in `examples/fleet-worker`.
 - **The rules themselves** — the `worker-protocol` skill, and `spec/` behind it.

@@ -84,7 +84,7 @@ describe("a Worker on workerd, verified over HTTP", () => {
     // on here exactly as it is against a Worker on Node. The count is of DISTINCT ids rather than
     // of results, because a rule observed on several surfaces is reported once per surface.
     const judged = new Set(report.results.map((one) => one.rule.id));
-    expect(judged.size).toBe(153);
+    expect(judged.size).toBe(164);
     // DESC-25 did not stop the run, so what follows is a verdict rather than a version complaint.
     expect(report.older).toBeUndefined();
     expect(report.edition).toBe(report.verifierEdition);

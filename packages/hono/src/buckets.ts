@@ -12,7 +12,7 @@
  * appears twice a year and is attributed to anything but the metric.
  */
 
-import type { metricGranularity } from "@worker-protocol/schemas";
+import { INSTANT, type metricGranularity } from "@worker-protocol/schemas";
 import type * as z from "zod";
 
 export type Granularity = z.infer<typeof metricGranularity>;
@@ -153,3 +153,27 @@ export function bucketsIn(
  */
 export const rfc3339 = (at: number | Date): string =>
   (at instanceof Date ? at : new Date(at)).toISOString().replace(/\.\d{3}Z$/, "Z");
+
+/**
+ * MET-11, LOG-8 — the half-open interval a read narrows to, read off the query.
+ *
+ * One spelling for both surfaces, because that is what the two rules say: `from` inclusive, `to`
+ * exclusive, each an RFC 3339 instant carrying an offset, so two adjacent reads add up and carry
+ * nothing twice. Written twice it would be two spellings of one rule to keep in step.
+ *
+ * `null` is the refusal — one of them was sent and will not parse — and a member that is `null`
+ * inside the interval is one that was not sent at all. Each surface has its own answer for that:
+ * MET-11 falls back to the current bucket, LOG-8 to the whole window.
+ */
+export const halfOpen = (
+  query: URLSearchParams,
+): { from: number | null; to: number | null } | null => {
+  const at = (name: string): number | null | undefined => {
+    const raw = query.get(name);
+    if (raw === null) return null;
+    return INSTANT.test(raw) ? Date.parse(raw) : undefined;
+  };
+  const from = at("from");
+  const to = at("to");
+  return from === undefined || to === undefined ? null : { from, to };
+};

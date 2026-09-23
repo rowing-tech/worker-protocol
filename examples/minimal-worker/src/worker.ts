@@ -7,7 +7,7 @@
  * the page envelope with its cursor and its order, the bucket boundaries cut in a declared time
  * zone, the idempotency window: all of that is `mount()`'s, once, in `@worker-protocol/hono`.
  *
- * It declares all eight Capabilities, because seeing one written is worth more than reading that it
+ * It declares all nine Capabilities, because seeing one written is worth more than reading that it
  * exists. A real Worker declares the ones it implements and leaves out the rest: any combination is
  * allowed, including none at all, and a Worker that serves only a Descriptor is already enrolled,
  * catalogued and reachable.
@@ -30,6 +30,8 @@ import {
   type Activity,
   action,
   defineWorker,
+  type LogLevel,
+  type LogRecord,
   memoryOutcomes,
   mount,
   type OpenTask,
@@ -69,6 +71,26 @@ let configuration = { label: "fleet watcher", quietAfterMinutes: 15 };
  * durable object, because a Map per isolate has the same problem one step further out.
  */
 const outcomes = memoryOutcomes();
+
+/**
+ * What this Worker has recorded, newest last, as a window rather than an archive.
+ *
+ * An array in the process is right HERE and wrong on Cloudflare, and the difference is worth
+ * knowing before copying it: one long-lived process has one of these, but a platform that answers
+ * a request from any isolate has one per isolate, so a read would land somewhere that saw a
+ * different slice of what happened. `examples/fleet-worker` keeps the same window in a durable
+ * object and captures `console` into it, which is the shape to copy there.
+ *
+ * `seq` is what a cursor names. It only ever grows, so a page asked for what is below it cannot
+ * carry a record written since — which is the whole of the paging rule, free at this ordering.
+ */
+const KEEP = 200;
+const recorded: (LogRecord & { seq: number })[] = [];
+let nextSeq = 1;
+const record = (level: LogLevel, message: string, fields?: LogRecord["fields"]): void => {
+  recorded.push({ seq: nextSeq++, at: new Date(), level, message, fields });
+  if (recorded.length > KEEP) recorded.splice(0, recorded.length - KEEP);
+};
 
 export const fleetWorker = defineWorker<Env>((env) => ({
   // The Worker's own id: a name it is deployed with, never the URL it is served from and never
@@ -174,6 +196,9 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         // `vehicle` is a string here because the schema above says so, and the editor knows it.
         run: ({ vehicle }) => {
           checked.add(vehicle);
+          // One line for a person, and a flat map of scalars beside it for a console to render as
+          // key and value rather than as a sentence somebody has to parse back out.
+          record("info", "check recorded", { vehicle, outstanding: silent.size - checked.size });
           return { recordedAt: new Date().toISOString() };
         },
       }),
@@ -183,6 +208,10 @@ export const fleetWorker = defineWorker<Env>((env) => ({
       configure: action({
         input: z.object({ label: z.string().min(1), quietAfterMinutes: z.number().int().min(1) }),
         run: (replacement) => {
+          record("warn", "settings replaced", {
+            from: configuration.label,
+            to: replacement.label,
+          });
           configuration = replacement;
           return null;
         },
@@ -242,6 +271,36 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         summary: `Waiting for ${vehicle} to report in.`,
       })),
   ],
+
+  // What this Worker recorded while it was working, most recent first. The order is this Worker's
+  // and the instant does not establish it — two records written inside one request share a
+  // millisecond, so a console reads the order the page arrives in and never sorts by `at`.
+  // `mount()` decodes the level floor, the half-open interval and the envelope; what is left here
+  // is the store, because only a store can filter a feed without loading it.
+  logs: {
+    pageSize: 25,
+    read: ({ levels, from, to, cursor, limit }) => {
+      const below = cursor === undefined ? Number.POSITIVE_INFINITY : Number(cursor);
+      // `reverse` and not a sort: `recorded` only ever grows at the end, so it is already in order
+      // and saying so is what makes paging a feed cheap.
+      const matching = recorded
+        .filter(
+          (one) =>
+            one.seq < below &&
+            levels.includes(one.level) &&
+            (from === undefined || one.at >= from) &&
+            (to === undefined || one.at < to),
+        )
+        .reverse();
+      const page = matching.slice(0, limit);
+      const last = matching.length > limit ? page.at(-1) : undefined;
+      return {
+        records: page.map(({ seq, ...rest }) => rest),
+        // Absent at the end of what this Worker still holds — which is not the end of what happened.
+        ...(last === undefined ? {} : { nextCursor: String(last.seq) }),
+      };
+    },
+  },
 
   tasks: {
     // Every Task type this Worker raises, each with the one operation of its own that answers it.

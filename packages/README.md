@@ -278,9 +278,10 @@ else — the edition is a manifest field it cannot see. Asking the registry inst
 numbering free to mean what SemVer says it means while still answering *give me the newest
 implementation of edition 0.1*.
 
-It also survives what a range does not. When edition 0.2 ships, `edition-0.1` goes on pointing at
-the last packages that encode 0.1, which is what a consumer anchored there needs and precisely what
-`latest` stops being. A prerelease moves no edition tag, for the reason it does not take `latest`.
+It also survives what a range does not, which edition 0.2 has now shown: `edition-0.1` goes on
+pointing at the last packages that encode 0.1, which is what a consumer anchored there needs and
+precisely what `latest` stopped being the moment 0.2 published. A prerelease moves no edition tag,
+for the reason it does not take `latest`.
 
 **What reaches npm is `packages/*` and nothing else.** The examples and
 `conformance/reference-worker` are workspace members, so the filter excludes them by path and their

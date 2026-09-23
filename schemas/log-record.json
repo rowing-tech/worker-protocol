@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "log-record.json",
+  "type": "object",
+  "properties": {
+    "at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+      "format": "date-time",
+      "description": "LOG-4. When the Worker recorded it, as an RFC 3339 instant carrying an offset. LOG-6: it does not establish the order and a caller never sorts by it — records written inside one request routinely carry the same millisecond, and no resolution fixes that."
+    },
+    "level": {
+      "$ref": "log-level.json"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "description": "LOG-4. Human-readable, and parsed by nothing. The reader this surface exists for is a person who came looking for what happened; what a program acts on is the level."
+    },
+    "fields": {
+      "description": "LOG-9. One level deep, values scalar. Nesting is what turns a rendering into a tree widget and what tempts a reader to reach into it; a flat map can be shown, scanned and copied into a ticket, and offers nothing to build a contract on. This protocol defines no filter over it.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      }
+    }
+  },
+  "required": [
+    "at",
+    "level",
+    "message"
+  ],
+  "additionalProperties": false,
+  "title": "Log record",
+  "description": "LOG-4. One thing the Worker recorded while it was working."
+}

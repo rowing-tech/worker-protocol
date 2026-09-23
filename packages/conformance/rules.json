@@ -482,6 +482,12 @@
       "reach": "H"
     },
     {
+      "id": "ENDP-33",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
       "id": "EVT-1",
       "file": "events.md",
       "class": "required",
@@ -564,6 +570,66 @@
       "file": "health.md",
       "class": "required",
       "reach": "W"
+    },
+    {
+      "id": "LOG-1",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-2",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-3",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "LOG-4",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-5",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-6",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "LOG-7",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-8",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-9",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-10",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "H"
     },
     {
       "id": "MET-1",
@@ -1148,6 +1214,25 @@
       "from": "ENDP-15",
       "member": "ACT-12",
       "required": "ENDP-18"
+    },
+    "log-level": {
+      "": "LOG-5"
+    },
+    "log-page": {
+      "": "LOG-2",
+      "nextCursor": "ENDP-21"
+    },
+    "log-record": {
+      "": "LOG-4",
+      "at": "LOG-4",
+      "fields": "LOG-9",
+      "level": "LOG-5",
+      "message": "LOG-4"
+    },
+    "logs-entry": {
+      "": "LOG-1",
+      "address": "DESC-12",
+      "version": "DESC-9"
     },
     "metric-bucket": {
       "": "MET-13",

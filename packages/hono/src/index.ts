@@ -28,6 +28,14 @@ export type {
 export { action, jsonSchema, memoryOutcomes } from "./actions.ts";
 export { bucketsIn, endOf, type Granularity, rfc3339, startOf } from "./buckets.ts";
 export { CODES, type ErrorCode } from "./codes.ts";
+export {
+  LEVELS,
+  type LogFacts,
+  type LogLevel,
+  type LogPage,
+  type LogQuery,
+  type LogRecord,
+} from "./logs.ts";
 export type { Bucket, MetricFacts, MetricQuery, MetricSample } from "./metrics.ts";
 export {
   defineWorker,
@@ -42,6 +50,7 @@ export {
   readActivity,
   readAlerts,
   readDescriptor,
+  readLogs,
   readMetric,
   readTasks,
 } from "./surfaces.ts";

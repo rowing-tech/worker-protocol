@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "worker-protocol — nudges",
+    "title": "worker-protocol — logs",
     "version": "0.2",
-    "description": "Being told there is work of a Task type. Declaring it is optional and what it buys is latency: a consumer that reads on its own schedule is slower and never wrong (TASK-19).",
+    "description": "What a Worker recorded while it was working, most recent first. A window rather than an archive: nothing here fixes how far back a Worker keeps, and the end of the collection means the end of what it still holds.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -12,7 +12,7 @@
   "servers": [
     {
       "url": "{address}",
-      "description": "NDG-1. The address the `nudges` entry declares, resolved per DESC-12.",
+      "description": "LOG-1. The address the `logs` entry declares, resolved per DESC-12.",
       "variables": {
         "address": {
           "default": "/",
@@ -23,10 +23,57 @@
   ],
   "paths": {
     "/": {
-      "post": {
-        "summary": "Tell the Worker there is work of a Task type",
-        "description": "NDG-2. A nudge carries a Task type and nothing else, and buys latency and nothing else: the receiver has not accepted the work and has not looked yet, and reads the Tasks at the address that raised them exactly as it would have on its next schedule. TASK-15 is why the Task itself does not travel — the owner is authoritative over whether the condition still holds, so a Task in flight is a claim that may already be false.",
+      "get": {
+        "summary": "Read what the Worker recorded while it was working",
+        "description": "LOG-2. Most recent first (LOG-3), and LOG-6 has a caller read the order the page arrives in rather than reconstructing it from the instants — records written inside one request share a millisecond. The absence of a cursor means the end of what this Worker still holds, and not the end of what happened. LOG-10 answers the same records to every caller it authenticates: the party this surface is for is whoever operates the Worker.",
         "parameters": [
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "LOG-7. A floor: the level named and every level above it, so `warn` answers `warn` and `error`. Absent, nothing is excluded.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "debug",
+                "info",
+                "warn",
+                "error"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "LOG-8. Inclusive. Absent, the Worker answers from its most recent.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "LOG-8. Exclusive — the interval is half-open, so two adjacent reads carry no record twice.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "ENDP-21. Opaque, produced only by the Worker, never constructed by a caller. Absent from an answer at the end of the collection.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
           {
             "name": "Worker-Protocol-Capability-Version",
             "in": "header",
@@ -38,20 +85,9 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "description": "NDG-2. One Task type, and nothing else.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "../schemas/nudge.json"
-              }
-            }
-          }
-        },
         "responses": {
-          "204": {
-            "description": "NDG-2. The Worker was told. No body, because there is nothing to say: it has promised nothing and looked at nothing.",
+          "200": {
+            "description": "LOG-2. The records the Worker holds, most recent first, in the shared page envelope.",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
@@ -69,10 +105,17 @@
                   "minimum": 1
                 }
               }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/log-page.json"
+                }
+              }
             }
           },
           "400": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `schema_mismatch` (NDG-2), `malformed_request` (ENDP-4), `unsupported_version` (ENDP-6).",
+            "description": "ENDP-25. The shared error envelope, carrying one of: `invalid_parameter` (LOG-7), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
@@ -129,34 +172,6 @@
           },
           "403": {
             "description": "ENDP-25. The shared error envelope, carrying one of: `forbidden` (ENDP-29).",
-            "headers": {
-              "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
-                }
-              },
-              "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
-                "required": true,
-                "schema": {
-                  "type": "integer",
-                  "minimum": 1
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "../schemas/error.json"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `not_found` (NDG-3).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

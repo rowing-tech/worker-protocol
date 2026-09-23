@@ -1,7 +1,7 @@
-import { health as healthSchema, taskPage } from "@worker-protocol/schemas";
+import { health as healthSchema, logPage, taskPage } from "@worker-protocol/schemas";
 import type { Arrangement } from "../index.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
-import type { Transcript } from "../transcript.ts";
+import { iso, type Transcript, withParams } from "../transcript.ts";
 
 /**
  * The rules that need something no Worker has by accident.
@@ -21,6 +21,9 @@ export const CLAIMS = [
   "REG-32",
   "ALRT-6",
   "ACTV-6",
+  "LOG-10",
+  "LOG-3",
+  "ENDP-33",
   "TASK-6",
   "HLTH-4",
   "ACT-14",
@@ -36,13 +39,33 @@ export const CLAIMS = [
  * other way.
  */
 const SAME_TO_BOTH = [
-  { rule: "ALRT-6", url: "alertsUrl", capability: "alerts", one: "the Alerts", many: "Alerts" },
+  {
+    rule: "ALRT-6",
+    url: "alertsUrl",
+    capability: "alerts",
+    one: "the Alerts",
+    many: "Alerts",
+    freeze: false,
+  },
   {
     rule: "ACTV-6",
     url: "activityUrl",
     capability: "activity",
     one: "the activity",
     many: "activities",
+    freeze: false,
+  },
+  // `freeze` is what makes this comparable at all on a feed. A Worker that records what it serves
+  // — which is what puts LOG-3 and ENDP-33 in reach below — answers a different page to the second
+  // read for a reason that has nothing to do with who asked. LOG-8's `to` pins the window to what
+  // was already written, and what is older than an instant does not change.
+  {
+    rule: "LOG-10",
+    url: "logsUrl",
+    capability: "logs",
+    one: "the records",
+    many: "records",
+    freeze: true,
   },
 ] as const satisfies readonly {
   rule: string;
@@ -50,17 +73,22 @@ const SAME_TO_BOTH = [
   capability: string;
   one: string;
   many: string;
+  freeze: boolean;
 }[];
 
 type Surfaces = {
   descriptorUrl: string | null;
   alertsUrl: string | null;
   activityUrl: string | null;
+  logsUrl: string | null;
   tasksUrl: string | null;
   settingsUrl: string | null;
   workerId: string | null;
   eventTypes: string[];
 };
+
+/** LOG-8's `to`, so that two reads of a feed compare what was already written and nothing since. */
+const pin = (url: string): string => withParams(url, { to: iso(Date.now()) });
 
 export async function checkArranged(
   surfaces: Surfaces,
@@ -107,12 +135,13 @@ export async function checkArranged(
     // ALRT-6 and ACTV-6 are one rule read on two surfaces: both are for whoever OPERATES the
     // Worker, which is a relationship of enrollment, so every credential it authenticates sees one
     // list. A third read-only surface with that audience gets a row here rather than a block.
-    for (const { rule, url, capability, one, many } of SAME_TO_BOTH) {
-      const address = surfaces[url];
-      if (address === null) {
+    for (const { rule, url, capability, one, many, freeze } of SAME_TO_BOTH) {
+      const declared = surfaces[url];
+      if (declared === null) {
         say(rule, "notExercised", `the Worker declares no \`${capability}\``);
         continue;
       }
+      const address = freeze ? pin(declared) : declared;
       const first = await transcript.send(address, `${one}, first credential`);
       const second = await asSecond(address, `${one}, second credential`);
       if (first.status !== 200 || second.status !== 200) {
@@ -243,6 +272,75 @@ export async function checkArranged(
         "fails",
         "the settings changed when the Worker was handed what it already held",
       );
+    }
+  }
+
+  /**
+   * LOG-3 and ENDP-33, which need a Worker that writes something when it is read.
+   *
+   * Neither is reachable otherwise. LOG-3 says the order is most recent first, and one page of
+   * records the verifier did not write shows nothing: LOG-6 forbids reading the order off the
+   * instants, so there is nothing inside a page to compare. ENDP-33 says a page reached through a
+   * cursor never carries a record written after the page that produced it, and a feed nothing is
+   * writing to cannot demonstrate it.
+   *
+   * Given `recordsEveryRequest`, both have a witness. Reading the feed is itself a write, so the
+   * verifier can make a record exist without knowing anything about the Worker's domain.
+   */
+  const url = arrangement.recordsEveryRequest === true ? surfaces.logsUrl : null;
+  if (url === null) {
+    const why =
+      arrangement.recordsEveryRequest === true
+        ? "the Worker declares no `logs`"
+        : "the verifier was not told this Worker records when it is read";
+    for (const id of ["LOG-3", "ENDP-33"]) say(id, "notExercised", why);
+  } else {
+    const read = async (intent: string, cursor?: string) => {
+      const at = cursor === undefined ? url : withParams(url, { cursor });
+      const answer = await transcript.send(at, intent);
+      const page = logPage.safeParse(answer.json);
+      return page.success ? page.data : null;
+    };
+
+    // LOG-3: the record that was first stops being first once a newer one exists. That is what
+    // *most recent first* means, observed without trusting an instant or knowing what was written.
+    const first = await read("the records, to see which is newest");
+    const again = await read("the records, after one more was written");
+    if (first === null || again === null) {
+      say("LOG-3", "notExercised", "a page of records did not validate");
+    } else if (first.items.length === 0) {
+      say("LOG-3", "notExercised", "the Worker holds no record to compare against");
+    } else if (JSON.stringify(first.items[0]) === JSON.stringify(again.items[0])) {
+      say(
+        "LOG-3",
+        "fails",
+        "a newer record was written and the page still begins with the old one",
+      );
+    } else {
+      say("LOG-3", "passes");
+    }
+
+    // ENDP-33: following a cursor after newer records have arrived answers what is OLDER than the
+    // position it names, and never a record the first page already carried. Under an offset the
+    // arriving records push the collection along and the second page repeats the first — which is
+    // the failure this rule exists for, and the one this arrangement provokes.
+    // A page of its own rather than `again`, and the extra read is the point: it puts a record
+    // between the page that produced the cursor and the page that follows it, which is the state
+    // the rule is about. Reusing `again` would test a cursor against a feed nothing had touched
+    // since, which is the case every implementation gets right.
+    const page1 = await read("the first page of records");
+    if (page1 === null || page1.nextCursor === undefined) {
+      say("ENDP-33", "notExercised", "the Worker holds less than one full page of records");
+    } else {
+      const page2 = await read("the page after it, once more has been written", page1.nextCursor);
+      const seen = new Set(page1.items.map((item) => JSON.stringify(item)));
+      if (page2 === null) {
+        say("ENDP-33", "notExercised", "the second page did not validate");
+      } else if (page2.items.some((item) => seen.has(JSON.stringify(item)))) {
+        say("ENDP-33", "fails", "the page after the cursor repeated a record from the page before");
+      } else {
+        say("ENDP-33", "passes");
+      }
     }
   }
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — tasks",
-    "version": "0.1",
+    "version": "0.2",
     "description": "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
     "license": {
       "name": "Apache-2.0",

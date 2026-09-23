@@ -4,6 +4,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { actions as actionsSurface, IN_MEMORY, jsonSchema, type OutcomeStore } from "./actions.ts";
 import { byCode } from "./codes.ts";
 import { collection, serializeSince } from "./collection.ts";
+import { logs as logsSurface } from "./logs.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
 import {
   performAction,
@@ -11,6 +12,7 @@ import {
   readActivity,
   readAlerts,
   readDescriptor,
+  readLogs,
   readMetric,
   readTasks,
   SURFACES,
@@ -177,6 +179,7 @@ function surfacesOf(worker: Worker) {
     tasks: worker.tasks ? taskSurface(worker.tasks.raises, worker.tasks) : undefined,
     actions: worker.actions ? actionsSurface(worker.actions) : undefined,
     metrics: worker.metrics ? metricsSurface(worker.metrics) : undefined,
+    logs: worker.logs ? logsSurface(worker.logs) : undefined,
   };
 }
 
@@ -243,7 +246,7 @@ function descriptorOf(worker: Worker, edition: string): string {
 
   // The Capabilities whose entry is the shared one and an address: what a Worker declares about
   // them is that it implements them. The rest add something of their own below.
-  for (const name of ["health", "alerts", "activity", "nudges"] as const) {
+  for (const name of ["health", "alerts", "activity", "nudges", "logs"] as const) {
     if (worker[name]) capabilities[name] = { version: 1, address: `../${name}` };
   }
 
@@ -545,6 +548,21 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       worker.activity
         ? page(c, collection(await worker.activity(), query(c), serializeSince))
         : undeclared("activity"),
+    true,
+  );
+
+  // LOG-2, LOG-7, LOG-8, ENDP-20: the query is decoded here and the read is the Worker's, which is
+  // `metrics`' division rather than `activity`'s — a feed is not bounded by what is happening now,
+  // so only the store holding it can filter and page it.
+  serve(
+    "logs",
+    "/logs",
+    readLogs,
+    async (c, worker) => {
+      const read = surfacesOf(worker).logs;
+      if (!read) return undeclared("logs");
+      return page(c, await read(query(c)));
+    },
     true,
   );
 

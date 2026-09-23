@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Recorded, Reservation } from "@worker-protocol/hono";
+import { LEVELS, type LogLevel, type Recorded, type Reservation } from "@worker-protocol/hono";
 import type { Env } from "./env.ts";
 
 /**
@@ -42,6 +42,23 @@ const COUNTER = "counter:";
 const OUTBOX = "outbox:";
 const OUTCOME = "outcome:";
 
+/** LOG-2. The window of records this Worker keeps. Its operators' number, not the protocol's. */
+const KEEP_RECORDS = 500;
+
+/**
+ * One record as it crosses the RPC boundary: an instant as a number, and `fields` already flat.
+ *
+ * The instant is a number for the reason `Json` is flat — a durable object's methods are RPC, and
+ * the narrower the types the less there is to go wrong in a mapping the compiler reports as
+ * `never`. `worker.ts` turns it into the `Date` that `mount()` takes and serializes.
+ */
+export type LogRow = {
+  at: number;
+  level: LogLevel;
+  message: string;
+  fields?: Json;
+};
+
 /** One vehicle's last sign of life. */
 export type Reading = { vehicle: string; at: number };
 
@@ -71,6 +88,23 @@ export type Pending = Row & { id: string };
 type Outcome = { until: number; answer?: Recorded };
 
 export class Fleet extends DurableObject<Env> {
+  /**
+   * The one table this object keeps, created once when the object is instantiated rather than on
+   * every call that touches it. `sql.exec` is synchronous against local storage, so this needs no
+   * `blockConcurrencyWhile`: the statement has run before any method can be reached.
+   */
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS log (
+      seq INTEGER PRIMARY KEY AUTOINCREMENT,
+      at INTEGER NOT NULL,
+      level TEXT NOT NULL,
+      rank INTEGER NOT NULL,
+      message TEXT NOT NULL,
+      fields TEXT
+    )`);
+  }
+
   /**
    * One cycle's readings. Records what the source said, counts it, and raises an event for each
    * vehicle that crossed into quiet on this cycle and not before.
@@ -245,5 +279,83 @@ export class Fleet extends DurableObject<Env> {
 
   async releaseOutcome(key: string): Promise<void> {
     await this.ctx.storage.delete(`${OUTCOME}${key}`);
+  }
+
+  /**
+   * LOG-2 — the records, in the one part of this object that is SQL.
+   *
+   * The file opens by saying the key-value API is enough because the domain needs ordering and
+   * prefixes and nothing more. This is where that stops being true, and the reason is worth the
+   * exception: a read here filters by a level floor and by a half-open interval (LOG-7, LOG-8),
+   * and a store that cannot filter would have to hand every row to the Worker so it could throw
+   * most of them away. The other nine methods are unchanged, and the mixture is deliberate.
+   *
+   * `seq` is what makes ENDP-33 free. It only ever grows, a cursor names one, and a page asks for
+   * what is below it — so a record written since the last page cannot appear in the next. Under an
+   * offset the arriving records would push the collection along and the caller would see some of
+   * them twice and others never.
+   */
+  /** One write per cycle, whatever the line count. Per line it would be a write per record. */
+  async record(rows: LogRow[]): Promise<void> {
+    const sql = this.ctx.storage.sql;
+    for (const row of rows) {
+      sql.exec(
+        "INSERT INTO log (at, level, rank, message, fields) VALUES (?, ?, ?, ?, ?)",
+        row.at,
+        row.level,
+        // LOG-5's ladder as a number, derived here so that LOG-7's floor is a comparison the store
+        // can make. A caller that had to supply it would be a second place for it to be wrong.
+        LEVELS.indexOf(row.level),
+        row.message,
+        row.fields === undefined ? null : JSON.stringify(row.fields),
+      );
+    }
+    // A window rather than an archive. The oldest go first, which is what makes the end of this
+    // collection mean *the end of what I still hold* — `spec/logs.md` says so in prose rather than
+    // signalling it in an envelope six other surfaces share.
+    sql.exec("DELETE FROM log WHERE seq <= (SELECT MAX(seq) FROM log) - ?", KEEP_RECORDS);
+  }
+
+  /** LOG-3, LOG-7, LOG-8, ENDP-33 — one page, most recent first, in one query. */
+  async logs(query: {
+    /** LOG-7. The floor: this level and every level above it. */
+    minRank: number;
+    /** ENDP-21. The position the caller's cursor named, or absent for the first page. */
+    before: number | null;
+    from: number | null;
+    to: number | null;
+    limit: number;
+  }): Promise<{ rows: LogRow[]; nextCursor?: string }> {
+    const { minRank, before, from, to, limit } = query;
+    const found = this.ctx.storage.sql
+      .exec<{ seq: number; at: number; level: LogLevel; message: string; fields: string | null }>(
+        `SELECT seq, at, level, message, fields FROM log
+          WHERE rank >= ?1
+            AND (?2 IS NULL OR seq < ?2)
+            AND (?3 IS NULL OR at >= ?3)
+            AND (?4 IS NULL OR at < ?4)
+          ORDER BY seq DESC
+          LIMIT ?5`,
+        minRank,
+        before,
+        from,
+        to,
+        // One more than asked for, which is how the cursor knows whether there IS a next page
+        // without a second count over the same window.
+        limit + 1,
+      )
+      .toArray();
+
+    const page = found.slice(0, limit);
+    const rows = page.map((row) => ({
+      at: row.at,
+      level: row.level,
+      message: row.message,
+      ...(row.fields === null ? {} : { fields: JSON.parse(row.fields) as Json }),
+    }));
+    // The row beyond the cap is what says there is another page, so the cursor exists exactly when
+    // the query found one — ENDP-20: absent at the end, absent rather than null.
+    const last = found.length > limit ? page.at(-1) : undefined;
+    return last === undefined ? { rows } : { rows, nextCursor: String(last.seq) };
   }
 }

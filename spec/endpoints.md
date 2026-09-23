@@ -358,6 +358,9 @@ by a caller.**
 **ENDP-23 (required). A collection declares an order and holds it**, so that paging through it
 terminates.
 
+**ENDP-33 (required). A page reached through a cursor carries no item the page that produced that
+cursor already carried.**
+
 **ENDP-24 (required). An unrecognized filter parameter is `400`, and is never ignored.**
 
 One envelope for every collection is the same purchase as one verb: a client that can page through
@@ -368,6 +371,24 @@ whose meaning it must honor forever, because somewhere a client is building one 
 and an id it read off a page; opaque, it is a token the Worker may re-mean between releases and
 nobody notices. What the caller gives up is the ability to resume from a position it computed
 itself, which no reader of this protocol has asked for.
+
+**ENDP-33 is ENDP-23's missing half, and ENDP-23 alone is not enough because every collection here
+is derived rather than held.** A Worker answers its Alerts, its activities and its Tasks from
+conditions over its own Facts, so the list a caller is paging through is re-derived on every read
+and is not the list the page before it came from: an Alert fires, a Task's condition stops holding,
+a record is written. An order that is stable says nothing about a collection whose membership is
+not, and paging one is where a caller quietly loses items.
+
+What the two rules cost is not symmetric, and that is the point. ENDP-23 is free. ENDP-33 is free
+too **if the cursor names a position in the order rather than a count into it** — the next page asks
+for what is beyond that position, so nothing that arrived meanwhile can be inside it. Under an
+offset it is not free and it is not achievable: three items arriving above the offset push three
+items the caller already saw into the next page, and three items disappearing skip three it will
+never see. Neither is visible to the caller, which is why this is a rule rather than advice.
+
+This is stated for every collection rather than per surface because the fault is the paging
+mechanism's and not any surface's, and because a caller pages four of them with one implementation.
+A Worker that keys its cursor on something that only moves one way has already satisfied it.
 
 ENDP-31 and ENDP-19 were one rule and are two, because only the first half of it binds. A caller
 that assumes it received the page size it asked for reads a short page as the end of a collection

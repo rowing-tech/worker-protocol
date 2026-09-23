@@ -10,6 +10,7 @@ import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkEvents } from "./checks/events.ts";
 import { checkHealth } from "./checks/health.ts";
+import { checkLogs } from "./checks/logs.ts";
 import { checkMetrics } from "./checks/metrics.ts";
 import { checkNudges } from "./checks/nudges.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
@@ -89,6 +90,16 @@ export type Arrangement = {
   justStarted?: boolean;
   /** That the operators will let the verifier write this Worker's settings back (ACT-14). */
   replaceableSettings?: boolean;
+  /**
+   * That this Worker records a log record for every request it serves (LOG-3, ENDP-33).
+   *
+   * It is what gives a verifier a way to make a record exist — read anything — without knowing the
+   * Worker's domain, and both rules need one: an order is only visible against something newer,
+   * and a cursor is only tested while the feed is being written to. Without it the two report
+   * `notExercised`, because an unchanged page is then ambiguous between a Worker that got the
+   * order wrong and a Worker that wrote nothing.
+   */
+  recordsEveryRequest?: boolean;
   /** An event this Worker published, since a verifier holds no broker and sees none (EVT-1). */
   publishedEvent?: unknown;
   /** Resolved by `verify` and not by a caller: the addresses the arranged checks need. */
@@ -222,6 +233,15 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       )),
     );
     results.push(
+      ...(await checkLogs(
+        descriptor.document.capabilities.logs,
+        surface("logs"),
+        byId,
+        attribution,
+        tape,
+      )),
+    );
+    results.push(
       ...(await checkHealth(
         descriptor.document.capabilities.health,
         surface("health"),
@@ -258,6 +278,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           descriptorUrl: descriptor.url,
           alertsUrl: surface("alerts"),
           activityUrl: surface("activity"),
+          logsUrl: surface("logs"),
           tasksUrl: surface("tasks"),
           settingsUrl:
             configure === undefined || descriptor.url === null

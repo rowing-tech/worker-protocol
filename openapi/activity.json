@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — activity",
-    "version": "0.1",
+    "version": "0.2",
     "description": "What a Worker is doing and has undertaken to do. An activity ends when the Worker stops holding it and nobody declares that (ACTV-5), so there is no write here.",
     "license": {
       "name": "Apache-2.0",

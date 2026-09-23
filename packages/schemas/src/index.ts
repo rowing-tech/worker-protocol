@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.1";
+export const EDITION = "0.2";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -57,7 +57,7 @@ export const registry = z.registry<{ id: string }>();
  * list a verifier checks an undotted name against. `spec/README.md`'s table is a reading aid.
  */
 export const capabilityName = z
-  .enum(["health", "metrics", "actions", "alerts", "activity", "nudges", "tasks", "events"])
+  .enum(["health", "metrics", "actions", "alerts", "activity", "nudges", "tasks", "events", "logs"])
   .meta({
     title: "Capability name",
     description: "DESC-8. The Capability names the current edition of worker-protocol defines.",
@@ -1171,6 +1171,93 @@ export const eventsEntry = capabilityEntry
       "republish one.",
   });
 
+/**
+ * LOG-5 — the four levels, and the only four.
+ *
+ * The intersection of OpenTelemetry's short severity names with what a runtime's `console` actually
+ * emits: `trace` is below anything a Worker separates out, and `fatal` claims the Worker stopped,
+ * which is health's to answer and cannot be established by a line the Worker went on to serve.
+ *
+ * The ORDER of these four is load-bearing rather than decorative. LOG-7 has a filter answer the
+ * level it names and every level above it, so `warn` means `warn` and `error` — which is the filter
+ * an operator actually applies, and the reason this is one parameter rather than a set.
+ */
+export const logLevel = z.enum(["debug", "info", "warn", "error"]).meta({
+  title: "Log level",
+  description:
+    "LOG-5. The four levels, in order. A runtime whose `console` carries a fifth name maps it: " +
+    "`console.log` is `info`. LOG-7 reads this order — a filter answers the level it names and " +
+    "every level above it.",
+});
+
+/**
+ * LOG-4, LOG-9 — one record.
+ *
+ * `fields` is the payload `activity` refused, and the argument that admits it here is about who
+ * reads it. An activity payload would have been for a program, and a program needs a declared
+ * schema; this is for the person reading a console, and a flat map of scalars is renderable by
+ * anything that has ever drawn a table. That shape is not invented: syslog's STRUCTURED-DATA and
+ * OpenTelemetry's Attributes both landed on it.
+ */
+export const logRecord = z
+  .strictObject({
+    at: instant(
+      "LOG-4. When the Worker recorded it, as an RFC 3339 instant carrying an offset. LOG-6: it " +
+        "does not establish the order and a caller never sorts by it — records written inside one " +
+        "request routinely carry the same millisecond, and no resolution fixes that.",
+    ),
+    level: logLevel,
+    message: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "LOG-4. Human-readable, and parsed by nothing. The reader this surface exists for is a " +
+          "person who came looking for what happened; what a program acts on is the level.",
+      }),
+    fields: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+      .optional()
+      .meta({
+        description:
+          "LOG-9. One level deep, values scalar. Nesting is what turns a rendering into a tree " +
+          "widget and what tempts a reader to reach into it; a flat map can be shown, scanned and " +
+          "copied into a ticket, and offers nothing to build a contract on. This protocol defines " +
+          "no filter over it.",
+      }),
+  })
+  .meta({
+    title: "Log record",
+    description: "LOG-4. One thing the Worker recorded while it was working.",
+  });
+
+/** LOG-2 — what a read answers: the page envelope with its items narrowed to records. */
+export const logPage = page
+  .extend({
+    items: z.array(logRecord).meta({
+      description:
+        "LOG-2, LOG-3. The records the Worker holds, most recent first. ENDP-33: a page reached " +
+        "through a cursor carries only records older than the position that cursor names.",
+    }),
+  })
+  .meta({
+    title: "Log page",
+    description:
+      "LOG-2. One page of records, in the envelope ENDP-20 fixes for every collection. The absence " +
+      "of a cursor here means the end of what the Worker still holds, and not the end of what " +
+      "happened — logs.md carries that, because a field for it would belong to `page.json`, which " +
+      "six other surfaces share and none of them needs it.",
+  });
+
+/** LOG-1 — the `logs` Capability entry. The address is required: this is answered over HTTP. */
+export const logsEntry = capabilityEntry.extend({ address }).meta({
+  title: "Logs capability entry",
+  description:
+    "LOG-1. The shared Capability entry with the address required. Nothing else: what a Worker " +
+    "records is its own business, and how far back it keeps is a window this edition declines to " +
+    "have it declare.",
+});
+
 registry.add(capabilityName, { id: "capability-name" });
 registry.add(qualifiedName, { id: "qualified-name" });
 registry.add(healthStatus, { id: "health-status" });
@@ -1207,3 +1294,7 @@ registry.add(activityEntry, { id: "activity-entry" });
 registry.add(eventDestination, { id: "event-destination" });
 registry.add(eventTypeDeclaration, { id: "event-type-declaration" });
 registry.add(eventsEntry, { id: "events-entry" });
+registry.add(logLevel, { id: "log-level" });
+registry.add(logRecord, { id: "log-record" });
+registry.add(logPage, { id: "log-page" });
+registry.add(logsEntry, { id: "logs-entry" });

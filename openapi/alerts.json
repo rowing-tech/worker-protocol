@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — alerts",
-    "version": "0.1",
+    "version": "0.2",
     "description": "Conditions an operator should see. An Alert ends when its condition stops holding and nobody dismisses one (ALRT-5), so there is no write here.",
     "license": {
       "name": "Apache-2.0",

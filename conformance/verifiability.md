@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the twelve `draft` files — all of them — classified by what a check would observe.
+Every rule in the thirteen `draft` files — all of them — classified by what a check would observe.
 This is the audit [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place
 only if you can name what a conformance check would observe when it is broken* — run for the first
 time, and it is also the specification of what `packages/conformance` implements.
@@ -17,9 +17,9 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 88 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 18 |
-| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 25 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 95 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 21 |
+| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 26 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
@@ -74,7 +74,7 @@ that the role is implementable and vouches for no product.
 | DESC-28 | N | Opacity, stability and freedom from ambient context are properties of an id's behaviour over time, not of the string a reader holds |
 | DESC-29 | N | What a version counts is a claim about the Worker's own history. Split from DESC-9 for the same reason as above |
 
-## endpoints.md — 27
+## endpoints.md — 28
 
 | Rule | Class | What a check observes, or why nothing does |
 |---|---|---|
@@ -97,6 +97,7 @@ that the role is implementable and vouches for no product.
 | ENDP-21 | P | *Opaque* is unfalsifiable from outside; *never constructed by a caller* binds the caller |
 | ENDP-23 | W | Page twice, check the order holds and paging terminates |
 | ENDP-24 | W | An invented filter parameter is `400` + `unknown_filter` |
+| ENDP-33 | H | Page twice while the collection is being added to, and check the second page repeats nothing from the first. It needs a Worker whose collection changes on demand, which is `logs` with a Worker that records when it is read — under an offset the arrivals push the collection along and the repeat is the failure |
 | ENDP-25 | W | Every non-success carries code, message, class |
 | ENDP-26 | W | Across every response collected, no code under two statuses |
 | ENDP-27 | P | Binds a caller |
@@ -269,14 +270,36 @@ then echoed, where no party's correctness turns on the spelling and nothing is l
 exception. Several need buckets to exist before they say anything, which is `not exercised` and not
 a weaker class.
 
+## logs.md — 10
+
+| Rule | Class | What a check observes, or why nothing does |
+|---|---|---|
+| LOG-1 | W | The `logs` entry carries an address |
+| LOG-2 | W | A read answers the page envelope. A Worker holding nothing exercises nothing, which is `not exercised` |
+| LOG-3 | H | The record that was first stops being first once a newer one exists. It needs a Worker that writes when it is read, because LOG-6 forbids reading the order off the instants and there is nothing in an arbitrary page to compare |
+| LOG-4 | W | Each record carries its instant, its level and a message |
+| LOG-5 | W | Every level is one of the four |
+| LOG-6 | P | Binds a caller |
+| LOG-7 | W | `level=warn` answers `warn` and `error` and nothing below it; a name outside the four is `400` + `invalid_parameter` |
+| LOG-8 | W | Two adjacent intervals share a boundary instant and carry no record twice, which is MET-11's check one surface along |
+| LOG-9 | W | Every `fields` map is one level deep and scalar-valued |
+| LOG-10 | H | Two credentials must exist before two lists can be compared |
+
+**The newest file, and the one whose `H` rules named a new arrangement.** LOG-3 is only reachable
+against a Worker that records something when it is read, and so is ENDP-33 over in `endpoints.md`:
+a feed is the one collection a verifier can make change on demand, so it is where the paging rule
+that binds all four surfaces is actually observed. LOG-10 needed no new arrangement — it is ALRT-6
+and ACTV-6's comparison, pinned with LOG-8's `to` so that a feed being written to can be compared
+at all.
+
 ## Where this stands
 
-153 rules across twelve files, none of them `open`, under edition 0.1. Every rule the register marks
-`W` or `H` has a check in `packages/conformance` that has run against a Worker answering over a
-real socket, so nothing here is a claim about what a check *could* observe and everything is a
+164 rules across thirteen files, none of them `open`, under edition 0.2. Every rule the register
+marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
+a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.
 
-What no tool reaches is 47 rules, and the two kinds are not the same thing. There are 25 that bind
+What no tool reaches is 48 rules, and the two kinds are not the same thing. There are 26 that bind
 a party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
 specification — and a report calls those *another subject's* because it never contacted whoever
 they oblige. The other 22 have the Worker as their subject and no witness anywhere, and a report

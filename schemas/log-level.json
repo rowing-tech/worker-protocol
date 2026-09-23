@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "log-level.json",
+  "type": "string",
+  "enum": [
+    "debug",
+    "info",
+    "warn",
+    "error"
+  ],
+  "title": "Log level",
+  "description": "LOG-5. The four levels, in order. A runtime whose `console` carries a fifth name maps it: `console.log` is `info`. LOG-7 reads this order — a filter answers the level it names and every level above it."
+}

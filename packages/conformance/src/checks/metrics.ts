@@ -1,7 +1,7 @@
 import { metricPage, metricsEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
-import type { Transcript } from "../transcript.ts";
+import { iso, type Transcript, withParams } from "../transcript.ts";
 
 /**
  * The `metrics` Capability.
@@ -145,14 +145,7 @@ export async function checkMetrics(
     return results;
   }
 
-  const readUrl = (parameters: Record<string, string | string[]>) => {
-    const target = new URL(url);
-    for (const [key, value] of Object.entries(parameters)) {
-      for (const one of Array.isArray(value) ? value : [value])
-        target.searchParams.append(key, one);
-    }
-    return target.toString();
-  };
+  const readUrl = (parameters: Record<string, string | string[]>) => withParams(url, parameters);
 
   // The metric with the most to say: the most granularities, then the most dimensions. A Worker
   // that declares one metric with one granularity and no dimension is checked on less, and the
@@ -221,7 +214,6 @@ export async function checkMetrics(
   // A window wide enough to hold something, and explicit so that two reads can be compared.
   const now = Date.now();
   const span = 30 * 24 * 3_600_000;
-  const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
   const whole = await transcript.send(
     readUrl({ metric: name, granularity, from: iso(now - span), to: iso(now + 3_600_000) }),
     "the metric over a month",

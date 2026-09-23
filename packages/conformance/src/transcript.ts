@@ -89,3 +89,22 @@ export function transcript(send: Sender, credential?: string): Transcript {
 /** `application/json; charset=utf-8` and `application/json` are the same media type (ENDP-4). */
 export const isJson = (headers: Headers): boolean =>
   (headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase() === "application/json";
+
+/**
+ * One declared address with query parameters on it, built rather than concatenated.
+ *
+ * ENDP-1 has no reader assemble an address, and every check here holds one it read from a
+ * Descriptor; what it then needs is that address with `metric=`, `level=` or `cursor=` on it. A
+ * fresh `URL` per call is what makes `append` safe — nothing accumulates across calls — and what
+ * keeps a caller from having to know whether the address already carried a parameter.
+ */
+export const withParams = (url: string, parameters: Record<string, string | string[]>): string => {
+  const target = new URL(url);
+  for (const [key, value] of Object.entries(parameters)) {
+    for (const one of Array.isArray(value) ? value : [value]) target.searchParams.append(key, one);
+  }
+  return target.toString();
+};
+
+/** An RFC 3339 instant with an offset, which is what MET-11 and LOG-8 take as a bound. */
+export const iso = (at: number): string => new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");

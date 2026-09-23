@@ -8,10 +8,11 @@
  * already cut, and answers the rest itself.
  */
 
-import { INSTANT, type metricDeclaration, type metricPage } from "@worker-protocol/schemas";
+import type { metricDeclaration, metricPage } from "@worker-protocol/schemas";
 import type * as z from "zod";
-import { bucketsIn, type Granularity, rfc3339 } from "./buckets.ts";
+import { bucketsIn, type Granularity, halfOpen, rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
+import { decodeCursor, encodeCursor } from "./collection.ts";
 import type { Refusal } from "./worker.ts";
 
 export type MetricDeclarations = Record<string, z.infer<typeof metricDeclaration>>;
@@ -95,16 +96,14 @@ export function metrics(facts: MetricFacts) {
       return refuse("invalid_parameter", `This metric does not accumulate by ${granularity}.`);
     }
 
-    // MET-11: RFC 3339 instants carrying an offset, half-open, so two adjacent reads add up.
-    const instant = (raw: string | null): number | null => {
-      if (raw === null) return null;
-      return INSTANT.test(raw) ? Date.parse(raw) : Number.NaN;
-    };
-    const from = instant(query.get("from"));
-    const to = instant(query.get("to"));
-    if (Number.isNaN(from) || Number.isNaN(to)) {
+    // MET-11: RFC 3339 instants carrying an offset, half-open, so two adjacent reads add up. The
+    // parsing is `buckets.ts`'s, because LOG-8 spells the same interval and one rule is one
+    // spelling.
+    const interval = halfOpen(query);
+    if (interval === null) {
       return refuse("invalid_parameter", "`from` and `to` are RFC 3339 instants.");
     }
+    const { from, to } = interval;
     const now = Date.now();
     const end = to ?? now;
     // Absent, `from` is the start of the current bucket: the question a console asks by default is
@@ -151,23 +150,27 @@ export function metrics(facts: MetricFacts) {
     // MET-14: ascending by start, and within one start by the values broken down by — an order
     // with ties in it is not one a cursor could resume from. MET-13: the end is carried rather
     // than derived, because a day across a transition is 23 or 25 hours.
+    //
+    // `position` is that order written down, and it is what ENDP-33 pages by. MET-15 is the reason
+    // this cannot be an offset: a bucket the Worker accumulated nothing in is ABSENT, so a bucket
+    // that gains its first value between two reads appears in the MIDDLE of the series and pushes
+    // everything after it along.
+    const position = (one: { sample: MetricSample; at: number }) =>
+      `${String(one.at).padStart(16, "0")}\u0000${by.map((d) => one.sample.dimensions?.[d] ?? "").join("\u0000")}`;
     const ordered = samples
       .map((sample) => ({ sample, at: sample.start.getTime() }))
       .filter(({ at }) => endOf.has(at))
-      .sort(
-        (a, b) =>
-          a.at - b.at ||
-          by
-            .map((d) => a.sample.dimensions?.[d] ?? "")
-            .join()
-            .localeCompare(by.map((d) => b.sample.dimensions?.[d] ?? "").join()),
-      );
+      .sort((a, b) => position(a).localeCompare(position(b)));
 
-    const from_ = Number(query.get("cursor") ?? "0");
-    if (!Number.isInteger(from_) || from_ < 0) {
+    const sent = query.get("cursor");
+    const after = sent === null ? null : decodeCursor(sent);
+    if (sent !== null && after === null) {
       return refuse("invalid_parameter", "That cursor was not produced by this Worker.");
     }
-    const items = ordered.slice(from_, from_ + cap).map(({ sample, at }) => ({
+    const rest =
+      after === null ? ordered : ordered.filter((one) => position(one).localeCompare(after) > 0);
+    const page = rest.slice(0, cap);
+    const items = page.map(({ sample, at }) => ({
       start: rfc3339(at),
       end: rfc3339(endOf.get(at) as number),
       value: sample.value,
@@ -175,7 +178,9 @@ export function metrics(facts: MetricFacts) {
         ? { dimensions: sample.dimensions }
         : {}),
     }));
-    const next = from_ + cap;
-    return next < ordered.length ? { items, nextCursor: String(next) } : { items };
+    const last = page.at(-1);
+    return rest.length > cap && last !== undefined
+      ? { items, nextCursor: encodeCursor(position(last)) }
+      : { items };
   };
 }

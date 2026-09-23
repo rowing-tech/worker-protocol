@@ -17,6 +17,104 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-23 — edition 0.2
+
+### The edition moves, and this is the first release that moves it
+
+**Edition 0.1 → 0.2, which is a MINOR under DESC-24: it adds what a reader holding 0.1 may ignore
+and still be correct.** A reader that meets `logs` in a Descriptor it does not know ignores the name
+and reports what it ignored (DESC-25); a verifier on 0.1 checks what 0.1 defines and says so. Nobody
+on the old edition is wrong, which is the whole test a MINOR has to pass.
+
+The package version moves with it for the reason `packages/README.md` argues and
+`pnpm release:check` enforces: **a release that changes which edition a package encodes is never one
+a consumer's caret would take on its own.** `^0.1.3` does not take `0.2.0`, so upgrading is a thing
+somebody does on purpose — which matters here more than usual, because `mount()` writes the edition
+into the Descriptor, and a Worker that took this release by accident would start declaring a
+specification nobody chose to every consumer, catalog and verifier that reads it.
+
+**What publishing this costs, permanently: LOG-1 to LOG-10 and ENDP-33 are now fixed.**
+`spec/README.md` makes an id immutable from the edition that publishes it, so from here a rewrite to
+any of them that could change a verdict costs a withdrawal and a new number. Until this tag they
+could be reworded, narrowed or renumbered freely, and `logs` used that right twice: the paging rule
+was a `logs` rule of its own for a day before it became ENDP-33 in `endpoints.md`, and the rule
+below it moved down into the number that left.
+
+### Changed
+
+- **`ENDP-33`: a page reached through a cursor carries no item the page that produced it already
+  carried — and `collection()` pages by position rather than by offset.** The rule arrived while
+  `logs` was being written and was a `logs` rule for a day, which was the wrong altitude: every
+  collection in this protocol is derived on each read, so the list a caller is paging is never quite
+  the list its cursor came from. Under the offset `@worker-protocol/hono` used, an Alert firing
+  between two pages handed the caller an Alert it had already seen, and a Task's condition ceasing
+  skipped one it never would — on `alerts`, `activity`, `tasks` and `metrics` alike, invisibly, with
+  no rule stating it and no check looking.
+
+  A cursor now names the last position a page carried, so the page after it is what sorts beyond
+  that position and nothing arriving meanwhile can be inside it. It is base64 of a tagged payload
+  rather than a number, which also closes the other half of ENDP-21: a cursor this Worker did not
+  mint is refused instead of acted on, where before any integer was a valid position. **Cursors
+  minted by an earlier build are refused** — which costs nothing, because ENDP-21 has never let a
+  caller keep one beyond the paging it was in the middle of.
+
+### Added
+
+- **`logs`, a ninth Capability: what a Worker recorded while it was working.** Until it, **nothing
+  in this protocol answered in the past tense.** Health is now; an activity is now and vanishes when
+  the Worker stops holding it (ACTV-5); an Alert is now and ends when its condition stops (ALRT-5);
+  a Task is now for the same reason (TASK-15); a metric is an aggregate that never says which
+  occurrence it counted; an event is pushed to whoever contracted for it and is gone. A Worker could
+  say what it was doing and how much it had managed, and nothing at all about anything finished.
+  [`spec/logs.md`](spec/logs.md) carries ten rules and the argument for them;
+  `@worker-protocol/hono` carries the decoding and `@worker-protocol/conformance` checks every one
+  of them against a Worker over a socket, so the Capability arrives written, implemented and
+  verified rather than in three releases.
+
+  What it buys is also less than the other eight buy, and the file says so: every other surface
+  carries a closed vocabulary a program acts on, and a record carries a level and then text nobody
+  outside the Worker will parse. One console over Workers on three platforms here means one place to
+  *read* rather than one place to *act*.
+
+  Three things about it were settled against what was tempting. The record is
+  OpenTelemetry's model — instant, severity, body, attributes — in this protocol's spelling, and
+  **not** OTLP on the wire: a collector receives a push and does not page an HTTP surface with a
+  cursor, so adopting `timeUnixNano` and boxed attribute values would have bought the appearance of
+  interoperability, none of the substance, and the one surface here whose instants are spelled
+  differently from every other. `fields` is a flat map of scalars, which is the payload
+  [`spec/activity.md`](spec/activity.md) refused — admitted here because the reader is a person and
+  a flat map is renderable by anything, where an activity payload would have been for a program and
+  a program needs a declared schema. And the instant does **not** establish the order (LOG-6):
+  records written inside one request share a millisecond, so a caller reads the order the page
+  arrives in.
+
+  The feed is a window rather than an archive, so the absence of a cursor means *the end of what the
+  Worker still holds* and not *the end of what happened*. That is stated in the file rather than
+  signalled in `page.json`, which six other surfaces share and none of them needs it for.
+
+  **A record is written on purpose, and capturing a runtime's `console` into this surface is
+  explicitly not the shape.** That was tried in `examples/fleet-worker` and taken back out: a
+  global patch is one feed per process, blind to whose work produced each line, so what it serves
+  belongs to whichever isolate was running rather than to the work. Written deliberately, a record
+  lands wherever the Worker's store already separates one customer's things from another's. The
+  surface is one feed and it is the operator's, so a Worker whose records belong to its customers
+  serves them the way it serves the rest of that customer's data and does not declare this
+  Capability — DESC-2 makes leaving one out free.
+
+- **`examples/fleet-worker` serves `logs` from its Durable Object, and its README prices the
+  Cloudflare routes that were rejected.** There is no API in the Workers runtime for reading a
+  Worker's own `console` output back. Querying Workers Logs from inside the Worker needs a secret
+  holding an account token with `Workers Observability Write` — there is no read-only scope, and it
+  covers every Worker in the account. A Tail Worker costs a second deployment and is the only route
+  that also sees uncaught exceptions and the invocation outcome; it is still open. What the example
+  does instead is record on purpose, in one call per cycle, beside the metric it already counts.
+
+  The Durable Object is the load-bearing part: a window kept in the isolate is one window per
+  isolate, so a read can land somewhere that never saw the write — which passes every local test and
+  is wrong in production. The records are in SQLite rather than the key-value API the rest of that
+  object uses, because a read filters by a level floor and a half-open interval and a store that
+  cannot filter would hand the Worker every row to throw away.
+
 ## [0.1.3] - 2026-09-22 — edition 0.1
 
 ### Added

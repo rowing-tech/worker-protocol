@@ -7,6 +7,8 @@ import {
   error,
   health,
   INSTANT,
+  logLevel,
+  logPage,
   metricGranularity,
   metricPage,
   registry,
@@ -443,6 +445,43 @@ export const readActivity = createRoute({
   },
 });
 
+export const readLogs = createRoute({
+  method: "get",
+  path: "/",
+  summary: "Read what the Worker recorded while it was working",
+  description: cite(
+    "LOG-2",
+    "Most recent first (LOG-3), and LOG-6 has a caller read the order the page arrives in rather than reconstructing it from the instants — records written inside one request share a millisecond. The absence of a cursor means the end of what this Worker still holds, and not the end of what happened. LOG-10 answers the same records to every caller it authenticates: the party this surface is for is whoever operates the Worker.",
+  ),
+  request: {
+    query: z.object({
+      level: z.optional(logLevel).openapi({
+        description: cite(
+          "LOG-7",
+          "A floor: the level named and every level above it, so `warn` answers `warn` and `error`. Absent, nothing is excluded.",
+        ),
+      }),
+      from: instant(cite("LOG-8", "Inclusive. Absent, the Worker answers from its most recent.")),
+      to: instant(
+        cite(
+          "LOG-8",
+          "Exclusive — the interval is half-open, so two adjacent reads carry no record twice.",
+        ),
+      ),
+      cursor,
+    }),
+    headers: versionHeader,
+  },
+  responses: {
+    200: answer(
+      "LOG-2",
+      "The records the Worker holds, most recent first, in the shared page envelope.",
+      logPage,
+    ),
+    ...refusals([["invalid_parameter", "LOG-7"], ["unknown_filter", "ENDP-24"], ...SHARED]),
+  },
+});
+
 // ---- the documents ------------------------------------------------------------------------------
 
 export type Surface = {
@@ -548,6 +587,15 @@ export const SURFACES: Surface[] = [
     description:
       "What a Worker is doing and has undertaken to do. An activity ends when the Worker stops holding it and nobody declares that (ACTV-5), so there is no write here.",
     route: readActivity,
+  },
+  {
+    document: "logs",
+    capability: "logs",
+    server: address("logs", "LOG-1"),
+    title: "worker-protocol — logs",
+    description:
+      "What a Worker recorded while it was working, most recent first. A window rather than an archive: nothing here fixes how far back a Worker keeps, and the end of the collection means the end of what it still holds.",
+    route: readLogs,
   },
 ];
 

@@ -120,3 +120,30 @@ only handlers and Durable Object classes**, so a number beside them is `Incorrec
 entry` at startup. The constants live in [src/fleet.ts](src/fleet.ts) now. The suite that caught it
 is the one in `packages/conformance`, which is the only place anything here is deployed rather than
 imported — and that is the second argument for this example, in the same shape as the first.
+
+## `logs`, and the one thing Cloudflare will not do
+
+**There is no API in the Workers runtime for reading a Worker's own `console` output back.** It
+leaves the isolate and does not return. The two routes that would recover it are both expensive:
+querying Workers Logs needs a secret holding an account token with **`Workers Observability Write`**
+— there is no read-only scope, and that token covers every Worker in the account — and a Tail Worker
+costs a second deployment.
+
+This example takes neither, and not only on cost. [cycle()](src/worker.ts) *records* what it did, in
+one call to the durable object, the way it already counts a metric and raises an event. A record
+written on purpose belongs to the work that produced it; a `console` line scraped out of the runtime
+belongs to whichever isolate was running, which is a different thing and a worse one to serve.
+
+**What the durable object buys is the same thing it buys everywhere else here.** A window kept in
+the isolate is one window per isolate: a read can land somewhere that never saw the write, which
+passes every local test and is wrong in production.
+
+The records are in SQLite rather than in the key-value API the rest of the object uses, which is the
+one exception and it is deliberate: a read filters by a level floor and a half-open interval (LOG-7,
+LOG-8), and a store that cannot filter would hand the Worker every row so it could throw most of
+them away. `seq` is what makes ENDP-33 free — it only grows, a cursor names one, and a page asks for
+what is below it, so a record written since the last page cannot appear in the next.
+
+The feed is one feed and LOG-10 answers it to every caller this Worker authenticates, which is
+uncomplicated here because it watches one fleet. Records that belong to a Worker's customers rather
+than to whoever runs it want a surface of their own, and `spec/logs.md` lists that open.
