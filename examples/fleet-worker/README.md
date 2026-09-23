@@ -124,15 +124,14 @@ imported — and that is the second argument for this example, in the same shape
 ## `logs`, and the one thing Cloudflare will not do
 
 **There is no API in the Workers runtime for reading a Worker's own `console` output back.** It
-leaves the isolate and does not return. The two routes that would recover it are both expensive:
-querying Workers Logs needs a secret holding an account token with **`Workers Observability Write`**
-— there is no read-only scope, and that token covers every Worker in the account — and a Tail Worker
-costs a second deployment.
+leaves the isolate and does not return. Querying Workers Logs would recover it and costs too much:
+it needs a secret holding an account token with **`Workers Observability Write`**, there is no
+read-only scope, and that token covers every Worker in the account.
 
-This example takes neither, and not only on cost. [cycle()](src/worker.ts) *records* what it did, in
-one call to the durable object, the way it already counts a metric and raises an event. A record
-written on purpose belongs to the work that produced it; a `console` line scraped out of the runtime
-belongs to whichever isolate was running, which is a different thing and a worse one to serve.
+This example does not go looking for it. [cycle()](src/worker.ts) *records* what it did, in one call
+to the durable object, the way it already counts a metric and raises an event. A record written on
+purpose belongs to the work that produced it; a `console` line scraped out of the runtime belongs to
+whichever isolate was running, which is a different thing and a worse one to serve.
 
 **What the durable object buys is the same thing it buys everywhere else here.** A window kept in
 the isolate is one window per isolate: a read can land somewhere that never saw the write, which
@@ -147,3 +146,46 @@ what is below it, so a record written since the last page cannot appear in the n
 The feed is one feed and LOG-10 answers it to every caller this Worker authenticates, which is
 uncomplicated here because it watches one fleet. Records that belong to a Worker's customers rather
 than to whoever runs it want a surface of their own, and `spec/logs.md` lists that open.
+
+## The second Worker, for what the first cannot say about itself
+
+**A Worker that died cannot write its own last line.** `cycle()` records at the end of its work, so
+an invocation that threw without catching, ran out of CPU or was cancelled records nothing at all —
+and no other surface covers it. `health` is a poll, so a Worker that crashes on one request and
+answers the next poll truthfully reports `healthy`. An Alert is a condition that holds, and an
+exception three minutes ago does not. A metric was never incremented, because the line that would
+have incremented it is the line that did not run. Without something outside the invocation, a hard
+failure is **silence indistinguishable from calm**.
+
+[src/tail.ts](src/tail.ts) is that something: a Tail Worker, deployed from
+[wrangler.tail.jsonc](wrangler.tail.jsonc), which Cloudflare invokes after an invocation of this one
+finishes. It writes an uncaught exception and a non-`ok` outcome into the same Durable Object, so
+`/logs` answers one feed and a Control Tower still asks this Worker. The tail serves nothing, has no
+Descriptor and is invisible to the protocol.
+
+Two things about it are worth reading before copying:
+
+**The binding reaches the object, not this Worker.** `script_name` in `wrangler.tail.jsonc` says
+which script *defines* the `Fleet` class; the call goes to the Durable Object instance by RPC. No
+request reaches `fleet-worker`, which is the point — if the tail had to go through this Worker's
+HTTP surface it would fail exactly when it is needed, and `logs` is a read with no write to go
+through anyway.
+
+**It throws `event.logs` away.** That array is every `console` call this Worker made, and forwarding
+it would be the capture `spec/logs.md` argues against. It is also what stops the tail feeding
+itself: a Durable Object call is traced like any other — Cloudflare's trace event types include
+`alarm` and `hibernatable_web_socket`, which only a Durable Object has, and an RPC arrives as
+`worker_rpc` — so the tail's own write comes back here, carrying `outcome: ok` and no exceptions,
+and writes nothing. A version that forwarded the logs would never stop.
+
+Deploy order matters, because the producer resolves its consumer by service name:
+
+```
+wrangler deploy --config wrangler.tail.jsonc   # fleet-tail first
+wrangler deploy                                # then the producer that names it
+```
+
+**What is not established**, and is the first thing to check against a real deployment: whether a
+tail invocation that throws is retried or dropped. Cloudflare does not document it, and a tail that
+is dropped silently means `/logs` can miss a crash — which is the same honesty the window already
+owes: what it holds, and no claim about what it did not.

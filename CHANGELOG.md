@@ -17,6 +17,25 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+### Added
+
+- **`examples/fleet-worker` gained a Tail Worker, for what the producer cannot record about
+  itself.** `cycle()` records at the end of its work, so an invocation that threw without catching,
+  ran out of CPU or was cancelled records nothing — and nothing else on the Descriptor covers it:
+  `health` is a poll and answers truthfully once the process is back, an Alert is a condition that
+  holds and a crash three minutes ago does not, and the metric was never incremented because the
+  line that would have incremented it is the line that did not run. A hard failure was silence
+  indistinguishable from calm.
+
+  The consumer writes an uncaught exception and a non-`ok` outcome into the producer's Durable
+  Object, bound across scripts with `script_name`, so `/logs` answers one feed and a Control Tower
+  still asks the producer. It throws `event.logs` away — forwarding it would be the `console`
+  capture `spec/logs.md` argues against, and it is also what stops the tail feeding itself, since a
+  Durable Object call is traced too and comes back carrying `outcome: ok`.
+
+  Nothing in `packages/` changed, so nothing here is published: the example is `private: true` and
+  the version stands at 0.2.0.
+
 ## [0.2.0] - 2026-09-23 — edition 0.2
 
 ### The edition moves, and this is the first release that moves it

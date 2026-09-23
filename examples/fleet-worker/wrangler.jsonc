@@ -13,6 +13,11 @@
     "bindings": [{ "name": "FLEET", "class_name": "Fleet" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fleet"] }],
+  // The Worker that records what this one cannot record about itself — an uncaught exception, an
+  // invocation that ran out of CPU — because by then it has stopped running. `wrangler.tail.jsonc`
+  // deploys it and `src/tail.ts` argues what it takes and what it throws away. Resolved by service
+  // name, so this line is the whole of what the producer knows about it.
+  "tail_consumers": [{ "service": "fleet-tail" }],
   // A worker finds work on a schedule, and the schedule is what makes the nudge optional rather
   // than load-bearing: losing one costs latency, and the cron is what makes it never cost work.
   "triggers": { "crons": ["* * * * *"] },

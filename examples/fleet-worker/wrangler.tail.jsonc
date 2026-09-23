@@ -1,0 +1,24 @@
+{
+  // The second Worker: the one that records what `fleet-worker` could not, because it had stopped
+  // running. `src/tail.ts` says which two facts those are and why the rest of a tail event is
+  // deliberately dropped.
+  //
+  // It is a config of its own rather than an environment, because this is a separate deployment
+  // with a separate name — Cloudflare resolves `tail_consumers` by service name, so the producer's
+  // `wrangler.jsonc` names this one and neither file needs to know anything else about the other.
+  //
+  //   wrangler deploy --config wrangler.tail.jsonc     # this one first: the producer names it
+  //   wrangler deploy                                  # then the producer
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fleet-tail",
+  "main": "src/tail.ts",
+  "compatibility_date": "2026-08-22",
+  // **The cross-script binding is the whole mechanism.** `script_name` reaches the `Fleet` class
+  // the OTHER Worker defines and migrated, so both write to one object and `/logs` answers one
+  // feed. There is no `migrations` block here on purpose: this Worker binds the class and does not
+  // own it, and a second Worker claiming to create it is how two deployments end up fighting over
+  // one namespace.
+  "durable_objects": {
+    "bindings": [{ "name": "FLEET", "class_name": "Fleet", "script_name": "fleet-worker" }]
+  }
+}

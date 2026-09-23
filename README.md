@@ -73,7 +73,7 @@ packages/
   conformance/   the verifier: point it at a worker, get a report of what it complies with
 examples/          two Workers, and both are templates
   minimal-worker/    all nine Capabilities, written out and explained line by line. Copy this one
-  fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, tested on workerd
+  fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, a Tail Worker
 CHANGELOG.md     every release, and the edition each one encodes — the two are not the same number
 skills/          what a coding agent reads before writing a Worker
   worker-protocol/       the protocol, in any language: the rules, the surface, the gotchas
