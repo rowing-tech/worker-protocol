@@ -17,6 +17,28 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-24 — edition 0.2
+
+### Fixed
+
+- **`@worker-protocol/conformance`'s `verify()` runs in any runtime with a `fetch`, not only in
+  Node.** The library read its rule universe from `rules.json` through `node:fs` and
+  `import.meta.dirname`, which was the one Node built-in on its path. A bundler that inlined the
+  package left the file behind, and `import.meta.dirname` is undefined outside Node, so a Control
+  Tower on Cloudflare, Vercel edge, Deno or a Convex action could not verify the Workers it enrolls
+  from inside its own runtime without marking the package external and falling back to Node.
+
+  `pnpm rules:generate` now also writes `src/rules.generated.ts`, the same universe as a module,
+  and the library imports it statically. `universe()` keeps its signature and still hands each
+  caller its own copy. `rules.json` still ships in the tarball for readers outside JavaScript, and
+  `pnpm rules:check` fails when either file drifts from `spec/`. The command line is still Node's.
+  No rule, verdict or check changed.
+
+  Two tests hold it. One runs `verify()` on workerd with no Node compatibility, against the minimal
+  Worker's `app.fetch` in the same isolate over `https`, and expects no rule to fail. The other
+  walks everything `dist/index.js` imports and refuses a Node built-in, or a package the manifest
+  does not declare.
+
 ## [0.3.0] - 2026-09-23 — edition 0.2
 
 ### Added
@@ -280,7 +302,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/rowing-tech/worker-protocol/compare/v0.1.2...v0.1.3

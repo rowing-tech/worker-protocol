@@ -1,0 +1,1336 @@
+// Generated from spec/ and conformance/verifiability.md by
+// packages/conformance/src/generate-rules.ts. Do not edit: run `pnpm rules:generate`.
+//
+// The universe rules.json holds, as a module, so that the library imports it rather than
+// reading a file: it is what lets verify() run where there is no filesystem.
+
+import type { Attribution } from "./attribution.ts";
+import type { Code } from "./checks/endpoints.ts";
+import type { Rule } from "./report.ts";
+
+export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution } = {
+  "rules": [
+    {
+      "id": "ACT-2",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-3",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-4",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-5",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-6",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-7",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-8",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-9",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-10",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-11",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-12",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-13",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "ACT-14",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ACT-15",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACT-16",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-1",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-2",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-3",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-4",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ACTV-5",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "ACTV-6",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ALRT-1",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ALRT-2",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ALRT-3",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ALRT-4",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ALRT-5",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "ALRT-6",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ALRT-7",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-1",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-2",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "DESC-3",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-5",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-6",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-8",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-9",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-11",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-12",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-13",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "DESC-14",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-15",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "DESC-16",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "DESC-18",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-19",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "DESC-20",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "DESC-22",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-23",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "DESC-24",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "DESC-25",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "DESC-26",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "DESC-27",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "DESC-28",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "DESC-29",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "DESC-30",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "ENDP-1",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-2",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-3",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-4",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-5",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-6",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-11",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-12",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ENDP-13",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "ENDP-14",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "ENDP-15",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-16",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ENDP-17",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ENDP-18",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-19",
+      "file": "endpoints.md",
+      "class": "recommended",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-20",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-21",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "ENDP-23",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-24",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-25",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-26",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-27",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "ENDP-28",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "ENDP-29",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "ENDP-30",
+      "file": "endpoints.md",
+      "class": "recommended",
+      "reach": "P"
+    },
+    {
+      "id": "ENDP-31",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "ENDP-32",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "ENDP-33",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "EVT-1",
+      "file": "events.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "EVT-4",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "EVT-5",
+      "file": "events.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "EVT-6",
+      "file": "events.md",
+      "class": "recommended",
+      "reach": "P"
+    },
+    {
+      "id": "EVT-7",
+      "file": "events.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "EVT-8",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "EVT-9",
+      "file": "events.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "EVT-11",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "EVT-12",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "HLTH-1",
+      "file": "health.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "HLTH-2",
+      "file": "health.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "HLTH-3",
+      "file": "health.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "HLTH-4",
+      "file": "health.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "HLTH-5",
+      "file": "health.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-1",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-2",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-3",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "LOG-4",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-5",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-6",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "LOG-7",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-8",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-9",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "LOG-10",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "MET-1",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-3",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-4",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-5",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-6",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-7",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-8",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-9",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-10",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-11",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-12",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-13",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-14",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-15",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "MET-16",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-17",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-18",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-19",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-20",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "MET-21",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "NAME-1",
+      "file": "naming.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "NAME-2",
+      "file": "naming.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "NAME-3",
+      "file": "naming.md",
+      "class": "recommended",
+      "reach": "P"
+    },
+    {
+      "id": "NAME-4",
+      "file": "naming.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "NAME-5",
+      "file": "naming.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "NAME-6",
+      "file": "naming.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "NAME-7",
+      "file": "naming.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "NAME-8",
+      "file": "naming.md",
+      "class": "recommended",
+      "reach": "N"
+    },
+    {
+      "id": "NAME-9",
+      "file": "naming.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "NDG-1",
+      "file": "nudges.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "NDG-2",
+      "file": "nudges.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "NDG-3",
+      "file": "nudges.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "REG-3",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "REG-7",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "REG-8",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "REG-13",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "REG-14",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "REG-16",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "REG-19",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "P"
+    },
+    {
+      "id": "REG-21",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "REG-24",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "REG-26",
+      "file": "registration.md",
+      "class": "recommended",
+      "reach": "N"
+    },
+    {
+      "id": "REG-27",
+      "file": "registration.md",
+      "class": "recommended",
+      "reach": "N"
+    },
+    {
+      "id": "REG-28",
+      "file": "registration.md",
+      "class": "recommended",
+      "reach": "H"
+    },
+    {
+      "id": "REG-29",
+      "file": "registration.md",
+      "class": "recommended",
+      "reach": "P"
+    },
+    {
+      "id": "REG-30",
+      "file": "registration.md",
+      "class": "recommended",
+      "reach": "P"
+    },
+    {
+      "id": "REG-31",
+      "file": "registration.md",
+      "class": "recommended",
+      "reach": "W"
+    },
+    {
+      "id": "REG-32",
+      "file": "registration.md",
+      "class": "recommended",
+      "reach": "H"
+    },
+    {
+      "id": "REG-33",
+      "file": "registration.md",
+      "class": "recommended",
+      "reach": "N"
+    },
+    {
+      "id": "TASK-4",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "TASK-5",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "TASK-6",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "H"
+    },
+    {
+      "id": "TASK-8",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "TASK-15",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "N"
+    },
+    {
+      "id": "TASK-19",
+      "file": "tasks.md",
+      "class": "recommended",
+      "reach": "N"
+    },
+    {
+      "id": "TASK-27",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "TASK-28",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "TASK-31",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W"
+    },
+    {
+      "id": "TASK-32",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W"
+    }
+  ],
+  "codes": [
+    {
+      "code": "conflict",
+      "status": 409,
+      "class": "reject"
+    },
+    {
+      "code": "forbidden",
+      "status": 403,
+      "class": "reject"
+    },
+    {
+      "code": "idempotency_key_required",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "idempotency_key_reused",
+      "status": 409,
+      "class": "reject"
+    },
+    {
+      "code": "internal_error",
+      "status": 500,
+      "class": "retry"
+    },
+    {
+      "code": "invalid_parameter",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "malformed_request",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "not_found",
+      "status": 404,
+      "class": "reject"
+    },
+    {
+      "code": "rate_limited",
+      "status": 429,
+      "class": "retry"
+    },
+    {
+      "code": "request_timeout",
+      "status": 408,
+      "class": "retry"
+    },
+    {
+      "code": "schema_mismatch",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "unauthenticated",
+      "status": 401,
+      "class": "reject"
+    },
+    {
+      "code": "unavailable",
+      "status": 503,
+      "class": "retry"
+    },
+    {
+      "code": "unknown_filter",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "unprocessable_content",
+      "status": 422,
+      "class": "reject"
+    },
+    {
+      "code": "unsupported_version",
+      "status": 400,
+      "class": "reject"
+    },
+    {
+      "code": "upstream_error",
+      "status": 502,
+      "class": "retry"
+    },
+    {
+      "code": "upstream_timeout",
+      "status": 504,
+      "class": "retry"
+    }
+  ],
+  "attribution": {
+    "action-declaration": {
+      "": "ACT-2",
+      "completesWithinCall": "ACT-4",
+      "idempotency": "ACT-12",
+      "idempotency/from": "ENDP-15",
+      "idempotency/member": "ACT-12",
+      "idempotency/required": "ENDP-18",
+      "input": "ACT-2",
+      "readAddress": "ACT-15",
+      "result": "ACT-3"
+    },
+    "actions-entry": {
+      "": "ACT-16",
+      "accepts": "ACT-16",
+      "accepts/*": "ACT-2",
+      "accepts/*/completesWithinCall": "ACT-4",
+      "accepts/*/idempotency": "ACT-12",
+      "accepts/*/idempotency/from": "ENDP-15",
+      "accepts/*/idempotency/member": "ACT-12",
+      "accepts/*/idempotency/required": "ENDP-18",
+      "accepts/*/input": "ACT-2",
+      "accepts/*/readAddress": "ACT-15",
+      "accepts/*/result": "ACT-3",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "activity-entry": {
+      "": "ACTV-1",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "activity-page": {
+      "": "ACTV-2",
+      "items": "ACTV-2",
+      "nextCursor": "ENDP-21"
+    },
+    "activity-state": {
+      "": "ACTV-4"
+    },
+    "activity": {
+      "": "ACTV-3",
+      "id": "ACTV-3",
+      "since": "ACTV-3",
+      "state": "ACTV-4",
+      "summary": "ACTV-3"
+    },
+    "alert-page": {
+      "": "ALRT-2",
+      "items": "ALRT-2",
+      "nextCursor": "ENDP-21"
+    },
+    "alert-severity": {
+      "": "ALRT-4"
+    },
+    "alert": {
+      "": "ALRT-3",
+      "id": "ALRT-3",
+      "severity": "ALRT-4",
+      "since": "ALRT-3",
+      "summary": "ALRT-3"
+    },
+    "alerts-entry": {
+      "": "ALRT-1",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "capability-entry": {
+      "": "DESC-22",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "capability-name": {
+      "": "DESC-8"
+    },
+    "descriptor": {
+      "": "DESC-1",
+      "capabilities": "DESC-22",
+      "capabilities/*": "DESC-22",
+      "capabilities/*/address": "DESC-12",
+      "capabilities/*/version": "DESC-9",
+      "edition": "DESC-23",
+      "id": "DESC-6",
+      "skills": "TASK-31",
+      "skills/*": "TASK-31",
+      "skills/*/payload": "TASK-31",
+      "skills/*/produces": "TASK-31"
+    },
+    "error": {
+      "": "ENDP-25",
+      "class": "ENDP-26",
+      "code": "ENDP-25",
+      "message": "ENDP-25"
+    },
+    "event-destination": {
+      "": "EVT-11"
+    },
+    "event-type-declaration": {
+      "": "EVT-12",
+      "data": "EVT-12",
+      "destination": "EVT-11"
+    },
+    "events-entry": {
+      "": "EVT-11",
+      "address": "DESC-12",
+      "broker": "EVT-11",
+      "destination": "EVT-11",
+      "protocolBinding": "EVT-11",
+      "publishes": "EVT-12",
+      "publishes/*": "EVT-12",
+      "publishes/*/data": "EVT-12",
+      "publishes/*/destination": "EVT-11",
+      "republishWindowSeconds": "EVT-8",
+      "version": "DESC-9"
+    },
+    "health-entry": {
+      "": "HLTH-1",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "health-status": {
+      "": "HLTH-2"
+    },
+    "health": {
+      "": "HLTH-2",
+      "checks": "HLTH-2",
+      "checks/*": "HLTH-2",
+      "checks/*/detail": "HLTH-2",
+      "checks/*/status": "HLTH-2",
+      "status": "HLTH-2"
+    },
+    "idempotency-declaration": {
+      "": "ACT-12",
+      "from": "ENDP-15",
+      "member": "ACT-12",
+      "required": "ENDP-18"
+    },
+    "log-level": {
+      "": "LOG-5"
+    },
+    "log-page": {
+      "": "LOG-2",
+      "nextCursor": "ENDP-21"
+    },
+    "log-record": {
+      "": "LOG-4",
+      "at": "LOG-4",
+      "fields": "LOG-9",
+      "level": "LOG-5",
+      "message": "LOG-4"
+    },
+    "logs-entry": {
+      "": "LOG-1",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "metric-bucket": {
+      "": "MET-13",
+      "dimensions": "MET-19",
+      "end": "MET-13",
+      "start": "MET-13"
+    },
+    "metric-declaration": {
+      "": "MET-21",
+      "additive": "MET-3",
+      "dimensions": "MET-4",
+      "dimensions/*": "MET-4",
+      "dimensions/*/values": "MET-4",
+      "granularities": "MET-3",
+      "unit": "MET-3"
+    },
+    "metric-dimension": {
+      "": "MET-4",
+      "values": "MET-4"
+    },
+    "metric-granularity": {
+      "": "MET-3"
+    },
+    "metric-page": {
+      "": "MET-14",
+      "items": "MET-14",
+      "nextCursor": "ENDP-21"
+    },
+    "metrics-entry": {
+      "": "MET-1",
+      "address": "DESC-12",
+      "publishes": "MET-21",
+      "publishes/*": "MET-21",
+      "publishes/*/additive": "MET-3",
+      "publishes/*/dimensions": "MET-4",
+      "publishes/*/dimensions/*": "MET-4",
+      "publishes/*/dimensions/*/values": "MET-4",
+      "publishes/*/granularities": "MET-3",
+      "publishes/*/unit": "MET-3",
+      "timeZone": "MET-6",
+      "version": "DESC-9"
+    },
+    "nudge": {
+      "": "NDG-2",
+      "type": "NAME-7"
+    },
+    "nudges-entry": {
+      "": "NDG-1",
+      "address": "DESC-12",
+      "version": "DESC-9"
+    },
+    "page": {
+      "": "ENDP-20",
+      "items": "ENDP-20",
+      "nextCursor": "ENDP-21"
+    },
+    "qualified-name": {
+      "": "NAME-7"
+    },
+    "skill-declaration": {
+      "": "TASK-31",
+      "payload": "TASK-31",
+      "produces": "TASK-31"
+    },
+    "task-page": {
+      "": "TASK-5",
+      "items": "TASK-5",
+      "nextCursor": "ENDP-21"
+    },
+    "task-type-declaration": {
+      "": "TASK-32",
+      "answeredBy": "TASK-32",
+      "payload": "TASK-32"
+    },
+    "task": {
+      "": "TASK-28",
+      "id": "TASK-28",
+      "payload": "TASK-28",
+      "since": "TASK-28",
+      "type": "NAME-7"
+    },
+    "tasks-entry": {
+      "": "TASK-27",
+      "address": "DESC-12",
+      "raises": "TASK-32",
+      "raises/*": "TASK-32",
+      "raises/*/answeredBy": "TASK-32",
+      "raises/*/payload": "TASK-32",
+      "version": "DESC-9"
+    }
+  }
+};

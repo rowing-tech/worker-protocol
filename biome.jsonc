@@ -12,11 +12,12 @@
   },
   "files": {
     "ignoreUnknown": true,
-    // Three generated artifacts, each compared byte for byte by a check of its own — `schemas/`
-    // by `pnpm schemas:check`, `openapi/` by `pnpm openapi:check`, and rules.json by
-    // `pnpm rules:check`. Their bytes belong to their generators and to no other formatter: two
-    // formatters over one file is a CI failure nobody can fix without picking a winner, and it
-    // arrives on whichever later day a regenerated file first happens to disagree with this one.
+    // Four generated artifacts, each compared byte for byte by a check of its own — `schemas/`
+    // by `pnpm schemas:check`, `openapi/` by `pnpm openapi:check`, and rules.json with the module
+    // written beside it by `pnpm rules:check`. Their bytes belong to their generators and to no
+    // other formatter: two formatters over one file is a CI failure nobody can fix without picking
+    // a winner, and it arrives on whichever later day a regenerated file first happens to disagree
+    // with this one.
     //
     // Markdown is the product. `spec/` and `docs/` are hand-wrapped prose whose line breaks were
     // chosen, and reflowing them would rewrite the artifact this repository exists to publish.
@@ -25,6 +26,7 @@
       "!schemas",
       "!openapi",
       "!packages/conformance/rules.json",
+      "!packages/conformance/src/rules.generated.ts",
       "!**/*.md",
       "!pnpm-lock.yaml"
     ]

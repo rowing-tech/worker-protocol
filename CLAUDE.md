@@ -14,7 +14,8 @@ pnpm verifiability:lint   check every rule is classified in conformance/verifiab
 pnpm prose:lint           check hand-wrapped Markdown holds the line width biome.jsonc states
 pnpm skill:lint           check every rule id skills/ cites is one rules.json holds
 pnpm dx:check             check examples/minimal-worker stays under its line budget
-pnpm rules:check          compare packages/conformance/rules.json against spec/
+pnpm rules:check          compare packages/conformance/rules.json and src/rules.generated.ts
+                          against spec/
 pnpm typecheck            type-check scripts/
 pnpm -r build             compile what each package publishes
 pnpm openapi:check        compare openapi/ against the routes in packages/hono, byte for byte
@@ -45,7 +46,8 @@ Three more rewrite a generated artifact from its source and are equally free to 
 ```
 pnpm schemas:generate     write schemas/ from the Zod objects in packages/schemas
 pnpm openapi:generate     write openapi/ from the routes in packages/hono/src/surfaces.ts
-pnpm rules:generate       write packages/conformance/rules.json from spec/
+pnpm rules:generate       write packages/conformance/rules.json and src/rules.generated.ts
+                          from spec/
 pnpm check:fix            apply biome's formatting and its safe fixes
 ```
 
@@ -79,7 +81,7 @@ procedure and the reasoning behind it.
 
 ## A generated artifact belongs in the same commit as the source that produces it
 
-Three things here are generated **and** committed, and CI regenerates each in memory and fails when
+Four things here are generated **and** committed, and CI regenerates each in memory and fails when
 what is in the tree differs.
 
 | Artifact | Produced from | Regenerate with |
@@ -87,6 +89,7 @@ what is in the tree differs.
 | `schemas/` | the Zod objects in `packages/schemas` | `pnpm schemas:generate` |
 | `openapi/` | the Hono routes in `packages/hono/src/surfaces.ts` | `pnpm openapi:generate` |
 | `packages/conformance/rules.json` | `spec/`, `conformance/verifiability.md` and `packages/hono/src/codes.ts` | `pnpm rules:generate` |
+| `packages/conformance/src/rules.generated.ts` | the same universe as `rules.json`, in the same run | `pnpm rules:generate` |
 
 Editing a Zod object without regenerating leaves a commit that cannot pass, and the two files then
 disagree about what a Worker must send — with prose deferring to a schema that no longer says what
@@ -97,3 +100,8 @@ worse.
 Both are committed rather than built on demand for the same reason: `schemas/` is the normative
 artifact and has to be readable by somebody who will never run this toolchain, and `rules.json`
 travels inside a published npm package where `spec/` does not follow it.
+
+The rule universe is written twice because it has two readers. `rules.json` is for anybody outside
+JavaScript and ships in the tarball for them; `rules.generated.ts` is what `verify()` imports, so
+the library reads no file and runs in any runtime with a `fetch`. Never edit either by hand, and
+never make one from the other: `pnpm rules:check` compares both against `spec/`.

@@ -58,7 +58,15 @@ for (const { rule, verdict, detail } of report.results) {
 }
 ```
 
-`verify` also takes a `fetch` of your own, for a test or for a caller that needs its own agent.
+**`verify()` runs in any runtime with a `fetch`** — Node, Bun, Deno, a Cloudflare Worker, a Vercel
+edge function, a Convex action — so a Control Tower can verify the Workers it enrolls from inside
+its own runtime. The library imports no Node built-in and reads no file: the rule universe is
+compiled into the module, so a bundler that inlines the package leaves nothing behind. Only the
+command line needs Node. This package's own suite runs `verify()` on workerd with no Node
+compatibility enabled.
+
+`verify` also takes a `fetch` of your own, for a test, for a caller that needs its own agent, or
+for a Worker reached in-process through its `app.fetch` rather than over the network.
 
 ## The verdicts, and why there are five
 
@@ -101,10 +109,11 @@ declared. A verifier that does not hold the Worker's MAJOR verifies **nothing** 
 is the one that is behind — rather than failing a Worker for a surface added after this tool was
 built.
 
-The rule universe travels inside this package as `rules.json`, generated from the specification, and
-`universe()` hands it back: the rules, the error codes, and the map from a place inside a document
-to the rule that governs it — which is how a report names the obligation that was broken rather
-than announcing that a document is invalid.
+The rule universe travels inside this package, generated from the specification, and `universe()`
+hands it back: the rules, the error codes, and the map from a place inside a document to the rule
+that governs it — which is how a report names the obligation that was broken rather than
+announcing that a document is invalid. It ships twice from one generation: compiled into the
+library, and as `rules.json` for a reader outside JavaScript.
 
 ## What standing it has
 

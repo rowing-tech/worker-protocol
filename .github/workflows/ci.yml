@@ -144,7 +144,9 @@ jobs:
       # Workers over a real socket and verifies them, and simulates a Control Tower over them,
       # which is the half that needs something answering. Two of those three are Node servers in
       # its own process; the third is workerd, booted from examples/fleet-worker/wrangler.jsonc, so
-      # that the tool is shown reaching a Worker it does not share a runtime with.
+      # that the tool is shown reaching a Worker it does not share a runtime with. It also runs the
+      # tool ITSELF on workerd with no Node compatibility, against the minimal Worker in the same
+      # isolate, which is where a Control Tower verifying from inside its own runtime stands.
       #
       # examples/fleet-worker is the one that runs on workerd rather than on Node, through
       # @cloudflare/vitest-pool-workers: a real durable object, real input gates, real isolate

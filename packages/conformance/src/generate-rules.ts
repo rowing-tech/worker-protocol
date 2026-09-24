@@ -4,16 +4,23 @@ import { CODES } from "../../hono/src/codes.ts";
 import type { Rule } from "./report.ts";
 
 /**
- * Generates `packages/conformance/rules.json` from `spec/` and `conformance/verifiability.md`, or
- * checks that what is committed matches.
+ * Generates `packages/conformance/rules.json` and `src/rules.generated.ts` from `spec/` and
+ * `conformance/verifiability.md`, or checks that what is committed matches.
  *
- *   node packages/conformance/src/generate-rules.ts            writes
- *   node packages/conformance/src/generate-rules.ts --check    compares, exits 1 on a difference
+ *   node packages/conformance/src/generate-rules.ts            writes both
+ *   node packages/conformance/src/generate-rules.ts --check    compares both, exits 1 on a difference
  *
  * The verifier needs the rule universe at runtime and is published to npm, where `spec/` does not
  * travel with it. So the universe is generated and committed, on exactly the reasoning that has
  * `schemas/` generated and committed: an artifact derived from a source is only trustworthy if
  * something compares the two, and CI does.
+ *
+ * **It is written twice, from one object, and the two are for different readers.** `rules.json` is
+ * for anybody who will never run JavaScript — a verifier in another language, a script, a person —
+ * and ships in the tarball for them. `rules.generated.ts` is what `verify()` imports, statically,
+ * so that the library reaches its universe without a filesystem: a bundler inlines it, and the
+ * package runs wherever a Worker does rather than only where `node:fs` resolves. Neither is derived
+ * from the other, so neither can drift from `spec/` while the other holds.
  *
  * Nothing here decides anything. The ids and their classes come from `spec/`, and what a check can
  * observe comes from `conformance/verifiability.md`, which `pnpm verifiability:lint` already holds
@@ -26,7 +33,7 @@ import type { Rule } from "./report.ts";
 const ROOT = join(import.meta.dirname, "..", "..", "..");
 const SPEC = join(ROOT, "spec");
 const INVENTORY = join(ROOT, "conformance", "verifiability.md");
-const OUT = join(import.meta.dirname, "..", "rules.json");
+const PACKAGE = join(import.meta.dirname, "..");
 
 /** `spec/README.md`: every file has a prefix, so that two files never race for the same one. */
 const readme = await readFile(join(SPEC, "README.md"), "utf8");
@@ -191,37 +198,71 @@ for (const [name, document] of [...documents].sort(([a], [b]) => a.localeCompare
   }
 }
 
-const contents = `${JSON.stringify(
+const universe = { rules, codes, attribution };
+
+/**
+ * The module carries no `$comment` member: its header says the same thing to the only reader a
+ * comment inside the object would reach, and the annotation lets `tsc` hold the literal to the
+ * types every check is written against — a rule whose `reach` the inventory spelled in a way
+ * `Rule` does not admit fails the type-check rather than a verdict.
+ */
+const outputs = [
   {
-    $comment:
-      "Generated from spec/ and conformance/verifiability.md by " +
-      "packages/conformance/src/generate-rules.ts. Do not edit: run `pnpm rules:generate`.",
-    rules,
-    codes,
-    attribution,
+    path: "rules.json",
+    contents: `${JSON.stringify(
+      {
+        $comment:
+          "Generated from spec/ and conformance/verifiability.md by " +
+          "packages/conformance/src/generate-rules.ts. Do not edit: run `pnpm rules:generate`.",
+        ...universe,
+      },
+      null,
+      2,
+    )}\n`,
   },
-  null,
-  2,
-)}\n`;
+  {
+    path: "src/rules.generated.ts",
+    contents: [
+      "// Generated from spec/ and conformance/verifiability.md by",
+      "// packages/conformance/src/generate-rules.ts. Do not edit: run `pnpm rules:generate`.",
+      "//",
+      "// The universe rules.json holds, as a module, so that the library imports it rather than",
+      "// reading a file: it is what lets verify() run where there is no filesystem.",
+      "",
+      'import type { Attribution } from "./attribution.ts";',
+      'import type { Code } from "./checks/endpoints.ts";',
+      'import type { Rule } from "./report.ts";',
+      "",
+      `export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution } = ${JSON.stringify(universe, null, 2)};`,
+      "",
+    ].join("\n"),
+  },
+];
+
+const counts = `${rules.length} rules, ${codes.length} codes`;
 
 if (process.argv.includes("--check")) {
-  let actual: string | null = null;
-  try {
-    actual = await readFile(OUT, "utf8");
-  } catch {
-    actual = null;
+  const stale: string[] = [];
+  for (const { path, contents } of outputs) {
+    let actual: string | null = null;
+    try {
+      actual = await readFile(join(PACKAGE, path), "utf8");
+    } catch {
+      actual = null;
+    }
+    if (actual !== contents) stale.push(`packages/conformance/${path}`);
   }
-  if (actual !== contents) {
-    console.error("packages/conformance/rules.json does not match spec/.\n");
-    console.error("Run `pnpm rules:generate` and commit the result.");
+  if (stale.length > 0) {
+    for (const path of stale) console.error(`${path} does not match spec/.`);
+    console.error("\nRun `pnpm rules:generate` and commit the result.");
     process.exit(1);
   }
   console.log(
-    `packages/conformance/rules.json matches spec/ (${rules.length} rules, ${codes.length} codes).`,
+    `packages/conformance/rules.json and src/rules.generated.ts match spec/ (${counts}).`,
   );
 } else {
-  await writeFile(OUT, contents, "utf8");
-  console.log(
-    `wrote packages/conformance/rules.json (${rules.length} rules, ${codes.length} codes)`,
-  );
+  for (const { path, contents } of outputs) {
+    await writeFile(join(PACKAGE, path), contents, "utf8");
+    console.log(`wrote packages/conformance/${path} (${counts})`);
+  }
 }

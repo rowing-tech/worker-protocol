@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { EDITION } from "@worker-protocol/schemas";
 import type { Attribution } from "./attribution.ts";
 import { checkActions } from "./checks/actions.ts";
@@ -16,6 +14,7 @@ import { checkNudges } from "./checks/nudges.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
 import { checkTasks } from "./checks/tasks.ts";
 import { type Report, type Result, type Rule, unclaimed } from "./report.ts";
+import { UNIVERSE } from "./rules.generated.ts";
 import { transcript } from "./transcript.ts";
 
 export type { Attribution } from "./attribution.ts";
@@ -109,10 +108,18 @@ export type Arrangement = {
 
 type Universe = { rules: Rule[]; codes: Code[]; attribution: Attribution };
 
-/** Generated from `spec/` by `src/generate-rules.ts` and committed beside the source. */
+/**
+ * Generated from `spec/` by `src/generate-rules.ts` and committed beside the source.
+ *
+ * Imported rather than read from `rules.json`, so that nothing on the library path needs a
+ * filesystem and `verify()` runs anywhere a `fetch` does. It stays async because it was, and a
+ * caller awaiting it should not have to change. Each call hands back its own copy, as each parse
+ * of the file did: a caller that edits what it was given must not edit the next run's universe.
+ * The copy is a JSON round trip rather than `structuredClone`, which not every runtime a Tower
+ * lives in is known to carry, and the universe is JSON by construction.
+ */
 export async function universe(): Promise<Universe> {
-  const path = join(import.meta.dirname, "..", "rules.json");
-  return JSON.parse(await readFile(path, "utf8")) as Universe;
+  return JSON.parse(JSON.stringify(UNIVERSE)) as Universe;
 }
 
 export async function verify(options: VerifyOptions): Promise<Report> {
