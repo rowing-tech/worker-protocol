@@ -70,8 +70,14 @@ export type TaskFacts = {
    * It may answer a promise, because what a Contract covers is a thing a Worker looks up rather
    * than a thing it holds — the Tower brokered it, the Worker stored what it was told, and reading
    * that is a query like any other.
+   *
+   * `principal` is whom `authenticate` accepted, where it said — absent where it answered the bare
+   * `"accepted"` — so a Contract kept against a holder is found without looking the token up again.
    */
-  covers?: (token: string | undefined) => string[] | undefined | Promise<string[] | undefined>;
+  covers?: (
+    token: string | undefined,
+    principal?: unknown,
+  ) => string[] | undefined | Promise<string[] | undefined>;
   /** ENDP-19 (recommended). The most Tasks one page carries. */
   pageSize?: number;
 };
@@ -82,14 +88,18 @@ const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message }
 const READ_PARAMETERS = ["type"] as const;
 
 export type TaskSurface = {
-  read: (query: URLSearchParams, token: string | undefined) => Promise<Refusal | Page>;
+  read: (
+    query: URLSearchParams,
+    token: string | undefined,
+    principal: unknown,
+  ) => Promise<Refusal | Page>;
 };
 
 export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
   const cap = facts.pageSize ?? 50;
 
   return {
-    async read(query, token) {
+    async read(query, token, principal) {
       // TASK-8: a type the entry does not declare. The surface exists and the caller asked about
       // something this Worker never raises, which is a parameter whose VALUE it will not accept.
       const type = query.get("type");
@@ -98,7 +108,7 @@ export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
       }
 
       // TASK-6: only what this credential covers. Absent, it covers everything.
-      const covers = await facts.covers?.(token);
+      const covers = await facts.covers?.(token, principal);
       const matching = (await facts.current())
         .filter((task) => covers === undefined || covers.includes(task.id))
         .filter((task) => type === null || task.type === type);

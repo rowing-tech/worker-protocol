@@ -117,7 +117,10 @@ export async function checkLogs(
   // LOG-8: half-open, so two adjacent reads carry no record twice. Checked against the boundary
   // rather than by comparing the two pages, because two records may legitimately be identical —
   // there is no id here — and a Worker would then fail for holding a repeat it was right to hold.
-  const cut = Date.now() - 60_000;
+  // `cut` is on a whole second because `iso()` writes none finer, so the instant compared is the
+  // instant sent. Unrounded, a record in the fraction between the two was right on both reads and
+  // failed one of them, at random, depending on the millisecond the check happened to start in.
+  const cut = Math.floor((Date.now() - 60_000) / 1000) * 1000;
   const boundary = iso(cut);
   const after = await transcript.send(readUrl({ from: boundary }), "records from a boundary");
   const before = await transcript.send(readUrl({ to: boundary }), "records up to that boundary");

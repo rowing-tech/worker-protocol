@@ -79,10 +79,11 @@ export type ExecutionCtx = { waitUntil?: (promise: Promise<unknown>) => void };
  * Two things follow and both are worth knowing before writing that. **It runs on every request**,
  * the Tower's polls included, so a Worker that reads a store here caches the result — in module
  * scope, which on an isolate runtime is a cache and not durable state, and is exactly the right
- * place for one. And **what it DECLARES may not differ between two callers**, because REG-8
- * requires the Descriptor to be the same document for every one of them: configuration that
- * changes gives every caller a new Descriptor, which is ordinary, and configuration read per
- * caller is the thing REG-8 forbids.
+ * place for one. It runs once per request and not more: the Worker it answers is the one that
+ * authenticates the request and the one that serves it. And **what it DECLARES may not differ
+ * between two callers**, because REG-8 requires the Descriptor to be the same document for every
+ * one of them: configuration that changes gives every caller a new Descriptor, which is ordinary,
+ * and configuration read per caller is the thing REG-8 forbids.
  */
 export type WorkerSource<E = unknown> = Worker | WorkerBuilder<E>;
 
@@ -412,13 +413,36 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // every path this app serves, so a credential is looked at exactly where a route answers.
   app.notFound(() => envelope({ code: "not_found", message: "No such address." }));
 
+  /**
+   * The Worker the guard resolved for a request, and whom it accepted, for the handler to read.
+   *
+   * **A builder runs once per request, and this is how.** The guard and the handler are two
+   * callbacks on one request, and resolving in each ran the builder twice: twice whatever it reads,
+   * and two Worker objects, so the one that authenticated a request was not the one that served it.
+   * Keyed on the request's own context and private to this app, so the type `mount()` answers is
+   * unchanged and no middleware a consumer adds can reach the entry or overwrite it.
+   */
+  const resolved = new WeakMap<Context, { worker: Worker; principal: unknown }>();
+  const held = (c: Context) => {
+    const entry = resolved.get(c);
+    // Every route below is registered behind the guard, so an absent entry is a route added
+    // without one — which is an address served without asking whether the credential is good.
+    if (entry === undefined) throw new Error(`${c.req.path} was served without the guard.`);
+    return entry;
+  };
+
   const guard: MiddlewareHandler = async (c, next) => {
     const worker = await audited(c);
     // REG-21: the Worker accepts the credential recorded for it on every address this protocol
     // defines, the Descriptor's route included. What makes one good is the Worker's (REG-3).
     // REG-32: the refusal distinguishes nothing — a refusal that explains itself is an oracle.
-    const verdict = (await worker.authenticate?.(bearer(c))) ?? "accepted";
+    const answered = (await worker.authenticate?.(bearer(c))) ?? "accepted";
+    const verdict = typeof answered === "string" ? answered : answered.verdict;
     if (verdict !== "accepted") return envelope({ code: verdict, message: "No." });
+    resolved.set(c, {
+      worker,
+      principal: typeof answered === "string" ? undefined : answered.principal,
+    });
 
     // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot
     // answer that version refuses the request WHOLE rather than substituting its own. On every
@@ -444,15 +468,15 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     capability: string | null,
     path: string,
     route: RouteConfig,
-    handler: (c: Context, worker: Worker) => Response | Promise<Response>,
+    handler: (c: Context, worker: Worker, principal: unknown) => Response | Promise<Response>,
     ownParameters = false,
   ) => {
     if (capability !== null && declared !== null && !declared.has(capability)) return;
     app.use(path, guard);
     if (!ownParameters) app.use(path, noParameters);
     app.openapi({ ...route, path }, (async (c: Context) => {
-      const worker = await audited(c);
-      return handler(c, worker);
+      const { worker, principal } = held(c);
+      return handler(c, worker, principal);
     }) as never);
   };
 
@@ -498,7 +522,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "actions",
     "/actions",
     performAction,
-    async (c, worker) => {
+    async (c, worker, principal) => {
       const perform = surfacesOf(worker).actions;
       if (!perform) return undeclared("actions");
       return reply(
@@ -508,6 +532,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           await c.req.text(),
           c.req.header("idempotency-key"),
           bearer(c),
+          principal,
         ),
       );
     },
@@ -519,7 +544,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   app.use("/settings", guard);
   app.use("/settings", noParameters);
   app.get("/settings", async (c) => {
-    const worker = await audited(c);
+    const { worker } = held(c);
     const settings = worker.actions?.settings;
     if (!settings || !worker.actions?.accepts.configure) return undeclared("configure");
     return c.json((await settings()) as Record<string, unknown>);
@@ -606,10 +631,10 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "tasks",
     "/tasks",
     readTasks,
-    async (c, worker) => {
+    async (c, worker, principal) => {
       const tasks = surfacesOf(worker).tasks;
       if (!tasks) return undeclared("tasks");
-      return page(c, await tasks.read(query(c), bearer(c)));
+      return page(c, await tasks.read(query(c), bearer(c), principal));
     },
     true,
   );

@@ -55,4 +55,12 @@ export {
   readTasks,
 } from "./surfaces.ts";
 export type { OpenTask, TaskFacts, TaskTypes } from "./tasks.ts";
-export type { Activity, Alert, Answer, Refusal, SkillDeclaration, Worker } from "./worker.ts";
+export type {
+  Activity,
+  Alert,
+  Answer,
+  Refusal,
+  SkillDeclaration,
+  Verdict,
+  Worker,
+} from "./worker.ts";

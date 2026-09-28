@@ -54,6 +54,22 @@ export type ActionCall = {
   name: string;
   /** REG-3. The credential presented, for a Worker that splits its own facts by it. */
   token: string | undefined;
+  /**
+   * ENDP-15. The key this call arrived under, as the caller sent it — from the header or from the
+   * declared member of the input — and absent where the Action takes no key or none was sent.
+   *
+   * It is here for a Worker that performs by asking another: a repeat reaches `run` only after an
+   * earlier performance threw or refused and gave its key back, and the one downstream may already
+   * have acted on it. Sending a key made from this one lets ENDP-16 answer that repeat there too.
+   *
+   * **Derive the downstream key rather than forwarding this one.** Whether a key is scoped to the
+   * caller that presented it is still open (`docs/undecided.md`), and a derivation is where a
+   * forwarder that serves several callers keeps two of theirs from meeting. It has to stay the same
+   * across deployments, or a repeat after one reaches the other Worker as a new key.
+   */
+  idempotencyKey?: string;
+  /** REG-3. Whom `authenticate` accepted, where it said. Absent where it answered `"accepted"`. */
+  principal?: unknown;
 };
 
 export type ActionDeclarations = Record<string, Action>;
@@ -230,6 +246,7 @@ export function actions(facts: ActionFacts) {
     raw: string,
     key: string | undefined,
     token: string | undefined,
+    principal: unknown,
   ): Promise<Answer | Refusal> {
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
     const declaration = facts.accepts[name];
@@ -310,7 +327,12 @@ export function actions(facts: ActionFacts) {
 
     let produced: unknown;
     try {
-      produced = await declaration.run(input.data as never, { name, token });
+      produced = await declaration.run(input.data as never, {
+        name,
+        token,
+        idempotencyKey: recordedKey,
+        principal,
+      });
     } catch (thrown) {
       // The key is given back before the failure travels: a reservation held by a request that
       // threw would lock the Action out for the whole window over something that never happened.

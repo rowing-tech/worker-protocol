@@ -63,14 +63,14 @@ export type Worker = {
    * is a network call. A signature that could not await it forbade the case the rule was written
    * around, and left a Worker comparing against a secret it was deployed with as the only kind
    * this package could serve.
+   *
+   * **Accepting may say whom it accepted**, as `{ verdict: "accepted", principal }`. The lookup
+   * that decided the credential was good usually found who holds it, and `principal` hands that to
+   * every callback that already receives the token — an Action's `run` and the `covers` of Tasks —
+   * so neither looks it up a second time. What it is belongs to the Worker; `mount()` carries it and
+   * never reads it. The bare `"accepted"` is the same verdict with nobody named.
    */
-  authenticate?: (
-    token: string | undefined,
-  ) =>
-    | "accepted"
-    | "unauthenticated"
-    | "forbidden"
-    | Promise<"accepted" | "unauthenticated" | "forbidden">;
+  authenticate?: (token: string | undefined) => Verdict | Promise<Verdict>;
   /** `health`: the answer to a poll (HLTH-2). HLTH-5 makes it `200` whatever it reports. */
   health?: () => z.infer<typeof health> | Promise<z.infer<typeof health>>;
   /** `metrics`: what the entry declares (MET-1 to MET-6), and the Worker's own values. */
@@ -136,6 +136,18 @@ export type Worker = {
     raises: TaskTypes;
   } & TaskFacts;
 };
+
+/**
+ * What `authenticate` answers about one credential (REG-3, REG-21, ENDP-29).
+ *
+ * The object form exists for acceptance alone. A refused credential names nobody, because REG-32
+ * gives a refusal nothing to say, and a principal found for one would have nowhere to go.
+ */
+export type Verdict =
+  | "accepted"
+  | "unauthenticated"
+  | "forbidden"
+  | { verdict: "accepted"; principal: unknown };
 
 /**
  * TASK-31. What a Worker declares about one Skill: the payload it needs to receive to answer one.

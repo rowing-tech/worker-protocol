@@ -1,7 +1,7 @@
 import { EDITION } from "@worker-protocol/schemas";
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
-import { memoryOutcomes, type OutcomeStore, type Recorded } from "../actions.ts";
+import { type ActionCall, memoryOutcomes, type OutcomeStore, type Recorded } from "../actions.ts";
 import { mount } from "../mount.ts";
 import type { Worker } from "../worker.ts";
 
@@ -453,6 +453,147 @@ describe("mount(), with a Worker that awaits", () => {
     const answer = await get("/tasks", "from-the-db");
     const page = (await answer.json()) as { items: { id: string }[] };
     expect(page.items.map((task) => task.id)).toEqual(["t-2"]);
+  });
+});
+
+/**
+ * A builder is asked once per request, whichever address the request is for.
+ *
+ * The guard that authenticates and the handler that serves are two callbacks on one request, and
+ * each used to resolve the Worker. Every read a builder made ran twice, and the Worker that accepted
+ * the credential was a different object from the one that answered — which is what these count.
+ */
+describe("mount(), resolving a Worker answered per request", () => {
+  let built = 0;
+  const app = mount(() => {
+    built += 1;
+    return {
+      id: "tech.rowing.test.built-once",
+      health: () => ({ status: "healthy", checks: {} }),
+      actions: {
+        settings: () => ({}),
+        accepts: {
+          configure: { input: z.object({}), run: () => undefined },
+          noop: { input: z.object({}), run: () => undefined },
+        },
+      },
+    } satisfies Worker;
+  });
+
+  it.each([
+    ["the Descriptor", "/.well-known/worker-protocol", {}, 200],
+    ["a Capability read", "/health", {}, 200],
+    ["a POSTed Action", "/actions?action=noop", { method: "POST", body: "{}" }, 204],
+    ["the settings", "/settings", {}, 200],
+  ] as const)("builds the Worker once for %s", async (_, path, init, status) => {
+    built = 0;
+    const answer = await app.fetch(new Request(`http://worker.invalid${path}`, init), {});
+    expect(answer.status).toBe(status);
+    expect(built).toBe(1);
+  });
+});
+
+/**
+ * What a performance knows about the call beyond its input: the key, and whom it came from.
+ *
+ * A Worker that performs by asking another needs both. The key is what it derives the one it sends
+ * downstream from, so a repeat is not a second performance there either; the principal is what
+ * `authenticate` already found, handed on rather than looked up again.
+ */
+describe("mount(), telling a performance about its call", () => {
+  const seen: ActionCall[] = [];
+  const covered: unknown[] = [];
+
+  /**
+   * Refuses the first time and performs the second. A repeat under one key reaches `run` only after
+   * an earlier performance gave the key back, and this is the shortest way to make one.
+   */
+  const refusingOnce = () => {
+    let refused = false;
+    return (_input: unknown, call: ActionCall) => {
+      seen.push(call);
+      if (refused) return undefined;
+      refused = true;
+      return { code: "unprocessable_content" as const, message: "Not yet." };
+    };
+  };
+
+  const app = mount({
+    id: "tech.rowing.test.call",
+    authenticate: (token) =>
+      token === "named" ? { verdict: "accepted", principal: { holder: "h-1" } } : "accepted",
+    actions: {
+      outcomes: memoryOutcomes(),
+      accepts: {
+        "by-header": {
+          input: z.object({}),
+          idempotency: { required: true, from: "header", windowSeconds: 60 },
+          run: refusingOnce(),
+        },
+        "by-input": {
+          input: z.object({ order: z.string() }),
+          idempotency: { required: true, from: "input", member: "order", windowSeconds: 60 },
+          run: refusingOnce(),
+        },
+        unkeyed: { input: z.object({}), run: refusingOnce() },
+      },
+    },
+    tasks: {
+      raises: {},
+      current: () => [],
+      covers: (_token, principal) => {
+        covered.push(principal);
+        return undefined;
+      },
+    },
+  });
+
+  const post = (action: string, body: unknown, headers: Record<string, string> = {}) =>
+    app.fetch(
+      new Request(`http://worker.invalid/actions?action=${action}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers,
+      }),
+    );
+
+  const keysSeen = (action: string) =>
+    seen.filter((call) => call.name === action).map((call) => call.idempotencyKey);
+
+  it("hands `run` the key from the header, the same on a repeat", async () => {
+    expect((await post("by-header", {}, { "idempotency-key": "k-1" })).status).toBe(422);
+    expect((await post("by-header", {}, { "idempotency-key": "k-1" })).status).toBe(204);
+    // As the caller sent it: the prefix the store keys on is the store's, and never leaks here.
+    expect(keysSeen("by-header")).toEqual(["k-1", "k-1"]);
+  });
+
+  it("hands `run` the key from the declared member, the same on a repeat", async () => {
+    expect((await post("by-input", { order: "o-7" })).status).toBe(422);
+    expect((await post("by-input", { order: "o-7" })).status).toBe(204);
+    expect(keysSeen("by-input")).toEqual(["o-7", "o-7"]);
+  });
+
+  it("hands `run` no key for an Action that takes none, whatever was sent", async () => {
+    expect((await post("unkeyed", {}, { "idempotency-key": "k-2" })).status).toBe(422);
+    expect((await post("unkeyed", {}, { "idempotency-key": "k-2" })).status).toBe(204);
+    expect(keysSeen("unkeyed")).toEqual([undefined, undefined]);
+  });
+
+  it("hands `run` and `covers` whom `authenticate` accepted, where it said", async () => {
+    seen.length = 0;
+    covered.length = 0;
+    const named = { authorization: "Bearer named" };
+    await post("unkeyed", {}, named);
+    await post("unkeyed", {}, { authorization: "Bearer anonymous" });
+    await app.fetch(new Request("http://worker.invalid/tasks", { headers: named }));
+    await app.fetch(
+      new Request("http://worker.invalid/tasks", {
+        headers: { authorization: "Bearer anonymous" },
+      }),
+    );
+    // The bare `"accepted"` still works, and names nobody.
+    expect(seen.map((call) => call.principal)).toEqual([{ holder: "h-1" }, undefined]);
+    expect(covered).toEqual([{ holder: "h-1" }, undefined]);
   });
 });
 

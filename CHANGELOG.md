@@ -17,6 +17,54 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-28 — edition 0.2
+
+Every change in `@worker-protocol/hono` below is additive: a Worker, a builder and a store written
+for 0.3 compile and behave as they did. It is a MINOR because it adds to what the package exports,
+and `^0.3.1` does not take it, so the fix to LOG-8 below arrives with an upgrade somebody chooses.
+No rule changed, and the edition is still 0.2.
+
+### Added
+
+- **`@worker-protocol/hono`: an Action's `run` is told the idempotency key its call arrived
+  under.** `ActionCall.idempotencyKey` is the key as the caller sent it, read from the header or
+  from the declared member of the input, and absent where the Action takes no key or none was sent.
+  It is for a Worker that performs by asking another: a repeat reaches `run` only after an earlier
+  performance threw or refused and gave its key back, and the Worker downstream may already have
+  acted, so the key sent there has to be made from this one for ENDP-16 to hold end to end.
+
+  A consumer that wrapped its `OutcomeStore` to capture the key `begin()` received can drop the
+  wrapper, which depended on the store's private `${name}:${key}` format. **Keep the downstream key
+  the same across the upgrade:** if it was derived from what `begin()` saw, derive it from
+  `` `${call.name}:${call.idempotencyKey}` `` now, or a repeat that spans the deployment reaches
+  the other Worker under a new key and is performed there a second time. The key is not scoped to
+  the caller that presented it — that is still open in `docs/undecided.md` — so a forwarder serving
+  several callers keeps theirs apart in the derivation.
+
+- **`@worker-protocol/hono`: `authenticate` may say whom it accepted.** It may answer
+  `{ verdict: "accepted", principal }` as well as the bare string, and `principal` reaches the two
+  callbacks that already receive the token: `ActionCall.principal` and the second argument of
+  `tasks.covers`. What it is belongs to the Worker; `mount()` carries it and never reads it. The
+  bare `"accepted"` still works and names nobody. The union is exported as `Verdict`.
+
+### Fixed
+
+- **`@worker-protocol/hono`: `mount()` asks a builder for the Worker once per request, not
+  twice.** The guard that authenticates and the handler that serves each resolved it, so every read
+  a `WorkerBuilder` made ran twice, and the Worker that accepted a credential was a different object
+  from the one that answered. The guard now resolves it and the handler reads what it resolved, for
+  the Descriptor, every Capability, the Actions and the settings alike. ENDP-16's checks for a
+  missing or a per-request memory store still see each resolved Worker exactly once. A consumer that
+  memoized its builder per environment to avoid the second build can drop that.
+
+- **`@worker-protocol/conformance`: LOG-8 compares against the boundary it sent.** The check sends
+  an instant sixty seconds back without milliseconds, and compared the records against the instant
+  before that rounding. A record in the fraction between the two was correctly answered by `from`,
+  since the bound is inclusive and earlier, and the check failed the Worker for it — at random,
+  depending on the millisecond it started in. The same rounding let an inclusive `to` pass for a
+  record exactly at the boundary. The instant is now rounded before it is sent, and both sides of
+  the interval are judged against it.
+
 ## [0.3.1] - 2026-09-24 — edition 0.2
 
 ### Fixed
@@ -302,7 +350,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.1.3...v0.2.0
