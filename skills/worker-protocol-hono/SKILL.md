@@ -13,7 +13,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.2"
-  version: "2.0.0"
+  version: "2.1.0"
 ---
 
 # Workers on `@worker-protocol/hono`
@@ -59,7 +59,18 @@ Read `references/members.md` for the signature of each member, and
   than at the `mount()` call about a type nested six levels deep.
 - **The builder runs on every request**, the Tower's polls included. Cache what it reads from a
   store in module scope — on an isolate runtime that is a cache and not durable state, which is
-  right. What it *declares* may not differ between callers (REG-8).
+  right. What it *declares* may not differ between callers (REG-8). It runs once per request, and
+  the Worker it answers both authenticates and serves that request: do not memoize the build per
+  environment to save a second one, because there is none.
+- **Hand what `authenticate` found to the handlers through `principal`**, never through the Worker
+  object. Answer `{ verdict: "accepted", principal }`, and read it as `call.principal` in `run` and
+  as the second argument of `tasks.covers`. State stashed on the object is shared by every
+  concurrent request when the Worker is not a builder.
+- **A Worker that performs an Action by calling another derives the downstream idempotency key
+  from `call.idempotencyKey`** — never from the store's own keys, whose format is private. A repeat
+  reaches `run` only after an earlier attempt threw or refused, and the Worker downstream may
+  already have acted. Keep the derivation stable across deployments, and fold in the caller where
+  the forwarder serves several: whether a key is scoped to its caller is still open in `spec/`.
 - **An Action with `idempotency` needs `actions.outcomes`, built outside the builder** (ENDP-16).
   Built inside, a new store is made per request and forgets what the last one recorded, so every
   retry performs the work again while the caller believes it is protected. `memoryOutcomes()` is
@@ -94,7 +105,7 @@ Read `references/members.md` for the signature of each member, and
 | `mount()` writes it, the same in every Worker | The Worker writes it, because only it knows |
 |---|---|
 | The Descriptor, every address, the edition, both headers | `id`, and which Capabilities exist |
-| `Authorization: Bearer` everywhere, `401` and `403` | `authenticate(token)` → accepted / unauthenticated / forbidden |
+| `Authorization: Bearer` everywhere, `401` and `403` | `authenticate(token)` → accepted (with a `principal`, or not) / unauthenticated / forbidden |
 | The error envelope, every code with its status and class | An `unprocessable_content` refusal from `run` |
 | Page envelope, cursor, cap, order, unknown-filter refusal | Which Tasks, Alerts and activities exist right now |
 | Metric parameters, half-open intervals, buckets in the zone | The value in each bucket |

@@ -59,6 +59,12 @@ process and silently wrong anywhere that scales horizontally: the repeat reaches
 recorded nothing, the work runs twice, and both calls answer `200`, so nothing observable says it
 happened.
 
+**A Worker that performs an Action by calling another sends a key derived from the caller's.** A
+repeat reaches the work again only after an earlier attempt failed or refused, and the Worker
+downstream may already have acted; a key made from the caller's lets ENDP-16 answer it there too.
+Keep the derivation stable across deployments, and fold in the caller where several share the
+forwarder, since whether a key is scoped to its caller is still open in `spec/endpoints.md`.
+
 ## 8. Input validation
 
 Against the JSON Schema published for that Action (ACT-2). A body that parses and does not match is
