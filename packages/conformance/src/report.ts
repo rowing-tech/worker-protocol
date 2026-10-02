@@ -15,6 +15,13 @@ export type Rule = {
   class: "required" | "recommended";
   /** `conformance/verifiability.md`: what a check can observe. */
   reach: "W" | "H" | "P" | "N" | "—";
+  /** DESC-31: the edition that introduced it. A Worker declaring an earlier one is not judged by it. */
+  introducedIn: string;
+  /**
+   * DESC-31: the edition that withdrew it, where one did. A Worker declaring that edition or a later
+   * one is not judged by it; one declaring an earlier edition still is.
+   */
+  withdrawnIn?: string;
 };
 
 export type Verdict =

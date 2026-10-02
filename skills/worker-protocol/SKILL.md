@@ -13,8 +13,8 @@ description: >-
   worker-protocol-hono.
 license: Apache-2.0
 metadata:
-  workerProtocolEdition: "0.2"
-  version: "2.1.0"
+  workerProtocolEdition: "0.3"
+  version: "2.2.0"
 ---
 
 # worker-protocol, in any language

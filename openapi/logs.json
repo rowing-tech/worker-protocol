@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — logs",
-    "version": "0.2",
+    "version": "0.3",
     "description": "What a Worker recorded while it was working, most recent first. A window rather than an archive: nothing here fixes how far back a Worker keeps, and the end of the collection means the end of what it still holds.",
     "license": {
       "name": "Apache-2.0",

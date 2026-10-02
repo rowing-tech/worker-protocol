@@ -40,6 +40,17 @@ async function prefixTable(): Promise<Map<string, string>> {
 
 const MARKERS = ["stable", "draft", "open"];
 
+/** `(required, W, 0.3–0.4)`: the form `spec/README.md` fixes for a withdrawn entry with editions. */
+const WITHDRAWN_META =
+  /^(required|recommended), (W|H|P|N|—), ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*))–((?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
+
+/** DESC-23: editions compare as numbers, MAJOR first. */
+const later = (a: string, b: string) => {
+  const [am, an] = a.split(".").map(Number);
+  const [bm, bn] = b.split(".").map(Number);
+  return am !== bm ? am > bm : an > bn;
+};
+
 const files = (await readdir(SPEC)).filter((f) => f.endsWith(".md") && f !== "README.md").sort();
 const table = await prefixTable();
 const prefixes = [...new Set(table.values())];
@@ -108,8 +119,23 @@ for (const file of files) {
 
   // A withdrawn entry: a bullet opening with the retired id. "- **DESC-7** — ..."
   const withdrawn = new Set<number>();
-  for (const m of withdrawnSection.matchAll(new RegExp(`^- \\*\\*${prefix}-(\\d+)\\*\\*`, "gm"))) {
+  for (const m of withdrawnSection.matchAll(
+    new RegExp(`^- \\*\\*${prefix}-(\\d+)\\*\\*( \\(([^)]*)\\))?`, "gm"),
+  )) {
     withdrawn.add(Number(m[1]));
+
+    // spec/README.md: an entry for a rule an edition published opens with its class, its reach and
+    // both editions, in one fixed form, because `rules.json` is generated from it (DESC-31). A form
+    // the generator cannot read is a withdrawn rule that silently enters no verifier, so anything
+    // in parentheses after the id is held to it exactly.
+    if (m[2] === undefined) continue;
+    const id = `${prefix}-${m[1]}`;
+    const meta = m[3].match(WITHDRAWN_META);
+    if (!meta) {
+      report(file, id, "withdrawn-form", "not `(required|recommended, W|H|P|N, X.Y–X.Y)`");
+    } else if (!later(meta[4], meta[3])) {
+      report(file, id, "withdrawn-form", `withdrawn in ${meta[4]}, not after ${meta[3]}`);
+    }
   }
 
   parsed.push({ file, prefix, marker: markerValue, body, withdrawnSection, live, withdrawn });
@@ -186,6 +212,10 @@ for (const dir of [
   }
   for (const entry of entries) {
     if (!/\.(md|ts|json)$/.test(entry)) continue;
+    // Generated from the `Withdrawn` lists themselves (DESC-31), so a withdrawn id there is the
+    // list read back, not a second place it was written. Every id it holds is still checked for
+    // existence, because each one came from a definition or an entry this pass has already read.
+    if (entry === "rules.generated.ts") continue;
     sources.push({ name: join(dir, entry), text: await readFile(join(abs, entry), "utf8") });
   }
 }
@@ -256,12 +286,11 @@ console.log(
  * What spec/README.md claims that this script deliberately does not check, because each needs a
  * reader rather than a parser. Naming them here keeps the lint from being read as complete.
  *
- * - "An id is fixed by the edition that publishes it." Edition 0.1 is published, so every id in
- *   `spec/` is now fixed — but nothing here knows WHICH edition published what, and a rule added
- *   after 0.1 is not yet fixed by anything. The checks below therefore enforce the
- *   post-publication discipline against the whole working tree, which is the strict reading and
- *   errs in the safe direction: a `Withdrawn` entry is required for anything the text has retired,
- *   and an id is never reused.
+ * - "An id is fixed by the edition that publishes it." Which edition introduced a rule in force is
+ *   written in `conformance/verifiability.md`, and `lint-verifiability.ts` holds that column; this
+ *   script still enforces the post-publication discipline against the whole working tree, which is
+ *   the strict reading and errs in the safe direction: a `Withdrawn` entry is required for anything
+ *   the text has retired, and an id is never reused.
  * - "A rule binds when a client and a Worker must agree on it for a call to work; it recommends
  *   when breaking it makes one deployment worse and nobody misreads anything." Which side a given
  *   rule falls on is the judgement the class exists to record. This script checks that every rule

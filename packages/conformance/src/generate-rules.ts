@@ -23,8 +23,11 @@ import type { Rule } from "./report.ts";
  * from the other, so neither can drift from `spec/` while the other holds.
  *
  * Nothing here decides anything. The ids and their classes come from `spec/`, and what a check can
- * observe comes from `conformance/verifiability.md`, which `pnpm verifiability:lint` already holds
- * in step with `spec/`.
+ * observe and the edition each rule arrived in come from `conformance/verifiability.md`, which
+ * `pnpm verifiability:lint` already holds in step with `spec/`. A withdrawn rule has no row there:
+ * its class, reach and both editions are in its `Withdrawn` entry, in the one form `spec/README.md`
+ * fixes and `pnpm spec:lint` holds, and it is read from there — so DESC-31 can still judge a Worker
+ * of the edition it belonged to.
  *
  * This file is toolchain and never reaches `dist/`: `tsconfig.build.json` emits only what the
  * package publishes.
@@ -42,11 +45,13 @@ for (const [, file, prefix] of readme.matchAll(/\[([a-z-]+\.md)\]\([a-z-]+\.md\)
   prefixOf.set(file, prefix);
 }
 
-/** `conformance/verifiability.md`: one row per rule, `| DESC-1 | W | … |`. */
+/** `conformance/verifiability.md`: one row per rule, `| DESC-1 | W | 0.1 | … |`. */
 const inventory = await readFile(INVENTORY, "utf8");
-const reachOf = new Map<string, Rule["reach"]>();
-for (const [, id, reach] of inventory.matchAll(/^\| ([A-Z]+-\d+) \| (\S+) \|/gm)) {
-  reachOf.set(id, reach as Rule["reach"]);
+const rowOf = new Map<string, { reach: Rule["reach"]; introducedIn: string }>();
+for (const [, id, reach, introducedIn] of inventory.matchAll(
+  /^\| ([A-Z]+-\d+) \| (\S+) \| (\S+) \|/gm,
+)) {
+  rowOf.set(id, { reach: reach as Rule["reach"], introducedIn });
 }
 
 const specFiles = (await readdir(SPEC))
@@ -66,12 +71,32 @@ for (const file of specFiles) {
     new RegExp(`\\*\\*${prefix}-(\\d+) \\((required|recommended)\\)\\. `, "g"),
   )) {
     const id = `${prefix}-${m[1]}`;
-    const reach = reachOf.get(id);
-    if (reach === undefined) {
+    const row = rowOf.get(id);
+    if (row === undefined) {
       missing.push(id);
       continue;
     }
-    rules.push({ id, file, class: m[2] as Rule["class"], reach });
+    rules.push({ id, file, class: m[2] as Rule["class"], ...row });
+  }
+
+  // DESC-31: a rule an edition published and a later one withdrew stays in the universe, so a
+  // Worker of that edition is still judged by it. An entry with no editions was withdrawn before
+  // any edition published it, was never anybody's obligation, and enters no verifier.
+  const withdrawn = cut === -1 ? "" : text.slice(cut);
+  for (const m of withdrawn.matchAll(
+    new RegExp(
+      `^- \\*\\*${prefix}-(\\d+)\\*\\* \\((required|recommended), (\\S+), ([\\d.]+)–([\\d.]+)\\)`,
+      "gm",
+    ),
+  )) {
+    rules.push({
+      id: `${prefix}-${m[1]}`,
+      file,
+      class: m[2] as Rule["class"],
+      reach: m[3] as Rule["reach"],
+      introducedIn: m[4],
+      withdrawnIn: m[5],
+    });
   }
 }
 

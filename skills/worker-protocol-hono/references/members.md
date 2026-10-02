@@ -9,8 +9,9 @@ and the rule each one cites.
 - `id: string` — the Worker's own name, deployed with it, never the URL (DESC-6, DESC-27).
 - `authenticate: (token) => "accepted" | "unauthenticated" | "forbidden"`, or a promise of one. It
   may await: validating a token against an identity provider is a network call (REG-3). Accepting
-  may answer `{ verdict: "accepted", principal }` instead, and `principal` reaches an Action's `run`
-  and `tasks.covers(token, principal)`, so neither looks the holder up again.
+  may answer `{ verdict: "accepted", principal, caller }` instead, both optional: `principal`
+  reaches an Action's `run` and `tasks.covers(token, principal)`, so neither looks the holder up
+  again, and `caller` is the stable string a header idempotency key is scoped to (ENDP-34).
 - `skills: { [type]: { payload?, produces? } }` — the Task types this Worker answers: what it needs
   to receive, and what it hands back (TASK-31). It sits at the root because a Skill is served at no
   address — it is what the Worker *is*, where a Capability is what it *serves*.
@@ -24,8 +25,9 @@ and the rule each one cites.
   `{ start, value }` per bucket there is a number for, omitting the rest (MET-15).
 - `actions: { accepts, settings?, outcomes? }` — each entry of `accepts` is
   `action({ input, result?, idempotency?, completesWithinCall?, run })`. `run(input, call)` is told
-  `call.name`, `call.token`, `call.idempotencyKey` — the key as the caller sent it — and
-  `call.principal`. A Worker forwarding to another derives its downstream key from that one.
+  `call.name`, `call.token`, `call.idempotencyKey` — the key as the caller sent it —
+  `call.principal` and `call.caller`. A Worker forwarding to another derives its downstream key from
+  the key and the caller together.
 - `alerts: () => Alert[]` — `{ id, severity: "warning" | "critical", since, summary, actions }`.
   `since` is when the condition began (ALRT-3).
 - `activity: () => Activity[]` — `{ id, state, since, summary }`, state being `scheduled`, `pending`

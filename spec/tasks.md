@@ -178,11 +178,14 @@ posts it, the Worker changes the Facts the condition is derived from, and the Ta
 time anybody reads. There is no second call and nothing to close.
 
 **Two consumers may therefore answer the same Task, and that is admitted rather than prevented.**
-What bounds it is what bounds any repeat in this protocol: an Action that declares an idempotency
-key under ACT-12 is performed once however many times it is posted, and a condition that a first
-answer resolved is not there for a second. Where an owner needs more than that — where the work is
-expensive, or physical, or paid for — the consumers of that work coordinate among themselves, which
-is the party that can. This protocol does not hold the lock, and the section below is why.
+What bounds it is what bounds any repeat in this protocol: an Action whose idempotency key is read
+from its input is performed once within the window it declares, however many times it is posted
+and by however many callers (ENDP-35), and a condition that a first answer resolved is not there
+for a second. A key read from the header does not reach that far — each consumer invents its own,
+and ENDP-34 keeps them apart — so an owner that wants two answers to count as one reads the key
+from the answer itself. Where an owner needs more than that — where the work is expensive, or
+physical, or paid for — the consumers of that work coordinate among themselves, which is the party
+that can. This protocol does not hold the lock, and the section below is why.
 
 A nudge is best-effort by construction: whoever receives one reads as it would have on its next
 schedule, and losing one costs latency and never work. That is what lets this be the one call in

@@ -167,6 +167,12 @@ const noParameters: MiddlewareHandler = async (c, next) => {
 };
 
 /**
+ * What the guard settled about one request, and all a handler is handed beside the context: the
+ * Worker it resolved, whom `authenticate` accepted, and the caller it named (ENDP-34).
+ */
+type Resolved = { worker: Worker; principal: unknown; caller: string | undefined };
+
+/**
  * One Worker's surfaces.
  *
  * **Nothing here holds state across requests any more, and that is deliberate.** Everything a rule
@@ -422,7 +428,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
    * Keyed on the request's own context and private to this app, so the type `mount()` answers is
    * unchanged and no middleware a consumer adds can reach the entry or overwrite it.
    */
-  const resolved = new WeakMap<Context, { worker: Worker; principal: unknown }>();
+  const resolved = new WeakMap<Context, Resolved>();
   const held = (c: Context) => {
     const entry = resolved.get(c);
     // Every route below is registered behind the guard, so an absent entry is a route added
@@ -442,6 +448,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     resolved.set(c, {
       worker,
       principal: typeof answered === "string" ? undefined : answered.principal,
+      caller: typeof answered === "string" ? undefined : answered.caller,
     });
 
     // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot
@@ -468,16 +475,13 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     capability: string | null,
     path: string,
     route: RouteConfig,
-    handler: (c: Context, worker: Worker, principal: unknown) => Response | Promise<Response>,
+    handler: (c: Context, resolved: Resolved) => Response | Promise<Response>,
     ownParameters = false,
   ) => {
     if (capability !== null && declared !== null && !declared.has(capability)) return;
     app.use(path, guard);
     if (!ownParameters) app.use(path, noParameters);
-    app.openapi({ ...route, path }, (async (c: Context) => {
-      const { worker, principal } = held(c);
-      return handler(c, worker, principal);
-    }) as never);
+    app.openapi({ ...route, path }, (async (c: Context) => handler(c, held(c))) as never);
   };
 
   const undeclared = (capability: string) =>
@@ -496,12 +500,12 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   const staticDescriptor =
     typeof source === "function" ? null : descriptorOf(source, source.edition ?? EDITION);
 
-  serve(null, readDescriptor.path, readDescriptor, async (c, worker) =>
+  serve(null, readDescriptor.path, readDescriptor, async (c, { worker }) =>
     c.body(staticDescriptor ?? descriptorOf(worker, worker.edition ?? EDITION), 200, JSON_UTF8),
   );
 
   // HLTH-5: `200` whatever it reports. The status is read from the body.
-  serve("health", "/health", pollHealth, async (c, worker) =>
+  serve("health", "/health", pollHealth, async (c, { worker }) =>
     worker.health ? c.json(await worker.health(), 200) : undeclared("health"),
   );
 
@@ -509,7 +513,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "metrics",
     "/metrics",
     readMetric,
-    async (c, worker) => {
+    async (c, { worker }) => {
       const read = surfacesOf(worker).metrics;
       if (!read) return undeclared("metrics");
       return page(c, await read(query(c)));
@@ -522,18 +526,19 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "actions",
     "/actions",
     performAction,
-    async (c, worker, principal) => {
+    async (c, { worker, principal, caller }) => {
       const perform = surfacesOf(worker).actions;
       if (!perform) return undeclared("actions");
       return reply(
         c,
-        await perform(
-          query(c).get("action") ?? "",
-          await c.req.text(),
-          c.req.header("idempotency-key"),
-          bearer(c),
+        await perform({
+          name: query(c).get("action") ?? "",
+          raw: await c.req.text(),
+          key: c.req.header("idempotency-key"),
+          token: bearer(c),
           principal,
-        ),
+          caller,
+        }),
       );
     },
     true,
@@ -555,7 +560,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "alerts",
     "/alerts",
     readAlerts,
-    async (c, worker) =>
+    async (c, { worker }) =>
       worker.alerts
         ? page(c, collection(await worker.alerts(), query(c), serializeSince))
         : undeclared("alerts"),
@@ -569,7 +574,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "activity",
     "/activity",
     readActivity,
-    async (c, worker) =>
+    async (c, { worker }) =>
       worker.activity
         ? page(c, collection(await worker.activity(), query(c), serializeSince))
         : undeclared("activity"),
@@ -583,7 +588,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "logs",
     "/logs",
     readLogs,
-    async (c, worker) => {
+    async (c, { worker }) => {
       const read = surfacesOf(worker).logs;
       if (!read) return undeclared("logs");
       return page(c, await read(query(c)));
@@ -599,7 +604,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
    * owes exactly these answers, and a library's own `400` for a body it could not parse is not one
    * of them (ENDP-25).
    */
-  serve("nudges", "/nudges", takeNudge, async (c, worker) => {
+  serve("nudges", "/nudges", takeNudge, async (c, { worker }) => {
     if (!worker.nudges) return undeclared("nudges");
     let body: unknown;
     try {
@@ -631,7 +636,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     "tasks",
     "/tasks",
     readTasks,
-    async (c, worker, principal) => {
+    async (c, { worker, principal }) => {
       const tasks = surfacesOf(worker).tasks;
       if (!tasks) return undeclared("tasks");
       return page(c, await tasks.read(query(c), bearer(c), principal));

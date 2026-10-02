@@ -34,7 +34,21 @@ const start = (options: Parameters<typeof createWorker>[0] = {}) =>
  * of band, the way the base URL and the credential do.
  */
 const ARRANGEMENT = {
-  safeAction: { name: "record-verification", input: { vehicle: "ABC-123", verified: true } },
+  safeAction: {
+    name: "record-verification",
+    input: { vehicle: "ABC-123", verified: true },
+    otherInput: { vehicle: "XYZ-789", verified: false },
+  },
+  // ENDP-34 and ENDP-35 need one Action keyed by each origin; `record-verification` takes its key
+  // from the header, so this one takes it from the input.
+  secondSafeAction: {
+    name: "record-reading",
+    input: { reading: "r-1", value: 1 },
+    otherInput: { reading: "r-2", value: 2 },
+  },
+  // The Contract credential is another caller: the Worker names it `consumer`, and the recorded
+  // ones `operator`. `secondCredential` would not do, being the operator's own.
+  otherCallerCredential: "d-token",
   refusedInput: { name: "price-quote", input: { amount: -1 } },
   asyncAction: { name: "rebuild-index", input: {} },
   // What no Worker has by accident: a second credential live beside the first, one issued under
@@ -87,7 +101,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.2");
+    expect(report.edition).toBe("0.3");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -197,7 +211,7 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(26);
+    expect(counts.otherSubject).toBe(27);
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(22);
     // How many of the rules that need a Worker ARRANGED to be observed this double actually buys.
@@ -206,10 +220,10 @@ describe("the reference worker, verified", () => {
     const arranged = report.results.filter(
       (r) => r.rule.reach === "H" && (r.verdict === "passes" || r.verdict === "fails"),
     );
-    expect(arranged.length).toBe(19);
+    expect(arranged.length).toBe(21);
 
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(113);
+    expect(counts.passes).toBe(115);
     expect(counts.fails).toBe(1);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -259,6 +273,66 @@ describe("the reference worker, verified", () => {
     }
   });
 
+  it("judges a Worker of an earlier MINOR only by the rules its edition contains", async () => {
+    // DESC-31: a Worker built to 0.2 and correct in it is correct, so a rule 0.3 added is not
+    // exercised against it — and says which edition it belongs to — rather than failed.
+    const earlier = await start({
+      edition: "0.2",
+      credential: "a-token",
+      consumerCredential: "d-token",
+    });
+    try {
+      const report = await verify({
+        baseUrl: earlier.url,
+        credential: "a-token",
+        mayPerform: true,
+        arrangement: ARRANGEMENT,
+      });
+      const result = (id: string) => report.results.find((r) => r.rule.id === id);
+
+      for (const id of ["ENDP-34", "ENDP-35", "DESC-31"]) {
+        expect(result(id)?.verdict, id).toBe("notExercised");
+        expect(result(id)?.detail, id).toBe("introduced in 0.3; the Worker declares 0.2");
+      }
+      // What 0.2 already contained is judged as it always was.
+      expect(result("ENDP-16")?.verdict).toBe("passes");
+      expect(result("LOG-1")?.verdict).toBe("passes");
+    } finally {
+      await earlier.close();
+    }
+  });
+
+  it("fails ENDP-34 where the second caller's header key meets the first one's", async () => {
+    // Handed the operator's own second credential as if it were another caller, the verifier sees
+    // exactly what a Worker with one scope for everybody shows from outside: the same key, another
+    // body, `409`. Which is also why `secondCredential` could never have served as this arrangement.
+    const report = await verify({
+      baseUrl: worker.url,
+      credential: "a-token",
+      mayPerform: true,
+      arrangement: { ...ARRANGEMENT, otherCallerCredential: "b-token" },
+    });
+    const result = report.results.find((r) => r.rule.id === "ENDP-34");
+
+    expect(result?.verdict).toBe("fails");
+    expect(result?.detail).toContain("409");
+  });
+
+  it("reports what the scope checks were missing rather than a verdict", async () => {
+    const { otherCallerCredential: _, secondSafeAction: __, ...without } = ARRANGEMENT;
+    const report = await verify({
+      baseUrl: worker.url,
+      credential: "a-token",
+      mayPerform: true,
+      arrangement: without,
+    });
+    const result = (id: string) => report.results.find((r) => r.rule.id === id);
+
+    expect(result("ENDP-34")?.verdict).toBe("notExercised");
+    expect(result("ENDP-34")?.detail).toContain("another caller");
+    expect(result("ENDP-35")?.verdict).toBe("notExercised");
+  });
+
   it("catches a Worker that answers `healthy` before it has established its state", async () => {
     // HLTH-4's window is between a process starting and its first evaluation, and only whoever
     // started it knows a poll is inside one — which is why it is the one arrangement that is a
@@ -289,9 +363,9 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.2");
+      expect(report.verifierEdition).toBe("0.3");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.2");
+      expect(report.results[0]?.detail).toContain("holds edition 0.3");
     } finally {
       await ahead.close();
     }

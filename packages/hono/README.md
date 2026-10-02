@@ -106,7 +106,8 @@ and a Worker that reads them at module scope works in one place only.
 - The page envelope, its cursor and the order a page is returned in.
 - Metric bucket boundaries, cut in the time zone your Worker declared.
 - The idempotency window: a repeat under a key replays the recorded outcome instead of performing
-  the work twice.
+  the work twice. A header key is scoped to the caller your `authenticate` names as `caller`, and
+  a key read from the input is the Action's whoever sends it (ENDP-34, ENDP-35).
 - Authentication, as `Authorization: Bearer <token>` on every address, answered by your
   `authenticate`; and the refusal of a Nudge for a Task type you declare no Skill for.
 

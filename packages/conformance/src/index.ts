@@ -67,9 +67,35 @@ export type VerifyOptions = {
   fetch?: typeof globalThis.fetch;
 };
 
+/**
+ * An Action safe to perform, an input its declared schema accepts, and optionally a second one.
+ *
+ * `otherInput` is another input the schema accepts and that is just as safe to perform. A verifier
+ * cannot invent one — a body it made up is refused by any schema that admits no extra member — and
+ * ENDP-17, ENDP-34 and ENDP-35 all need a second body under one key.
+ */
+export type SafeAction = { name: string; input: unknown; otherInput?: unknown };
+
 export type Arrangement = {
   /** An Action that is safe to perform, and an input its declared schema accepts. */
-  safeAction?: { name: string; input: unknown };
+  safeAction?: SafeAction;
+  /**
+   * A second safe Action, whose idempotency key comes from the other origin (ENDP-34, ENDP-35).
+   *
+   * An Action reads its key from the header or from the input and never both, so one safe Action
+   * reaches only one of the two rules. Each check uses whichever of the two declares its origin,
+   * and a Worker whose keys all come from one origin has no reason to invent the other.
+   */
+  secondSafeAction?: SafeAction;
+  /**
+   * A credential the Worker's authentication attributes to a different caller than the recorded
+   * one (ENDP-34, ENDP-35).
+   *
+   * Not `secondCredential`, which is issued to the same holder and is therefore the same caller: a
+   * Worker is right to answer `409` to a header key reused under it. A Worker with one caller has
+   * no such credential to hand in, and both rules report that rather than a verdict.
+   */
+  otherCallerCredential?: string;
   /** An input that is schema-valid and that the Worker refuses on its own rules (ACT-9). */
   refusedInput?: { name: string; input: unknown };
   /** An Action that declares it does not complete within the call, and an input for it (ACT-11). */
@@ -122,12 +148,63 @@ export async function universe(): Promise<Universe> {
   return JSON.parse(JSON.stringify(UNIVERSE)) as Universe;
 }
 
+/** DESC-23: editions are ordered by comparing MAJOR and then MINOR, as numbers. */
+const later = (a: string, b: string): boolean => {
+  const [am, an] = a.split(".").map(Number);
+  const [bm, bn] = b.split(".").map(Number);
+  return am !== bm ? am > bm : an > bn;
+};
+
+/** DESC-31: whether a rule is one of the obligations an edition contains. */
+const contains = (edition: string, rule: Rule): boolean =>
+  !later(rule.introducedIn, edition) &&
+  (rule.withdrawnIn === undefined || later(rule.withdrawnIn, edition));
+
+/**
+ * The verdict for a rule no check claimed, once DESC-31 has said whether the edition holds it.
+ *
+ * A rule outside the declared edition is a gap in the Worker's claim and not in its conduct, so it
+ * is not exercised and says which edition it belongs to. A withdrawn rule inside it is one this
+ * verifier may no longer carry a check for, and it says so rather than being passed or dropped.
+ */
+const outside = (rule: Rule, edition: string): Result => {
+  if (later(rule.introducedIn, edition)) {
+    return {
+      rule,
+      verdict: "notExercised",
+      detail: `introduced in ${rule.introducedIn}; the Worker declares ${edition}`,
+    };
+  }
+  if (rule.withdrawnIn !== undefined && !later(rule.withdrawnIn, edition)) {
+    return {
+      rule,
+      verdict: "notExercised",
+      detail: `withdrawn in ${rule.withdrawnIn}; the Worker declares ${edition}`,
+    };
+  }
+  if (rule.withdrawnIn !== undefined) {
+    return {
+      rule,
+      verdict: "notExercised",
+      detail: `withdrawn in ${rule.withdrawnIn}; this verifier no longer checks it`,
+    };
+  }
+  return unclaimed(rule);
+};
+
 export async function verify(options: VerifyOptions): Promise<Report> {
   const { rules: all, codes, attribution } = await universe();
-  const byId = new Map(all.map((rule) => [rule.id, rule]));
   const tape = transcript(options.fetch ?? globalThis.fetch, options.credential);
 
-  const descriptor = await readDescriptor(options.baseUrl, byId, attribution, tape);
+  // Read with every rule the universe holds, because the edition it declares is not known until
+  // the Descriptor is read, and that read is judged by the rules of the edition it turns out to
+  // declare — the filter below takes back what the declared edition does not contain.
+  const descriptor = await readDescriptor(
+    options.baseUrl,
+    new Map(all.map((rule) => [rule.id, rule])),
+    attribution,
+    tape,
+  );
 
   // DESC-25: a verifier that does not hold the declared edition's MAJOR verifies NOTHING and
   // reports that it is older than the Worker — rather than failing a Worker for a surface added
@@ -148,7 +225,17 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       })),
     };
   }
-  const results: Result[] = [...descriptor.results];
+
+  // DESC-31: a Worker is judged by the rules the edition it declares contains, and by no other. A
+  // Worker built to an earlier MINOR and correct in it is correct (DESC-24), so a rule added since
+  // is not exercised rather than failed, and a rule withdrawn since is still one it owes. Where the
+  // Worker declares a later MINOR than this verifier holds, DESC-25 has it judge by what it holds,
+  // and with no edition read there is nothing to place the Worker in but this verifier's own.
+  const claims = descriptor.document?.edition;
+  const judged = claims === undefined || later(claims, EDITION) ? EDITION : claims;
+  const byId = new Map(all.filter((rule) => contains(judged, rule)).map((rule) => [rule.id, rule]));
+
+  const results: Result[] = descriptor.results.filter((result) => byId.has(result.rule.id));
   // Addresses a Capability declares INSIDE its own entry rather than beside it — `configure`'s
   // reading address is the first. ENDP-1 judges what the verifier called against what the
   // Descriptor declared, so an address it could not see would read as the Worker's fault.
@@ -325,7 +412,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   const claimed = new Set(results.map((result) => result.rule.id));
   const complete: Result[] = [
     ...results,
-    ...all.filter((rule) => !claimed.has(rule.id)).map(unclaimed),
+    ...all.filter((rule) => !claimed.has(rule.id)).map((rule) => outside(rule, judged)),
   ];
   complete.sort((a, b) => a.rule.id.localeCompare(b.rule.id, "en", { numeric: true }));
 

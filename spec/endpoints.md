@@ -267,15 +267,16 @@ refreshed, and what an unrecognized caller is told rather than shown are
 idempotency key; if it does, it declares where the key is read from — the `Idempotency-Key` header
 or a named field of the payload — and how long the Worker honors one.**
 
-**ENDP-16 (required). Within that window, a repeat under the same key is not a second performance:
-the Worker answers the outcome it recorded.**
+**ENDP-16 (required). Within that window, a repeat under the same key, in the scope ENDP-34 and
+ENDP-35 give it, is not a second performance: the Worker answers the outcome it recorded.**
 
-**ENDP-17 (required). A key reused with a different body is `409`.**
+**ENDP-17 (required). A key reused with a different body, in the scope ENDP-34 and ENDP-35 give
+it, is `409`.**
 
 **ENDP-18 (required). A required key that is absent is `400`.**
 
-**ENDP-32 (required). A request under a key whose performance has not finished is `503`, with the
-code `unavailable`.**
+**ENDP-32 (required). A request under a key whose performance has not finished, in the scope
+ENDP-34 and ENDP-35 give it, is `503`, with the code `unavailable`.**
 
 **An Action that declares no key is at-least-once under retry, and a caller that retries one
 accepts that it may happen twice.** That is emphasis and not an obligation, deliberately: it
@@ -339,6 +340,46 @@ cannot share the record has to shorten the window to nothing and declare it, or 
 Retrying is then narrow. A caller repeats only a `retry`, only unchanged, and only under the same
 key; a caller that invents a new key for a repeat has asked for the Action twice and will
 correctly get it twice.
+
+**ENDP-34 (required). A key read from the `Idempotency-Key` header is scoped to the caller that
+presented it: the same key from two callers is two keys.**
+
+**ENDP-35 (required). A key read from a declared member of the input is scoped to the Action: any
+caller that sends it names the same performance.**
+
+**The scope follows where the key is read from, because the origin already says what a key
+means.** A header key is a caller's statement about its own attempts — only the caller can tell a
+retry from a genuine repeat — and the Worker records it without parsing it, so the same string from
+another caller says nothing about this one's work. A scope global to the Action would make what one
+caller gets back depend on what another sent: the recorded outcome of a performance it never asked
+for and may not be entitled to see; a `409` over a body that conflicts with nothing it sent, which
+ENDP-28 then forbids it to retry; or a `503` for a whole window, held by a caller that reserved its
+keys first. Random keys make an accidental meeting rare, and a leak needs no accident — keys end up
+in logs, in traces and in the proxies between two parties.
+
+An input key is the opposite case. It is the Worker's own data, the reading keyed by vehicle, kind
+and instant, and any caller reporting the same reading means the same fact. Deduplicating across
+callers is the point of it: it is what lets [tasks](tasks.md) admit two consumers answering one
+Task, and a key scoped per caller would perform each of their answers. What a global scope costs a
+header key is what an input key is for. A second caller sending the same reading is answered the
+recorded outcome, and one sending another body under it is answered `409` — which is right here,
+because it is reporting the same fact differently. Nobody learns of a performance it could not
+already name, since the key is the fact itself. An Action whose result is a caller's own business
+reads its key from the header.
+
+**The caller is whoever the Worker's authentication decided is calling, and not the credential's
+bytes.** A caller that rotates its credential and comes back inside the window is retrying the same
+work, and a scope that moved with the token would let the rotation perform it twice. Who is calling
+is the Worker's to decide, as everything about the credential is ([registration](registration.md));
+a Worker that cannot tell its callers apart — one shared secret, say — has one caller, and ENDP-34
+costs it nothing.
+
+**An input key is global even when its value is a caller's request id.** The Worker does not know
+what a value means, so the scope cannot turn on it. An Action that wants a key per caller reads it
+from the header; one that needs it in the body makes the value unique per caller, and a prefix of
+the caller's own is enough. That leaves a caller that can set no header at all, and the case is
+weak: the usual automation platforms set headers on an HTTP request. If one appears, a scope
+declared on the Action is an optional field, which DESC-24 admits in a MINOR.
 
 How an Action expresses these declarations, what it answers on success, and whether performing one
 is synchronous at all are [actions](actions.md)'s.
@@ -411,10 +452,6 @@ anything happened.
 
 ## Still open here
 
-- **Whether an idempotency key is scoped to the caller that presented it, or is global to the
-  Action.** A key a caller invents is its own; a key read from a declared field of the payload is
-  often a natural identity any caller would send for the same fact. Open in
-  [undecided](../docs/undecided.md).
 - Whether the error envelope carries structured detail beyond code, message and class — a field
   path for a schema failure, a `Retry-After` echoed into the body — or whether that stays per
   surface.

@@ -17,6 +17,72 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-02 — edition 0.3
+
+All four packages encode **edition 0.3**, a MINOR under DESC-24: a caller holding 0.2 retries
+under its own key as it always did, and nothing it sends or reads changes on the wire. The release
+that carries it is a MINOR of the packages, which `^0.4.0` does not take.
+
+### Edition 0.3
+
+- **ENDP-34: a key read from the `Idempotency-Key` header is scoped to the caller that presented
+  it**, so the same key from two callers is two keys. **ENDP-35: a key read from a declared member
+  of the input is scoped to the Action**, so any caller sending it names the same performance.
+  ENDP-16, ENDP-17 and ENDP-32 hold within that scope and keep their ids: they never said what a
+  key's scope was, so no verdict of theirs changes. The question leaves `docs/undecided.md`.
+- **DESC-31: a verifier holding a later MINOR judges a Worker only by the rules the edition it
+  declares contains**, including rules a later edition withdrew. A 0.2 Worker that deduplicates
+  globally is correct in 0.2, and is reported `notExercised` for ENDP-34 rather than failed.
+- `spec/tasks.md` and `docs/architecture.md` no longer say that *an Action that declares an
+  idempotency key is performed once however many times it is posted*: with header keys from two
+  consumers that was false under any scope, and it now holds for a key read from the input.
+
+### Added
+
+- **`@worker-protocol/hono`: `authenticate` may name the caller**, as
+  `{ verdict: "accepted", principal, caller }`, both optional. `caller` is a stable string for
+  whoever the Worker's lookup found — not the token, which changes on rotation — and it is the one
+  thing `mount()` reads: a header key is reserved under it. It reaches `run` as `ActionCall.caller`.
+  Without it, every caller shares one scope, as in 0.4.
+- **`@worker-protocol/conformance`: ENDP-34 and ENDP-35 are checked**, by playing two callers. The
+  arrangement gains `otherCallerCredential`, a credential the Worker attributes to another caller;
+  `secondSafeAction`, a safe Action whose key comes from the origin `safeAction`'s does not; and
+  `otherInput` on either, a second input its schema accepts.
+- **`@worker-protocol/conformance`: every rule records the edition that introduced it** as
+  `introducedIn` in `rules.json` and `universe()`, and a rule an edition published and a later one
+  withdrew stays in the universe with `withdrawnIn`. A Worker declaring an earlier MINOR is judged
+  by its own edition's rules (DESC-31), and each later one says which edition it belongs to.
+
+### Changed
+
+- **`@worker-protocol/hono`: the key an `OutcomeStore` receives is `JSON.stringify([name, caller,
+  key])`**, where it was `${name}:${key}`. `caller` is `null` for an input key and for a header key
+  whose verdict names no caller. A separator could be forged by any part: an Action name is any
+  string and an input key is whatever the input carries, so `a` with `b:c` met `a:b` with `c`. The
+  format was always private to the package, and no store has to change.
+
+### Fixed
+
+- **`@worker-protocol/conformance`: ENDP-17 no longer fails a Worker whose input schema admits no
+  extra member.** Its second body added a member to the input, which such a schema refuses with
+  `400` before the key is looked at. It now sends `otherInput` where one is named, and without one
+  reports that `400` as `notExercised`.
+
+### Upgrading
+
+The reserved key changes twice, and each time a retry that spans the deployment can miss its record
+and be performed a second time, at most within the window the Action declares:
+
+- **On upgrading the package**, for every keyed Action: `${name}:${key}` becomes
+  `[name, null, key]`.
+- **On the deployment that first answers a `caller`**, for header keys only, since naming a caller
+  is opt-in: `[name, null, key]` becomes `[name, caller, key]`.
+
+`ActionCall.idempotencyKey` is still the key as the caller sent it, so a Worker that derives a
+downstream key from it sees nothing move on upgrade. A forwarder that starts folding `caller` into
+that derivation — which is what keeps two callers' header keys apart downstream — moves its
+downstream key in the same deployment, with the same bounded exposure.
+
 ## [0.4.0] - 2026-09-28 — edition 0.2
 
 Every change in `@worker-protocol/hono` below is additive: a Worker, a builder and a store written
@@ -350,7 +416,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.2.0...v0.3.0

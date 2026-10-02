@@ -69,6 +69,12 @@ export type Worker = {
    * every callback that already receives the token — an Action's `run` and the `covers` of Tasks —
    * so neither looks it up a second time. What it is belongs to the Worker; `mount()` carries it and
    * never reads it. The bare `"accepted"` is the same verdict with nobody named.
+   *
+   * **`caller` is the one thing `mount()` does read**: a stable string naming who is calling, which
+   * ENDP-34 scopes a header key to. It is not the credential — a caller that rotates its token is
+   * the same caller retrying the same work — so a Worker that names one names whoever its own
+   * lookup found. Without it, every caller shares one scope, which is right for a Worker that
+   * cannot tell its callers apart and costs it nothing.
    */
   authenticate?: (token: string | undefined) => Verdict | Promise<Verdict>;
   /** `health`: the answer to a poll (HLTH-2). HLTH-5 makes it `200` whatever it reports. */
@@ -147,7 +153,7 @@ export type Verdict =
   | "accepted"
   | "unauthenticated"
   | "forbidden"
-  | { verdict: "accepted"; principal: unknown };
+  | { verdict: "accepted"; principal?: unknown; caller?: string };
 
 /**
  * TASK-31. What a Worker declares about one Skill: the payload it needs to receive to answer one.

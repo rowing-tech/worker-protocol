@@ -395,6 +395,94 @@ describe("mount(), with two requests under one idempotency key", () => {
 });
 
 /**
+ * ENDP-34 and ENDP-35: whose a key is follows where it was read from.
+ *
+ * A header key is the caller's statement about its own attempts, so the same string from another
+ * caller is another key. An input key is the Worker's own data, so any caller sending it names the
+ * same performance. `authenticate` says who is calling, and without that every caller is one.
+ */
+describe("mount(), with one key from two callers", () => {
+  const build = () => {
+    const calls: ActionCall[] = [];
+    const app = mount({
+      id: "tech.rowing.test.scoped",
+      authenticate: (token) =>
+        token === "anonymous" ? "accepted" : { verdict: "accepted", caller: token ?? "nobody" },
+      actions: {
+        outcomes: memoryOutcomes(),
+        accepts: {
+          "by-header": {
+            input: z.object({ n: z.number() }),
+            result: z.object({ n: z.number() }),
+            idempotency: { required: true, from: "header", windowSeconds: 60 },
+            run: ({ n }: { n: number }, call: ActionCall) => {
+              calls.push(call);
+              return { n };
+            },
+          },
+          "by-input": {
+            input: z.object({ reading: z.string(), n: z.number() }),
+            result: z.object({ n: z.number() }),
+            idempotency: { required: true, from: "input", member: "reading", windowSeconds: 60 },
+            run: ({ n }: { n: number }, call: ActionCall) => {
+              calls.push(call);
+              return { n };
+            },
+          },
+        },
+      },
+    });
+    const post = (action: string, token: string, body: unknown, key?: string) =>
+      app.fetch(
+        new Request(`http://worker.invalid/actions?action=${action}`, {
+          method: "POST",
+          body: JSON.stringify(body),
+          headers: {
+            authorization: `Bearer ${token}`,
+            ...(key === undefined ? {} : { "idempotency-key": key }),
+          },
+        }),
+      );
+    return { calls, post };
+  };
+
+  it("performs a header key another caller already used, with another body", async () => {
+    const { calls, post } = build();
+    expect(await (await post("by-header", "acme", { n: 1 }, "k-1")).json()).toEqual({ n: 1 });
+    // Not `409`, and not acme's outcome: what globex sent says nothing about acme's work.
+    const other = await post("by-header", "globex", { n: 2 }, "k-1");
+    expect(other.status).toBe(200);
+    expect(await other.json()).toEqual({ n: 2 });
+    expect(calls.map((call) => call.caller)).toEqual(["acme", "globex"]);
+  });
+
+  it("still refuses one caller reusing its own header key with another body", async () => {
+    const { post } = build();
+    await post("by-header", "acme", { n: 1 }, "k-1");
+    expect((await post("by-header", "acme", { n: 2 }, "k-1")).status).toBe(409);
+  });
+
+  it("names the same performance for an input key, whoever sends it", async () => {
+    const { calls, post } = build();
+    await post("by-input", "acme", { reading: "r-1", n: 1 });
+    // The key is the reading, and a reading is one fact whoever reports it.
+    expect((await post("by-input", "globex", { reading: "r-1", n: 2 })).status).toBe(409);
+    expect(await (await post("by-input", "globex", { reading: "r-1", n: 1 })).json()).toEqual({
+      n: 1,
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("keeps a credential naming no caller apart from one that names a caller", async () => {
+    const { post } = build();
+    // The raw key `acme:k-1` from nobody in particular, and the key `k-1` from acme: one string
+    // under a separator, two under the tuple.
+    await post("by-header", "anonymous", { n: 1 }, "acme:k-1");
+    expect((await post("by-header", "acme", { n: 2 }, "k-1")).status).toBe(200);
+  });
+});
+
+/**
  * A Worker that has to look something up before it can answer anything.
  *
  * Every callback that reaches outside the process may answer a promise, and two of them could not

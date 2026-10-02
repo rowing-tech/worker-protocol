@@ -12,8 +12,8 @@ description: >-
   TypeScript service. Load the worker-protocol skill first for the rules themselves.
 license: Apache-2.0
 metadata:
-  workerProtocolEdition: "0.2"
-  version: "2.1.0"
+  workerProtocolEdition: "0.3"
+  version: "2.2.0"
 ---
 
 # Workers on `@worker-protocol/hono`
@@ -66,11 +66,15 @@ Read `references/members.md` for the signature of each member, and
   object. Answer `{ verdict: "accepted", principal }`, and read it as `call.principal` in `run` and
   as the second argument of `tasks.covers`. State stashed on the object is shared by every
   concurrent request when the Worker is not a builder.
+- **Name the caller in the verdict when the Worker serves more than one**: `{ verdict: "accepted",
+  principal, caller }`, `caller` a stable string for whoever the lookup found — never the token,
+  which changes on rotation. `mount()` scopes a header key to it (ENDP-34) and leaves an input key
+  global (ENDP-35). Without it every caller shares one scope, which is right for a single secret.
 - **A Worker that performs an Action by calling another derives the downstream idempotency key
-  from `call.idempotencyKey`** — never from the store's own keys, whose format is private. A repeat
-  reaches `run` only after an earlier attempt threw or refused, and the Worker downstream may
-  already have acted. Keep the derivation stable across deployments, and fold in the caller where
-  the forwarder serves several: whether a key is scoped to its caller is still open in `spec/`.
+  from `call.idempotencyKey` and `call.caller` together** — never from the store's own keys, whose
+  format is private. A repeat reaches `run` only after an earlier attempt threw or refused, and the
+  Worker downstream may already have acted; two callers may send the same header key and mean two
+  performances. Keep the derivation stable across deployments.
 - **An Action with `idempotency` needs `actions.outcomes`, built outside the builder** (ENDP-16).
   Built inside, a new store is made per request and forgets what the last one recorded, so every
   retry performs the work again while the caller believes it is protected. `memoryOutcomes()` is

@@ -126,11 +126,19 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
 
     // REG-21 on every address. `403` for the credential this Worker reads and that carries no
     // right, because ENDP-29 divides `401` from `403` at whether it could be READ.
+    //
+    // ENDP-34: two callers, named for who holds the credential and not for the credential itself.
+    // Both recorded credentials are the operator's — rotating one is the same caller retrying the
+    // same work — and the one issued under a Contract is the consumer's.
     authenticate: (token) => {
       if (options.credential === undefined) return "accepted";
       if (token !== undefined && token === options.unprivilegedCredential) return "forbidden";
-      if (token !== undefined && token === options.consumerCredential) return "accepted";
-      return token !== undefined && recorded.has(token) ? "accepted" : "unauthenticated";
+      if (token !== undefined && token === options.consumerCredential) {
+        return { verdict: "accepted", caller: "consumer" };
+      }
+      return token !== undefined && recorded.has(token)
+        ? { verdict: "accepted", caller: "operator" }
+        : "unauthenticated";
     },
 
     // HLTH-4: until it has established its state it answers `unhealthy`, never `healthy`.

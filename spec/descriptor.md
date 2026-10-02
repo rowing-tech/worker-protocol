@@ -267,12 +267,28 @@ That rule is all a verifier needs, and it needs no registry:
   MINOR verifies what the edition it does hold defines, ignores every undotted name that edition
   does not name, and reports what it ignored** — rather than failing a Worker for a Capability
   added after the verifier was built.
+- **DESC-31 (required). A verifier that holds a later MINOR of the declared edition's MAJOR judges
+  the Worker by the rules the declared edition contains, including those a later edition
+  withdrew, and by no other. It reports each later rule as not exercised, naming the edition that
+  introduced it, and a withdrawn rule it no longer carries a check for as not exercised, saying
+  so — never passed and never left out.**
 
 DESC-16 and DESC-25 divide cleanly because DESC-16 fires only when the verifier holds the declared
 edition exactly. A verifier one MINOR behind does not, so it never fails a Worker for a name it
 could not have heard of; a verifier holding the edition does, and an undotted name that edition
 does not define is then a real fault with nowhere to hide. The two together are why an older
 verifier is useful rather than merely safe: it still checks everything it knows.
+
+**DESC-31 is DESC-25 the other way round.** A Worker built to an earlier MINOR and correct in it is
+correct — DESC-24 is what makes it so — and a verifier that judged it by a rule added since would
+be failing it for not having read an edition it never claimed. The withdrawn rules are in it
+because the id convention in [the README](README.md) retires a rule whenever a rewrite could change
+a verdict: without them, a Worker of the earlier edition would be judged neither by the withdrawn
+id nor by the one that replaced it, and a correction would quietly have exempted it from both. The
+edition each rule arrived in is written beside its class in
+[conformance/verifiability.md](../conformance/verifiability.md), and a retired rule carries both
+editions in its `Withdrawn` entry; neither is read off git, because a rule that turned on what was
+pushed where is one a rebase could break.
 
 [naming](naming.md) answers what a dotted name may look like, and answers it by adding nothing: the
 dot is the whole of the syntax, because DESC-15 has a verifier ignore a dotted name it does not

@@ -62,14 +62,23 @@ export type ActionCall = {
    * earlier performance threw or refused and gave its key back, and the one downstream may already
    * have acted on it. Sending a key made from this one lets ENDP-16 answer that repeat there too.
    *
-   * **Derive the downstream key rather than forwarding this one.** Whether a key is scoped to the
-   * caller that presented it is still open (`docs/undecided.md`), and a derivation is where a
-   * forwarder that serves several callers keeps two of theirs from meeting. It has to stay the same
-   * across deployments, or a repeat after one reaches the other Worker as a new key.
+   * **Derive the downstream key from this one and `caller` together, rather than forwarding it.**
+   * ENDP-34 scopes a header key to the caller that presented it, so two callers may send the same
+   * string here and mean two performances; a derivation that leaves `caller` out sends both to the
+   * other Worker as one key. It has to stay the same across deployments, or a repeat after one
+   * reaches the other Worker as a new key.
+   *
+   * It stays the key as sent, and not the scoped one `mount()` reserves, so that a Worker already
+   * deriving from it did not see its downstream key move when the scope arrived.
    */
   idempotencyKey?: string;
   /** REG-3. Whom `authenticate` accepted, where it said. Absent where it answered `"accepted"`. */
   principal?: unknown;
+  /**
+   * ENDP-34. The caller `authenticate` named, where it named one — the scope a header key is
+   * reserved under. Absent where it named none, and then every caller shares one scope.
+   */
+  caller?: string;
 };
 
 export type ActionDeclarations = Record<string, Action>;
@@ -236,18 +245,35 @@ export const memoryOutcomes = (): OutcomeStore => {
   };
 };
 
+/** One POST to the Actions address, as `mount()` read it off the request. */
+type Performance = {
+  /** ACT-5: the Action named in the query. */
+  name: string;
+  /** The body, unread: ENDP-17 compares it byte for byte. */
+  raw: string;
+  /** The `Idempotency-Key` header, where one was sent. */
+  key: string | undefined;
+  /** REG-3: the credential presented. */
+  token: string | undefined;
+  /** Whom `authenticate` accepted, where it said. */
+  principal: unknown;
+  /** ENDP-34: the caller `authenticate` named, where it named one. */
+  caller: string | undefined;
+};
+
 export function actions(facts: ActionFacts) {
   // ENDP-16 needs somewhere to record, and `mount()` has refused to build a Worker that declares a
   // key without naming one — so by here it is either given or never asked for.
   const recorded = facts.outcomes;
 
-  return async function perform(
-    name: string,
-    raw: string,
-    key: string | undefined,
-    token: string | undefined,
-    principal: unknown,
-  ): Promise<Answer | Refusal> {
+  return async function perform({
+    name,
+    raw,
+    key,
+    token,
+    principal,
+    caller,
+  }: Performance): Promise<Answer | Refusal> {
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
     const declaration = facts.accepts[name];
     if (declaration === undefined) {
@@ -294,11 +320,20 @@ export function actions(facts: ActionFacts) {
       return refuse("idempotency_key_required", "This Action requires an idempotency key.");
     }
 
+    // ENDP-34, ENDP-35: a header key is the caller's and an input key is the Action's, so the
+    // caller enters the reserved key for the first and never for the second. Without a named caller
+    // every caller shares one scope, which is what a Worker that cannot tell them apart has.
+    //
+    // **A tuple, and not a separator.** An Action name is any non-empty string and an input key is
+    // whatever the input carries, so any separator can be forged by one of the parts: `a:b` with
+    // `c` meets `a` with `b:c`, and a raw key from a credential naming no caller would meet a scoped
+    // one. JSON quotes each part, so nothing any of them contains can reach across into another.
+    const scope = idempotency?.from === "header" ? (caller ?? null) : null;
     const now = Date.now();
     const keyed =
       recordedKey === undefined || recorded === undefined || idempotency === undefined
         ? undefined
-        : { store: recorded, key: `${name}:${recordedKey}`, idempotency };
+        : { store: recorded, key: JSON.stringify([name, scope, recordedKey]), idempotency };
 
     // ENDP-16: the key is TAKEN before the Action runs, not read. Reading and then writing with
     // the Action in between is a check-then-act, and two callers under one key would both perform.
@@ -315,8 +350,9 @@ export function actions(facts: ActionFacts) {
         return refuse("unavailable", "This idempotency key is being performed right now.");
       }
       if (reservation !== "reserved") {
-        // ENDP-17: a key reused with a different body is `409`. Only the caller can tell a retry
-        // from a genuine repeat, and this is the Worker declining to guess.
+        // ENDP-17: a key reused with a different body is `409`, within the scope ENDP-34 and
+        // ENDP-35 give it. Only the caller can tell a retry from a genuine repeat, and this is the
+        // Worker declining to guess.
         if (reservation.held.body !== raw) {
           return refuse("idempotency_key_reused", "That key was used with another body.");
         }
@@ -332,6 +368,7 @@ export function actions(facts: ActionFacts) {
         token,
         idempotencyKey: recordedKey,
         principal,
+        caller,
       });
     } catch (thrown) {
       // The key is given back before the failure travels: a reservation held by a request that

@@ -155,8 +155,9 @@ and nothing about them is restated here.
 Reading the key from a named member of the input is what makes this worth a declaration rather than
 a fixed header. A Worker taking readings keyed by vehicle, kind and instant already holds the key in
 the body, and asking a caller to invent a second one beside it is ceremony that buys nothing and
-adds a way to get it wrong. Whether such a key is scoped to the caller that presented it or is
-global to the Action is [open](../docs/undecided.md), and it is `endpoints`'s to answer.
+adds a way to get it wrong. Such a key is global to the Action, where a header key is the
+caller's own: [endpoints](endpoints.md) answers that in ENDP-34 and ENDP-35, and the origin a
+declaration names is what decides between them.
 
 ## Settings, and the form a console renders
 

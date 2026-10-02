@@ -52,7 +52,14 @@ Declared per Action (ENDP-15):
 
 - a required key that is absent is `400` (ENDP-18);
 - a key reused with a different body is `409` (ENDP-17);
-- a repeat inside the window replays the recorded outcome rather than performing again (ENDP-16).
+- a repeat inside the window replays the recorded outcome rather than performing again (ENDP-16);
+- a key in use is `503` `unavailable`, `retry` rather than `reject` (ENDP-32).
+
+**Whose a key is follows where it is read from.** A key from the `Idempotency-Key` header belongs to
+the caller that sent it, so the same string from two callers is two keys (ENDP-34): record it under
+the caller your authentication found, not under the token, which changes on rotation. A key read
+from a declared member of the input belongs to the Action, so any caller sending it names the same
+performance (ENDP-35). A Worker that cannot tell its callers apart has one caller.
 
 **Record outcomes where they outlive one process.** A map in memory is correct in one long-lived
 process and silently wrong anywhere that scales horizontally: the repeat reaches an instance that
@@ -62,8 +69,8 @@ happened.
 **A Worker that performs an Action by calling another sends a key derived from the caller's.** A
 repeat reaches the work again only after an earlier attempt failed or refused, and the Worker
 downstream may already have acted; a key made from the caller's lets ENDP-16 answer it there too.
-Keep the derivation stable across deployments, and fold in the caller where several share the
-forwarder, since whether a key is scoped to its caller is still open in `spec/endpoints.md`.
+Derive it from the caller's key and the caller together — two callers may send the same header
+key and mean two performances (ENDP-34) — and keep the derivation stable across deployments.
 
 ## 8. Input validation
 

@@ -247,7 +247,12 @@ So, once an edition has published an id:
 
 - **A rule that is deleted keeps its id, withdrawn.** Its number is never issued again. Each file
   ends with a `Withdrawn` list — the id, what it required, and what replaced it if anything — and
-  that list is the only place a withdrawn id is written.
+  that list is the only place a withdrawn id is written. An entry for a rule an edition published
+  opens with what a verifier still needs to judge a Worker of that edition by it (DESC-31): its
+  class, its reach as `conformance/verifiability.md` writes it, and the edition that introduced it
+  and the one that withdrew it — `- **PREFIX-N** (required, W, 0.3–0.4) — …`. `rules.json` is
+  generated from that entry, so writing it there is not writing the id twice. An entry withdrawn
+  before any edition published it carries no editions, and enters no verifier.
 - **A rule that is rewritten keeps its id if no verdict could change, and takes a new one if any
   could.** That is the test, and it is about implementations rather than words: rewording, a
   clearer example, a correction of grammar, all keep the id; narrowing what is allowed, widening

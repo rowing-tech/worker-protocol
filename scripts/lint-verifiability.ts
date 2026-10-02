@@ -40,6 +40,28 @@ const CLASSES = new Map([
 
 const vocabulary = [...CLASSES].map(([k, meaning]) => `${k} — ${meaning}`).join("\n    ");
 
+/**
+ * The edition the packages encode, which is the latest a rule may say it arrived in.
+ *
+ * Read off `packages/schemas/src/index.ts` as text, because this script has no dependencies and the
+ * constant is one line. A row dated after it is a rule the verifier would skip against every
+ * Worker it can meet, which is DESC-31 turned into a way of never judging anything.
+ */
+const schemasSource = await readFile(join(ROOT, "packages", "schemas", "src", "index.ts"), "utf8");
+const encoded = schemasSource.match(/export const EDITION = "(\d+\.\d+)";/)?.[1];
+if (encoded === undefined) {
+  console.error("packages/schemas/src/index.ts exports no EDITION, so no row can be dated.");
+  process.exit(1);
+}
+
+/** DESC-23: `MAJOR.MINOR`, compared as numbers, MAJOR first. */
+const EDITION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const later = (a: string, b: string) => {
+  const [am, an] = a.split(".").map(Number);
+  const [bm, bn] = b.split(".").map(Number);
+  return am !== bm ? am > bm : an > bn;
+};
+
 /** `spec/README.md`: every file has a prefix, so that two files never race for the same one. */
 const readme = await readFile(join(SPEC, "README.md"), "utf8");
 const prefixOf = new Map<string, string>();
@@ -97,9 +119,9 @@ for (const line of inventory.split("\n")) {
   }
   if (section === null) continue;
 
-  const row = line.match(/^\| ([A-Z]+-\d+) \| (\S+) \|/);
+  const row = line.match(/^\| ([A-Z]+-\d+) \| (\S+) \| ([^|]*?) \|/);
   if (!row) continue;
-  const [, id, klass] = row;
+  const [, id, klass, introduced] = row;
 
   section.rows += 1;
 
@@ -112,6 +134,20 @@ for (const line of inventory.split("\n")) {
 
   if (!CLASSES.has(klass)) {
     report("conformance/verifiability.md", id, "class", `unknown class \`${klass}\``);
+  }
+
+  // DESC-31: the verifier skips a rule newer than the edition a Worker declares, so a row with no
+  // edition is a rule it cannot place, and one dated after what the packages encode is a rule it
+  // would never judge at all.
+  if (!EDITION.test(introduced)) {
+    report("conformance/verifiability.md", id, "introduced", "`Introduced in` is not MAJOR.MINOR");
+  } else if (later(introduced, encoded)) {
+    report(
+      "conformance/verifiability.md",
+      id,
+      "introduced",
+      `introduced in ${introduced}, after the ${encoded} the packages encode`,
+    );
   }
 
   // A row under the wrong heading files a rule against a file that does not define it.
@@ -206,7 +242,7 @@ const claims: [file: string, pattern: string, expected: string][] = [
   ["README.md", "this edition has issued, (\\d+) are withdrawn", `${retired}`],
   ["conformance/README.md", "over a specification of (\\d+) rules", `${all}`],
   ["conformance/README.md", "Today that would be (\\d+) of them", `${W + H}`],
-  ["conformance/README.md", "nineteen of the ([\\w-]+) rules the register marks", spell(H)],
+  ["conformance/README.md", "twenty-one of the ([\\w-]+) rules the register marks", spell(H)],
   ["conformance/README.md", "verdict for the ([\\w-]+) rules that bind somebody", spell(P)],
   ["conformance/verifiability.md", "^(\\d+) rules across", `${all}`],
   ["conformance/verifiability.md", "rules across (\\w+) files", files],

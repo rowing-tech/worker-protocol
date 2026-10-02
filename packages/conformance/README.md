@@ -98,16 +98,26 @@ issued to the same holder, a Worker that started moments ago. The arrangement ca
 protocol — putting test scaffolding into a Descriptor would make every Worker in the network carry
 it — so it arrives the way the base URL and the credential do: out of band, from whoever set it up.
 
-`arrangement` takes `safeAction`, `refusedInput`, `asyncAction`, `secondCredential`,
-`consumerCredential`, `unprivilegedCredential`, `justStarted`, `replaceableSettings` and
-`publishedEvent`. Anything not arranged reports `notExercised` naming what was missing.
+`arrangement` takes `safeAction`, `secondSafeAction`, `refusedInput`, `asyncAction`,
+`secondCredential`, `otherCallerCredential`, `consumerCredential`, `unprivilegedCredential`,
+`justStarted`, `replaceableSettings` and `publishedEvent`. Anything not arranged reports
+`notExercised` naming what was missing.
+
+A safe Action may carry an `otherInput`: a second input its schema accepts, which ENDP-17, ENDP-34
+and ENDP-35 send under the same key. The two scope rules play two callers, so they also need
+`otherCallerCredential` — a credential the Worker attributes to somebody other than the recorded
+caller, which `secondCredential`, issued to the same holder, is not — and an Action safe to perform
+for each origin a key can come from: `secondSafeAction` is the one whose key comes from the origin
+`safeAction`'s does not.
 
 ## Editions
 
 The verifier declares which edition it holds, and the report carries both that and what the Worker
 declared. A verifier that does not hold the Worker's MAJOR verifies **nothing** and reports that it
 is the one that is behind — rather than failing a Worker for a surface added after this tool was
-built.
+built. Against a Worker that declares an earlier MINOR it judges only the rules that edition
+contains (DESC-31): each rule added since is `notExercised`, naming the edition that introduced
+it, and every rule records that edition as `introducedIn` in the universe below.
 
 The rule universe travels inside this package, generated from the specification, and `universe()`
 hands it back: the rules, the error codes, and the map from a place inside a document to the rule

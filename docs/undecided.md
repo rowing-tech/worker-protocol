@@ -32,9 +32,3 @@ back — so that when the answer lands, both places know.
   answer; the console is another.
 - **How much the protocol recognizes about Workers that talk to people**, beyond what it recognizes
   about any worker.
-- **Whether an idempotency key is scoped to the caller that presented it, or is global to the
-  Action.** A key a caller invents is its own, and two callers sending the same string mean two
-  different things; a key read from a declared field of the payload is often a natural identity
-  that any caller would send for the same fact, and deduplicating across callers is the point of
-  it. The two cases pull opposite ways and the declaration does not yet say which applies. Listed
-  in [spec/endpoints.md](../spec/endpoints.md).

@@ -1,6 +1,6 @@
 import { actionsEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
-import type { Arrangement } from "../index.ts";
+import type { Arrangement, SafeAction } from "../index.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
@@ -42,6 +42,8 @@ export const CLAIMS = [
   "ENDP-12",
   "ENDP-16",
   "ENDP-17",
+  "ENDP-34",
+  "ENDP-35",
 ] as const;
 
 type Declaration = {
@@ -166,6 +168,8 @@ export async function checkActions(
       "ENDP-12",
       "ENDP-16",
       "ENDP-17",
+      "ENDP-34",
+      "ENDP-35",
     ]) {
       say(id, "notExercised", "the verifier was not permitted to POST to this Worker");
     }
@@ -356,15 +360,30 @@ async function checkArranged(
 
       // ENDP-17: a key reused with a different body is `409`. Only the caller can tell a retry
       // from a genuine repeat, and this is the Worker refusing to guess.
-      const other = JSON.stringify({ ...(safe.input as object), "conformance-probe": true });
+      //
+      // The second body is the operator's where one was named. The probe is the fallback, and it
+      // is a body the verifier invented: a schema that admits no extra member refuses it with
+      // `400` before the key is looked at, which says nothing about ENDP-17 either way.
+      const other =
+        safe.otherInput === undefined
+          ? JSON.stringify({ ...(safe.input as object), "conformance-probe": true })
+          : JSON.stringify(withKey(safe, declaration?.idempotency));
       const reused = await post(query(safe.name), other, "the same key with another body", {
         headers,
         permanent: true,
       });
       if (reused.status === 409) say("ENDP-17", "passes");
+      else if (reused.status === 400 && safe.otherInput === undefined)
+        say(
+          "ENDP-17",
+          "notExercised",
+          "the Action's schema refused the probe body; name an `otherInput` for it",
+        );
       else say("ENDP-17", "fails", `answered ${reused.status}, not 409`);
     }
   }
+
+  await checkScope({ actions, arrangement, post, say });
 
   // ACT-9 and ENDP-12: an input that matches the schema and that the Worker will not accept on its
   // own rules. ENDP-12 needs BOTH halves — a 400 for a body it could not read and a 422 for one it
@@ -407,5 +426,119 @@ async function checkArranged(
     if (answer.status === 202 && answer.body.length === 0) say("ACT-11", "passes");
     else if (answer.status !== 202) say("ACT-11", "fails", `answered ${answer.status}, not 202`);
     else say("ACT-11", "fails", "answered 202 with a body");
+  }
+}
+
+type Idempotency = Declaration["idempotency"];
+
+/**
+ * A second input carrying the first one's key, where the key is read from the input.
+ *
+ * ENDP-17 and ENDP-35 need a different body under the SAME key, and for an input key the key is a
+ * member of the body. The verifier knows the declared member, so it copies the value rather than
+ * trusting the operator to have kept the two in step; a header key travels beside the body and the
+ * input is sent as given.
+ */
+const withKey = ({ input, otherInput: other }: SafeAction, idempotency: Idempotency): unknown => {
+  if (idempotency?.from !== "input" || idempotency.member === undefined) return other;
+  if (typeof other !== "object" || other === null || typeof input !== "object" || input === null) {
+    return other;
+  }
+  return {
+    ...(other as Record<string, unknown>),
+    [idempotency.member]: (input as Record<string, unknown>)[idempotency.member],
+  };
+};
+
+/**
+ * ENDP-34 and ENDP-35: whose a key is, judged by playing two callers.
+ *
+ * A header key is the caller's, so the other caller posting another body under it is performed. An
+ * input key is the Action's, so the other caller posting another body carrying it is `409`. Both
+ * need a body that differs, because with the same body a replay and a fresh performance answer
+ * alike from outside; and both need a credential the Worker attributes to somebody else, which only
+ * its operators can hand over.
+ */
+async function checkScope({
+  actions,
+  arrangement,
+  post,
+  say,
+}: {
+  actions: Record<string, Declaration>;
+  arrangement: Arrangement;
+  post: (
+    parameters: string,
+    body: string,
+    intent: string,
+    extra?: { headers?: HeadersInit; permanent?: boolean },
+  ) => Promise<{ status: number; body: string; json: unknown }>;
+  say: (id: string, verdict: "passes" | "fails" | "notExercised", detail?: string) => void;
+}): Promise<void> {
+  const query = (name: string) => `?action=${encodeURIComponent(name)}`;
+  const other = arrangement.otherCallerCredential;
+  const candidates = [arrangement.safeAction, arrangement.secondSafeAction].filter(
+    (one): one is NonNullable<typeof one> => one !== undefined,
+  );
+  const from = (origin: "header" | "input") =>
+    candidates.find((one) => actions[one.name]?.idempotency?.from === origin);
+
+  for (const [id, origin] of [
+    ["ENDP-34", "header"],
+    ["ENDP-35", "input"],
+  ] as const) {
+    const safe = from(origin);
+    if (other === undefined) {
+      say(id, "notExercised", "no credential of another caller was given to the verifier");
+      continue;
+    }
+    if (safe === undefined) {
+      say(id, "notExercised", `no Action safe to perform reads its key from the ${origin}`);
+      continue;
+    }
+    if (safe.otherInput === undefined) {
+      say(id, "notExercised", `no \`otherInput\` was named for \`${safe.name}\``);
+      continue;
+    }
+
+    const idempotency = actions[safe.name]?.idempotency;
+    const first = JSON.stringify(safe.input);
+    const second = JSON.stringify(withKey(safe, idempotency));
+    if (first === second) {
+      say(id, "notExercised", "`otherInput` carrying the key is the same body as `input`");
+      continue;
+    }
+    // A fresh header key, so nothing an earlier run recorded is what this one meets. An input key
+    // is the input's, and a replay of an earlier run's identical body is as good a record as any.
+    const headers: Record<string, string> =
+      origin === "header" ? { "idempotency-key": `conformance-scope-${Date.now()}` } : {};
+
+    const done = await post(query(safe.name), first, `\`${safe.name}\`, as the recorded caller`, {
+      headers,
+    });
+    if (done.status < 200 || done.status > 299) {
+      say(id, "notExercised", `the recorded caller's performance answered ${done.status}`);
+      continue;
+    }
+    const answer = await post(
+      query(safe.name),
+      second,
+      `\`${safe.name}\`, another body under the same key, as another caller`,
+      { headers: { ...headers, authorization: `Bearer ${other}` } },
+    );
+
+    if (origin === "header") {
+      // ENDP-34: another caller's string is another key, so this is a performance of its own.
+      if (answer.status >= 200 && answer.status <= 299) say(id, "passes");
+      else if (answer.status === 409 || answer.status === 503)
+        say(id, "fails", `answered ${answer.status}: another caller's key met the first one's`);
+      else say(id, "notExercised", `the other caller's post answered ${answer.status}`);
+    } else {
+      // ENDP-35: an input key names the same performance whoever sends it.
+      if (answer.status === 409) say(id, "passes");
+      else if (answer.status >= 200 && answer.status <= 299)
+        say(id, "fails", `answered ${answer.status}: the key was scoped to the caller`);
+      else say(id, "notExercised", `the other caller's post answered ${answer.status}`);
+    }
   }
 }

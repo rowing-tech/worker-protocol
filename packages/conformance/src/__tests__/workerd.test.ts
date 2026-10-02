@@ -61,7 +61,7 @@ describe("the verifier inside a Worker runtime, with no Node in it", () => {
   it("reports on the whole universe, from the module rather than from a file", () => {
     // Every rule has a verdict, so the universe arrived intact. And most of the `W` rules were
     // judged, so the run was a run rather than a Descriptor that never loaded.
-    expect(new Set(report.results.map((one) => one.rule.id)).size).toBe(164);
+    expect(new Set(report.results.map((one) => one.rule.id)).size).toBe(167);
     const judged = report.results.filter(
       (one) => one.rule.reach === "W" && (one.verdict === "passes" || one.verdict === "fails"),
     );

@@ -364,11 +364,13 @@ other to carry: it exists because something is true, and it is gone when that st
 operator needs from it is *how long*, because a Task open since Tuesday is one nobody has answered
 — the same reading an Alert's `since` gets, for the same reason.
 
-**Two consumers may answer the same Task, and this protocol does not prevent it.** An Action that
-declares an idempotency key is performed once however many times it is posted, and a condition a
-first answer resolved is not there for a second. Where the work is expensive, or physical, or paid
-for, the consumers of it coordinate among themselves — which is the party that can, since two
-people in one teams app are two people in one application.
+**Two consumers may answer the same Task, and this protocol does not prevent it.** An Action whose
+idempotency key is read from its input is performed once within the window it declares, however
+many times it is posted and by however many callers, and a condition a first answer resolved is not
+there for a second. A key from the header is each caller's own, so two consumers' answers under two
+header keys are two performances. Where the work is expensive, or physical, or paid for, the
+consumers of it coordinate among themselves — which is the party that can, since two people in one
+teams app are two people in one application.
 
 *This is where a Claim used to be: an exclusive lease a consumer took on a Task, with an expiry, a
 fencing token and counts of what had failed. Sixteen rules of it are withdrawn, and

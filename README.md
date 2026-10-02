@@ -127,7 +127,7 @@ which of the three artifacts above is normative and what each is for, the surfac
 when no SDK exists for your language — both headers, the error envelope and its eighteen codes, the
 page envelope and its cursor, version negotiation, the idempotency window — the gotchas that hold
 whatever it is written in, and the verification loop. For C#, Python or Go that is the whole of what
-exists at edition 0.2, and it says so rather than implying otherwise.
+exists at edition 0.3, and it says so rather than implying otherwise.
 
 **[`worker-protocol-hono`](skills/worker-protocol-hono)** is the TypeScript layer on top:
 `defineWorker`, `action()`, the outcome store, what `mount()` carries against what a Worker still
@@ -139,25 +139,26 @@ each publishes its own second skill and refers back to the first rather than res
 
 ## Status
 
-**Edition 0.2**, which added `logs` — the first surface here that answers in the past tense. Every
-rule carries an id, and from the edition that publishes it that id is fixed: a rewrite that could
-change a verdict takes a new one and withdraws the old, so a conformance report stays true however
-long after it was produced somebody reads it.
+**Edition 0.3**, which settles whose an idempotency key is — the caller's when it is read from the
+header, the Action's when it is read from the input — and has a verifier judge a Worker only by the
+rules of the edition it declares. Every rule carries an id, and from the edition that publishes it
+that id is fixed: a rewrite that could change a verdict takes a new one and withdraws the old, so a
+conformance report stays true however long after it was produced somebody reads it.
 
 Every file in `spec/` is `draft` rather than `stable`, and that is a statement about shape and not
 about trust. Each still carries a `Still open here` section, which is what `stable` would have to
 be empty of. What `draft` means here is what the table above says: shaped and implementable, still
 moving — and moving now costs a withdrawal rather than a silent edit.
 
-What stands behind that: 164 rules, every one classified in
+What stands behind that: 167 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
 is broken, and every one of the 95 a tool can observe against an ordinary Worker checked by
-[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 21 need a
+[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 23 need a
 Worker *arranged* to be observed — a second credential, a boot window, an Action safe to perform, a
 Worker that records something when it is read — and pass when that arrangement is handed to the
 verifier out of band, as the base URL and the credential already are.
 
-The remaining 48 are reported rather than passed, and the two kinds are not the same: 26 bind a
+The remaining 49 are reported rather than passed, and the two kinds are not the same: 27 bind a
 party who is not a Worker, so this tool never contacted whoever they oblige, and 22 have no witness
 anywhere.
 

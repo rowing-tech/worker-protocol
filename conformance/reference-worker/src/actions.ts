@@ -1,9 +1,10 @@
 /**
  * The `actions` Capability, arranged to be checked.
  *
- * Four Actions, and each is here because a rule needs one of its shape: one that is safe to
- * perform, one that refuses a schema-valid input on its own rules (ACT-9), one that does not
- * complete within the call (ACT-11), and `configure`. A Worker built for use would declare what
+ * Five Actions, and each is here because a rule needs one of its shape: two that are safe to
+ * perform, one keyed by the header and one by its input (ENDP-34, ENDP-35), one that refuses a
+ * schema-valid input on its own rules (ACT-9), one that does not complete within the call
+ * (ACT-11), and `configure`. A Worker built for use would declare what
  * its operators need; this one declares what `conformance/verifiability.md` says nothing can
  * otherwise observe.
  *
@@ -53,6 +54,14 @@ export function createActions(verify: (vehicle: string) => void) {
         verify(vehicle);
         return { recordedAt: new Date().toISOString() };
       },
+    }),
+    "record-reading": action({
+      input: z.object({ reading: z.string().min(1), value: z.number() }),
+      result: z.object({ recordedAt: z.string() }),
+      // ENDP-35: a reading carries its own identity, so the key is a member of the input, and any
+      // caller reporting the same reading names the same performance.
+      idempotency: { required: true, from: "input", member: "reading", windowSeconds: 3600 },
+      run: () => ({ recordedAt: new Date().toISOString() }),
     }),
     "price-quote": action({
       input: z.object({ amount: z.number() }),

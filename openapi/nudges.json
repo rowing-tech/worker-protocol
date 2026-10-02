@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — nudges",
-    "version": "0.2",
+    "version": "0.3",
     "description": "Being told there is work of a Task type. Declaring it is optional and what it buys is latency: a consumer that reads on its own schedule is slower and never wrong (TASK-19).",
     "license": {
       "name": "Apache-2.0",

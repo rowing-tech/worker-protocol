@@ -1,7 +1,7 @@
 {
   "name": "@worker-protocol/hono",
-  "version": "0.4.0",
-  "workerProtocolEdition": "0.2",
+  "version": "0.5.0",
+  "workerProtocolEdition": "0.3",
   "description": "The protocol's surface as Hono routes, and mount(): a Worker author implements an interface and gets every address, header and refusal this protocol fixes",
   "keywords": [
     "worker-protocol",
