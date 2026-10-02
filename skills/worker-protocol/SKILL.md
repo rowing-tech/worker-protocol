@@ -81,7 +81,9 @@ whose reason is understood is one that survives a refactor.
 ### Identity and the Descriptor
 
 - **The edition is `MAJOR.MINOR` and describes the protocol, not the package version** (DESC-23).
-  Declare exactly one. A reader that does not hold the MAJOR verifies nothing and says so (DESC-25).
+  Declare exactly one. A reader that does not hold the MAJOR verifies nothing and says so (DESC-25);
+  one holding a later MINOR judges the Worker only by the rules its declared edition contains
+  (DESC-31), so declare the edition the Worker was built and verified against, not the newest.
 - **The `id` is a constant the Worker is deployed with**, never the URL and never derived from it
   (DESC-6, DESC-27). Moving hosts must not make it another Worker, and no two share an id (NAME-9).
 - **A relative address resolves against `<base>/.well-known/worker-protocol`**, not the base URL
@@ -116,6 +118,11 @@ whose reason is understood is one that survives a refactor.
 - **Skills sit at the Descriptor's root, not inside the `tasks` entry** (TASK-31). `skills` is what
   this Worker does for others; `tasks` is what it needs done. A Worker that only answers others'
   Tasks declares `skills` and no `tasks` at all.
+- **A header idempotency key is the caller's; an input key is the Action's** (ENDP-34, ENDP-35).
+  Record a header key under whoever your authentication decided is calling — not under the token,
+  which changes on rotation, and not globally, which hands one caller another's outcome or a `409`
+  it did not cause. An input key names the same performance whoever sends it, which is what makes
+  two consumers answering one Task count as one: key that Action's answer from its input.
 - **`configure` is the one reserved Action name**, and it replaces the whole settings document. Pair
   it with a reading address for the same document (ACT-15), or a console shows an operator an empty
   form and every field they forget resets. Keep secrets out of it by value.
@@ -168,9 +175,17 @@ WORKER_PROTOCOL_CREDENTIAL=<token> npx @worker-protocol/conformance <base-url>
   one rather than changing the Worker.
 
 Read the counts, not only the failures. `notExercised` is not a failure — the Capability is not
-declared, or the rule needs the Worker *arranged* (an Action safe to perform, a second credential)
-and nobody arranged it. `--may-perform` lets the verifier POST to Actions and is off by default.
-`unverified` and `otherSubject` are rules no tool pointed at a Worker can judge.
+declared, the rule was introduced after the edition the Worker declares (DESC-31), or the rule needs
+the Worker *arranged* (an Action safe to perform, a second credential) and nobody arranged it.
+`--may-perform` lets the verifier POST to Actions and is off by default. `unverified` and
+`otherSubject` are rules no tool pointed at a Worker can judge.
+
+An arrangement is handed to `verify()` from `@worker-protocol/conformance`, not to the CLI. The key
+scope rules need the most of it: `otherCallerCredential`, a credential your authentication
+attributes to somebody other than the recorded caller; an `otherInput` on the safe Action, a second
+input its schema accepts; and `secondSafeAction` when one Action takes its key from the header and
+another from the input. A Worker with a single caller has no such credential, and the report says
+so rather than failing it.
 
 Prefer the environment variable to `--credential`: argv is readable by every process on the machine.
 `--json` writes the report for CI to keep.

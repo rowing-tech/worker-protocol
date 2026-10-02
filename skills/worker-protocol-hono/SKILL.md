@@ -109,12 +109,12 @@ Read `references/members.md` for the signature of each member, and
 | `mount()` writes it, the same in every Worker | The Worker writes it, because only it knows |
 |---|---|
 | The Descriptor, every address, the edition, both headers | `id`, and which Capabilities exist |
-| `Authorization: Bearer` everywhere, `401` and `403` | `authenticate(token)` → accepted (with a `principal`, or not) / unauthenticated / forbidden |
+| `Authorization: Bearer` everywhere, `401` and `403` | `authenticate(token)` → accepted (with a `principal` and a `caller`, or not) / unauthenticated / forbidden |
 | The error envelope, every code with its status and class | An `unprocessable_content` refusal from `run` |
 | Page envelope, cursor, cap, order, unknown-filter refusal | Which Tasks, Alerts and activities exist right now |
 | Metric parameters, half-open intervals, buckets in the zone | The value in each bucket |
 | Input validation, and the JSON Schema in the Descriptor | The Zod object, and what `run` does |
-| Key required, repeat replayed, key reused with another body | Where outcomes are recorded (`actions.outcomes`) |
+| Key required, repeat replayed, key reused with another body, a header key scoped to its caller | Where outcomes are recorded (`actions.outcomes`), and who the caller is |
 | Nudge body shape, `404` for an undeclared Skill, `204` | What to do when told there is work |
 
 ## Reference
