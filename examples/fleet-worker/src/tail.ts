@@ -1,5 +1,6 @@
+import { tailRecords } from "@worker-protocol/cloudflare";
 import type { Env } from "./env.ts";
-import { fleetOf, type LogRow } from "./fleet.ts";
+import { fleetOf } from "./fleet.ts";
 
 /**
  * The second Worker: what `fleet-worker` cannot record about itself.
@@ -39,36 +40,10 @@ const MOST_PER_BATCH = 100;
 
 export default {
   // Only `FLEET`, because only `FLEET` is what `wrangler.tail.jsonc` binds: this is another Worker,
-  // and the producer's Queue is not in its environment.
+  // and the producer's Queues are not in its environment.
   async tail(events: TraceItem[], env: Pick<Env, "FLEET">): Promise<void> {
-    const lines: LogRow[] = [];
-
-    for (const event of events) {
-      const at = event.eventTimestamp ?? Date.now();
-
-      // What the producer never saw, because it is what stopped it seeing anything else.
-      for (const thrown of event.exceptions) {
-        lines.push({
-          at: thrown.timestamp ?? at,
-          level: "error",
-          message: `uncaught ${thrown.name}: ${String(thrown.message)}`,
-          fields: { script: event.scriptName ?? "unknown", outcome: event.outcome },
-        });
-      }
-
-      // `ok` is the ordinary case and says nothing an operator needs; `canceled` is a client that
-      // hung up, which is not the Worker's fault and is still worth knowing when it is happening a
-      // hundred times an hour. `exceededCpu` is the one nothing inside the Worker can report, ever.
-      if (event.outcome !== "ok" && event.exceptions.length === 0) {
-        lines.push({
-          at,
-          level: event.outcome === "canceled" ? "warn" : "error",
-          message: `the invocation ended \`${event.outcome}\``,
-          fields: { script: event.scriptName ?? "unknown", outcome: event.outcome },
-        });
-      }
-    }
-
+    // What to record is `tailRecords`'s decision, and it is the same for any Worker on Cloudflare.
+    const lines = tailRecords(events);
     if (lines.length === 0) return;
     // One RPC for the batch, which is what a tail event already is: Cloudflare hands over several
     // invocations at once, and a write per invocation would multiply the store's cost by the

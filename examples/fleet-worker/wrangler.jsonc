@@ -13,16 +13,29 @@
     "bindings": [{ "name": "FLEET", "class_name": "Fleet" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fleet"] }],
-  // SUB-12: every delivery to a subscriber is one message, and `eventHub().deliver` decides whether
-  // to retry it and after how long — never past EVT-8's window. `max_retries` is the ceiling over
-  // that decision, not the decision: the default of 3 would end a delivery the hub still wanted to
-  // make, so it is the platform's maximum. Backing off from 2 seconds within an hour takes about a
-  // dozen; only a sink that keeps asking for a short `Retry-After` reaches the ceiling. There is no
-  // dead-letter queue, because nothing could do anything with what landed there: the event's window
-  // is closing, and redelivering it later is what EVT-8 forbids.
+  // Two Queues between the outbox and a sink, and where what is given up is kept. Every event an
+  // object flushes goes onto `fleet-events`; its consumer reads the subscriptions once per batch and
+  // leaves one delivery per matching subscription on `fleet-deliveries`, whose consumer makes the
+  // attempt (`consumeQueues` in `@worker-protocol/cloudflare`).
+  //
+  // `eventHub().deliver` decides whether to retry a delivery and after how long, never past EVT-8's
+  // window, so `max_retries` is the ceiling over that decision and not the decision: the default
+  // of 3 would end a delivery the hub still wanted to make, so it is the platform's maximum.
+  //
+  // `fleet-dead` holds what is given up — a delivery refused for good or out of its window, sent
+  // there by the consumer with the reason, and a message the platform drops after its last retry,
+  // sent there because each consumer names it. It has no consumer: it is for somebody to inspect,
+  // and redriving an event past its window is what EVT-8 forbids.
   "queues": {
-    "producers": [{ "binding": "DELIVERIES", "queue": "fleet-deliveries" }],
-    "consumers": [{ "queue": "fleet-deliveries", "max_retries": 100 }]
+    "producers": [
+      { "binding": "EVENTS", "queue": "fleet-events" },
+      { "binding": "DELIVERIES", "queue": "fleet-deliveries" },
+      { "binding": "DEAD", "queue": "fleet-dead" }
+    ],
+    "consumers": [
+      { "queue": "fleet-events", "max_retries": 100, "dead_letter_queue": "fleet-dead" },
+      { "queue": "fleet-deliveries", "max_retries": 100, "dead_letter_queue": "fleet-dead" }
+    ]
   },
   // The Worker that records what this one cannot record about itself — an uncaught exception, an
   // invocation that ran out of CPU — because by then it has stopped running. `wrangler.tail.jsonc`

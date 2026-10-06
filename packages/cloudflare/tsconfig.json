@@ -1,0 +1,14 @@
+{
+  "//": "Type-checks the package and its tests. It emits nothing: tsconfig.build.json does. The runtime globals come from worker-configuration.d.ts, which `wrangler types` writes from wrangler.jsonc before tsc runs — the test Worker's config, which is also the only reason this package has one.",
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": ["@cloudflare/vitest-pool-workers/types"]
+  },
+  "include": ["src", "test", "worker-configuration.d.ts"]
+}

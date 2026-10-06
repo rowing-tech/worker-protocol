@@ -2,6 +2,7 @@ import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { fleetOf, QUIET_AFTER_MS } from "../src/fleet.ts";
+import { captureEvents } from "./outbound.ts";
 
 /**
  * The protocol's surfaces, over the deployed Worker.
@@ -87,6 +88,9 @@ describe("the Facts, read across isolates", () => {
     const healthy = (await (await at("/health")).json()) as { status: string };
     expect(healthy.status).toBe("healthy");
 
+    // The events Queue is down, so what the readings raise stays in the outbox.
+    const queue = await captureEvents(fleet());
+    queue.failing = true;
     const now = Date.now();
     await fleet().ingest(
       Array.from({ length: 25 }, (_, i) => ({ vehicle: `Q-${i}`, at: now - 20 * MINUTE })),
@@ -105,6 +109,8 @@ describe("the Facts, read across isolates", () => {
     // ALRT-2: the same condition an operator should see, while it holds.
     const alerts = (await (await at("/alerts")).json()) as { items: { id: string }[] };
     expect(alerts.items.map((one) => one.id)).toContain("outbox-backed-up");
+    // The one object is shared with the tests below, so its Queue works again for them.
+    queue.failing = false;
   });
 });
 

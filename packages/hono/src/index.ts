@@ -53,6 +53,7 @@ export {
   type DeliveryQueue,
   type EndReason,
   eventHub,
+  type GaveUp,
   holds,
   LIFECYCLE,
   lifecycleChanges,

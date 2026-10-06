@@ -87,12 +87,25 @@ export type Delivery = {
   attempt: number;
 };
 
-/** What `deliver()` decided: finished, either way, or try again after this many seconds. */
-export type DeliveryOutcome = { done: true } | { retryAfterSeconds: number };
+/**
+ * Why a delivery was given up while its subscription still wanted it: the sink refused it for good
+ * (SUB-12), EVT-8's window closed before it could arrive, or the subscription itself was abandoned
+ * on this attempt (SUB-14). `status` is the sink's last answer, `null` where none came.
+ */
+export type GaveUp = { reason: "refused" | "expired" | "abandoned"; status: number | null };
+
+/**
+ * What `deliver()` decided: finished, or try again after this many seconds. A delivery finished
+ * without arriving says so in `gaveUp`, so whatever carries it can keep the event for somebody to
+ * inspect — a delivery that is simply no longer owed, to a subscription since ended, carries none.
+ */
+export type DeliveryOutcome = { done: true; gaveUp?: GaveUp } | { retryAfterSeconds: number };
 
 /** Carries a delivery to whatever runs `deliver()` on it, and retries it when told to. */
 export type DeliveryQueue = {
   send: (delivery: Delivery) => Promise<void> | void;
+  /** Many at once, where the carrier can: a Cloudflare Queue takes a hundred in one call. */
+  sendBatch?: (deliveries: Delivery[]) => Promise<void> | void;
 };
 
 /** What a call to the address knows about who is calling. */
@@ -346,30 +359,55 @@ export function eventHub(worker: Publisher) {
     );
   };
 
-  return {
-    /**
-     * Publishes one event to every live subscription that names its type and whose filters hold
-     * (SUB-13), and answers the event as it was sent. A type the `events` entry does not declare
-     * is refused before anything is sent: publishing it would break EVT-12, and the mistake is in
-     * the Worker's own code, where a throw is what reaches whoever wrote it.
-     */
-    async publish(published: Publishable): Promise<CloudEvent> {
-      if (!declared.has(published.type)) {
-        throw new Error(`EVT-12: ${published.type} is not declared under \`events.publishes\`.`);
-      }
-      const at = Date.now();
-      const event = envelope(published, at);
-      // `forType` answers live subscriptions only, and the deliveries are independent of each other:
-      // the queue promises no order between them, so they are handed over together.
-      const matching = (await facts.store.forType(event.type)).filter((one) =>
-        matches(one.filters, event),
-      );
+  /**
+   * Publishes every event to every live subscription that names its type and whose filters hold
+   * (SUB-13), and answers the events as they were sent. A type the `events` entry does not declare
+   * is refused before anything is sent: publishing it would break EVT-12, and the mistake is in
+   * the Worker's own code, where a throw is what reaches whoever wrote it.
+   */
+  const publishAll = async (batch: Publishable[]): Promise<CloudEvent[]> => {
+    const undeclared = batch.find((one) => !declared.has(one.type));
+    if (undeclared !== undefined) {
+      throw new Error(`EVT-12: ${undeclared.type} is not declared under \`events.publishes\`.`);
+    }
+    const at = Date.now();
+    const events = batch.map((one) => envelope(one, at));
+    // The store is asked once per type rather than once per event: a batch of a hundred events of
+    // three types is three reads, which is the point of publishing a batch at all. `forType`
+    // answers live subscriptions only.
+    const types = [...new Set(events.map((event) => event.type))];
+    const subscribed = new Map(
       await Promise.all(
-        matching.map((one) =>
-          facts.queue.send({ subscription: one.id, event, publishedAt: at, attempt: 1 }),
-        ),
-      );
-      return event;
+        types.map(async (type) => [type, await facts.store.forType(type)] as const),
+      ),
+    );
+    const deliveries = events.flatMap((event) =>
+      (subscribed.get(event.type) ?? [])
+        .filter((one) => matches(one.filters, event))
+        .map((one) => ({ subscription: one.id, event, publishedAt: at, attempt: 1 })),
+    );
+    // The deliveries are independent of each other — the queue promises no order between them —
+    // so they are handed over together.
+    if (deliveries.length === 0) return events;
+    if (facts.queue.sendBatch !== undefined) await facts.queue.sendBatch(deliveries);
+    else await Promise.all(deliveries.map((one) => facts.queue.send(one)));
+    return events;
+  };
+
+  return {
+    publishAll,
+
+    /**
+     * EVT-12: whether the `events` entry declares this type — what `publishAll` refuses a batch
+     * over. A carrier asks first, so one undeclared event is set aside rather than failing the
+     * events beside it.
+     */
+    declares: (type: string): boolean => declared.has(type),
+
+    /** `publishAll` for one event, which is how a Worker publishing as Facts change calls it. */
+    async publish(published: Publishable): Promise<CloudEvent> {
+      const [event] = await publishAll([published]);
+      return event as CloudEvent;
     },
 
     /** One delivery attempt, and what to do next (SUB-12, SUB-14). */
@@ -404,16 +442,22 @@ export function eventHub(worker: Publisher) {
       if (subscription.failingSince === undefined) {
         await facts.store.update(subscription.id, { failingSince });
       }
+      const status = answer?.status ?? null;
+      const giveUp = (reason: GaveUp["reason"]): DeliveryOutcome => ({
+        done: true,
+        gaveUp: { reason, status },
+      });
       if (now - failingSince >= facts.abandonAfterSeconds * 1000) {
         await end(subscription, "abandoned");
-        return done;
+        return giveUp("abandoned");
       }
-      if (expired || !retryable(answer?.status ?? null)) return done;
+      if (expired) return giveUp("expired");
+      if (!retryable(status)) return giveUp("refused");
 
       // SUB-12: backoff, or what the sink asked for, and never past EVT-8's window.
       const asked = retryAfter(answer?.headers.get("retry-after") ?? null, now);
       const wait = asked ?? Math.min(2 ** delivery.attempt, 3600);
-      return now + wait * 1000 < closes ? { retryAfterSeconds: wait } : done;
+      return now + wait * 1000 < closes ? { retryAfterSeconds: wait } : giveUp("expired");
     },
   };
 }

@@ -62,11 +62,13 @@ against its own reference Worker in CI.
 
 ## A Cloudflare package
 
-**Decided 2026-10-06, and checked against a real Worker.** What a Worker on Cloudflare writes to put
-the protocol's stores in Durable Objects becomes `@worker-protocol/cloudflare`. It is built now, in
-`packages/cloudflare` with `private: true`, and `examples/fleet-worker` imports it; it is published
-once `fleet-worker` has run on a real Cloudflare account — its two Queues, its dead-letter queue,
-an alarm and a real sink — rather than only on workerd in tests.
+**Decided 2026-10-06, checked against a real Worker, and built.** What a Worker on Cloudflare writes
+to put the protocol's stores in Durable Objects is `@worker-protocol/cloudflare`, in
+`packages/cloudflare` with `private: true`, and `examples/fleet-worker` is built on it; its
+reasoning now sits in that package and its README. **Still to do:** deploy `fleet-worker` on a real
+Cloudflare account — its two Queues, its dead-letter queue, an alarm retrying an outbox and a real
+sink — and then publish the package, adding it to `publish.yml` and to the release procedure in
+`packages/README.md`. The entry leaves this list when it is published.
 
 The shape was decided against `soriana-trip-tracker-workers`, the first Worker on this protocol in
 production, and that changed it. It does not keep one object: it keeps one `Asset` object per
@@ -87,10 +89,13 @@ them in exactly one.
   today, and the copy lives for the seconds it takes to leave.
 - **It drains when the call ends and retries by the one alarm.** The domain calls `flush()` at the
   end of a method; a failed send schedules the alarm. A Durable Object has one alarm, so the
-  domain asks for its own through `wakeAt(at)`, which keeps the earliest, and calls `super.alarm()`
-  from its `alarm()`, which drains first — what Soriana does by hand for its deletion and its
-  outbox, made general. A retry from the Worker's cron was rejected: with an object per vehicle,
-  the cron would need an index of which objects have something pending.
+  domain asks for its own through `wakeAt(at)`, and the alarm fires at the earlier of that and the
+  outbox's retry — what Soriana does by hand for its deletion and its outbox, made general. Built,
+  the domain overrides `wake()` rather than calling `super.alarm()` from its own `alarm()`: the
+  mixin's alarm drains the outbox and calls `wake()` only when the domain's instant has come, so a
+  domain that forgot the `super` call cannot silently stop the retries. A retry from the Worker's
+  cron was rejected: with an object per vehicle, the cron would need an index of which objects have
+  something pending.
 - **Fan-out happens in the consumer of an events Queue.** `flush()` sends events to an events Queue
   with `sendBatch`. Its consumer reads the subscriptions once per batch — up to a hundred events
   for one call to the object that holds them — and leaves one delivery per matching subscription on

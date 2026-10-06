@@ -16,7 +16,10 @@ two.
 
 [src/fleet.ts](src/fleet.ts) is the Durable Object all five live in. [src/worker.ts](src/worker.ts)
 is the Worker over it, and is the file to read beside `minimal-worker` to see what changed: the
-declarations are identical and the Facts come from somewhere else.
+declarations are identical and the Facts come from somewhere else. What is the protocol's in that
+object — the outcomes, the subscriptions, the outbox and the records — comes from
+[`@worker-protocol/cloudflare`](../../packages/cloudflare), one mixin per piece, and what is left in
+the file is the domain.
 
 ## The domain
 
@@ -82,12 +85,15 @@ pnpm --filter @worker-protocol/fleet-worker test
 
 Runs [test/](test/) on **workerd**, through `@cloudflare/vitest-pool-workers`: real Durable Objects,
 real input gates, real isolate boundaries. [test/fleet.test.ts](test/fleet.test.ts) reaches the
-object directly — the quiet condition, the outbox, the counters, the reservation ENDP-16 needs.
+object directly — the quiet condition, the events the outbox sends, the counters.
 [test/protocol.test.ts](test/protocol.test.ts) goes through `SELF.fetch`, so the Facts it reads were
 written from a *different isolate*, which is the claim the Durable Object is here to make and which
 no test sharing a process with its Worker can make.
-[test/subscriptions.test.ts](test/subscriptions.test.ts) subscribes, runs a cycle and drives the
-Worker's `queue` handler with a batch, against a sink the test answers.
+[test/subscriptions.test.ts](test/subscriptions.test.ts) subscribes, makes a vehicle quiet, and
+drives the Worker's `queue` handler through both Queues against a sink the test answers. The
+object's events Queue is swapped on the live instance ([test/outbound.ts](test/outbound.ts)), which
+works because the pool runs the object in the test's own isolate. The stores themselves are tested
+in `packages/cloudflare`.
 
 ```
 pnpm --filter @worker-protocol/conformance test
@@ -152,11 +158,11 @@ whichever isolate was running, which is a different thing and a worse one to ser
 the isolate is one window per isolate: a read can land somewhere that never saw the write, which
 passes every local test and is wrong in production.
 
-The records are in SQLite rather than in the key-value API the rest of the object uses, which is the
-one exception and it is deliberate: a read filters by a level floor and a half-open interval (LOG-7,
-LOG-8), and a store that cannot filter would hand the Worker every row so it could throw most of
-them away. `seq` is what makes ENDP-33 free — it only grows, a cursor names one, and a page asks for
-what is below it, so a record written since the last page cannot appear in the next.
+The records are `withLogs` from `@worker-protocol/cloudflare`, in SQL rather than in the key-value
+API the domain uses: a read filters by a level floor and a half-open interval (LOG-7, LOG-8), and a
+store that cannot filter would hand the Worker every row so it could throw most of them away. `seq`
+is what makes ENDP-33 free — it only grows, a cursor names one, and a page asks for what is below
+it, so a record written since the last page cannot appear in the next.
 
 The feed is one feed and LOG-10 answers it to every caller this Worker authenticates, which is
 uncomplicated here because it watches one fleet. Records that belong to a Worker's customers rather
@@ -193,42 +199,56 @@ itself: a Durable Object call is traced like any other — Cloudflare's trace ev
 `worker_rpc` — so the tail's own write comes back here, carrying `outcome: ok` and no exceptions,
 and writes nothing. A version that forwarded the logs would never stop.
 
-Deploy order matters, because the producer resolves its consumer by service name:
+Deploy order matters, because the producer resolves its consumer by service name, and a Queue has to
+exist before a Worker can bind it:
 
 ```
+wrangler queues create fleet-events            # the three Queues, once
+wrangler queues create fleet-deliveries
+wrangler queues create fleet-dead
 wrangler deploy --config wrangler.tail.jsonc   # fleet-tail first
 wrangler deploy                                # then the producer that names it
 ```
+
+**This is the deployment `@worker-protocol/cloudflare` waits on before it is published**:
+`docs/roadmap.md` has the package published once this Worker has run on a real account — the two
+Queues and the dead-letter queue, an alarm retrying an outbox, and a real sink.
 
 **What is not established**, and is the first thing to check against a real deployment: whether a
 tail invocation that throws is retried or dropped. Cloudflare does not document it, and a tail that
 is dropped silently means `/logs` can miss a crash — which is the same honesty the window already
 owes: what it holds, and no claim about what it did not.
 
-## `subscriptions`, on a Durable Object and a Queue
+## `subscriptions`, on a Durable Object and two Queues
 
-`@worker-protocol/hono` leaves two things to the platform, and this is what they are on Cloudflare.
+`@worker-protocol/hono` leaves two things to the platform, and `@worker-protocol/cloudflare` is what
+they are on Cloudflare.
 
 **The store is the Durable Object**, for the reason ENDP-16's is: SUB-7 makes subscribing
 idempotent, so two requests for the same thing must find one subscription, and `ensure` — find the
 live one or store the candidate — is one method on a single-threaded object rather than a read and a
-write that two isolates could interleave. The subscriptions are in SQL, beside the records, because
-every publish asks for the ones naming a type and every list for one caller's, and both are filters.
-A subscription crosses the RPC boundary as JSON: its filters nest, and the stub's types do not
-survive a recursive one.
+write that two isolates could interleave. This Worker has one object, so the subscriptions live in
+it; a Worker with an object per vehicle keeps them in the one it has for the fleet.
 
-**The carrier is a Queue.** `publish()` sends one message per matching subscription; the Worker's
-`queue` handler runs `deliver()` on each and hands its decision back — `retry({ delaySeconds })`
-with the hub's backoff, or `ack()`. The hub decides and bounds every retry by EVT-8's window, so the
-Queue's `max_retries` is set to the platform's maximum: its default of 3 would cut short a delivery
-the hub still wanted to make. Retrying from the Durable Object with alarms was the alternative, and
-was turned down: one alarm per object means keeping a retry queue by hand, with every delivery
-passing through one single-threaded object.
+**An event leaves the object through its outbox.** `ingest` enqueues what the readings raised in
+the same transaction as the readings, and sends it to `fleet-events` before it returns. What that
+Queue does not take stays, in order, and the object's alarm tries again — the cycle has nothing to
+drain any more.
 
-**The outbox publishes to the subscribers first, under the row's own id.** A cycle hands each row to
-`publish()` with the id and instant the row already has, and only then to the broker. A broker that
-is down leaves the row for the next cycle, which delivers it again under the same `source` and `id`
-— a repeat a sink discards, where a fresh id would have been a second event.
+**Two Queues carry it to a sink.** The consumer of `fleet-events` reads the subscriptions once per
+batch, leaves one delivery per matching subscription on `fleet-deliveries`, and then hands the event
+to the broker: subscribers first, so a broker that is down costs them a repeat under the same id,
+which they discard, and never a loss. The consumer of `fleet-deliveries` runs `deliver()` and hands
+its decision back — `retry({ delaySeconds })` with the hub's backoff, or `ack()`. The hub bounds
+every retry by EVT-8's window, so each Queue's `max_retries` is the platform's maximum: its default
+of 3 would cut short a delivery the hub still wanted to make.
+
+**What is given up stays visible.** A delivery refused for good or out of its window goes to
+`fleet-dead` with the reason, as does an event of a type the Worker does not declare, and a record
+of each to `/logs`, where an operator without access to the Cloudflare account reads it; a message
+the platform drops after its last retry reaches `fleet-dead` too, because each consumer names it.
+Nothing consumes `fleet-dead`: it is for somebody to inspect, and redriving an event past its window
+is what EVT-8 forbids.
 
 The typical subscriber is a backend that wants to hear when a Task of one type is raised:
 

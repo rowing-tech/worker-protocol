@@ -133,15 +133,31 @@ which `^0.5.0` does not take.
   from an outbox: a row published again after a broker refused it is the same event to every
   subscriber that already has it, and its `time` is when the Fact changed rather than when the row
   drained.
+- **`@worker-protocol/hono`**: `eventHub().publishAll(events)` publishes a batch, asking the store
+  once per type rather than once per event, and hands every delivery over in one `sendBatch` where
+  the `DeliveryQueue` has one — an optional member. `eventHub().declares(type)` says whether the
+  `events` entry declares a type, so a carrier sets one undeclared event aside instead of failing
+  the batch it arrived in. `deliver()` says when it gives up while the
+  subscription still wanted the event: `{ done: true, gaveUp: { reason, status } }`, with `refused`,
+  `expired` or `abandoned`, so whatever carries a delivery can keep it for somebody to inspect.
+- **`@worker-protocol/cloudflare`, built and not yet published.** One Durable Object mixin per
+  piece — `withOutcomes` (ENDP-16), `withSubscriptions` (SUB-7), `withOutbox` and `withLogs`
+  (LOG-2) — so a Worker that keeps an object per vehicle puts the outbox in each and the
+  subscriptions in the one it has for the fleet. The outbox is written in the caller's transaction,
+  drained when the call ends and retried by the one alarm, which the domain shares through
+  `wakeAt()` and `wake()`. `consumeQueues()` consumes an events Queue — fanning each batch out to
+  the subscriptions — and a deliveries Queue, and sends what is given up, tagged by kind, to a
+  dead-letter queue and to a record in `/logs`. It is `private: true` until
+  `examples/fleet-worker` has run on a real Cloudflare account.
 - **The conformance CLI takes an arrangement, and brings a sink.** `--arrangement <file>` reads
   `verify()`'s `arrangement` from JSON, strictly, so a misspelt key stops the run instead of
   reporting its rules `notExercised`. `--sink-port` serves a sink on `127.0.0.1` for the
   `subscriptions` checks, and `--sink-url` names the public address a tunnel gives it.
-- **`examples/fleet-worker` serves `subscriptions` on Cloudflare.** The subscriptions live in its
-  Durable Object, in SQL, behind a `SubscriptionStore` whose `ensure` is one method; each delivery
-  is a message on a Cloudflare Queue, and the Worker's `queue` handler runs `deliver()` and hands
-  its decision back as `retry({ delaySeconds })` or `ack()`. It publishes `task-raised` and
-  `task-ended` from the moment the Task is born and ends, through the outbox it already had.
+- **`examples/fleet-worker` serves `subscriptions` on Cloudflare**, built on
+  `@worker-protocol/cloudflare`. Its one Durable Object composes all four mixins; its events leave
+  through the outbox to `fleet-events`, are fanned out to `fleet-deliveries`, and what is given up
+  goes to `fleet-dead` and to `/logs`. It publishes `task-raised` and `task-ended` from the moment
+  the Task is born and ends.
 
 ### Changed
 

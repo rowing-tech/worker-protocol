@@ -303,7 +303,11 @@ describe("subscriptions, the push", () => {
       events: EVENTS,
       subscriptions: { ...subscriptions, fetch: sink({ status: [410] }).fetch },
     });
-    expect(await refusing.deliver(delivery)).toEqual({ done: true });
+    // Given up rather than merely done, so the carrier can keep the event for somebody to read.
+    expect(await refusing.deliver(delivery)).toEqual({
+      done: true,
+      gaveUp: { reason: "refused", status: 410 },
+    });
     expect((await store.get("s-1"))?.failingSince).toBeTypeOf("number");
   });
 
@@ -328,12 +332,45 @@ describe("subscriptions, the push", () => {
   });
 });
 
+describe("publishing a batch", () => {
+  it("asks the store once per type, and hands every delivery over in one batch", async () => {
+    const asked: string[] = [];
+    const batches: number[] = [];
+    const store = memorySubscriptions();
+    const { call, subscriptions } = build({
+      store: { ...store, forType: (type) => (asked.push(type), store.forType(type)) },
+    });
+    await call("acme", { body: request() });
+    const hub = eventHub({
+      id: ID,
+      events: EVENTS,
+      subscriptions: {
+        ...subscriptions,
+        queue: { send: () => undefined, sendBatch: (all) => void batches.push(all.length) },
+      },
+    });
+    const events = await hub.publishAll([
+      { type: TYPE, data: { vehicle: "A" } },
+      { type: TYPE, data: { vehicle: "B" } },
+      { type: LIFECYCLE.taskRaised, data: {} },
+    ]);
+    expect(events).toHaveLength(3);
+    expect(asked.sort()).toEqual([TYPE, LIFECYCLE.taskRaised].sort());
+    expect(batches).toEqual([2]);
+  });
+});
+
 describe("publishing what the entry does not declare", () => {
   it("is refused before anything is sent (EVT-12)", async () => {
     const { hub } = build();
     await expect(hub.publish({ type: "tech.rowing.fleet.undeclared", data: {} })).rejects.toThrow(
       /EVT-12/,
     );
+    // What a carrier asks first, to set one undeclared event aside instead of failing a batch.
+    expect([hub.declares(TYPE), hub.declares("tech.rowing.fleet.undeclared")]).toEqual([
+      true,
+      false,
+    ]);
   });
 });
 

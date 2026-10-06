@@ -1,8 +1,9 @@
+import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { LIFECYCLE, type Publishable } from "@worker-protocol/hono";
+import { LIFECYCLE } from "@worker-protocol/hono";
 import { describe, expect, it } from "vitest";
-import { fleetOf, QUIET_AFTER_MS } from "../src/fleet.ts";
-import { cycle } from "../src/worker.ts";
+import { QUIET_AFTER_MS } from "../src/fleet.ts";
+import { captureEvents } from "./outbound.ts";
 
 /**
  * The Durable Object, on workerd, one instance per test.
@@ -49,36 +50,35 @@ describe("the condition a Task is derived from", () => {
   });
 });
 
-/** What is waiting in the outbox, as the events it holds. */
-const waiting = async (fleet: ReturnType<typeof fresh>) =>
-  (await fleet.pending()).map((row) => JSON.parse(row.event) as Publishable);
-
 describe("the outbox", () => {
   it("raises the crossing and its Task once, and not on every cycle after it", async () => {
     const fleet = fresh();
+    const queue = await captureEvents(fleet);
     const now = Date.now();
 
     await fleet.ingest([{ vehicle: "ABC-123", at: now - 20 * MINUTE }], now, QUIET_AFTER_MS);
-    expect((await fleet.outbox()).depth).toBe(2);
-
     // The same vehicle, still quiet, on the next cycle. `vehicle-went-quiet` is a Fact about a
     // moment: publishing it again would be publishing a state under a name that says CHANGED.
     await fleet.ingest([], now + MINUTE, QUIET_AFTER_MS);
-    expect((await fleet.outbox()).depth).toBe(2);
 
-    const events = await waiting(fleet);
-    const quiet = events.find((one) => one.type === "tech.rowing.fleet.vehicle-went-quiet");
-    expect(quiet?.data).toMatchObject({ vehicle: "ABC-123" });
+    // Sent before `ingest` returned, in the order they were raised: the crossing, then its Task.
+    expect(queue.sent.map((one) => one.type)).toEqual([
+      "tech.rowing.fleet.vehicle-went-quiet",
+      LIFECYCLE.taskRaised,
+    ]);
+    expect(queue.sent[0]?.data).toMatchObject({ vehicle: "ABC-123" });
     // EVT-15: the Task born at the same moment, under the id `tasks` lists it by.
-    const raised = events.find((one) => one.type === LIFECYCLE.taskRaised);
-    expect(raised).toMatchObject({
+    expect(queue.sent[1]).toMatchObject({
       subject: "quiet:ABC-123",
       extensions: { tasktype: "tech.rowing.fleet.inspect-quiet-vehicle" },
+      time: now,
     });
+    expect((await fleet.outbox()).depth).toBe(0);
   });
 
   it("ends the Task when a reading arrives, and when somebody inspects (EVT-15)", async () => {
     const fleet = fresh();
+    const queue = await captureEvents(fleet);
     const now = Date.now();
     await fleet.ingest(
       [
@@ -88,7 +88,7 @@ describe("the outbox", () => {
       now,
       QUIET_AFTER_MS,
     );
-    await fleet.published((await fleet.pending()).map((row) => row.id));
+    queue.sent.length = 0;
 
     // One reports, and one is looked at: two Tasks end, for two reasons nobody is told.
     await fleet.ingest([{ vehicle: "ABC-123", at: now + MINUTE }], now + MINUTE, QUIET_AFTER_MS);
@@ -96,40 +96,33 @@ describe("the outbox", () => {
     // An inspection of a vehicle that was not quiet ends nothing, so it raises nothing.
     await fleet.inspect("ABC-123", now + MINUTE);
 
-    const ended = (await waiting(fleet)).map((one) => [one.type, one.subject]);
-    expect(ended.sort()).toEqual([
+    expect(queue.sent.map((one) => [one.type, one.subject])).toEqual([
       [LIFECYCLE.taskEnded, "quiet:ABC-123"],
       [LIFECYCLE.taskEnded, "quiet:DEF-456"],
     ]);
   });
 
-  it("keeps what the broker did not take, and stops at the refusal rather than past it", async () => {
-    // `cycle` reaches the one instance the Worker is authoritative over, so this test uses it too.
-    const fleet = fleetOf(env);
+  it("keeps what the events Queue did not take, and the alarm sends it", async () => {
+    const fleet = fresh();
+    const queue = await captureEvents(fleet);
     const now = Date.now();
-    await fleet.ingest(
-      [
-        { vehicle: "AAA", at: now - 20 * MINUTE },
-        { vehicle: "BBB", at: now - 20 * MINUTE },
-      ],
+
+    // A Queue that is down. A Fact that was true does not stop being true because nobody took it.
+    queue.failing = true;
+    const sent = await fleet.ingest(
+      [{ vehicle: "AAA", at: now - 20 * MINUTE }],
       now,
       QUIET_AFTER_MS,
     );
-    const raised = (await fleet.pending()).map((one) => one.id);
-    // Each vehicle's crossing and the Task it raised (EVT-15): two events apiece.
-    expect(raised).toHaveLength(4);
+    expect(sent).toBe(0);
+    expect((await fleet.outbox()).depth).toBe(2);
 
-    // A broker that is down. A Fact that was true does not stop being true because nobody took it.
-    expect((await cycle(env, async () => false)).published).toBe(0);
-    expect((await fleet.outbox()).depth).toBe(4);
-
-    // A broker that takes one and then refuses. Draining stops there rather than skipping past it:
-    // a consumer reading these in order would otherwise see the second before the first arrived.
-    let seen = 0;
-    expect((await cycle(env, async () => ++seen <= 1)).published).toBe(1);
-    expect((await fleet.pending()).map((one) => one.id)).toEqual(raised.slice(1));
-
-    expect((await cycle(env, async () => true)).published).toBe(3);
+    queue.failing = false;
+    await runDurableObjectAlarm(fleet);
+    expect(queue.sent.map((one) => one.type)).toEqual([
+      "tech.rowing.fleet.vehicle-went-quiet",
+      LIFECYCLE.taskRaised,
+    ]);
     expect((await fleet.outbox()).depth).toBe(0);
   });
 });

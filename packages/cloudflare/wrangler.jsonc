@@ -1,0 +1,18 @@
+{
+  // The test Worker this package's suite runs on workerd, and nothing a Worker deploys. Two
+  // classes, for the two shapes the mixins have to compose into. No Queue: what a flush sends goes
+  // to a fake the tests read, and the consumer is driven with `createMessageBatch`.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "worker-protocol-cloudflare-test",
+  "main": "test/worker.ts",
+  // The newest date the workerd that `@cloudflare/vitest-pool-workers` bundles will start on, as
+  // in `examples/fleet-worker`: it moves when that runtime does.
+  "compatibility_date": "2026-08-22",
+  "durable_objects": {
+    "bindings": [
+      { "name": "WHOLE", "class_name": "Whole" },
+      { "name": "SHARD", "class_name": "Shard" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Whole", "Shard"] }]
+}

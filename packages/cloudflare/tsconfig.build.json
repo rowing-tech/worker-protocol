@@ -1,0 +1,13 @@
+{
+  "//": "Emits only what the package publishes, against the runtime's types alone: runtime.d.ts is `wrangler types --include-env=false`, so the test Worker's bindings — which worker-configuration.d.ts types the environment with — never reach the build. A Worker that imports this has the runtime's types from its own `wrangler types`.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": []
+  },
+  "include": ["src", "runtime.d.ts"]
+}

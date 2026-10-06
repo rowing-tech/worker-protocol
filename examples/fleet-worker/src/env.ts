@@ -13,11 +13,18 @@ export type Env = {
   CREDENTIAL?: string;
   /** The stub standing in for a GPS provider: the plate numbers this cycle heard from. */
   SOURCE_VEHICLES?: string;
+  /** The Queue every event leaves the outbox on, whose consumer fans it out to the subscriptions. */
+  EVENTS: Queue<import("@worker-protocol/cloudflare").OutboxEvent>;
   /**
-   * The Cloudflare Queue each delivery to a subscriber travels on (SUB-12). It retries with a
-   * delay, which is all `eventHub().deliver` asks of whatever carries a delivery.
+   * The Queue each delivery to a subscriber travels on (SUB-12). It retries with a delay, which is
+   * all `eventHub().deliver` asks of whatever carries a delivery.
    */
   DELIVERIES: Queue<import("@worker-protocol/hono").Delivery>;
+  /**
+   * Where what is given up is kept, to be inspected and never redriven: what the consumer sets aside,
+   * tagged by kind, and — untagged, as it was sent — what the platform drops after its last retry.
+   */
+  DEAD: Queue<import("@worker-protocol/cloudflare").GivenUp>;
   /**
    * The sink origins held to neither SUB-5 nor SUB-6, comma-separated: a local backend that a
    * development Worker pushes to over `http://127.0.0.1`. Set in `.dev.vars` for `wrangler dev` and

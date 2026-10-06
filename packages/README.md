@@ -9,13 +9,14 @@ complying, and proving that you comply.
 | `hono` | `@worker-protocol/hono` — the surface as Hono routes, which generate `openapi/`; and `mount()`, which a Worker on Hono mounts to get every address, header and refusal the protocol fixes |
 | `client` | `@worker-protocol/client` — `consume()`: read a Worker, and take work from it. The consumer half, and what a Tower or a teams app is built on |
 | `conformance` | `@worker-protocol/conformance` — point it at a worker's base URL, get a report of what it complies with; `verify()` from TypeScript, or `npx @worker-protocol/conformance <url>` from anywhere |
+| `cloudflare` | `@worker-protocol/cloudflare` — the stores `mount()` leaves to the platform, as Durable Object mixins, and the two Queues between an outbox and a sink. **Not published yet**: `private: true` until `examples/fleet-worker`, built on it, has run on a real Cloudflare account |
 
 `client` is its own package and not a second export of `hono`, because a consumer is not a server:
 a Tower, a teams app or a Convex Worker that answers another Worker's Tasks runs no web
 framework, and making one install Hono and an OpenAPI generator in order to make HTTP requests is
 the same mistake as the one below, in the other direction. It depends on `schemas` and on `fetch`.
 
-All four are derivable from the specification and verifiable against the fixtures or the
+All five are derivable from the specification and verifiable against the fixtures or the
 verifier. `hono` is the one TypeScript SDK and lives here rather than in a repository of its own,
 because the routes it exports are also the source `openapi/` is generated from, and the declaration
 that generates the normative artifact does not leave the repository that publishes it.

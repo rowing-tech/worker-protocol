@@ -1,20 +1,23 @@
 import { createExecutionContext, createMessageBatch, getQueueResult } from "cloudflare:test";
 import { env } from "cloudflare:workers";
+import type { GivenUp, OutboxEvent } from "@worker-protocol/cloudflare";
 import { type CloudEvent, type Delivery, LIFECYCLE } from "@worker-protocol/hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env.ts";
 import { fleetOf, QUIET_AFTER_MS, QUIET_VEHICLE } from "../src/fleet.ts";
-import worker, { cycle } from "../src/worker.ts";
+import worker from "../src/worker.ts";
+import { captureEvents, fakeQueue } from "./outbound.ts";
 
 /**
- * `subscriptions` on Cloudflare: the subscriptions in the durable object, each delivery a message on
- * a Queue, and the Worker's own `queue` handler making the attempt.
+ * `subscriptions` on Cloudflare, end to end: the subscription in the durable object, the event
+ * leaving its outbox for the events Queue, the Worker's consumer fanning it out to the deliveries
+ * Queue, and the same consumer making the attempt.
  *
- * Two things about the platform are stood in for, and nothing else. The sink is a `fetch` this test
- * answers, because there is nobody at its address. And the Queue is swapped for one that keeps what
- * it is sent, because the real one would hand each batch to this Worker's consumer on its own
- * schedule and in an isolate where that `fetch` does not exist; the batch is driven here instead,
- * with `createMessageBatch`, which is how a queue handler is tested on workerd.
+ * Three things about the platform are stood in for, and nothing else. The sink is a `fetch` this
+ * test answers, because there is nobody at its address. The Queues are fakes that keep what they
+ * are sent, because the real ones would hand each batch to this Worker's consumer on their own
+ * schedule and in an isolate where that `fetch` does not exist; the batches are driven here with
+ * `createMessageBatch`, which is how a queue handler is tested on workerd.
  */
 
 const ID = "tech.rowing.fleet.tracker";
@@ -45,20 +48,20 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** The real bindings, with the Queue swapped for one that keeps what it is sent. */
+/** The real bindings, with the deliveries and dead-letter Queues swapped for ones that keep. */
 const queued = () => {
-  const sent: Delivery[] = [];
-  const DELIVERIES = {
-    send: async (delivery: Delivery) => {
-      sent.push(delivery);
-    },
-  } as unknown as Env["DELIVERIES"];
-  return { sent, env: { ...env, DELIVERIES } as Env };
+  const deliveries = fakeQueue<Delivery>();
+  const dead = fakeQueue<GivenUp>();
+  const bindings: Env = { ...env, DELIVERIES: deliveries.queue, DEAD: dead.queue };
+  return { deliveries: deliveries.state.sent, dead: dead.state.sent, env: bindings };
 };
 
-const call = (bindings: Env, init: { method?: string; query?: string; body?: unknown } = {}) =>
+const call = (
+  bindings: Env,
+  init: { path?: string; method?: string; query?: string; body?: unknown } = {},
+) =>
   worker.fetch(
-    new Request(`https://fleet.invalid/subscriptions${init.query ?? ""}`, {
+    new Request(`https://fleet.invalid${init.path ?? "/subscriptions"}${init.query ?? ""}`, {
       method: init.method ?? "POST",
       headers: { authorization: "Bearer a-token", "content-type": "application/json" },
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
@@ -66,6 +69,10 @@ const call = (bindings: Env, init: { method?: string; query?: string; body?: unk
     bindings,
     createExecutionContext(),
   );
+
+const listed = async (bindings: Env) =>
+  ((await (await call(bindings, { method: "GET" })).json()) as { items: Record<string, unknown>[] })
+    .items;
 
 /** The typical subscriber: a backend that wants to hear when a Task of one type is raised. */
 const raisedTasks = {
@@ -76,26 +83,31 @@ const raisedTasks = {
 };
 
 /**
- * Everything the Queue was sent, as one batch through the Worker's own consumer.
+ * One batch of `bodies` through the Worker's own consumer, as the named Queue would hand it over.
  *
  * `getQueueResult` reports which messages were retried and not the delay each asked for, so the
  * delay is read off the call to `retry` itself.
  */
-const consume = async (bindings: Env, sent: Delivery[]) => {
-  const batch = createMessageBatch<Delivery>(
-    "fleet-deliveries",
-    sent.splice(0).map((body, i) => ({ id: `m-${i}`, timestamp: new Date(), attempts: 1, body })),
+const consume = async <T>(given: { queue: string; bodies: T[]; env: Env }) => {
+  const batch = createMessageBatch<T>(
+    given.queue,
+    given.bodies.map((body, i) => ({ id: `m-${i}`, timestamp: new Date(), attempts: 1, body })),
   );
   const retries = batch.messages.map((message) => vi.spyOn(message, "retry"));
-  await worker.queue(batch, bindings);
+  await worker.queue(batch, given.env);
   const result = await getQueueResult(batch, createExecutionContext());
   return { ...result, delays: retries.flatMap((spy) => spy.mock.calls.map(([asked]) => asked)) };
 };
 
-/** A vehicle that crossed into quiet on this cycle, so its Task is born now. */
-const quietVehicle = async (vehicle: string) => {
+/**
+ * A vehicle that crosses into quiet, so its Task is born now; the events its object sent come back,
+ * and run through the events Queue's consumer to the deliveries they owe.
+ */
+const quietVehicle = async (vehicle: string, bindings: Env) => {
+  const events = await captureEvents(fleetOf(env));
   const now = Date.now();
   await fleetOf(env).ingest([{ vehicle, at: now - 20 * MINUTE }], now, QUIET_AFTER_MS);
+  return consume<OutboxEvent>({ queue: "fleet-events", bodies: events.sent, env: bindings });
 };
 
 describe("subscribing, kept in the durable object", () => {
@@ -113,11 +125,9 @@ describe("subscribing, kept in the durable object", () => {
     expect(again.status).toBe(200);
     expect(await again.json()).toEqual({ id });
 
-    const listed = (await (await call(bindings, { method: "GET" })).json()) as {
-      items: Record<string, unknown>[];
-    };
-    expect(listed.items.map((one) => one.id)).toEqual([id]);
-    expect(listed.items[0]).not.toHaveProperty("sinkCredential");
+    const items = await listed(bindings);
+    expect(items.map((one) => one.id)).toEqual([id]);
+    expect(items[0]).not.toHaveProperty("sinkCredential");
 
     const ended = await call(bindings, { method: "DELETE", query: `?subscription=${id}` });
     expect(ended.status).toBe(204);
@@ -127,19 +137,24 @@ describe("subscribing, kept in the durable object", () => {
   });
 });
 
-describe("the push, over a Queue", () => {
-  it("delivers the Task the cycle raised, once per matching subscription (EVT-15, SUB-11, SUB-13)", async () => {
+describe("the push, over two Queues", () => {
+  it("fans the Task the cycle raised out to the subscription its filter matches (EVT-15, SUB-13)", async () => {
     const received = sinkAnswering();
-    const { env: bindings, sent } = queued();
+    const { env: bindings, deliveries } = queued();
     await call(bindings, { body: raisedTasks });
 
-    await quietVehicle("ZZZ-999");
-    await cycle(bindings, async () => true);
-    // Two events were raised — the crossing and its Task — and the filter wants one of them.
-    expect(sent.map((one) => one.event.type)).toEqual([LIFECYCLE.taskRaised]);
+    const fanned = await quietVehicle("ZZZ-999", bindings);
+    // Two events left the outbox — the crossing and its Task — and both were taken; the filter
+    // wants one of them, so one delivery is owed.
+    expect(fanned.explicitAcks.sort()).toEqual(["m-0", "m-1"]);
+    expect(deliveries.map((one) => one.event.type)).toEqual([LIFECYCLE.taskRaised]);
 
-    const result = await consume(bindings, sent);
-    expect(result.explicitAcks).toEqual(["m-0"]);
+    const delivered = await consume({
+      queue: "fleet-deliveries",
+      bodies: deliveries,
+      env: bindings,
+    });
+    expect(delivered.explicitAcks).toEqual(["m-0"]);
     expect(received).toHaveLength(1);
     expect(received[0]?.authorization).toBe("Bearer sink-secret");
     expect(received[0]?.event).toMatchObject({
@@ -149,47 +164,46 @@ describe("the push, over a Queue", () => {
       tasktype: QUIET_VEHICLE,
       data: { payload: { vehicle: "ZZZ-999" } },
     });
-
     // SUB-8: the delivery is on record where the subscriber can read it.
-    const listed = (await (await call(bindings, { method: "GET" })).json()) as {
-      items: Record<string, unknown>[];
-    };
-    expect(listed.items[0]).toHaveProperty("lastDeliveredAt");
+    expect((await listed(bindings))[0]).toHaveProperty("lastDeliveredAt");
   });
 
   it("hands a failing delivery back to the Queue with the hub's delay (SUB-12)", async () => {
     sinkAnswering([503]);
-    const { env: bindings, sent } = queued();
+    const { env: bindings, deliveries } = queued();
     await call(bindings, { body: raisedTasks });
-    await quietVehicle("YYY-888");
-    await cycle(bindings, async () => true);
+    await quietVehicle("YYY-888", bindings);
 
-    const result = await consume(bindings, sent);
+    const result = await consume({ queue: "fleet-deliveries", bodies: deliveries, env: bindings });
     expect(result.explicitAcks).toEqual([]);
     expect(result.retryMessages).toMatchObject([{ msgId: "m-0" }]);
     // SUB-12: backoff from two seconds, decided by the hub and carried by the Queue.
     expect(result.delays).toEqual([{ delaySeconds: 2 }]);
-
-    const listed = (await (await call(bindings, { method: "GET" })).json()) as {
-      items: Record<string, unknown>[];
-    };
-    expect(listed.items[0]).toHaveProperty("failingSince");
+    expect((await listed(bindings))[0]).toHaveProperty("failingSince");
   });
 
-  it("republishes a row the broker refused under the id it already had (EVT-8)", async () => {
-    sinkAnswering();
-    const { env: bindings, sent } = queued();
+  it("keeps a delivery refused for good in the dead-letter queue, and says so in /logs", async () => {
+    sinkAnswering([410]);
+    const { env: bindings, deliveries, dead } = queued();
     await call(bindings, { body: raisedTasks });
-    await quietVehicle("XXX-777");
+    await quietVehicle("XXX-777", bindings);
 
-    // The crossing reaches the broker and the Task does not. The subscribers went first, so the
-    // broker being down cost them a repeat and never a loss — and the repeat is the same event,
-    // which a sink remembering `source` and `id` discards.
-    let attempts = 0;
-    await cycle(bindings, async () => ++attempts !== 2);
-    await cycle(bindings, async () => true);
-    const ids = sent.map((one) => one.event.id);
-    expect(ids).toHaveLength(2);
-    expect(ids[0]).toBe(ids[1]);
+    const result = await consume({ queue: "fleet-deliveries", bodies: deliveries, env: bindings });
+    expect(result.explicitAcks).toEqual(["m-0"]);
+    expect(dead).toMatchObject([
+      {
+        kind: "delivery",
+        delivery: { event: { subject: "quiet:XXX-777" } },
+        gaveUp: { reason: "refused", status: 410 },
+      },
+    ]);
+
+    // An operator without the Cloudflare account reads it through the protocol.
+    const page = (await (
+      await call(bindings, { path: "/logs", method: "GET", query: "?level=warn" })
+    ).json()) as { items: { message: string; fields?: Record<string, unknown> }[] };
+    expect(page.items).toMatchObject([
+      { message: "a delivery was given up", fields: { reason: "refused", status: 410 } },
+    ]);
   });
 });

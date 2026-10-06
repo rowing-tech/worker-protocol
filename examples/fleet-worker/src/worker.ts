@@ -1,31 +1,23 @@
 import {
+  consumeQueues,
+  deliveryQueue,
+  durableLogs,
+  durableOutcomes,
+  durableSubscriptions,
+} from "@worker-protocol/cloudflare";
+import {
   action,
-  type CloudEvent,
-  type Delivery,
   defineWorker,
   eventHub,
-  LEVELS,
   LIFECYCLE,
   mount,
   type OpenTask,
-  type OutcomeStore,
-  type Publishable,
-  type StoredSubscription,
   type SubscriptionFacts,
-  type SubscriptionStore,
   type Worker,
 } from "@worker-protocol/hono";
 import * as z from "zod";
 import type { Env } from "./env.ts";
-import {
-  type Fleet,
-  fleetOf,
-  type LogRow,
-  QUIET_AFTER_MS,
-  QUIET_VEHICLE,
-  quietTask,
-  type Reading,
-} from "./fleet.ts";
+import { fleetOf, QUIET_AFTER_MS, QUIET_VEHICLE, quietTask, type Reading } from "./fleet.ts";
 
 /**
  * A Worker on Cloudflare whose Facts live in a Durable Object.
@@ -47,55 +39,6 @@ const ID = "tech.rowing.fleet.tracker";
 /** HLTH-3 and ALRT-2 both turn on this one number, so it is written once. */
 const BACKED_UP = 20;
 
-/**
- * ENDP-16's store, over the durable object.
- *
- * Three calls that each land on one of its methods, which is what makes the reservation safe: a
- * durable object holds incoming events while a storage operation is outstanding, so nothing
- * interleaves between finding the key free and taking it. This is the first implementation in this
- * repository that is not a `Map`, and it is four lines, which is the claim the interface was making.
- */
-const durableOutcomes = (fleet: DurableObjectStub<Fleet>): OutcomeStore => {
-  return {
-    begin: (key, until) => fleet.beginOutcome(key, until),
-    complete: (key, held) => fleet.completeOutcome(key, held),
-    release: (key) => fleet.releaseOutcome(key),
-  };
-};
-
-/**
- * SUB-7's store, over the same durable object, on `durableOutcomes`'s terms: each call lands on one
- * method, and `ensure` is one method because SUB-7 needs the read and the write to be one step.
- *
- * Longer than that one only because a subscription crosses the RPC boundary as JSON — its filters
- * nest, and `fleet.ts` says why that costs a string. The parsing is all that is here.
- */
-const durableSubscriptions = (fleet: DurableObjectStub<Fleet>): SubscriptionStore => {
-  const read = (record: string | null) =>
-    record === null ? undefined : (JSON.parse(record) as StoredSubscription);
-  const readAll = (records: string[]) =>
-    records.map((one) => JSON.parse(one) as StoredSubscription);
-  return {
-    find: async (key) => read(await fleet.findSubscription(key)),
-    ensure: async (key, candidate) => {
-      const { record, created } = await fleet.ensureSubscription(key, JSON.stringify(candidate));
-      return { subscription: JSON.parse(record) as StoredSubscription, created };
-    },
-    get: async (id) => read(await fleet.getSubscription(id)),
-    list: async (caller) => readAll(await fleet.subscriptionsOf(caller)),
-    forType: async (type) => readAll(await fleet.subscriptionsFor(type)),
-    // `undefined` names a member to clear, and JSON drops it — so the cleared ones go by name.
-    update: (id, patch) =>
-      fleet.updateSubscription(id, {
-        set: JSON.stringify(patch),
-        clear: Object.entries(patch)
-          .filter(([, value]) => value === undefined)
-          .map(([name]) => name),
-      }),
-    remove: (id) => fleet.removeSubscription(id),
-  };
-};
-
 /** A comma-separated variable as a list, with the empty entries a trailing comma leaves dropped. */
 const listed = (value: string | undefined) =>
   (value ?? "").split(",").filter((one) => one.length > 0);
@@ -105,17 +48,12 @@ const ABANDON_AFTER_SECONDS = 86_400;
 
 /**
  * What `subscriptions` needs from Cloudflare: the durable object as the store and a Queue as the
- * carrier. A Queue already retries with a delay, which is the whole of what `DeliveryQueue` asks;
- * the wrapper is here only because `send` answers a receipt nobody reads.
+ * carrier, both from `@worker-protocol/cloudflare`.
  */
 const subscriptionsOf = (env: Env): SubscriptionFacts => ({
   abandonAfterSeconds: ABANDON_AFTER_SECONDS,
   store: durableSubscriptions(fleetOf(env)),
-  queue: {
-    send: async (delivery) => {
-      await env.DELIVERIES.send(delivery);
-    },
-  },
+  queue: deliveryQueue(env.DELIVERIES),
   // Empty in a deployment, which is the point: `env.ts` says where this is set and where it is not.
   insecureSinkOrigins: listed(env.DEV_SINK_ORIGINS),
 });
@@ -177,7 +115,7 @@ export const fleetWorker = defineWorker<Env>((env) => {
       const status = depth > BACKED_UP ? ("degraded" as const) : ("healthy" as const);
       return {
         status,
-        checks: { outbox: { status, detail: `${depth} events waiting for the broker` } },
+        checks: { outbox: { status, detail: `${depth} events waiting to be published` } },
       };
     },
 
@@ -237,14 +175,14 @@ export const fleetWorker = defineWorker<Env>((env) => {
     // ALRT-2, ALRT-3: a condition an operator should see, while it holds.
     alerts: async () => {
       const { depth, oldestAt } = await fleet.outbox();
-      return depth > BACKED_UP && oldestAt !== undefined
+      return depth > BACKED_UP && oldestAt !== null
         ? [
             {
               id: "outbox-backed-up",
               severity: "warning" as const,
               // ALRT-3: when the condition began, which is when the oldest event was raised.
               since: new Date(oldestAt),
-              summary: `${depth} events have not reached the broker.`,
+              summary: `${depth} events have not left the outbox.`,
               actions: [],
             },
           ]
@@ -267,122 +205,45 @@ export const fleetWorker = defineWorker<Env>((env) => {
     events: EVENTS,
 
     // SUB-1 to SUB-17: who subscribed, kept in the durable object, and a Queue to carry each push.
-    // `mount()` serves the address; `cycle` publishes and `queue` below delivers.
+    // `mount()` serves the address; the object's outbox publishes and `queue` below delivers.
     subscriptions: subscriptionsOf(env),
 
     // LOG-2: what this Worker recorded while it was working, read from the durable object. A buffer
     // in the isolate would pass every local test and be wrong in production, because a read can
     // land somewhere that never saw the write. `mount()` decodes the query; this is the store.
-    logs: {
-      // ENDP-19: the cap this Worker holds a page to, handed on as `limit`.
-      pageSize: 50,
-      read: async ({ levels, from, to, cursor, limit }) => {
-        const page = await fleet.logs({
-          // LOG-7's floor: the levels arrive in order, so the first is the lowest asked for.
-          minRank: LEVELS.indexOf(levels[0] ?? "debug"),
-          before: cursor === undefined ? null : Number(cursor),
-          from: from?.getTime() ?? null,
-          to: to?.getTime() ?? null,
-          limit,
-        });
-        return {
-          records: page.rows.map((row) => ({
-            at: new Date(row.at),
-            level: row.level,
-            message: row.message,
-            ...(row.fields === undefined ? {} : { fields: row.fields }),
-          })),
-          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
-        };
-      },
-    },
+    // ENDP-19: the cap this Worker holds a page to, handed on as `limit`.
+    logs: durableLogs(fleet, { pageSize: 50 }),
   };
 });
 
 /**
- * One cycle: read what the source says, record it, and drain what is waiting to be published.
+ * One cycle: read what the source says, and record it.
  *
- * The provider is a stub and the broker is a stub, which is the honest limit of an example in this
- * repository: EVT-1 is about an envelope on a broker nothing here names, so there is nothing to
- * publish to. The subscribers are real — each delivery is a message on a Cloudflare Queue. What is
- * real either way is the shape: an outbox that survives a failed publish, because a Fact that was
- * true does not stop being true because a broker was down.
+ * The provider is a stub, which is the honest limit of an example in this repository. Publishing is
+ * not this function's any more: `ingest` enqueues what the readings raised in the same transaction
+ * as the readings, and sends it before it returns. What the events Queue does not take, the object's
+ * alarm sends later; what is published, `queue` below fans out.
  */
-export async function cycle(
-  env: Env,
-  publish: Publish = reachBroker,
-): Promise<{ readings: number; published: number }> {
+export async function cycle(env: Env): Promise<{ readings: number; published: number }> {
   const fleet = fleetOf(env);
-  const hub = hubOf(env);
   const now = Date.now();
-
   const readings: Reading[] = listed(env.SOURCE_VEHICLES).map((vehicle) => ({ vehicle, at: now }));
-  const ingested = await fleet.ingest(readings, now, QUIET_AFTER_MS);
+  const published = await fleet.ingest(readings, now, QUIET_AFTER_MS);
 
-  const waiting = await fleet.pending();
-  const gone: string[] = [];
-  /** LOG-2. What this cycle is worth saying, written to the store in one call at the end. */
-  const lines: LogRow[] = [];
-  for (const row of waiting) {
-    const raised = JSON.parse(row.event) as Publishable;
-    // EVT-1: one CloudEvents 1.0 event, built once by the hub under the row's own id and instant.
-    // What the broker is handed is what the subscribers are, and a row published again after a
-    // failure below is the same event to everyone who already has it (EVT-8) — which is why the
-    // subscribers go first: a broker that is down costs them a repeat they discard, never a loss.
-    let event: CloudEvent;
-    try {
-      event = await hub.publish({ ...raised, id: row.id, time: row.at });
-    } catch (error) {
-      lines.push({
-        at: Date.now(),
-        level: "warn",
-        message: "an event could not be handed to its subscribers",
-        fields: {
-          id: row.id,
-          type: raised.type,
-          reason: error instanceof Error ? error.message : String(error),
-        },
-      });
-      break; // In order, and no further: the next cycle starts where this stopped.
-    }
-    if (!(await publish(event))) {
-      lines.push({
-        at: Date.now(),
-        level: "warn",
-        message: "the broker did not take an event",
-        fields: { id: row.id, type: raised.type },
-      });
-      break;
-    }
-    gone.push(row.id);
-  }
-  if (gone.length > 0) await fleet.published(gone);
-
-  // LOG-2: the records, written on purpose and in one call. This is the whole of what a Worker
-  // does for this Capability — it decides what is worth a line and where that line is kept. There
-  // is no `console` patched behind its back, which is what keeps a record attributable to the work
-  // that produced it rather than to whichever isolate happened to be running.
-  lines.push({
-    at: Date.now(),
-    level: "info",
-    message: "cycle complete",
-    fields: { readings: ingested, published: gone.length, waiting: waiting.length },
-  });
-  await fleet.record(lines);
-  return { readings: ingested, published: gone.length };
+  // LOG-2: the record, written on purpose and in one call. This is the whole of what a Worker does
+  // for this Capability — it decides what is worth a line and where that line is kept. There is no
+  // `console` patched behind its back, which is what keeps a record attributable to the work that
+  // produced it rather than to whichever isolate happened to be running.
+  await fleet.record([
+    {
+      at: Date.now(),
+      level: "info",
+      message: "cycle complete",
+      fields: { readings: readings.length, published },
+    },
+  ]);
+  return { readings: readings.length, published };
 }
-
-/** One attempt at the broker. `false` is a broker that did not take it, not an event that was bad. */
-export type Publish = (event: CloudEvent) => Promise<boolean>;
-
-/**
- * Where a real one would reach the broker `events.destination` names.
- *
- * It is a parameter of `cycle` with this as its default rather than a module variable a test
- * reassigns, because a test that has to mutate the module under test is a test that can only run
- * once and never beside another.
- */
-const reachBroker: Publish = async () => true;
 
 const app = mount(fleetWorker);
 
@@ -401,26 +262,18 @@ export default {
     await cycle(env);
   },
   /**
-   * SUB-12: the deliveries, one message each. The hub decides and the Queue carries the decision —
-   * a delay before the next attempt, or done. `attempts` is the Queue's own count, and the one
-   * `deliver` backs off by, so nothing here keeps a second.
+   * Both Queues in `wrangler.jsonc`. On `fleet-events`, each batch is published to the subscribers
+   * it matches and then to the broker; on `fleet-deliveries`, each delivery is attempted and the
+   * hub's decision handed back to the Queue. What is given up goes to `fleet-dead`, and a `warn`
+   * record of it to `/logs`.
    */
-  queue: async (batch: MessageBatch<Delivery>, env: Env) => {
-    const hub = hubOf(env);
-    await Promise.all(
-      batch.messages.map(async (message) => {
-        try {
-          const outcome = await hub.deliver({ ...message.body, attempt: message.attempts });
-          if ("retryAfterSeconds" in outcome) {
-            message.retry({ delaySeconds: outcome.retryAfterSeconds });
-          } else {
-            message.ack();
-          }
-        } catch {
-          // The durable object could not be reached, so nothing was decided: still owed.
-          message.retry();
-        }
-      }),
-    );
-  },
+  queue: consumeQueues<Env>({
+    queues: { events: "fleet-events", deliveries: "fleet-deliveries" },
+    hub: hubOf,
+    deadLetter: (env) => env.DEAD,
+    // EVT-13: a stub. The broker `events.destination` names is not reached from an example, so
+    // every event is taken; a real one answers `false` when it did not take it.
+    broker: async () => true,
+    record: ({ rows, env }) => fleetOf(env).record(rows),
+  }),
 };

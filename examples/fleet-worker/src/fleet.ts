@@ -1,15 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
-import {
-  LEVELS,
-  type LogLevel,
-  type OpenTask,
-  type Publishable,
-  type Recorded,
-  type Reservation,
-  type StoredSubscription,
-  taskEnded,
-  taskRaised,
-} from "@worker-protocol/hono";
+import { withLogs, withOutbox, withOutcomes, withSubscriptions } from "@worker-protocol/cloudflare";
+import { type OpenTask, taskEnded, taskRaised } from "@worker-protocol/hono";
 import type { Env } from "./env.ts";
 
 /**
@@ -21,12 +12,17 @@ import type { Env } from "./env.ts";
  * promised to replay — and until now every one of those lived in a `Map` in a process, which is
  * right in one deployment shape and wrong in the one this protocol's architecture names first.
  *
- * Storage is the durable object's own key-value API rather than SQL, because the domain below needs
- * ordering and prefixes and nothing more. Every method here is one logical operation, which is what
- * makes them safe: a durable object is single-threaded and its input gate holds incoming events
- * while a storage operation is outstanding, so a read and a write inside one method cannot
- * interleave with another request. That is the property `OutcomeStore.begin` needs and could not
- * have got from two calls.
+ * **What is the protocol's comes from `@worker-protocol/cloudflare`**, one mixin per piece: the
+ * outcomes ENDP-16 replays, the subscriptions SUB-7 keeps, the outbox the events leave through and
+ * the window of records LOG-2 serves. This Worker watches one fleet, so it composes all four in its
+ * one object; a Worker that keeps an object per vehicle puts the outbox in each of those and the
+ * subscriptions in the one it has for the fleet.
+ *
+ * **What is the domain's is below**, in the object's key-value API, because it needs ordering and
+ * prefixes and nothing more. Every method is one logical operation: a Durable Object is
+ * single-threaded and holds incoming events while a storage operation is outstanding, so a read and
+ * a write inside one method cannot interleave with another request — and the outbox row a method
+ * enqueues is written in the same transaction as the readings that raised it.
  */
 
 /** What `wrangler.jsonc`'s cron runs at. `ingest` rewinds by it to find what crossed this cycle. */
@@ -65,25 +61,9 @@ export const fleetOf = (env: Pick<Env, "FLEET">) => env.FLEET.get(env.FLEET.idFr
 const READING = "reading:";
 const INSPECTION = "inspection:";
 const COUNTER = "counter:";
-const OUTBOX = "outbox:";
-const OUTCOME = "outcome:";
 
 /** LOG-2. The window of records this Worker keeps. Its operators' number, not the protocol's. */
 const KEEP_RECORDS = 500;
-
-/**
- * One record as it crosses the RPC boundary: an instant as a number, and `fields` already flat.
- *
- * The instant is a number for the reason `Json` is flat — a durable object's methods are RPC, and
- * the narrower the types the less there is to go wrong in a mapping the compiler reports as
- * `never`. `worker.ts` turns it into the `Date` that `mount()` takes and serializes.
- */
-export type LogRow = {
-  at: number;
-  level: LogLevel;
-  message: string;
-  fields?: Json;
-};
 
 /** One vehicle's last sign of life. */
 export type Reading = { vehicle: string; at: number };
@@ -91,63 +71,12 @@ export type Reading = { vehicle: string; at: number };
 /** A vehicle whose condition holds, with the instant it began (TASK-28). */
 export type Quiet = { vehicle: string; since: number };
 
-/**
- * What a record's `fields` may be here: one flat record of scalars.
- *
- * It is spelled out rather than left as `unknown` because a durable object's methods are RPC, and
- * an RPC type carries only what structured clone carries — a method whose return type is not
- * serializable is not a method the stub has, which the compiler reports as `never` rather than as
- * anything mentioning serialization. It is flat rather than a recursive `Json` for the sequel to
- * that: the serializable check is itself a conditional type, and recursion through it exceeds the
- * compiler's instantiation depth.
- *
- * **What is nested crosses as a string**, and is parsed on the far side: an outbox event, whose
- * `task-raised` data carries the Task's payload, and a subscription, whose filters nest by
- * definition (SUB-13). Typing either one exactly is the recursion above.
- */
-export type Json = Record<string, string | number | boolean>;
-
-/**
- * One event waiting to be published, as it is stored: its id is the key it is held under, and the
- * event is a `Publishable` as JSON, for the reason `Json` gives.
- */
-type Row = { at: number; event: string };
-
-/** One event waiting to be published, in the order it was raised, with its id read off the key. */
-export type Pending = Row & { id: string };
-
-/** A reservation is a row with no answer yet; both carry the instant they expire. */
-type Outcome = { until: number; answer?: Recorded };
-
-export class Fleet extends DurableObject<Env> {
-  /**
-   * The two tables this object keeps, created once when the object is instantiated rather than on
-   * every call that touches them. `sql.exec` is synchronous against local storage, so this needs no
-   * `blockConcurrencyWhile`: the statements have run before any method can be reached.
-   */
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-    const sql = ctx.storage.sql;
-    sql.exec(`CREATE TABLE IF NOT EXISTS log (
-      seq INTEGER PRIMARY KEY AUTOINCREMENT,
-      at INTEGER NOT NULL,
-      level TEXT NOT NULL,
-      rank INTEGER NOT NULL,
-      message TEXT NOT NULL,
-      fields TEXT
-    )`);
-    // The subscription itself is `record`, as JSON. `key`, `caller` and `ended` are copied out of
-    // it only because a query filters on them; nothing reads them back.
-    sql.exec(`CREATE TABLE IF NOT EXISTS subscription (
-      id TEXT PRIMARY KEY,
-      key TEXT NOT NULL,
-      caller TEXT,
-      ended INTEGER NOT NULL,
-      record TEXT NOT NULL
-    )`);
-    sql.exec("CREATE INDEX IF NOT EXISTS subscription_key ON subscription (key)");
-  }
-
+export class Fleet extends withLogs(
+  withOutbox(withSubscriptions(withOutcomes(DurableObject<Env>)), {
+    events: (env) => env.EVENTS,
+  }),
+  { keep: KEEP_RECORDS },
+) {
   /**
    * One cycle's readings. Records what the source said, counts it, and raises events for each
    * vehicle that crossed into quiet on this cycle and not before, and for each that left it.
@@ -156,7 +85,7 @@ export class Fleet extends DurableObject<Env> {
    * a moment, and publishing it on every cycle a vehicle stayed quiet would be publishing a state
    * under a name that says *changed*. The same crossing is when the Task is born, so `task-raised`
    * (EVT-15) is enqueued beside it — this is the moment only the Worker knows, and the reason the
-   * SDK builds lifecycle events rather than detecting them.
+   * SDK builds lifecycle events rather than detecting them. Answers how many events it sent.
    */
   async ingest(readings: Reading[], now: number, quietAfterMs: number): Promise<number> {
     // Who was already quiet one cycle ago. The window is a rewind rather than `now` on purpose: a
@@ -188,7 +117,7 @@ export class Fleet extends DurableObject<Env> {
     // for that reason, and EVT-15's `task-ended` says only that it ended — nobody closed it.
     const recovered = before.filter((one) => !isQuiet.has(one.vehicle));
     await this.bump("vehicles-quiet", now, crossed.length);
-    await this.enqueue(now, [
+    this.enqueue(now, [
       ...crossed.flatMap((one) => [
         {
           type: "tech.rowing.fleet.vehicle-went-quiet",
@@ -198,7 +127,9 @@ export class Fleet extends DurableObject<Env> {
       ]),
       ...recovered.map((one) => taskEnded(quietTask(one))),
     ]);
-    return readings.length;
+    // The call ends by sending what it raised. What the events Queue does not take stays, in
+    // order, and the alarm `withOutbox` keeps tries again — nothing here has to.
+    return (await this.flush()).sent;
   }
 
   /** TASK-15: the condition. A vehicle is quiet while its last reading is old and uninspected. */
@@ -225,7 +156,9 @@ export class Fleet extends DurableObject<Env> {
   async inspect(vehicle: string, at: number): Promise<void> {
     const ending = (await this.quiet(at, QUIET_AFTER_MS)).find((one) => one.vehicle === vehicle);
     await this.ctx.storage.put(`${INSPECTION}${vehicle}`, at);
-    if (ending !== undefined) await this.enqueue(at, [taskEnded(quietTask(ending))]);
+    if (ending === undefined) return;
+    this.enqueue(at, [taskEnded(quietTask(ending))]);
+    await this.flush();
   }
 
   // ---- metrics -----------------------------------------------------------------------------
@@ -259,252 +192,5 @@ export class Fleet extends DurableObject<Env> {
         0,
       ),
     );
-  }
-
-  // ---- the outbox --------------------------------------------------------------------------
-
-  /**
-   * An event raised and not yet published, to the broker or to the subscribers.
-   *
-   * It is a queue because publishing can fail and a Fact that was true does not stop being true
-   * because a broker was down. EVT-8's republish window is what makes retrying safe: `source` and
-   * `id` do not change between attempts, so a consumer that remembers them sees one event. The row
-   * is written in the same operation as the change it reports, which is what makes it an outbox:
-   * there is no moment at which the Fact changed and the event was not yet owed.
-   */
-  private async enqueue(at: number, events: Publishable[]): Promise<void> {
-    if (events.length === 0) return;
-    // The id is the key and is not repeated in the value: two copies of one fact are two things to
-    // keep in step, and `pending` reads it back off the key it already has. The position keeps one
-    // call's events in the order they were written — a crossing before the Task it raised — where
-    // the random part alone would shuffle everything raised in the same instant.
-    await this.ctx.storage.put(
-      Object.fromEntries(
-        events.map((one, i) => [
-          `${OUTBOX}${at}-${String(i).padStart(4, "0")}-${crypto.randomUUID()}`,
-          { at, event: JSON.stringify(one) } satisfies Row,
-        ]),
-      ),
-    );
-  }
-
-  async pending(limit = 50): Promise<Pending[]> {
-    const held = await this.ctx.storage.list<Row>({ prefix: OUTBOX, limit });
-    return [...held].map(([key, row]) => ({ id: key.slice(OUTBOX.length), ...row }));
-  }
-
-  /**
-   * How deep the outbox is and when the oldest event was raised, in one read.
-   *
-   * Both facts come off the same scan because both callers want them together: HLTH-3 takes the
-   * Worker to `degraded` on the depth and ALRT-3 needs the instant the condition began. Asking
-   * twice was two round trips to this object for one list.
-   */
-  async outbox(): Promise<{ depth: number; oldestAt: number | undefined }> {
-    const held = await this.ctx.storage.list<Row>({ prefix: OUTBOX });
-    return { depth: held.size, oldestAt: [...held.values()][0]?.at };
-  }
-
-  /** What went is forgotten; what did not stays, in order, for the next cycle. */
-  async published(ids: string[]): Promise<void> {
-    await this.ctx.storage.delete(ids.map((id) => `${OUTBOX}${id}`));
-  }
-
-  // ---- ENDP-16 -----------------------------------------------------------------------------
-
-  /**
-   * `OutcomeStore.begin`, and the reason this object exists at all rather than a Map.
-   *
-   * The read and the write below are one storage operation as far as another request is concerned:
-   * the input gate holds incoming events while a storage operation is outstanding, so nothing
-   * interleaves between finding the key free and taking it. Two callers under one key meet a
-   * reservation, and only one of them performs.
-   *
-   * The return type is `Reservation` by name rather than the same union spelled out, and that is
-   * worth a line: a durable object's methods are reached through a stub whose types are mapped, and
-   * the mapping was wide enough to accept a shape `OutcomeStore` does not take. Spelled out, this
-   * method shipped the wrong one and the compiler said nothing; named, it does not compile.
-   */
-  async beginOutcome(key: string, until: number): Promise<Reservation> {
-    const row = await this.ctx.storage.get<Outcome>(`${OUTCOME}${key}`);
-    const live = row !== undefined && row.until > Date.now();
-    if (live && row.answer !== undefined) return { held: row.answer };
-    if (live) return "in-flight";
-    await this.ctx.storage.put(`${OUTCOME}${key}`, { until } satisfies Outcome);
-    return "reserved";
-  }
-
-  async completeOutcome(key: string, answer: Recorded): Promise<void> {
-    await this.ctx.storage.put(`${OUTCOME}${key}`, { until: answer.until, answer });
-  }
-
-  async releaseOutcome(key: string): Promise<void> {
-    await this.ctx.storage.delete(`${OUTCOME}${key}`);
-  }
-
-  /**
-   * LOG-2 — the records, in the one part of this object that is SQL.
-   *
-   * The file opens by saying the key-value API is enough because the domain needs ordering and
-   * prefixes and nothing more. This is where that stops being true, and the reason is worth the
-   * exception: a read here filters by a level floor and by a half-open interval (LOG-7, LOG-8),
-   * and a store that cannot filter would have to hand every row to the Worker so it could throw
-   * most of them away. The subscriptions below are SQL for the same reason. The key-value methods
-   * above are unchanged, and the mixture is deliberate.
-   *
-   * `seq` is what makes ENDP-33 free. It only ever grows, a cursor names one, and a page asks for
-   * what is below it — so a record written since the last page cannot appear in the next. Under an
-   * offset the arriving records would push the collection along and the caller would see some of
-   * them twice and others never.
-   */
-  /** One write per cycle, whatever the line count. Per line it would be a write per record. */
-  async record(rows: LogRow[]): Promise<void> {
-    const sql = this.ctx.storage.sql;
-    for (const row of rows) {
-      sql.exec(
-        "INSERT INTO log (at, level, rank, message, fields) VALUES (?, ?, ?, ?, ?)",
-        row.at,
-        row.level,
-        // LOG-5's ladder as a number, derived here so that LOG-7's floor is a comparison the store
-        // can make. A caller that had to supply it would be a second place for it to be wrong.
-        LEVELS.indexOf(row.level),
-        row.message,
-        row.fields === undefined ? null : JSON.stringify(row.fields),
-      );
-    }
-    // A window rather than an archive. The oldest go first, which is what makes the end of this
-    // collection mean *the end of what I still hold* — `spec/logs.md` says so in prose rather than
-    // signalling it in an envelope six other surfaces share.
-    sql.exec("DELETE FROM log WHERE seq <= (SELECT MAX(seq) FROM log) - ?", KEEP_RECORDS);
-  }
-
-  /** LOG-3, LOG-7, LOG-8, ENDP-33 — one page, most recent first, in one query. */
-  async logs(query: {
-    /** LOG-7. The floor: this level and every level above it. */
-    minRank: number;
-    /** ENDP-21. The position the caller's cursor named, or absent for the first page. */
-    before: number | null;
-    from: number | null;
-    to: number | null;
-    limit: number;
-  }): Promise<{ rows: LogRow[]; nextCursor?: string }> {
-    const { minRank, before, from, to, limit } = query;
-    const found = this.ctx.storage.sql
-      .exec<{ seq: number; at: number; level: LogLevel; message: string; fields: string | null }>(
-        `SELECT seq, at, level, message, fields FROM log
-          WHERE rank >= ?1
-            AND (?2 IS NULL OR seq < ?2)
-            AND (?3 IS NULL OR at >= ?3)
-            AND (?4 IS NULL OR at < ?4)
-          ORDER BY seq DESC
-          LIMIT ?5`,
-        minRank,
-        before,
-        from,
-        to,
-        // One more than asked for, which is how the cursor knows whether there IS a next page
-        // without a second count over the same window.
-        limit + 1,
-      )
-      .toArray();
-
-    const page = found.slice(0, limit);
-    const rows = page.map((row) => ({
-      at: row.at,
-      level: row.level,
-      message: row.message,
-      ...(row.fields === null ? {} : { fields: JSON.parse(row.fields) as Json }),
-    }));
-    // The row beyond the cap is what says there is another page, so the cursor exists exactly when
-    // the query found one — ENDP-20: absent at the end, absent rather than null.
-    const last = found.length > limit ? page.at(-1) : undefined;
-    return last === undefined ? { rows } : { rows, nextCursor: String(last.seq) };
-  }
-
-  // ---- subscriptions -----------------------------------------------------------------------
-
-  /**
-   * `SubscriptionStore`, the other half of what `subscriptions` needs from a platform.
-   *
-   * SQL rather than keys, for `logs`'s reason: every publish asks for the live subscriptions naming
-   * one type (SUB-13) and every list for one caller's (SUB-8), and both are filters. Each method is
-   * synchronous between its first statement and its last, so nothing interleaves inside one — which
-   * is what `ensure` needs, as `beginOutcome` does: SUB-7 has two requests for the same thing find
-   * one subscription, and a read followed by a write in two calls would let both through.
-   *
-   * Everything crosses as JSON, for the reason `Json` gives: a subscription's filters nest.
-   */
-  findSubscription(key: string): string | null {
-    const row = this.ctx.storage.sql
-      .exec<{ record: string }>(
-        "SELECT record FROM subscription WHERE key = ? AND ended = 0 LIMIT 1",
-        key,
-      )
-      .toArray()[0];
-    return row?.record ?? null;
-  }
-
-  /** SUB-7, SUB-15: the live one under `key`, or the candidate. An ended one stays, as a tombstone. */
-  ensureSubscription(key: string, candidate: string): { record: string; created: boolean } {
-    const held = this.findSubscription(key);
-    if (held !== null) return { record: held, created: false };
-    const one = JSON.parse(candidate) as StoredSubscription;
-    this.ctx.storage.sql.exec(
-      "INSERT INTO subscription (id, key, caller, ended, record) VALUES (?, ?, ?, 0, ?)",
-      one.id,
-      key,
-      one.caller,
-      candidate,
-    );
-    return { record: candidate, created: true };
-  }
-
-  getSubscription(id: string): string | null {
-    const row = this.ctx.storage.sql
-      .exec<{ record: string }>("SELECT record FROM subscription WHERE id = ?", id)
-      .toArray()[0];
-    return row?.record ?? null;
-  }
-
-  /** SUB-8: one caller's, ended ones included. `IS` because a caller may be `null`. */
-  subscriptionsOf(caller: string | null): string[] {
-    return this.ctx.storage.sql
-      .exec<{ record: string }>("SELECT record FROM subscription WHERE caller IS ?", caller)
-      .toArray()
-      .map((row) => row.record);
-  }
-
-  /** SUB-13: the live ones naming this type. The filters are the hub's to apply, not the store's. */
-  subscriptionsFor(type: string): string[] {
-    return this.ctx.storage.sql
-      .exec<{ record: string }>(
-        `SELECT record FROM subscription
-          WHERE ended = 0
-            AND EXISTS (SELECT 1 FROM json_each(record, '$.types') WHERE value = ?)`,
-        type,
-      )
-      .toArray()
-      .map((row) => row.record);
-  }
-
-  /**
-   * A patch, as two lists because JSON cannot say *cleared*: `JSON.stringify` drops a member whose
-   * value is `undefined`, which is exactly how `SubscriptionStore.update` names one to clear.
-   */
-  updateSubscription(id: string, change: { set: string; clear: string[] }): void {
-    const held = this.getSubscription(id);
-    if (held === null) return;
-    const next: Record<string, unknown> = { ...JSON.parse(held), ...JSON.parse(change.set) };
-    for (const name of change.clear) delete next[name];
-    this.ctx.storage.sql.exec(
-      "UPDATE subscription SET ended = ?, record = ? WHERE id = ?",
-      next.endedAt === undefined ? 0 : 1,
-      JSON.stringify(next),
-      id,
-    );
-  }
-
-  removeSubscription(id: string): void {
-    this.ctx.storage.sql.exec("DELETE FROM subscription WHERE id = ?", id);
   }
 }
