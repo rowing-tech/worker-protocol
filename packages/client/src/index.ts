@@ -10,11 +10,15 @@ import {
   type logRecord,
   type metricBucket,
   metricPage,
+  subscriptionPage,
+  subscriptionReceipt,
+  type subscriptionRequest,
+  type subscription as subscriptionSchema,
   taskPage,
   type task as taskSchema,
 } from "@worker-protocol/schemas";
 import type * as z from "zod";
-import { type CallerOptions, caller, collect, type Page, page } from "./call.ts";
+import { type CallerOptions, caller, collect, Malformed, type Page, page } from "./call.ts";
 
 /**
  * `@worker-protocol/client` — read a Worker, and take work from it.
@@ -55,6 +59,8 @@ type Activity = z.infer<typeof activitySchema>;
 type Bucket = z.infer<typeof metricBucket>;
 type LogRecord = z.infer<typeof logRecord>;
 type LogLevel = z.infer<typeof logLevel>;
+type Subscription = z.infer<typeof subscriptionSchema>;
+type SubscriptionRequest = z.infer<typeof subscriptionRequest>;
 
 /**
  * Where a reading resumes: exactly the `nextCursor` a page answered (ENDP-21), or absent for the
@@ -117,6 +123,23 @@ export type Consumed = {
    * `skills.canAnswer` in this package is how a caller knows before sending one.
    */
   nudges?: (type: string) => Promise<void>;
+  /**
+   * SUB-2 to SUB-9. Subscribe to this Worker's events, and the Worker pushes each one to `sink`.
+   *
+   * `subscribe` is idempotent by content (SUB-7): the same sink, types and filters find the
+   * subscription that exists, so an orchestrator calls it on every deploy and keeps no id. Nothing
+   * is renewed; a subscription ends when this caller ends it, when its sink has failed for the
+   * Worker's `abandonAfterSeconds`, or when its Contract is revoked — and `list` shows which, and
+   * why (SUB-15, SUB-16). The receiving end is `sink()` in this package.
+   */
+  subscriptions?: {
+    /** SUB-2, SUB-7. `created` tells a new subscription (`201`) from one that existed (`200`). */
+    subscribe: (request: SubscriptionRequest) => Promise<{ id: string; created: boolean }>;
+    /** SUB-8. This caller's subscriptions, with their state. */
+    list: () => Promise<Subscription[]>;
+    /** SUB-9. Ends one of this caller's subscriptions; one that is not is refused (`Refused`). */
+    unsubscribe: (id: string) => Promise<void>;
+  };
   tasks?: {
     /**
      * TASK-5. Every Task whose condition holds that this credential covers.
@@ -176,6 +199,13 @@ export type PerformOptions = {
 const rfc3339 = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export { type Carried, type Change, compare } from "./compare.ts";
+export {
+  memorySeen,
+  type ReceivedEvent,
+  type SeenStore,
+  type SinkOptions,
+  sink,
+} from "./sink.ts";
 export { type Compatibility, canAnswer } from "./skills.ts";
 
 export async function consume(baseUrl: string, options: CallerOptions = {}): Promise<Consumed> {
@@ -318,6 +348,38 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
     // looked at, which is the lease `spec/tasks.md` withdrew arriving through another door.
     consumed.nudges = async (type) => {
       await call.call({ url: nudgesAddress, method: "POST", body: JSON.stringify({ type }) });
+    };
+  }
+
+  const subscriptionsAddress = addressOf("subscriptions");
+  if (subscriptionsAddress !== undefined) {
+    consumed.subscriptions = {
+      subscribe: async (request) => {
+        // SUB-2: a POST whose body is the request and nothing else. SUB-10's handshake runs against
+        // the sink before the Worker answers, so a sink that refused it is `422` here, at once.
+        const answered = await call.call({
+          url: subscriptionsAddress,
+          method: "POST",
+          body: JSON.stringify(request),
+        });
+        const receipt = subscriptionReceipt.safeParse(answered.json);
+        if (!receipt.success) {
+          throw new Malformed(
+            "SUB-2",
+            subscriptionsAddress,
+            "the answer carried no subscription id",
+          );
+        }
+        return { id: receipt.data.id, created: answered.status === 201 };
+      },
+      list: () => collect<Subscription>(call, subscriptionsAddress, subscriptionPage, "SUB-8"),
+      unsubscribe: async (id) => {
+        // SUB-9: a DELETE naming the subscription in a parameter on the declared address — never a
+        // path built from the id, which ENDP-1 forbids a caller to assemble.
+        const url = new URL(subscriptionsAddress);
+        url.searchParams.set("subscription", id);
+        await call.call({ url: url.toString(), method: "DELETE" });
+      },
     };
   }
 

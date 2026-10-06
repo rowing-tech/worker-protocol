@@ -76,7 +76,7 @@ export type CallerOptions = {
 
 export type Call = {
   url: string;
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "DELETE";
   body?: string;
   /** ENDP-38. Where the Action declares it reads a key from the header. */
   idempotencyKey?: string;

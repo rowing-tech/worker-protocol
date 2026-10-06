@@ -160,6 +160,117 @@ same member added to an event's data is not. It reads what a schema can show: a 
 type and changed its units passes, and an empty answer certifies nothing. A keyword it does not read
 that differs between the two is `unjudged`, rather than passed.
 
+## Subscribing, and the sink that receives
+
+```ts
+import { consume, sink } from "@worker-protocol/client";
+
+// Once per deploy: subscribing is idempotent by content, so nothing has to keep an id.
+const fleet = await consume("https://fleet.example.com", { credential });
+await fleet.subscriptions?.subscribe({
+  types: ["tech.rowing.worker-protocol.task-raised"],
+  filters: [{ exact: { tasktype: "tech.rowing.fleet.verify-vehicle" } }],
+  sink: "https://happy-otter-123.convex.site/events",
+  sinkCredential: process.env.SINK_SECRET,
+});
+
+// At the sink's address — a Convex HTTP action, for OPTIONS and POST alike.
+const receive = sink({
+  credential: process.env.SINK_SECRET,
+  origins: [fleet.descriptor.id],
+  windowSeconds: 3600,
+  seen, // a store that outlives the request — on Convex, the table below
+  onEvent: (event) => ctx.runMutation(internal.work.raised, { task: event.data }),
+});
+return receive(request);
+```
+
+`subscribe` answers whether the subscription is new; nothing is renewed, and `list` shows when a
+delivery last succeeded, since when the sink has been failing, and — for one that ended without
+this caller ending it — when and why. `unsubscribe` is a `DELETE` naming the subscription.
+
+`sink` answers the handshake the Worker runs before it stores the subscription, refuses a delivery
+without the sink's own credential or from a Worker it never allowed, and hands each event over once:
+delivery is at least once, so a repeat inside `windowSeconds` is acknowledged and not handled again.
+A handler that throws is answered `500`, which the Worker retries, and the event is not marked
+handled. `memorySeen()` is the store for one process; a Convex app keeps a table instead, because
+every invocation is a new one.
+
+### Remembering what was handled, in a Convex table
+
+`memorySeen()` on Convex works in development and fails in production without a sound: each
+invocation starts with an empty memory, so a repeated delivery is handled twice. The store is a
+table, and `claim` is a mutation — which Convex runs as a serializable transaction, so reading the
+key and writing it are one step, and two deliveries of one event arriving together cannot both
+pass.
+
+```ts
+// convex/schema.ts
+seenEvents: defineTable({ key: v.string(), until: v.number() })
+  .index("by_key", ["key"])
+  .index("by_until", ["until"]),
+
+// convex/seen.ts
+export const claim = internalMutation({
+  args: { key: v.string(), until: v.number() },
+  handler: async (ctx, { key, until }) => {
+    const row = await ctx.db
+      .query("seenEvents")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+    if (row !== null && row.until > Date.now()) return false;
+    if (row !== null) await ctx.db.patch(row._id, { until });
+    else await ctx.db.insert("seenEvents", { key, until });
+    return true;
+  },
+});
+
+export const release = internalMutation({
+  args: { key: v.string() },
+  handler: async (ctx, { key }) => {
+    const row = await ctx.db
+      .query("seenEvents")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+    if (row !== null) await ctx.db.delete(row._id);
+  },
+});
+
+// Past its window, an id will not come round again (EVT-8), so its row can go.
+export const forget = internalMutation({
+  handler: async (ctx) => {
+    const expired = await ctx.db
+      .query("seenEvents")
+      .withIndex("by_until", (q) => q.lt("until", Date.now()))
+      .take(500);
+    for (const row of expired) await ctx.db.delete(row._id);
+  },
+});
+
+// convex/crons.ts
+crons.hourly("forget handled events", { minuteUTC: 0 }, internal.seen.forget);
+
+// convex/http.ts — one handler for OPTIONS (the handshake) and POST (the deliveries)
+const events = httpAction(async (ctx, request) =>
+  sink({
+    credential: process.env.SINK_SECRET!,
+    origins: ["tech.rowing.fleet"],
+    windowSeconds: 3600,
+    seen: {
+      claim: (key, until) => ctx.runMutation(internal.seen.claim, { key, until }),
+      release: (key) => ctx.runMutation(internal.seen.release, { key }),
+    },
+    onEvent: (event) => ctx.runMutation(internal.work.raised, { event }),
+  })(request),
+);
+http.route({ path: "/events", method: "OPTIONS", handler: events });
+http.route({ path: "/events", method: "POST", handler: events });
+```
+
+`sink` is built per request here because `onEvent` needs that request's `ctx`; the store is the
+table, which outlives every request. `windowSeconds` is at least the longest
+`republishWindowSeconds` among the Workers this sink subscribed to.
+
 ## Strict about what this protocol fixes, blind to what it does not
 
 Every document the protocol's schemas describe is validated, and a Worker that answers something

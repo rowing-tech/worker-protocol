@@ -790,7 +790,7 @@ describe("mount(), after the audit of 0.4", () => {
             members: ["vehicle", "kind"],
             windowSeconds: 60,
           },
-          run: (input: unknown, call: ActionCall) => {
+          run: (_input: unknown, call: ActionCall) => {
             runs.push(call.idempotencyKey);
           },
         },

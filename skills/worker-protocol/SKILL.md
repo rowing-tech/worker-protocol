@@ -163,7 +163,11 @@ whose reason is understood is one that survives a refactor.
   refused. Deliver structured CloudEvents with `Authorization: Bearer <sinkCredential>`, retrying
   only within EVT-8's window. Subscribing is idempotent by content and nothing is renewed: end a
   subscription only when its subscriber does, its sink fails for `abandonAfterSeconds`, or its
-  caller is revoked, and announce and keep the last two.
+  caller is revoked, and announce and keep the last two. On the receiving side, answer the
+  handshake, check the bearer, and deduplicate by `source` and `id` within EVT-8's window —
+  `sink()` in `@worker-protocol/client` does all three. Back its `SeenStore` with something that
+  outlives a request — on Convex, a table claimed in a mutation, never `memorySeen()`, which forgets
+  between invocations and handles a repeated delivery twice.
 - **The lifecycle of Tasks and Alerts has fixed names** (EVT-15): `task-raised`, `task-ended`,
   `alert-raised`, `alert-ended` under `tech.rowing.worker-protocol`, with the id in `subject` and
   `tasktype` or `alertseverity` as an extension. Publish them where your code knows the moment — a

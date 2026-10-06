@@ -69,8 +69,9 @@ publishes through a broker, through its subscriptions, or both.
 
 **Built:** `spec/subscriptions.md` and the changes to `events`, `descriptor` and `tasks`; the
 schemas; `mount()`, `eventHub()` and the lifecycle builders in `@worker-protocol/hono`; the
-reference Worker; and the verifier's checks, run against it. Their reasoning now sits in those
-files. **Still to build:** the client's half, the Cloudflare implementation in
+reference Worker; the verifier's checks, run against it; and both halves in
+`@worker-protocol/client` — subscribing from `consume()`, and `sink()` for the receiving end. Their
+reasoning now sits in those files. **Still to build:** the Cloudflare implementation in
 `examples/fleet-worker`, and a sink in the conformance CLI — which also needs the CLI to take an
 arrangement at all, since it takes none today. The entry leaves this list when those are in.
 

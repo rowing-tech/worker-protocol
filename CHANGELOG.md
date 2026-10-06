@@ -121,6 +121,10 @@ which `^0.5.0` does not take.
   `eventTypeDeclaration`, a qualified name on the last two.
 - **`@worker-protocol/hono`**: `supersededBy` on an Action and on a Task type in `raises`, written
   into the Descriptor as declared; an event type carries it already, being the schema's own shape.
+- **`@worker-protocol/client`**: `subscriptions` on `consume()` — `subscribe`, which says whether
+  the subscription is new, `list` and `unsubscribe` — and `sink()`, the receiving end: the webhook
+  handshake, the sink's own credential, structured CloudEvents only, and each event handed over
+  once within its window, behind a `SeenStore` with `memorySeen()` for one process.
 - **`@worker-protocol/client`**: `compare({ before, after })`, REG-36's comparison of two copies of
   one Descriptor, beside `canAnswer` and for the same reason. Each `Change` names the schema, the
   declaration, the member and why, and is `breaking` or `unjudged` — the second for a keyword it
