@@ -1,10 +1,9 @@
-import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorker } from "../../../../conformance/reference-worker/src/server.ts";
-import type { SinkExchange } from "../checks/subscriptions.ts";
 import { verify } from "../index.ts";
 import { tally } from "../report.ts";
+import { listenAsSink } from "../sink.ts";
 
 /**
  * The verifier against a live Worker, over a real socket.
@@ -28,50 +27,6 @@ const start = (options: Parameters<typeof createWorker>[0] = {}) =>
   });
 
 /**
- * A sink on a loopback socket, which allows any origin in the webhook handshake and answers every
- * delivery `200` — the arrangement SUB-2 to SUB-16 need, standing where a Convex app would.
- */
-const startSink = () =>
-  new Promise<{
-    url: string;
-    origin: string;
-    received: () => SinkExchange[];
-    close: () => Promise<void>;
-  }>((resolve) => {
-    const received: SinkExchange[] = [];
-    const server = createServer((request, response) => {
-      let body = "";
-      request.on("data", (chunk) => {
-        body += chunk;
-      });
-      request.on("end", () => {
-        const headers = Object.fromEntries(
-          Object.entries(request.headers).map(([key, value]) => [key, String(value)]),
-        );
-        received.push({ method: request.method ?? "GET", headers, body });
-        if (request.method === "OPTIONS") {
-          response.writeHead(200, {
-            "webhook-allowed-origin": String(request.headers["webhook-request-origin"] ?? "*"),
-          });
-        } else {
-          response.writeHead(200);
-        }
-        response.end();
-      });
-    });
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address() as AddressInfo;
-      const origin = `http://127.0.0.1:${port}`;
-      resolve({
-        url: `${origin}/events`,
-        origin,
-        received: () => [...received],
-        close: () => new Promise<void>((done) => server.close(() => done())),
-      });
-    });
-  });
-
-/**
  * What this Worker's operators would tell a verifier, if it had any.
  *
  * `conformance/verifiability.md` classes a rule `H` when nothing a tool can do to an UNARRANGED
@@ -80,7 +35,7 @@ const startSink = () =>
  * of band, the way the base URL and the credential do.
  */
 /** The sink of the test in progress, which `ARRANGEMENT.sink` reads when a run is arranged. */
-let sinkServer: Awaited<ReturnType<typeof startSink>>;
+let sinkServer: Awaited<ReturnType<typeof listenAsSink>>;
 
 const ARRANGEMENT = {
   // SUB-2 to SUB-16: a sink the Worker can reach — exempted by name for this loopback origin, as a
@@ -138,7 +93,7 @@ describe("the reference worker, verified", () => {
   // condition of a Task this Worker was raising (TASK-15), so a second run against the same
   // process would read a shorter list. A Worker arranged to be checked is arranged for one check.
   beforeEach(async () => {
-    sinkServer = await startSink();
+    sinkServer = await listenAsSink({ port: 0 });
     worker = await start({
       insecureSinkOrigins: [sinkServer.origin],
       credential: "a-token",

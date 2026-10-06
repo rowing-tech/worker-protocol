@@ -133,6 +133,10 @@ which `^0.5.0` does not take.
   from an outbox: a row published again after a broker refused it is the same event to every
   subscriber that already has it, and its `time` is when the Fact changed rather than when the row
   drained.
+- **The conformance CLI takes an arrangement, and brings a sink.** `--arrangement <file>` reads
+  `verify()`'s `arrangement` from JSON, strictly, so a misspelt key stops the run instead of
+  reporting its rules `notExercised`. `--sink-port` serves a sink on `127.0.0.1` for the
+  `subscriptions` checks, and `--sink-url` names the public address a tunnel gives it.
 - **`examples/fleet-worker` serves `subscriptions` on Cloudflare.** The subscriptions live in its
   Durable Object, in SQL, behind a `SubscriptionStore` whose `ensure` is one method; each delivery
   is a message on a Cloudflare Queue, and the Worker's `queue` handler runs `deliver()` and hands

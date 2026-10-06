@@ -1,8 +1,11 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { verify } from "./index.ts";
+import * as z from "zod";
+import { type Arrangement, verify } from "./index.ts";
 import type { Report, Verdict } from "./report.ts";
 import { tally } from "./report.ts";
+import { type ListeningSink, listenAsSink } from "./sink.ts";
 
 /**
  * `npx @worker-protocol/conformance <base-url>` — the verifier, from a shell.
@@ -41,6 +44,15 @@ Options:
                         operation somebody's operators chose to expose, and a tool
                         pointed at a Worker to inspect it does not perform work on
                         it uninvited. Rules needing one report notExercised.
+  --arrangement <file>  A JSON file of what the Worker's operators arranged so that
+                        more can be seen: safe Actions, more credentials, the Action
+                        that publishes: verify()'s \`arrangement\`, except \`sink\`,
+                        which is the two options below.
+  --sink-port <port>    Serve a sink on 127.0.0.1:<port> for \`subscriptions\`. Needs
+                        publishingAction in the arrangement. 0 takes a free port.
+  --sink-url <url>      Where the Worker is to deliver, when that is not the socket:
+                        a tunnel's public https URL forwarding to --sink-port. A
+                        deployed Worker refuses a plaintext or loopback sink.
   --json                Write the report to stdout as JSON, and nothing else.
   -h, --help            This.
 
@@ -51,6 +63,9 @@ const { values, positionals } = parseArgs({
   options: {
     credential: { type: "string" },
     "may-perform": { type: "boolean", default: false },
+    arrangement: { type: "string" },
+    "sink-port": { type: "string" },
+    "sink-url": { type: "string" },
     json: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
   },
@@ -64,13 +79,105 @@ if (values.help) {
 const [baseUrl, ...extra] = positionals;
 
 if (baseUrl === undefined || extra.length > 0) {
-  console.error(
+  refuse(
     baseUrl === undefined
-      ? "A Worker's base URL is required.\n"
-      : `Expected one base URL, got ${positionals.length}.\n`,
+      ? "A Worker's base URL is required."
+      : `Expected one base URL, got ${positionals.length}.`,
   );
+}
+
+/** The run cannot be made as asked: say why, show how, and exit 2 — nothing was judged. */
+function refuse(why: string): never {
+  console.error(`${why}\n`);
   console.error(USAGE);
   process.exit(2);
+}
+
+const action = z.strictObject({ name: z.string().min(1), input: z.json() });
+const safeAction = action.extend({ otherInput: z.json().optional() });
+
+/**
+ * What `--arrangement` reads: `Arrangement`, less what a file cannot hold.
+ *
+ * Strict, because the cost of a typo here is silent. A key spelled wrong is a key not given, and a
+ * key not given reports `notExercised` — which is a verdict an operator reads as *nobody arranged
+ * that*, while they believe they did. Refusing the file says which key, before anything is sent.
+ * `sink` is a function and answers what arrived, so it is the options below and not a key; the two
+ * addresses `verify` resolves itself are not a caller's to give.
+ */
+const arrangementFile = z.strictObject({
+  safeAction: safeAction.optional(),
+  secondSafeAction: safeAction.optional(),
+  refusedInput: action.optional(),
+  asyncAction: action.optional(),
+  otherCallerCredential: z.string().optional(),
+  secondCredential: z.string().optional(),
+  consumerCredential: z.string().optional(),
+  unprivilegedCredential: z.string().optional(),
+  justStarted: z.boolean().optional(),
+  replaceableSettings: z.boolean().optional(),
+  recordsEveryRequest: z.boolean().optional(),
+  publishedEvent: z.json().optional(),
+  publishingAction: action.extend({ publishes: z.string().min(1) }).optional(),
+}) satisfies z.ZodType<Omit<Arrangement, "sink" | "healthUrl" | "actionsUrl">>;
+
+async function readArrangement(path: string): Promise<Arrangement> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(path, "utf8"));
+  } catch (thrown) {
+    refuse(`Could not read the arrangement at ${path}: ${(thrown as Error).message}`);
+  }
+  if (raw !== null && typeof raw === "object" && "sink" in raw) {
+    refuse("`sink` is not a key of the arrangement file: it is --sink-port, and --sink-url.");
+  }
+  const parsed = arrangementFile.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    refuse(
+      `The arrangement at ${path} is not one: ${issue?.path.join(".") || "(root)"}: ${issue?.message}`,
+    );
+  }
+  return parsed.data;
+}
+
+const arrangement =
+  values.arrangement === undefined ? {} : await readArrangement(values.arrangement);
+
+/**
+ * The sink, where one was asked for. A run without one judges what a credential alone can see of
+ * `subscriptions` and reports the rest `notExercised`, so nothing is started unless asked.
+ */
+async function openSink(): Promise<ListeningSink | undefined> {
+  const port = values["sink-port"];
+  const publicUrl = values["sink-url"];
+  if (port === undefined) {
+    if (publicUrl !== undefined) refuse("--sink-url names where --sink-port is reached from.");
+    return undefined;
+  }
+  // A sink nothing publishes to judges nothing, and the run would say so only as `notExercised`.
+  if (arrangement.publishingAction === undefined) {
+    refuse(
+      "--sink-port needs `publishingAction` in the arrangement: nothing else makes a Worker publish.",
+    );
+  }
+  const number = Number(port);
+  if (!Number.isInteger(number) || number < 0 || number > 65535) {
+    refuse(`--sink-port takes a port, not ${port}.`);
+  }
+  if (publicUrl !== undefined && !URL.canParse(publicUrl)) {
+    refuse(`--sink-url takes an absolute URL, not ${publicUrl}.`);
+  }
+  try {
+    return await listenAsSink({ port: number, ...(publicUrl === undefined ? {} : { publicUrl }) });
+  } catch (thrown) {
+    refuse(`Could not listen on 127.0.0.1:${port}: ${(thrown as Error).message}`);
+  }
+}
+
+const sink = await openSink();
+if (sink !== undefined && !values.json) {
+  console.error(`sink on ${sink.origin}, delivered to at ${sink.url}`);
 }
 
 /** The order `tally` fixes, which is the order a reader of `conformance/README.md` meets them in. */
@@ -108,6 +215,10 @@ try {
     baseUrl,
     credential: values.credential ?? process.env.WORKER_PROTOCOL_CREDENTIAL,
     mayPerform: values["may-perform"],
+    arrangement:
+      sink === undefined
+        ? arrangement
+        : { ...arrangement, sink: { url: sink.url, received: sink.received } },
   });
 } catch (thrown) {
   // A backstop, and it should stay empty. `verify` turns an unreachable Worker, an unresolvable
@@ -116,6 +227,8 @@ try {
   // the one mistake a CI could not see through.
   console.error(`Could not verify ${baseUrl}: ${(thrown as Error).message}`);
   process.exit(2);
+} finally {
+  await sink?.close();
 }
 
 if (values.json) {

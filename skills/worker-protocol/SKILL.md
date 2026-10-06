@@ -210,8 +210,11 @@ the Worker *arranged* (an Action safe to perform, a second credential) and nobod
 `--may-perform` lets the verifier POST to Actions and is off by default. `unverified` and
 `otherSubject` are rules no tool pointed at a Worker can judge.
 
-An arrangement is handed to `verify()` from `@worker-protocol/conformance`, not to the CLI. The key
-scope rules need the most of it: `otherCallerCredential`, a credential your authentication
+An arrangement is handed to `verify()` as `arrangement`, or to the CLI as a JSON file with
+`--arrangement <file>` — checked strictly, so a misspelt key stops the run rather than leaving its
+rules `notExercised`. The `subscriptions` checks also need a sink: `--sink-port` serves one, and
+`--sink-url` names the tunnel's public `https` address in front of it. The key scope rules need the
+most of it: `otherCallerCredential`, a credential your authentication
 attributes to somebody other than the recorded caller; an `otherInput` on the safe Action, a second
 input its schema accepts; and `secondSafeAction` when one Action takes its key from the header and
 another from the input. A Worker with a single caller has no such credential, and the report says

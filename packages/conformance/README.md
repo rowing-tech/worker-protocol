@@ -27,6 +27,15 @@ worker-protocol-conformance <base-url> [options]
                         operation somebody's operators chose to expose, and a tool
                         pointed at a Worker to inspect it does not perform work on
                         it uninvited. Rules needing one report notExercised.
+  --arrangement <file>  A JSON file of what the Worker's operators arranged so that
+                        more can be seen: safe Actions, more credentials, the Action
+                        that publishes: verify()'s `arrangement`, except `sink`,
+                        which is the two options below.
+  --sink-port <port>    Serve a sink on 127.0.0.1:<port> for `subscriptions`. Needs
+                        publishingAction in the arrangement. 0 takes a free port.
+  --sink-url <url>      Where the Worker is to deliver, when that is not the socket:
+                        a tunnel's public https URL forwarding to --sink-port. A
+                        deployed Worker refuses a plaintext or loopback sink.
   --json                Write the report to stdout as JSON, and nothing else.
   -h, --help            This.
 
@@ -106,6 +115,35 @@ arranged reports `notExercised` naming what was missing.
 `subscriptions` is judged at a sink: `sink` is a URL the Worker can reach and a function answering
 what arrived there, and `publishingAction` an Action safe to perform that publishes a named event
 type. `verify()` starts no server, so the sink is yours to run.
+
+From the command line, the arrangement is a file, and the sink is the CLI's own:
+
+```
+npx @worker-protocol/conformance https://fleet.example.com --may-perform \
+  --arrangement arrangement.json --sink-port 8788 --sink-url https://sink.example.trycloudflare.com
+```
+
+```json
+{
+  "safeAction": { "name": "answer-check", "input": { "vehicle": "ABC-123", "reachable": true } },
+  "otherCallerCredential": "another-callers-token",
+  "publishingAction": {
+    "name": "answer-check",
+    "input": { "vehicle": "DEF-456", "reachable": true },
+    "publishes": "tech.rowing.worker-protocol.task-ended"
+  }
+}
+```
+
+`publishingAction` has to publish while it is being performed: the verifier waits five seconds for
+the delivery, so an Action whose event leaves on the next scheduled run reports SUB-11 failed.
+
+The file is checked strictly: a key it does not know stops the run with exit 2 rather than being
+ignored, because an ignored key reports its rules `notExercised` to somebody who believes they
+arranged them. It is also the place for the extra credentials, which argv would show to every
+process on the machine. A deployed Worker refuses a sink in plaintext or on a loopback address
+(SUB-5, SUB-6), so `--sink-url` is a tunnel's public `https` address forwarding to `--sink-port`;
+only a Worker in development that exempts the socket's origin is reached without one.
 
 A safe Action may carry an `otherInput`: a second input its schema accepts, which ENDP-17, ENDP-34
 and ENDP-35 send under the same key. The two scope rules play two callers, so they also need

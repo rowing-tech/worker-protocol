@@ -221,7 +221,9 @@ survive a recursive one.
 `queue` handler runs `deliver()` on each and hands its decision back — `retry({ delaySeconds })`
 with the hub's backoff, or `ack()`. The hub decides and bounds every retry by EVT-8's window, so the
 Queue's `max_retries` is set to the platform's maximum: its default of 3 would cut short a delivery
-the hub still wanted to make.
+the hub still wanted to make. Retrying from the Durable Object with alarms was the alternative, and
+was turned down: one alarm per object means keeping a retry queue by hand, with every delivery
+passing through one single-threaded object.
 
 **The outbox publishes to the subscribers first, under the row's own id.** A cycle hands each row to
 `publish()` with the id and instant the row already has, and only then to the broker. A broker that
