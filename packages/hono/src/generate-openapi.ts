@@ -111,7 +111,7 @@ function operation(op: Json): Json {
 function document(surface: Surface): Json {
   const app = new OpenAPIHono();
   // A document needs the route and nothing behind it; the handler is never called.
-  app.openapi(surface.route, (() => undefined) as never);
+  for (const route of surface.routes) app.openapi(route, (() => undefined) as never);
 
   const emitted = app.getOpenAPI31Document({
     openapi: "3.1.0",
@@ -142,14 +142,14 @@ function document(surface: Surface): Json {
         variables: {
           [surface.server.variable]: {
             // OpenAPI requires a default and there is no such thing as a default address: a
-            // client is constructed with one read from a Descriptor (DESC-12). `/` is chosen for
+            // client is constructed with one read from a Descriptor (DESC-36). `/` is chosen for
             // what happens when somebody forgets. A generator that substitutes it produces a
             // client aimed at its own origin, which fails locally and loudly; a plausible-looking
             // host would produce one that sends a Worker's credential to a domain nobody here
             // controls, quietly and over the network. The safer failure is the one that stays in.
             default: "/",
             description:
-              "Read from the Worker's Descriptor and resolved per DESC-12. Never assembled by a " +
+              "Read from the Worker's Descriptor and resolved per DESC-36. Never assembled by a " +
               "caller (ENDP-1). The default is `/` and not a host on purpose: a client that was " +
               "never given an address should fail at its own origin rather than reach somebody " +
               "else's.",

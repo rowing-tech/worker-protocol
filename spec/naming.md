@@ -56,7 +56,7 @@ re-derived when the Worker changes. So a name reused for a different thing silen
 one of them at once, and the parties holding it are given no signal of any kind: the name still
 resolves, the Worker still answers, and what comes back is something else.
 
-That is the same failure REG-13 refuses at the level of a Worker's identity, one level down in the
+That is the same failure REG-35 refuses at the level of a Worker's identity, one level down in the
 vocabulary. It is worth noticing that this protocol has no mechanism that would catch it. The Tower
 keeps a dated copy of each Descriptor and could in principle see a name disappear and return, but
 it is authority over none of it and no rule asks it to look; a consumer sees nothing at all,
@@ -77,8 +77,10 @@ there is nothing to narrow it against.
 
 **NAME-7 (required). A name this protocol expects one party to match against a name that came from
 somewhere else is namespaced: a prefix of at least two labels, being a DNS name written in reverse
-label order, followed by a local part.
-[schemas/qualified-name.json](../schemas/qualified-name.json) carries the form.**
+label order, followed by a local part. [schemas/qualified-name.json](../schemas/qualified-name.json)
+carries the form.** Lowercase throughout, the local part included: DNS is case-insensitive, and
+NAME-1 compares byte for byte, so `Verify-Vehicle` and `verify-vehicle` would be two names a person
+reads as one — the same trap in the half of the name that is not DNS.
 
 **NAME-8 (recommended). The DNS name a namespace is taken from is one the minting team controls.**
 
@@ -118,7 +120,7 @@ Who *the minting team* is has one trap worth naming, because the error is silent
 the one controlled by whoever wrote the definition of the work — the team that decided what
 `verify-vehicle` means and what its payload carries — and never the deployment that happens to run
 it. A process installed twice, each installation prefixing with its own host, publishes two Skills
-for one Task type, and the catalog TASK-31 exists for cannot join them: the Tower answers *who
+for one Task type, and the catalog TASK-33 exists for cannot join them: the Tower answers *who
 answers this* with half of the Workers that do. Nothing detects it, for the reason NAME-8
 recommends rather than binds, which is why it is said here rather than left to be found.
 
@@ -134,7 +136,7 @@ NAME-9 is a different requirement and deliberately not the same rule. A Worker's
 enrollment, which is comparison for identity and not agreement on a vocabulary. So the mechanism is
 free: a name under NAME-7's namespace satisfies NAME-9, and so does a random identifier with no
 structure at all, and this protocol has no reason to prefer either. What it cannot survive is two
-Workers sharing one, because DESC-27 makes the id the thing Contracts hang off and REG-13 makes it
+Workers sharing one, because DESC-27 makes the id the thing Contracts hang off and REG-35 makes it
 the thing a Tower refuses to rebind — both undone at once if the id names two things. Forcing
 reverse-DNS here instead would have forbidden a UUID, which solves the only problem there is.
 
@@ -291,7 +293,7 @@ is already true.
 
 What a breaking change then costs is already fixed elsewhere and is not repeated here. DESC-9 makes
 a Capability's version a single integer and DESC-29 makes it count breaking changes to that
-Capability, so the number moving *is* the announcement. ENDP-5 puts that version on every response,
+Capability, so the number moving *is* the announcement. ENDP-37 puts that version on every response,
 and ENDP-6 lets a caller state the version it expects and be refused whole rather than guessed at. A
 consumer therefore discovers a breaking change on its next call, loudly, with a `400` that names the
 version — which is the discovery this protocol is built to deliver, and it needs nothing from this

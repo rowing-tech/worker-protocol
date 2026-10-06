@@ -13,7 +13,7 @@ import type { Transcript } from "../transcript.ts";
  */
 export const CLAIMS = [
   "TASK-27",
-  "TASK-32",
+  "TASK-34",
   "TASK-4",
   "TASK-5",
   "TASK-8",
@@ -22,10 +22,10 @@ export const CLAIMS = [
 ] as const;
 
 type Entry = {
-  raises: Record<string, { payload: unknown; answeredBy: string }>;
+  raises: Record<string, { payload: unknown; answeredBy?: string }>;
 };
 
-/** A declared input, read only for the members TASK-32's second half is about. */
+/** A declared input, read only for the members TASK-34's second half is about. */
 type Declared = {
   const?: unknown;
   properties?: Record<string, Declared>;
@@ -34,11 +34,11 @@ type Declared = {
 };
 
 /**
- * Whether a union's variants are told apart by a discriminator — TASK-32's second obligation.
+ * Whether a union's variants are told apart by a discriminator — TASK-34's second obligation.
  *
  * A member that every variant fixes to a constant of its own, which is what a discriminated union
  * writes and what an answerer needs in order to say which ending it is producing. Without one a
- * consumer reading the schema cannot name the ending it can reach, and the mapping TASK-32 exists
+ * consumer reading the schema cannot name the ending it can reach, and the mapping TASK-34 exists
  * to dissolve comes back as a conversation between two parties.
  *
  * The same walk `packages/client`'s `skills.ts` does when it decides whether one Worker can answer
@@ -58,10 +58,10 @@ function told(variants: Declared[]): boolean {
 export async function checkTasks(
   entry: Record<string, unknown> | undefined,
   url: string | null,
-  /** TASK-31, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
+  /** TASK-33, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
    * them — and reach them even for a Worker that declares a Skill and no `tasks` entry. */
   skills: string[],
-  /** The `actions` entry's own map, because TASK-32 is about the Action's name AND its input. */
+  /** The `actions` entry's own map, because TASK-34 is about the Action's name AND its input. */
   accepts: Record<string, { input?: unknown }>,
   rules: Map<string, Rule>,
   attribution: Attribution,
@@ -111,7 +111,7 @@ export async function checkTasks(
   // says so per rule rather than once, because a report naming one of them is the point.
   crossing(Object.keys(raises).length);
 
-  // TASK-32 has two obligations and neither is a shape inside one entry, which is why the schema
+  // TASK-34 has two obligations and neither is a shape inside one entry, which is why the schema
   // reaches neither and both are here.
   //
   // The first is the name: answering a Task is performing one of the OWNER's own Actions, so a
@@ -125,6 +125,9 @@ export async function checkTasks(
   const dangling: string[] = [];
   const untold: string[] = [];
   for (const [type, declaration] of Object.entries(raises)) {
+    // A type no Action answers is work done elsewhere, whose condition clears on a Fact the Worker
+    // observes. There is no name to check and no input to read.
+    if (declaration.answeredBy === undefined) continue;
     const declared = accepts[declaration.answeredBy];
     if (declared === undefined) {
       dangling.push(
@@ -143,17 +146,17 @@ export async function checkTasks(
 
   const faults = [...dangling, ...untold];
   if (Object.keys(raises).length === 0) {
-    say("TASK-32", "notExercised", "the Worker raises no Task type");
+    say("TASK-34", "notExercised", "the Worker raises no Task type");
   } else if (faults.length === 0) {
-    say("TASK-32", "passes");
+    say("TASK-34", "passes");
   } else {
-    say("TASK-32", "fails", faults.join("; "));
+    say("TASK-34", "fails", faults.join("; "));
   }
 
   if (url === null) {
     allExcept("notExercised", "the reading address did not resolve", [
       "TASK-27",
-      "TASK-32",
+      "TASK-34",
       "TASK-4",
       "NAME-7",
     ]);

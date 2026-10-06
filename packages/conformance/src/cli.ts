@@ -21,7 +21,7 @@ import { tally } from "./report.ts";
  * Which of those an unreachable Worker is, `verify` has already decided and this file does not
  * revisit: it fails DESC-1, naming what could not be fetched. That is a verdict and a correct one —
  * a Worker is not conformant at an address that does not answer — so it exits 1 like any other
- * failure. What exits 2 is the case where this tool is the one that is behind (DESC-25), and
+ * failure. What exits 2 is the case where this tool is the one that is behind (DESC-33), and
  * whatever `verify` does not turn into a verdict at all.
  *
  * `notExercised` never fails the run. `conformance/README.md` spends a paragraph on why it is not
@@ -124,7 +124,7 @@ if (values.json) {
   print(report);
 }
 
-// DESC-25 binds a verifier rather than a Worker: one that does not hold the declared MAJOR has
+// DESC-33 binds a verifier rather than a Worker: one that does not hold the declared MAJOR has
 // verified nothing and says so. Exit 2, for the same reason as the catch above — the Worker has
 // not been judged, and the thing that is behind is this tool.
 if (report.older) {

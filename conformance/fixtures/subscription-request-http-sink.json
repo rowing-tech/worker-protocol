@@ -1,0 +1,11 @@
+{
+  "schema": "subscription-request",
+  "valid": false,
+  "rule": "SUB-5",
+  "why": "A sink in plaintext. The sink credential travels on every delivery, and over http it is handed to every party on the path — DESC-35's reason, one direction along. A local backend in development is exempted by name in an SDK, never by this schema.",
+  "document": {
+    "types": ["tech.rowing.worker-protocol.task-raised"],
+    "sink": "http://127.0.0.1:3211/events",
+    "sinkCredential": "s3cret"
+  }
+}

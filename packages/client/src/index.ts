@@ -19,9 +19,9 @@ import { type CallerOptions, caller, collect, type Page, page } from "./call.ts"
 /**
  * `@worker-protocol/client` — read a Worker, and take work from it.
  *
- * `consume(url)` reads a Descriptor once, resolves every address the Worker declared (DESC-12) and
+ * `consume(url)` reads a Descriptor once, resolves every address the Worker declared (DESC-36) and
  * answers an object with one member per Capability that Worker implements — and nothing for the
- * ones it does not, because DESC-2 admits any combination including none.
+ * ones it does not, because DESC-34 admits any combination including none.
  *
  * **It is the other half of `mount()` and it carries the same kind of thing.** A consumer that
  * wrote this itself would write the address resolution, the paging and its cursor, the retry that
@@ -84,7 +84,7 @@ export type Consumed = {
   actions?: {
     /** ACT-5. The body is the input and carries nothing else. */
     perform: (name: string, input: unknown, options?: PerformOptions) => Promise<unknown>;
-    /** ACT-15. The document `configure` would accept, where this Worker exposes one. */
+    /** ACT-21. The document `configure` would accept, where this Worker exposes one. */
     settings?: () => Promise<unknown>;
   };
   /** ALRT-2. The Alerts whose conditions hold, whole; `.page()` for one page of them. */
@@ -132,7 +132,7 @@ export type Consumed = {
      *
      * A Task carries its id, its type, its payload and when its condition began — and nothing about
      * how to answer it, because that belongs to the Worker that raised it and is declared twice
-     * over in its Descriptor: the Task type names the Action that answers it (TASK-32), and that
+     * over in its Descriptor: the Task type names the Action that answers it (TASK-34), and that
      * Action declares the JSON Schema of its input (ACT-2). Reading both is two walks down a
      * document a consumer already holds, and every consumer was doing them by hand.
      *
@@ -169,7 +169,7 @@ export type LogRead = {
 };
 
 export type PerformOptions = {
-  /** ENDP-15. Where the Action declares it reads a key from the header. */
+  /** ENDP-38. Where the Action declares it reads a key from the header. */
   idempotencyKey?: string;
 };
 
@@ -178,7 +178,7 @@ const rfc3339 = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, "Z");
 export { type Compatibility, canAnswer } from "./skills.ts";
 
 export async function consume(baseUrl: string, options: CallerOptions = {}): Promise<Consumed> {
-  // DESC-3: the one route this protocol fixes, and the only address a consumer ever assembles.
+  // DESC-35: the one route this protocol fixes, and the only address a consumer ever assembles.
   // Everything else is declared, which is what ENDP-1 buys and why nothing below concatenates.
   const descriptorUrl = new URL(
     ".well-known/worker-protocol",
@@ -241,7 +241,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
   if (actionsAddress !== undefined) {
     const perform = async (name: string, input: unknown, perform: PerformOptions = {}) => {
       // ACT-5: a POST to the declared address, naming the Action in the query parameter, with the
-      // body the input and nothing else. A resource-level 404 is ACT-6 and not DESC-30's.
+      // body the input and nothing else. A resource-level 404 is ACT-6 and not DESC-38's.
       const url = new URL(actionsAddress);
       url.searchParams.set("action", name);
       const answered = await call.call({
@@ -250,7 +250,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         body: JSON.stringify(input),
         idempotencyKey: perform.idempotencyKey,
       });
-      // ACT-10, ACT-11: `200` with the Action's own result, `204` with none, `202` where it does
+      // ACT-10, ACT-18: `200` with the Action's own result, `204` with none, `202` where it does
       // not complete within the call. The result is the Worker's shape and is not validated.
       return answered.status === 200 ? answered.json : undefined;
     };
@@ -261,7 +261,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
       ?.configure;
     if (typeof configure?.readAddress === "string") {
       const settingsUrl = call.resolve(configure.readAddress);
-      // ACT-15: a GET answers a document `configure` would accept. Its shape is the Worker's own,
+      // ACT-21: a GET answers a document `configure` would accept. Its shape is the Worker's own,
       // so this reads it and does not judge it.
       consumed.actions.settings = async () =>
         (await call.call({ url: settingsUrl, addressLevel: true })).json;
@@ -325,7 +325,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
     consumed.tasks = {
       list: (type) =>
         // TASK-8 filters by type where one is asked for; absent, the read is unfiltered and a
-        // `404` from it would be DESC-30's rather than a resource's, which `pages` works out.
+        // `404` from it would be DESC-38's rather than a resource's, which `pages` works out.
         collect<Task>(call, tasksAddress, taskPage, "TASK-5", type === undefined ? {} : { type }),
       page: ({ type, cursor } = {}) =>
         page<Task>(
@@ -337,10 +337,10 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
           cursor,
         ),
 
-      // TASK-32 names the Action; ACT-2 declares its input. Both are already in the document this
+      // TASK-34 names the Action; ACT-2 declares its input. Both are already in the document this
       // consumer read, so this walks it rather than calling anything.
       answers: (type) => {
-        const raises = (entry("tasks") as { raises?: Record<string, { answeredBy: string }> })
+        const raises = (entry("tasks") as { raises?: Record<string, { answeredBy?: string }> })
           ?.raises;
         const accepts = (entry("actions") as { accepts?: Record<string, { input: unknown }> })
           ?.accepts;

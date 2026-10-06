@@ -34,14 +34,14 @@ export type Action = {
   result?: z.ZodType;
   /** ACT-4. Declared rather than discovered, because a caller decides whether it can wait. */
   completesWithinCall?: boolean;
-  /** ACT-12, ENDP-15. Absent where the Action takes no key. */
+  /** ACT-19, ENDP-38. Absent where the Action takes no key. */
   idempotency?:
     | { required: boolean; from: "header"; windowSeconds: number }
-    | { required: boolean; from: "input"; member: string; windowSeconds: number };
+    | { required: boolean; from: "input"; members: string[]; windowSeconds: number };
   /**
    * What this Action does. The input has already been validated against `input` above.
    *
-   * A `Refusal` of `unprocessable_content` is ACT-9: schema-valid, and refused on the Worker's own
+   * A `Refusal` of `unprocessable_content` is ACT-17: schema-valid, and refused on the Worker's own
    * rules. Anything returned that is not a refusal is the result, and `undefined` is ACT-10's
    * `204` — the status comes from what the Action declared, never from what a handler chose.
    */
@@ -55,7 +55,7 @@ export type ActionCall = {
   /** REG-3. The credential presented, for a Worker that splits its own facts by it. */
   token: string | undefined;
   /**
-   * ENDP-15. The key this call arrived under, as the caller sent it — from the header or from the
+   * ENDP-38. The key this call arrived under, as the caller sent it — from the header or from the
    * declared member of the input — and absent where the Action takes no key or none was sent.
    *
    * It is here for a Worker that performs by asking another: a repeat reaches `run` only after an
@@ -113,7 +113,7 @@ export const action = <I extends z.ZodType>(
 export type ActionFacts = {
   /** ACT-16. Every Action this Worker accepts, keyed by name. */
   accepts: ActionDeclarations;
-  /** ACT-15. The document `configure` would accept, where the Worker accepts settings. */
+  /** ACT-21. The document `configure` would accept, where the Worker accepts settings. */
   settings?: () => unknown | Promise<unknown>;
   /**
    * ENDP-16. Where the recorded outcomes live. **Required as soon as any Action declares a key.**
@@ -139,7 +139,7 @@ export type ActionFacts = {
 export type Reservation =
   /** ENDP-16. Within the window, this key already has an outcome. It is answered, not performed. */
   | { held: Recorded }
-  /** Another request holds this key and has not finished. Nothing is performed; ENDP-29's `409`. */
+  /** Another request holds this key and has not finished. Nothing is performed; ENDP-40's `409`. */
   | "in-flight"
   /** Nobody held it. This request performs the Action and calls `complete` or `release`. */
   | "reserved";
@@ -288,34 +288,38 @@ export function actions(facts: ActionFacts) {
       return refuse("idempotency_key_required", "This Action requires an Idempotency-Key.");
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return refuse("malformed_request", "The body did not parse.");
+    const read = readJson(raw);
+    if ("code" in read) return read;
+    const { parsed } = read;
+
+    // ACT-20: a `writeOnly` member the settings document omits keeps its current value. The form
+    // a console renders from the reading address has none to post back (ACT-21), and replacing
+    // would otherwise erase what nobody is allowed to read.
+    if (name === "configure" && facts.settings !== undefined && isRecord(parsed)) {
+      const hidden = writeOnlyMembers(declaration.input);
+      const omitted = [...hidden].filter((member) => !(member in parsed));
+      if (omitted.length > 0) {
+        const current = await facts.settings();
+        if (isRecord(current)) {
+          for (const member of omitted) if (member in current) parsed[member] = current[member];
+        }
+      }
     }
 
     // ACT-8: an input that does not match the schema this Worker published. `400` and not `422`,
     // because ENDP-12 divides them at whether the Worker could READ it — and a caller fixes this
-    // one by re-reading the Descriptor, which ENDP-5's headers already told it had moved.
+    // one by re-reading the Descriptor, which ENDP-37's headers already told it had moved.
     const input = declaration.input.safeParse(parsed);
-    if (!input.success) {
-      const issue = input.error.issues[0];
-      const where = issue?.path.join(".");
-      return refuse(
-        "schema_mismatch",
-        `${where ? `\`${where}\`: ` : ""}${issue?.message ?? "The input does not match the schema."}`,
-      );
-    }
+    if (!input.success) return schemaMismatch(input.error);
 
-    // ACT-12: a key read from a named member of the input, where the Action declares one. A
+    // ACT-19: a key read from a named member of the input, where the Action declares one. A
     // payload that already carries its own identity needs no second key beside it.
     const recordedKey =
       idempotency === undefined
         ? undefined
         : idempotency.from === "header"
           ? key
-          : readMember(input.data, idempotency.member);
+          : readMembers(input.data, idempotency.members);
     if (idempotency?.required === true && recordedKey === undefined) {
       return refuse("idempotency_key_required", "This Action requires an idempotency key.");
     }
@@ -381,11 +385,14 @@ export function actions(facts: ActionFacts) {
       return produced;
     }
 
-    // ACT-10, ACT-11: the status comes from what the Action DECLARED, so a caller knows which to
+    // ACT-10, ACT-18: the status comes from what the Action DECLARED, so a caller knows which to
     // expect before it sends and a handler never picks one.
+    // ACT-18: a `202` carries the result the Action declares, where it declares one — a job id,
+    // say — and nothing where it declares none. The protocol invents no mechanism for following
+    // the work; a body the Worker declared itself is not one.
     const answer: Answer =
       declaration.completesWithinCall === false
-        ? { status: 202, body: null }
+        ? { status: 202, body: declaration.result === undefined ? null : produced }
         : declaration.result === undefined
           ? { status: 204, body: null }
           : { status: 200, body: produced };
@@ -404,10 +411,60 @@ export function actions(facts: ActionFacts) {
 const isRefusal = (value: unknown): value is Refusal =>
   typeof value === "object" && value !== null && "code" in value && "message" in value;
 
-const readMember = (input: unknown, member: string): string | undefined => {
-  if (typeof input !== "object" || input === null) return undefined;
-  const value = (input as Record<string, unknown>)[member];
-  return value === undefined ? undefined : String(value);
+/** ENDP-4: a body that does not parse is `malformed_request`, and nothing was read from it. */
+export const readJson = (raw: string): { parsed: unknown } | Refusal => {
+  try {
+    return { parsed: JSON.parse(raw) };
+  } catch {
+    return refuse("malformed_request", "The body did not parse.");
+  }
+};
+
+/** ACT-8, SUB-2: a body that parses and does not match its schema, naming where it first did not. */
+export const schemaMismatch = (error: z.ZodError): Refusal => {
+  const issue = error.issues[0];
+  const where = issue?.path.join(".");
+  return refuse(
+    "schema_mismatch",
+    `${where ? `\`${where}\`: ` : ""}${issue?.message ?? "The body does not match the schema."}`,
+  );
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * ENDP-38, ACT-19: the key the declared members make, in order, or `undefined` if one is absent.
+ * One member is its value as a string, as before; several are their values as a JSON array, so no
+ * value can run into the next.
+ */
+const readMembers = (input: unknown, members: string[]): string | undefined => {
+  if (!isRecord(input)) return undefined;
+  const values = members.map((member) => input[member]);
+  if (values.some((value) => value === undefined)) return undefined;
+  return values.length === 1 ? String(values[0]) : JSON.stringify(values);
+};
+
+/**
+ * ACT-20, ACT-21: the members a schema marks `writeOnly`, read off its JSON Schema — once per schema
+ * object, because a Worker answered per request hands over the same declaration every time, and
+ * converting it on every read and every `configure` would be work done for nothing.
+ */
+const writeOnlyBySchema = new WeakMap<z.ZodType, Set<string>>();
+export const writeOnlyMembers = (schema: z.ZodType): Set<string> => {
+  const known = writeOnlyBySchema.get(schema);
+  if (known !== undefined) return known;
+  const properties = (jsonSchema(schema).properties ?? {}) as Record<
+    string,
+    { writeOnly?: boolean }
+  >;
+  const found = new Set(
+    Object.entries(properties)
+      .filter(([, property]) => property.writeOnly === true)
+      .map(([name]) => name),
+  );
+  writeOnlyBySchema.set(schema, found);
+  return found;
 };
 
 /**

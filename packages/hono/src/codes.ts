@@ -1,5 +1,5 @@
 /**
- * ENDP-25, ENDP-26 — the closed code vocabulary, with the status each code is answered with.
+ * ENDP-39, ENDP-26 — the closed code vocabulary, with the status each code is answered with.
  *
  * `schemas/error.json` carries the code with its class, which is the half a schema can assert. The
  * status is not in the body, so it lived in a table in `spec/endpoints.md` that

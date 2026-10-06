@@ -11,7 +11,7 @@ Its shape is [schemas/health.json](../schemas/health.json), the three status val
 it is [schemas/health-entry.json](../schemas/health-entry.json). What follows is what no schema can
 state. Rules carry ids and a class; the convention is in [spec/README.md](README.md).
 
-`health` is a Capability like any other, so DESC-2 applies without qualification: a Worker that
+`health` is a Capability like any other, so DESC-34 applies without qualification: a Worker that
 declares none is conformant. DESC-1's argument already says what stands in for it — the Tower
 fetches the Descriptor on a schedule anyway, and a fetch that fails is the same fact a failed poll
 would have been.
@@ -34,7 +34,9 @@ with a status of its own. Both statuses are drawn from the same three values.**
 `healthy`.**
 
 **HLTH-4 (required). A Worker that has not yet established its state answers `unhealthy`, never
-`healthy`.**
+`healthy`.** Not `degraded` either: that value says *I am working and something behind me is not*,
+and a Worker that has checked nothing cannot claim to be working. ENDP-40 classes it
+`retry`, so it costs nothing — a poller comes round again.
 
 **HLTH-5 (required). A Worker answers its health address `200` whatever it reports. The status is
 read from the body, and a response that is not `200` means the Worker did not answer, not that it
@@ -44,7 +46,10 @@ Three values rather than two, because two would force a Worker that works with o
 to lie in one direction or the other. `unhealthy` means do not rely on me; `degraded` means I am
 working and something behind me is not; and the difference is a judgement only the Worker can make,
 which is why this file fixes the vocabulary and not the thresholds. What makes a Worker `degraded`
-is the Worker's to declare.
+is the Worker's to declare. **And three, closed**, because a status a console cannot enumerate is
+one it cannot colour, sort or compare across a fleet — a fourth value such as `starting` would be a
+word each Worker spelled differently, and the one case it would name is HLTH-4's, which already has
+an answer.
 
 HLTH-3 is what stops the summary from being decorative. Without it a Worker may answer `healthy`
 with a failing check beside it, and the one field every console renders first means nothing —
@@ -57,7 +62,7 @@ HLTH-4 is the same rule applied to the one moment a Worker knows least. A proces
 started has checked nothing, and `healthy` is a claim it has no basis for — it is not reporting a
 state, it is reporting a default. The Tower records that answer, the console shows it, and the one
 window in which a Worker is most likely to be broken is the window it reports itself best.
-Answering `unhealthy` costs nothing, because ENDP-29 classes the condition `retry` and a poller
+Answering `unhealthy` costs nothing, because ENDP-40 classes the condition `retry` and a poller
 comes round again.
 
 HLTH-5 departs from a widespread convention on purpose, and the reason is which reader this
@@ -70,7 +75,7 @@ and nothing here says otherwise: the convention is sound for the reader it was i
 
 This protocol's reader is a different one. The Tower polls health to fill a console, so it reads
 the body in every case — the summary and the named checks are the whole point of asking. For that
-reader `503` is not merely unnecessary, it is actively wrong, because ENDP-29 classes `503` as
+reader `503` is not merely unnecessary, it is actively wrong, because ENDP-40 classes `503` as
 `retry` with the code `unavailable`, and ENDP-28 and ENDP-30 then have the poller back off from a
 Worker that answered it correctly and completely. The Worker said *I am unwell*; the poller heard
 *I could not answer you* and went away to try later. The one distinction a health surface exists to
@@ -89,7 +94,7 @@ nothing; what it must not do is answer the address its `health` entry declared.
 
 Nothing about HLTH-5 exempts a Worker's *other* surfaces. A Worker reporting `unhealthy` is very
 likely to answer `503` with the code `unavailable` on the addresses that do its work, which is
-ENDP-29's row read exactly as written. Health is the one address where being unwell is the content
+ENDP-40's row read exactly as written. Health is the one address where being unwell is the content
 of the answer rather than the reason there is not one.
 
 What a check carries beyond its status and a short human-readable detail — an observed value, a
@@ -104,7 +109,7 @@ changing.
 **The cadence the Tower polls at is the Tower's, and this protocol does not state one.** A number
 here would be a number every Worker in every deployment was measured against, invented by somebody
 who had seen neither. What a Worker can afford to do inside a check follows from the cadence its
-own operators chose, and a Worker that cannot answer in time answers ENDP-29's `408` or `503` like
+own operators chose, and a Worker that cannot answer in time answers ENDP-40's `408` or `503` like
 any other surface.
 
 **What a Worker checks is not this protocol's business either.** A Worker reports on what it

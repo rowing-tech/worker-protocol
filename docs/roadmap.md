@@ -62,10 +62,17 @@ against its own reference Worker in CI.
 
 ## Subscriptions: a Worker that pushes its own events
 
-**Decided 2026-10-06.** A consumer subscribes to a Worker over the Worker API, and the Worker keeps
-the subscription and pushes each matching event to the consumer's sink. It is a tenth Capability,
-`subscriptions`, beside `events` and not instead of it: a Worker publishes through a broker,
-through its subscriptions, or both.
+**Decided 2026-10-06, and most of it is built.** A consumer subscribes to a Worker over the Worker
+API, and the Worker keeps the subscription and pushes each matching event to the consumer's sink.
+It is a tenth Capability, `subscriptions`, beside `events` and not instead of it: a Worker
+publishes through a broker, through its subscriptions, or both.
+
+**Built:** `spec/subscriptions.md` and the changes to `events`, `descriptor` and `tasks`; the
+schemas; `mount()`, `eventHub()` and the lifecycle builders in `@worker-protocol/hono`; the
+reference Worker; and the verifier's checks, run against it. Their reasoning now sits in those
+files. **Still to build:** the client's half, the Cloudflare implementation in
+`examples/fleet-worker`, and a sink in the conformance CLI — which also needs the CLI to take an
+arrangement at all, since it takes none today. The entry leaves this list when those are in.
 
 **Why the transport refusal does not reach it.** `spec/events.md` names no broker and fixes no
 binding because doing so would mean a registry of transports. HTTP is not one of those: it is the
@@ -82,9 +89,12 @@ what a broker is.
 
 - **The surface.** The entry declares an address and `abandonAfterSeconds`. `POST /subscriptions`
   takes `types`, optional `filters`, a `sink` and a `sinkCredential`; `GET` lists the caller's own
-  in the page envelope; `DELETE /subscriptions/{id}` removes one.
-- **Types against two lists.** Each type is one the `events` entry publishes (otherwise `400
-  invalid_parameter`) and one the caller's Contract allows (otherwise `403 forbidden`).
+  in the page envelope; `DELETE ?subscription=<id>` ends one — a verb this protocol may fix for an
+  operation it defines (ENDP-36), named by a parameter because ENDP-1 lets a caller use only
+  declared addresses.
+- **Types against two lists.** Each type is one the `events` entry publishes (otherwise `422
+  unprocessable_content`, read and refused on its content, as ENDP-12 divides them) and one the
+  caller's Contract allows (otherwise `403 forbidden`).
 - **Subscribing is idempotent.** The same caller with the same sink, types and filters gets the
   subscription that exists, answered `200`, so an orchestrator ensures its subscription on every
   deploy without keeping ids.
@@ -92,13 +102,13 @@ what a broker is.
   deletes it, and another caller's is `404`, so nobody learns that it exists — REG-32's reasoning
   about refusals. A view of every subscription for the Worker's operator would be additive, and
   waits until a Tower asks for one.
-- **A sink is an absolute `https` URL**, or the request is `400 invalid_parameter`: the bearer below
-  travels on every delivery, and DESC-3 already asks the same of a Worker's own addresses. Refusing
+- **A sink is an absolute `https` URL**, or the request is `400 schema_mismatch`: the bearer below
+  travels on every delivery, and DESC-35 already asks the same of a Worker's own addresses. Refusing
   a sink that resolves to a loopback, private or link-local address is recommended, because
-  whether it can be checked depends on the platform. One explicit development setting lifts both,
-  because the typical subscriber in development is a local Convex backend at
-  `http://127.0.0.1:3211`; a Worker running with it breaks the rule on purpose, as a test over
-  loopback already breaks DESC-3.
+  whether it can be checked depends on the platform. A list of exempted origins lifts both for
+  those origins and no others, because the typical subscriber in development is a local Convex
+  backend at `http://127.0.0.1:3211`; a Worker running with one breaks the rules on purpose for it,
+  as a test over loopback already breaks DESC-35, and still refuses every other insecure sink.
 - **Delivery is the CloudEvents webhook specification.** While the subscription is being created,
   the Worker runs its abuse-protection handshake (`OPTIONS` with `WebHook-Request-Origin`, answered
   with `WebHook-Allowed-Origin`); a sink that refuses it is `422 unprocessable_content` and nothing
@@ -133,7 +143,7 @@ what a broker is.
   holding. Their semantics are written out in our own text rather than cited, because that API is
   `0.1-wip`. `sql` is left out; it can arrive in a MINOR. No JavaScript library implements the
   dialects, and the six are a few dozen lines.
-- **The broker becomes optional.** EVT-11 is withdrawn and reissued with the broker, the
+- **The broker becomes optional.** The broker rule is withdrawn and reissued with the broker, the
   `protocolBinding` and the destination declared together or not at all, and a new rule has a
   Worker that declares `events` declare a broker, `subscriptions`, or both.
 - **The specification names the lifecycle events of Tasks and Alerts**, which answers the second
@@ -141,7 +151,7 @@ what a broker is.
   raised*, filters reach only context attributes, so the name and the attribute have to agree on
   every Worker. Publishing them is not required; a Worker that does uses these types:
   `tech.rowing.worker-protocol.task-raised` and `task-ended`, and `alert-raised` and
-  `alert-ended`. *Ended* is ALRT-5's word: it says the condition stopped holding and nothing about
+  `alert-ended`. *Ended* is ALRT-8's word: it says the condition stopped holding and nothing about
   why or by whose doing — an answer, a change upstream, or the work simply no longer being needed —
   so it carries no reason, and nobody closes anything (TASK-15). `subject` is
   the Task's or the Alert's id, because CloudEvents means it as the resource the event is about;
@@ -160,9 +170,10 @@ what a broker is.
   and a pure `lifecycleChanges(previous, current)` for a Worker that chooses to compare snapshots
   itself and accepts what that costs. Nothing calls it on its own and it keeps nothing.
 - **An incompatible change inside 0.x, made by rule rather than by exception.** An `events` entry
-  without a broker is not something a 0.3 reader may ignore, so DESC-24 would ask for a MAJOR. The
-  protocol is published and not yet in use, and 1.0 is not worth spending on this. DESC-24 and
-  DESC-25 are withdrawn and reissued with SemVer's convention for `0.x`, which `packages/README.md`
+  without a broker is not something a 0.3 reader may ignore, so the edition rule would have asked
+  for a MAJOR. The protocol is published and not yet in use, and 1.0 is not worth spending on this.
+  The rules on what a MINOR may change and on a verifier behind the Worker are withdrawn and
+  reissued as DESC-32 and DESC-33, with SemVer's convention for `0.x`, which `packages/README.md`
   already applies to package versions: while the MAJOR is 0, a MINOR may change what a reader
   cannot ignore, and a verifier that does not hold the declared MINOR verifies nothing and says it
   is the one behind. This is edition 0.4.
@@ -181,7 +192,8 @@ what a broker is.
   and a function answering what arrived there, handshakes and deliveries alike — and a
   `publishingAction`, an Action safe to perform that publishes a named event type, because nothing
   else lets a verifier make a Worker publish. `verify()` starts no server, so it still runs in any
-  runtime; the Node CLI brings a sink of its own, with a port and, behind a tunnel, a public URL.
+  runtime; the Node CLI is to bring a sink of its own, with a port and, behind a tunnel, a public
+  URL.
   What a credential alone observes — the entry, the refusals for a type, a sink that is not
   `https`, another caller's subscription — needs no arrangement.
 
@@ -192,8 +204,9 @@ what a broker is.
 - *The CloudEvents Subscriptions API by reference.* It is `0.1-wip`, and its shape — protocols,
   per-protocol configuration, SQL — is broader than this network needs. Its required filter
   dialects are adopted, written out.
-- *The Worker declared as its own broker, keeping EVT-11.* Compatible with 0.3 readers, at the cost
-  of declaring the address twice. The `0.x` rule makes the clean form possible without 1.0.
+- *The Worker declared as its own broker, keeping the broker rule as it was.* Compatible with 0.3
+  readers, at the cost of declaring the address twice. The `0.x` rule makes the clean form possible
+  without 1.0.
 - *Releasing it as 1.0.* Spends the MAJOR on a change nobody in practice is exposed to.
 - *HMAC signatures* (Standard Webhooks). A secret to generate, return and rotate per subscription,
   and they do not stop flooding without the handshake as well.

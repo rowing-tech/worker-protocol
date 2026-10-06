@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.3";
+export const EDITION = "0.4";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -57,7 +57,18 @@ export const registry = z.registry<{ id: string }>();
  * list a verifier checks an undotted name against. `spec/README.md`'s table is a reading aid.
  */
 export const capabilityName = z
-  .enum(["health", "metrics", "actions", "alerts", "activity", "nudges", "tasks", "events", "logs"])
+  .enum([
+    "health",
+    "metrics",
+    "actions",
+    "alerts",
+    "activity",
+    "nudges",
+    "tasks",
+    "events",
+    "logs",
+    "subscriptions",
+  ])
   .meta({
     title: "Capability name",
     description: "DESC-8. The Capability names the current edition of worker-protocol defines.",
@@ -112,23 +123,27 @@ export const qualifiedName = z
   });
 
 /**
- * DESC-12 — an address is an absolute `https` URL, or a relative reference resolved against the
+ * DESC-36 — an address is an absolute `https` URL, or a relative reference resolved against the
  * URL the Descriptor was read from.
  *
  * The pattern is the load-bearing part: `format` is an annotation in Draft 2020-12 unless a
  * validator opts into format-assertion, so a schema that relied on `format: "uri-reference"`
  * alone would assert nothing. This admits a string that either begins `https://` or carries no
- * scheme at all, which is exactly the two cases DESC-12 names.
+ * scheme at all, which is exactly the two cases DESC-36 names.
  */
 export const address = z
   .string()
-  .regex(/^(?:https:\/\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\S*$/)
+  .regex(
+    /^(?:https:\/\/|http:\/\/(?:localhost|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|\[::1\])(?=[:/?#]|$)|(?![A-Za-z][A-Za-z0-9+.-]*:))\S*$/,
+  )
   .meta({
     title: "Address",
     format: "uri-reference",
     description:
-      "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's " +
-      "own URL. DESC-13 governs whether a credential may be sent to one that is off-origin.",
+      "DESC-36. An absolute https URL — or http on a loopback host, where no network path " +
+      "exists to read a credential on — or a relative reference resolved against the " +
+      "Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is " +
+      "off-origin.",
   });
 
 /**
@@ -165,7 +180,7 @@ export const capabilityEntry = z
       "each Capability's own file requires one, and every Capability answered over HTTP does — " +
       "`events`, answered over a broker, is why the shared entry cannot require it. Open to the " +
       "extensions each Capability's own file defines, including the conditional declarations of " +
-      "DESC-11.",
+      "DESC-37.",
   });
 
 /**
@@ -244,7 +259,7 @@ export const healthEntry = capabilityEntry.extend({ address }).meta({
 });
 
 /**
- * DESC-1, DESC-2, DESC-6, DESC-22, DESC-23 — the document every Worker serves.
+ * DESC-1, DESC-34, DESC-6, DESC-22, DESC-23 — the document every Worker serves.
  *
  * Closed on purpose: the rules above enumerate what a Descriptor carries, and a new top-level
  * member is what an edition is for (DESC-23). A Worker extends its entries, not its Descriptor.
@@ -255,7 +270,7 @@ export const healthEntry = capabilityEntry.extend({ address }).meta({
  * consumer and a Python one would otherwise reach opposite verdicts on one Descriptor.
  */
 /**
- * TASK-31 — what a Worker declares about one Skill, which today is nothing.
+ * TASK-33 — what a Worker declares about one Skill, which today is nothing.
  *
  * Empty and strict on purpose. A Skill carries no declaration yet, and the shape for *nothing yet*
  * is the one an optional member can join without invalidating a document already written — which
@@ -269,7 +284,7 @@ export const skillDeclaration = z
       .optional()
       .meta({
         description:
-          "TASK-31. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task " +
+          "TASK-33. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task " +
           "of this type — its own requirement, and not a copy of what any owner sends. NAME-6 " +
           "judges the two in the direction the document travels: a Tower validates the Tasks an " +
           "owner actually raises against this, and knows before any work is handed over whether " +
@@ -283,7 +298,7 @@ export const skillDeclaration = z
       .optional()
       .meta({
         description:
-          "TASK-31. The JSON Schema of what this Worker PRODUCES in answer to a Task of this type " +
+          "TASK-33. The JSON Schema of what this Worker PRODUCES in answer to a Task of this type " +
           "— its own capability, and not a copy of any owner's Action. NAME-6 judges it against " +
           "the input of the Action that answers the type at each owner: a Tower knows before any " +
           "work is handed over whether this Worker can produce what that owner takes, and two " +
@@ -294,7 +309,7 @@ export const skillDeclaration = z
   .meta({
     title: "Skill declaration",
     description:
-      "TASK-31. What this Worker declares about one Task type it answers. The owner's `raises` " +
+      "TASK-33. What this Worker declares about one Task type it answers. The owner's `raises` " +
       "says what is sent and its `actions` what is taken back; this says what the answerer " +
       "requires and what it produces, where it says anything at all, and each pair is what a " +
       "Tower compares.",
@@ -321,9 +336,10 @@ export const descriptor = z
         description:
           "DESC-23. The edition of worker-protocol this Worker speaks, written MAJOR.MINOR. " +
           "Editions are ordered by comparing MAJOR and then MINOR as numbers, which is the " +
-          "ordering DESC-25 spends when a verifier reports itself older than a Worker. DESC-24 " +
+          "ordering DESC-33 spends when a verifier reports itself older than a Worker. DESC-32 " +
           "gives the two components their meaning: MAJOR is what a reader cannot survive not " +
-          "knowing, MINOR is what an older reader may ignore and still be correct. Leading " +
+          "knowing, MINOR is what an older reader may ignore and still be correct — except " +
+          "while the MAJOR is 0, when a MINOR may break as a MAJOR does. Leading " +
           "zeros are refused so that one edition has one spelling and string equality agrees " +
           "with numeric comparison.",
       }),
@@ -332,7 +348,7 @@ export const descriptor = z
       .optional()
       .meta({
         description:
-          "TASK-31. The Task types this Worker answers, which IS its Skill — the unit of " +
+          "TASK-33. The Task types this Worker answers, which IS its Skill — the unit of " +
           "discovery the Tower catalogs by. It is at the root rather than in the `tasks` entry " +
           "because a Skill is served at no address and answered by no surface: it is what a " +
           "Worker IS, like its id, and a Capability is what a Worker SERVES. Omitted by a Worker " +
@@ -342,7 +358,7 @@ export const descriptor = z
       description:
         "DESC-22. Keyed by Capability name, which is what makes a Capability declared at most " +
         "once: a list could not express that, because JSON Schema compares whole items for " +
-        "uniqueness and two entries named `health` validate cleanly as distinct items. DESC-2 " +
+        "uniqueness and two entries named `health` validate cleanly as distinct items. DESC-34 " +
         "admits any combination, including none. A key is a reserved name (DESC-8) or a vendor " +
         "one (DESC-14), and the dot is what tells the two apart.",
     }),
@@ -350,12 +366,12 @@ export const descriptor = z
   .meta({
     title: "Descriptor",
     description:
-      "DESC-1. The document a Worker serves at the route DESC-3 fixes, and the whole of what " +
+      "DESC-1. The document a Worker serves at the route DESC-35 fixes, and the whole of what " +
       "every Worker owes.",
   });
 
 /**
- * ENDP-25 — the closed code enumeration, split by the class each code carries.
+ * ENDP-39 — the closed code enumeration, split by the class each code carries.
  *
  * Every code names a condition some rule in `spec/` already states; none was invented to fill a
  * gap. endpoints.md holds the other half of ENDP-26 — which status each code is answered with —
@@ -386,11 +402,11 @@ export const retryCodes = [
 ] as const;
 
 const message = z.string().meta({
-  description: "ENDP-25. A human-readable message. Not addressed to a program.",
+  description: "ENDP-39. A human-readable message. Not addressed to a program.",
 });
 
 /**
- * ENDP-25, ENDP-26 — the envelope every response that is not a success carries.
+ * ENDP-39, ENDP-26 — the envelope every response that is not a success carries.
  *
  * A union of two branches rather than one object with two independent fields, because ENDP-26
  * says a code carries its class. Written as one object, `not_found` with a class of `retry` would
@@ -407,7 +423,7 @@ export const error = z
     z.looseObject({
       code: z.enum(rejectCodes).meta({
         description:
-          "ENDP-25. A code naming a condition this request will meet again (ENDP-28). " +
+          "ENDP-39. A code naming a condition this request will meet again (ENDP-28). " +
           "endpoints.md gives the status each is answered with.",
       }),
       message,
@@ -418,7 +434,7 @@ export const error = z
     z.looseObject({
       code: z.enum(retryCodes).meta({
         description:
-          "ENDP-25. A code naming a condition that may have passed by the time the request is " +
+          "ENDP-39. A code naming a condition that may have passed by the time the request is " +
           "sent again (ENDP-30). endpoints.md gives the status each is answered with.",
       }),
       message,
@@ -430,7 +446,7 @@ export const error = z
   .meta({
     title: "Error",
     description:
-      "ENDP-25. The error envelope shared by every surface. The code is drawn from a closed " +
+      "ENDP-39. The error envelope shared by every surface. The code is drawn from a closed " +
       "enumeration, so a new code requires a new edition — the price of a vocabulary a " +
       "conformance check can actually verify. ENDP-27 decides whether the code or the status " +
       "wins when they disagree.",
@@ -476,7 +492,7 @@ export const page = z
 export const metricGranularity = z.enum(["hour", "day", "week", "month", "year"]).meta({
   title: "Metric granularity",
   description:
-    "MET-3. The period one bucket covers. MET-20 cuts every boundary in the time zone the entry " +
+    "MET-3. The period one bucket covers. MET-22 cuts every boundary in the time zone the entry " +
     "declares, and MET-7 makes a week the ISO 8601 one, beginning Monday.",
 });
 
@@ -640,7 +656,7 @@ const instant = (description: string) =>
  */
 export const metricBucket = z
   .strictObject({
-    start: instant("MET-13. Inclusive. MET-20 cuts it in the zone the entry declares."),
+    start: instant("MET-13. Inclusive. MET-22 cuts it in the zone the entry declares."),
     end: instant(
       "MET-13. Exclusive, and carried rather than derived: a day across a daylight-saving " +
         "transition is 23 or 25 hours, and a reader comparing this against its own clock knows " +
@@ -688,7 +704,7 @@ export const metricPage = page
   });
 
 /**
- * ACT-12 — the declaration ENDP-15 requires of an Action that takes an idempotency key.
+ * ACT-19 — the declaration ENDP-38 requires of an Action that takes an idempotency key.
  *
  * A union rather than one object with an optional member, on the same reasoning that makes `error`
  * a union: written flat, `from: "input"` with no member named would validate cleanly and leave the
@@ -704,7 +720,7 @@ export const idempotencyDeclaration = z
       }),
       from: z.literal("header").meta({
         description:
-          "ENDP-15. The key arrives in `Idempotency-Key`. It is opaque, and the Worker records " +
+          "ENDP-38. The key arrives in `Idempotency-Key`. It is opaque, and the Worker records " +
           "it without parsing it.",
       }),
       windowSeconds: z
@@ -713,7 +729,7 @@ export const idempotencyDeclaration = z
         .min(1)
         .meta({
           description:
-            "ENDP-15, ENDP-16. How long the Worker answers the recorded outcome for a repeat. " +
+            "ENDP-38, ENDP-16. How long the Worker answers the recorded outcome for a repeat. " +
             "Declared because the guarantee is worthless without it: no Worker remembers forever, " +
             "and one that has forgotten performs the Action again while the caller still believes " +
             "it is protected.",
@@ -723,20 +739,27 @@ export const idempotencyDeclaration = z
       required: z.boolean(),
       from: z.literal("input").meta({
         description:
-          "ACT-12. The key is a named member of the input. A payload that already carries its " +
-          "own identity needs no second key beside it, and the member is the Worker's own data.",
+          "ACT-19. The key is made of named members of the input. A payload that already " +
+          "carries its own identity needs no second key beside it, and the members are the " +
+          "Worker's own data.",
       }),
-      member: z.string().min(1).meta({
-        description: "ACT-12. Which member of the input the Worker reads the key from.",
-      }),
+      members: z
+        .array(z.string().min(1))
+        .min(1)
+        .meta({
+          description:
+            "ENDP-38, ACT-19. The members of the input whose values together are the key, in " +
+            "order — a reading keyed by vehicle, kind and instant names three. One that is " +
+            "absent leaves the call with no key.",
+        }),
       windowSeconds: z.number().int().min(1),
     }),
   ])
   .meta({
     title: "Idempotency declaration",
     description:
-      "ACT-12. Carried in an Action's entry, because a caller decides whether it can retry " +
-      "safely BEFORE it sends anything. This is DESC-11's first case.",
+      "ACT-19. Carried in an Action's entry, because a caller decides whether it can retry " +
+      "safely BEFORE it sends anything. This is DESC-37's first case.",
   });
 
 /**
@@ -764,14 +787,14 @@ export const actionDeclaration = z
     completesWithinCall: z.boolean().meta({
       description:
         "ACT-4. Declared rather than discovered, because a caller decides whether it can wait " +
-        "before it sends. ACT-11: one that does not answers `202` with no body.",
+        "before it sends. ACT-18: one that does not answers `202` with no body.",
     }),
     idempotency: idempotencyDeclaration.optional().meta({
-      description: "ACT-12, ENDP-15. Absent where the Action takes no key.",
+      description: "ACT-19, ENDP-38. Absent where the Action takes no key.",
     }),
     readAddress: address.optional().meta({
       description:
-        "ACT-15. Where a GET answers a document this Action would accept. Required of " +
+        "ACT-21. Where a GET answers a document this Action would accept. Required of " +
         "`configure` and optional for every other Action — which is a condition on the KEY an " +
         "entry is held under, and so a rule rather than a shape.",
     }),
@@ -809,7 +832,7 @@ export const actionsEntry = capabilityEntry
   });
 
 /**
- * TASK-32 — one Task type a Worker raises.
+ * TASK-34 — one Task type a Worker raises.
  *
  * The Actions named here are the OWNER's own, declared in its `actions` entry: a Response is an
  * Action posted into the owner, so the closed list is a list of names that entry holds.
@@ -818,36 +841,38 @@ export const taskTypeDeclaration = z
   .strictObject({
     payload: z.looseObject({}).meta({
       description:
-        "TASK-32. The JSON Schema of this Task type's payload. The Worker's own — this protocol " +
+        "TASK-34. The JSON Schema of this Task type's payload. The Worker's own — this protocol " +
         "has no data model — and what a consumer renders or validates against.",
     }),
     answeredBy: z
       .string()
       .min(1)
+      .optional()
       .meta({
         description:
-          "TASK-32. The one Action of this Worker's own that answers a Task of this type, by the " +
+          "TASK-34. The one Action of this Worker's own that answers a Task of this type, by the " +
           "name its `actions` entry holds it under. One and not a list: where a Task can end " +
           "several ways, the endings are variants of that Action's input, told apart by a " +
           "discriminator. A name and not an instruction: the owner says what would answer, never " +
-          "who.",
+          "who. Absent for a type no Action answers — work done elsewhere, whose condition " +
+          "clears when a Fact the Worker observes changes.",
       }),
   })
   .meta({
     title: "Task type declaration",
     description:
-      "TASK-32. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched " +
+      "TASK-34. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched " +
       "by a party that did not mint it.",
   });
 
 /**
- * TASK-27, TASK-32 — the `tasks` Capability entry.
+ * TASK-27, TASK-34 — the `tasks` Capability entry.
  *
  * One address, and a read. The entry carried a second one a claim was posted to until the Claim
  * lifecycle was withdrawn; `spec/tasks.md` holds the argument, and the short of it is that a lease
  * over a unit of work is orchestration, which this specification names a non-goal.
  *
- * It carried a third thing until TASK-31 moved it: what the Worker ANSWERS, which is served at no
+ * It carried a third thing until TASK-33 moved it: what the Worker ANSWERS, which is served at no
  * address and is now `skills` on the Descriptor's root. What is left here is what the declared
  * address actually answers instances of.
  */
@@ -856,7 +881,7 @@ export const tasksEntry = capabilityEntry
     address,
     raises: z.record(qualifiedName, taskTypeDeclaration).meta({
       description:
-        "TASK-32. Every Task type this Worker raises. A Worker that raises none declares an empty " +
+        "TASK-34. Every Task type this Worker raises. A Worker that raises none declares an empty " +
         "map rather than omitting it, so that every reader parses one shape.",
     }),
   })
@@ -864,7 +889,7 @@ export const tasksEntry = capabilityEntry
     title: "Tasks capability entry",
     description:
       "TASK-27. The shared Capability entry with the reading address required, and the Task " +
-      "types this Worker raises. What it ANSWERS is TASK-31's `skills`, on the Descriptor root.",
+      "types this Worker raises. What it ANSWERS is TASK-33's `skills`, on the Descriptor root.",
   });
 
 /**
@@ -927,7 +952,7 @@ export const alertSeverity = z.enum(["warning", "critical"]).meta({
  * ALRT-3 — one Alert.
  *
  * It carries no status and nothing anybody declared about it, for the reason a Task does not: an
- * Alert exists while its condition holds and ends when it stops (ALRT-5), so there is no state for
+ * Alert exists while its condition holds and ends when it stops (ALRT-8), so there is no state for
  * a reader to interpret and no dismissal for anyone to record.
  */
 export const alert = z
@@ -1075,7 +1100,7 @@ export const activityEntry = capabilityEntry.extend({ address }).meta({
 });
 
 /**
- * EVT-11 — where an event lands on the broker its entry declares.
+ * EVT-13 — where an event lands on the broker its entry declares.
  *
  * An object and not a string, because what a consumer needs in order to attach is not alike across
  * brokers: a Kafka topic beside its bootstrap servers, an Event Hub inside a namespace, an SNS ARN
@@ -1089,14 +1114,14 @@ export const activityEntry = capabilityEntry.extend({ address }).meta({
 export const eventDestination = z.looseObject({}).meta({
   title: "Event destination",
   description:
-    "EVT-11. Where on the declared broker these events land, in whatever shape that broker needs " +
+    "EVT-13. Where on the declared broker these events land, in whatever shape that broker needs " +
     "— a topic beside its servers, an Event Hub in a namespace, an ARN. The keys are the " +
     "Worker's own and nothing here parses them. A Worker that publishes and does not say where " +
     "leaves a consumer holding a cluster, an envelope layout and a list of names it cannot attach " +
     "to anything.",
 });
 
-/** EVT-12, EVT-11 — one event type a Worker publishes. */
+/** EVT-12, EVT-13 — one event type a Worker publishes. */
 export const eventTypeDeclaration = z
   .strictObject({
     data: z.looseObject({}).meta({
@@ -1106,8 +1131,8 @@ export const eventTypeDeclaration = z
     }),
     destination: eventDestination.optional().meta({
       description:
-        "EVT-11. Where THIS type lands, for a Worker that divides its events by subject. Absent, " +
-        "it lands at the entry's destination, which is the ordinary case.",
+        "EVT-13. Where THIS type lands on the broker, for a Worker that divides its events by " +
+        "subject. Absent, it lands at the entry's destination, which is the ordinary case.",
     }),
   })
   .meta({
@@ -1118,35 +1143,44 @@ export const eventTypeDeclaration = z
   });
 
 /**
- * EVT-11, EVT-12, EVT-8 — the `events` Capability entry.
+ * EVT-13, EVT-12, EVT-8 — the `events` Capability entry.
  *
  * The one entry with NO address, which is the single reason DESC-22 leaves the address optional in
- * the shared entry at all. An event travels over a broker this protocol declines to name, and a
- * Worker with no HTTP surface for it would otherwise have had to invent a URL that does not exist.
+ * the shared entry at all. An event travels over a broker this protocol declines to name, or is
+ * pushed by the Worker itself through `subscriptions`, and a Worker with no HTTP surface for it
+ * would otherwise have had to invent a URL that does not exist.
+ *
+ * The broker and its binding are declared together or not at all, a destination only beside them,
+ * and every type lands somewhere on the broker — at the entry's destination or at its own (EVT-13).
+ * `dependentRequired` and the `if`/`then` say so in the generated schema and the refinement says it
+ * to a Zod consumer, so the two reach one verdict on one entry. Whether a Worker with no broker serves `subscriptions` instead (EVT-14)
+ * is a statement about two entries, which no schema of one entry can make; the verifier judges it.
  */
 export const eventsEntry = capabilityEntry
   .extend({
     broker: z
       .string()
       .min(1)
+      .optional()
       .meta({
         description:
-          "EVT-11. WHICH broker this Worker publishes to, named however its operators name it — " +
+          "EVT-13. WHICH broker this Worker publishes to, named however its operators name it — " +
           "the cluster or the service, not the place on it, which is `destination`. Nothing here " +
           "parses it, exactly as nothing parses a metric unit.",
       }),
     protocolBinding: z
       .string()
       .min(1)
+      .optional()
       .meta({
         description:
-          "EVT-11. Which CloudEvents protocol binding the attributes are laid out under. Not fixed " +
+          "EVT-13. Which CloudEvents protocol binding the attributes are laid out under. Not fixed " +
           "and not parsed: a protocol binding is a property of a transport, and fixing one would " +
           "mean naming a broker or publishing a list of the ones somebody had thought of. It is " +
           "spelled in full because `binding` alone is what a deployment calls a resource it was " +
           "handed, which is a different thing that sits a few lines away in the same config.",
       }),
-    destination: eventDestination,
+    destination: eventDestination.optional(),
     publishes: z.record(qualifiedName, eventTypeDeclaration).meta({
       description: "EVT-12. Every event type this Worker publishes, keyed by name.",
     }),
@@ -1160,15 +1194,287 @@ export const eventsEntry = capabilityEntry
           "that remembers them for at least this long sees each event once. Declared because " +
           "`remember forever` is not implementable, and a consumer that forgot too early would " +
           "process an event twice while believing it was protected — the same reasoning that has " +
-          "ENDP-15 declare an idempotency window.",
+          "ENDP-38 declare an idempotency window.",
       }),
   })
+  .refine(
+    (entry) => {
+      const broker = entry.broker !== undefined;
+      if (broker !== (entry.protocolBinding !== undefined)) return false;
+      const types = Object.values(entry.publishes);
+      if (!broker) {
+        return (
+          entry.destination === undefined && types.every((one) => one.destination === undefined)
+        );
+      }
+      return entry.destination !== undefined || types.every((one) => one.destination !== undefined);
+    },
+    {
+      message:
+        "EVT-13: a broker is declared with its protocolBinding and a destination for every type, " +
+        "and an entry with no broker declares none of them",
+    },
+  )
   .meta({
     title: "Events capability entry",
     description:
-      "EVT-11. The shared Capability entry with NO address: the broker, the protocol binding and " +
-      "the destination this Worker publishes to, what it publishes, and how long it may " +
-      "republish one.",
+      "EVT-13. The shared Capability entry with NO address: what this Worker publishes and how " +
+      "long it may republish one, and — where it publishes through a broker — the broker, the " +
+      "protocol binding and the destination, all three or none.",
+    dependentRequired: {
+      broker: ["protocolBinding"],
+      protocolBinding: ["broker"],
+      destination: ["broker", "protocolBinding"],
+    },
+    if: { required: ["broker"], not: { required: ["destination"] } },
+    // biome-ignore lint/suspicious/noThenProperty: JSON Schema's own keyword, never awaited.
+    then: { properties: { publishes: { additionalProperties: { required: ["destination"] } } } },
+  });
+
+/**
+ * EVT-15 — what a Task's ended event carries: what a Worker still holds once the Task is gone.
+ *
+ * Not the last full Task, which a Worker may no longer have; its id, and the type a subscriber
+ * filtered by. `task-raised` carries the Task itself, as `task.json`.
+ */
+export const taskEnded = z
+  .looseObject({
+    id: z.string().min(1).meta({ description: "EVT-15. The ended Task's id, as TASK-28 gave it." }),
+    type: qualifiedName.meta({ description: "EVT-15. The ended Task's type." }),
+  })
+  .meta({
+    title: "Task ended",
+    description:
+      "EVT-15. The data of `tech.rowing.worker-protocol.task-ended`: the Task's condition stopped " +
+      "holding, for whatever reason, and nobody closed it. At least these members; a Worker may " +
+      "carry more of its own.",
+  });
+
+/** EVT-15 — what an Alert's ended event carries, on the same reasoning as `taskEnded`. */
+export const alertEnded = z
+  .looseObject({
+    id: z.string().min(1).meta({ description: "EVT-15. The ended Alert's id, as ALRT-3 gave it." }),
+    severity: alertSeverity,
+  })
+  .meta({
+    title: "Alert ended",
+    description:
+      "EVT-15. The data of `tech.rowing.worker-protocol.alert-ended`: the Alert's condition " +
+      "stopped holding (ALRT-8), and nobody dismissed it. At least these members; a Worker may " +
+      "carry more of its own.",
+  });
+
+/**
+ * SUB-1 — the `subscriptions` Capability entry: an address, and how long a sink may fail.
+ */
+export const subscriptionsEntry = capabilityEntry
+  .extend({
+    address,
+    abandonAfterSeconds: z
+      .number()
+      .int()
+      .min(1)
+      .meta({
+        description:
+          "SUB-1. How long a sink may fail without interruption before its subscription ends " +
+          "(SUB-14). Also how long an ended subscription stays listed (SUB-15). Declared because " +
+          "a subscription is never renewed: this is the work a lease did, cleaning up a sink " +
+          "nobody is listening at, without ending one an automation merely forgot to renew.",
+      }),
+  })
+  .meta({
+    title: "Subscriptions capability entry",
+    description:
+      "SUB-1. The shared Capability entry with the address required, and the abandonment window.",
+  });
+
+/** SUB-13 — the attribute map of `exact`, `prefix` and `suffix`, every pair of which must match. */
+const VERB = { exact: "equal", prefix: "start with", suffix: "end with" } as const;
+const attributeMatch = (dialect: keyof typeof VERB) =>
+  z
+    .record(z.string().min(1), z.string().min(1))
+    .refine((map) => Object.keys(map).length > 0, {
+      message: `SUB-13: \`${dialect}\` names no attribute`,
+    })
+    .meta({
+      description:
+        `SUB-13. Context attribute names, extensions included, each with the string its value ` +
+        `must ${VERB[dialect]}, ` +
+        "case sensitive. Every pair must match, and an attribute the event does not carry " +
+        "matches nothing.",
+      minProperties: 1,
+    });
+
+/** A filter, as the six dialects of SUB-13 nest it. */
+export type SubscriptionFilter =
+  | { exact: Record<string, string> }
+  | { prefix: Record<string, string> }
+  | { suffix: Record<string, string> }
+  | { all: SubscriptionFilter[] }
+  | { any: SubscriptionFilter[] }
+  | { not: SubscriptionFilter };
+
+/**
+ * SUB-13 — one filter, in one of the six dialects the CloudEvents Subscriptions API requires.
+ *
+ * The JSON shape is that API's, so a filter written for it reads the same here; the semantics are
+ * restated in `spec/subscriptions.md` because the API is a working draft. `sql` is not among them.
+ */
+export const subscriptionFilter: z.ZodType<SubscriptionFilter> = z
+  .union([
+    z.strictObject({ exact: attributeMatch("exact") }),
+    z.strictObject({ prefix: attributeMatch("prefix") }),
+    z.strictObject({ suffix: attributeMatch("suffix") }),
+    z.strictObject({
+      get all(): z.ZodArray<z.ZodType<SubscriptionFilter>> {
+        return z.array(subscriptionFilter).min(1);
+      },
+    }),
+    z.strictObject({
+      get any(): z.ZodArray<z.ZodType<SubscriptionFilter>> {
+        return z.array(subscriptionFilter).min(1);
+      },
+    }),
+    z.strictObject({
+      get not(): z.ZodType<SubscriptionFilter> {
+        return subscriptionFilter;
+      },
+    }),
+  ])
+  .meta({
+    // The one recursive schema here, and so the one that names itself: a generator walking into it
+    // from another document needs an id to stop at, or it follows `all` into `all` for ever.
+    id: "subscription-filter",
+    title: "Subscription filter",
+    description:
+      "SUB-13. One filter: `exact`, `prefix` or `suffix` over context attributes, or `all`, " +
+      "`any` and `not` over nested filters — `all` and `any` holding at least one.",
+  });
+
+/**
+ * SUB-2, SUB-5 — what a POST to the address carries to subscribe, and nothing else.
+ *
+ * The content is the subscription's identity (SUB-7), which is why it carries no key of its own.
+ */
+export const subscriptionRequest = z
+  .strictObject({
+    types: z
+      .array(qualifiedName)
+      .min(1)
+      .meta({
+        description:
+          "SUB-2. The event types to receive. Each is one the `events` entry publishes (SUB-3) " +
+          "and one the caller's Contract lets it consume (SUB-4).",
+      }),
+    filters: z
+      .array(subscriptionFilter)
+      .optional()
+      .meta({
+        description:
+          "SUB-13. Every filter in the list must hold for an event to be delivered. Absent, " +
+          "every event of the named types is.",
+      }),
+    sink: z
+      .string()
+      .regex(/^https:\/\/\S+$/)
+      .meta({
+        format: "uri",
+        description:
+          "SUB-5. Where events are delivered: an absolute https URL, because the sink credential " +
+          "travels on every delivery. SUB-10's handshake runs against it before anything is " +
+          "stored.",
+      }),
+    sinkCredential: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "SUB-11. What the sink expects in `Authorization: Bearer` on every delivery — chosen by " +
+          "the subscriber, presented by the Worker, and never listed back.",
+      }),
+  })
+  .meta({
+    title: "Subscription request",
+    description: "SUB-2. The body of a POST that subscribes.",
+  });
+
+/** SUB-2, SUB-7 — what a subscribe answers: the subscription's id, new (`201`) or existing (`200`). */
+export const subscriptionReceipt = z
+  .strictObject({
+    id: z.string().min(1).meta({ description: "SUB-2. The subscription's id, opaque." }),
+  })
+  .meta({
+    title: "Subscription receipt",
+    description: "SUB-2, SUB-7. The id of the subscription a subscribe created or found.",
+  });
+
+/** SUB-15 — why a subscription ended without its subscriber ending it. */
+export const subscriptionEndReason = z.enum(["abandoned", "revoked", "withdrawn"]).meta({
+  title: "Subscription end reason",
+  description:
+    "SUB-14, SUB-15. `abandoned`: the sink failed without interruption for " +
+    "`abandonAfterSeconds`. `revoked`: the Worker no longer accepts the caller. `withdrawn`: the " +
+    "Worker ended it itself — it stopped publishing a type it names, or its operators ended it. " +
+    "An ending by the subscriber has no reason, because the subscriber knows it.",
+});
+
+/**
+ * SUB-8, SUB-15, SUB-16 — one subscription as its caller lists it.
+ *
+ * Never the sink credential, which is a secret the subscriber already holds.
+ */
+export const subscription = z
+  .strictObject({
+    id: z.string().min(1).meta({ description: "SUB-8. The subscription's id." }),
+    types: z.array(qualifiedName).min(1).meta({ description: "SUB-2. The types it receives." }),
+    filters: z
+      .array(subscriptionFilter)
+      .optional()
+      .meta({ description: "SUB-13. Its filters, as subscribed." }),
+    sink: z.string().min(1).meta({ description: "SUB-5. Where it is delivered." }),
+    lastDeliveredAt: instant(
+      "SUB-16. When a delivery to this sink last succeeded. Absent before the first.",
+    ).optional(),
+    failingSince: instant(
+      "SUB-16. Since when deliveries to this sink have failed without interruption. Absent while " +
+        "they succeed. SUB-14 ends the subscription once this is `abandonAfterSeconds` old.",
+    ).optional(),
+    endedAt: instant(
+      "SUB-15. When it ended, for a subscription kept in the list after an ending its " +
+        "subscriber did not cause. It receives nothing.",
+    ).optional(),
+    reason: subscriptionEndReason.optional(),
+  })
+  .meta({
+    title: "Subscription",
+    description:
+      "SUB-8. One subscription, as the caller that created it lists it, with its state (SUB-16) " +
+      "and, if it ended without its subscriber ending it, when and why (SUB-15).",
+  });
+
+/** SUB-8 — what a GET answers: the page envelope with its items narrowed to subscriptions. */
+export const subscriptionPage = page
+  .extend({
+    items: z.array(subscription).meta({ description: "SUB-8. This caller's subscriptions." }),
+  })
+  .meta({
+    title: "Subscription page",
+    description:
+      "SUB-8. One page of the caller's subscriptions, in the envelope ENDP-20 fixes for every " +
+      "collection.",
+  });
+
+/** SUB-15 — the data of `tech.rowing.worker-protocol.subscription-ended`. */
+export const subscriptionEnded = z
+  .strictObject({
+    reason: subscriptionEndReason,
+    since: instant("SUB-15. When the subscription ended."),
+  })
+  .meta({
+    title: "Subscription ended",
+    description:
+      "SUB-15. The data of the one event a Worker sends a subscriber whose subscription ended " +
+      "without its ending it. Addressed to that subscriber, and declared under no `publishes`.",
   });
 
 /**
@@ -1294,6 +1600,16 @@ registry.add(activityEntry, { id: "activity-entry" });
 registry.add(eventDestination, { id: "event-destination" });
 registry.add(eventTypeDeclaration, { id: "event-type-declaration" });
 registry.add(eventsEntry, { id: "events-entry" });
+registry.add(taskEnded, { id: "task-ended" });
+registry.add(alertEnded, { id: "alert-ended" });
+registry.add(subscriptionsEntry, { id: "subscriptions-entry" });
+registry.add(subscriptionFilter, { id: "subscription-filter" });
+registry.add(subscriptionRequest, { id: "subscription-request" });
+registry.add(subscriptionReceipt, { id: "subscription-receipt" });
+registry.add(subscriptionEndReason, { id: "subscription-end-reason" });
+registry.add(subscription, { id: "subscription" });
+registry.add(subscriptionPage, { id: "subscription-page" });
+registry.add(subscriptionEnded, { id: "subscription-ended" });
 registry.add(logLevel, { id: "log-level" });
 registry.add(logRecord, { id: "log-record" });
 registry.add(logPage, { id: "log-page" });

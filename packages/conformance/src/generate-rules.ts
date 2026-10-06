@@ -115,7 +115,7 @@ if (missing.length > 0) {
 rules.sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }));
 
 /**
- * ENDP-25, ENDP-26 — the closed code vocabulary, with the status each code is answered with.
+ * ENDP-39, ENDP-26 — the closed code vocabulary, with the status each code is answered with.
  *
  * Read from `packages/hono/src/codes.ts` rather than parsed out of a Markdown table with a regular
  * expression. `schemas/error.json` carries the code with its class, which is the half a schema can

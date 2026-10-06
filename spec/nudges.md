@@ -33,7 +33,10 @@ The declaration is [schemas/nudges-entry.json](../schemas/nudges-entry.json) and
 **NDG-1 (required). A `nudges` entry declares an address.**
 
 **NDG-2 (required). A POST to that address carries one Task type and nothing else, and is answered
-`204`.**
+`204`.** One type, because NDG-3 answers per type, and a nudge naming one type the Worker answers
+and one it does not would have no whole answer; nothing else, because this body's shape is the
+protocol's and not the Worker's — the reason `nudges` is a surface of its own — so any other member
+is a field nobody declared and nobody reads. Several nudges are cheap.
 
 **NDG-3 (required). A Worker accepts a nudge for a Task type it declares under `skills`, and
 refuses any other with `404` and the code `not_found`.**
@@ -63,9 +66,9 @@ lands. The receiver reads, and what it reads is true when it reads it.
 
 **Who may send one, which is not a rule here because it is already one elsewhere.** A nudge is
 answered under the credential the Worker was enrolled with, exactly as every other address this
-protocol defines is: REG-3 fixes how a credential is presented and REG-21 has a Worker accept the
+protocol defines is: REG-3 fixes how a credential is presented and REG-34 has a Worker accept the
 recorded one everywhere, and a nudge address is one of them. Writing that down again as an NDG rule
-would put a second copy of REG-21 in the register, to be checked twice and to disagree with itself
+would put a second copy of REG-34 in the register, to be checked twice and to disagree with itself
 the day one of them was edited. Which owners may nudge which consumer is a Contract's business,
 which is where every other *may this party call this address* question already lives.
 

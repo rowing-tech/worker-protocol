@@ -11,7 +11,7 @@ import type { Transcript } from "../transcript.ts";
  * severity and the Actions, and both are closed vocabularies a console renders without knowing
  * anything about the Worker — which is what these checks can therefore reach.
  *
- * ALRT-5 is absent because nothing can reach it. An Alert that disappears may have had its
+ * ALRT-8 is absent because nothing can reach it. An Alert that disappears may have had its
  * condition stop holding, or may have been dismissed by somebody this verifier never saw.
  */
 export const CLAIMS = ["ALRT-1", "ALRT-2", "ALRT-3", "ALRT-4", "ALRT-7"] as const;

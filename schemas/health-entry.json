@@ -10,10 +10,10 @@
     },
     "address": {
       "type": "string",
-      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "pattern": "^(?:https:\\/\\/|http:\\/\\/(?:localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(?=[:/?#]|$)|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
       "title": "Address",
       "format": "uri-reference",
-      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+      "description": "DESC-36. An absolute https URL — or http on a loopback host, where no network path exists to read a credential on — or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
     }
   },
   "required": [

@@ -64,7 +64,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "actions.md",
       "class": "required",
       "reach": "H",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ACT-10",
@@ -78,14 +79,16 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "actions.md",
       "class": "required",
       "reach": "H",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ACT-12",
       "file": "actions.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ACT-13",
@@ -99,14 +102,16 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "actions.md",
       "class": "required",
       "reach": "H",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ACT-15",
       "file": "actions.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ACT-16",
@@ -114,6 +119,41 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "W",
       "introducedIn": "0.1"
+    },
+    {
+      "id": "ACT-17",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ACT-18",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ACT-19",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ACT-20",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ACT-21",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
     },
     {
       "id": "ACTV-1",
@@ -148,7 +188,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "activity.md",
       "class": "required",
       "reach": "N",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ACTV-6",
@@ -156,6 +197,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "H",
       "introducedIn": "0.1"
+    },
+    {
+      "id": "ACTV-7",
+      "file": "activity.md",
+      "class": "required",
+      "reach": "N",
+      "introducedIn": "0.4"
     },
     {
       "id": "ALRT-1",
@@ -190,7 +238,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "alerts.md",
       "class": "required",
       "reach": "N",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ALRT-6",
@@ -207,6 +256,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.1"
     },
     {
+      "id": "ALRT-8",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "N",
+      "introducedIn": "0.4"
+    },
+    {
       "id": "DESC-1",
       "file": "descriptor.md",
       "class": "required",
@@ -218,14 +274,16 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "descriptor.md",
       "class": "required",
       "reach": "P",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "DESC-3",
       "file": "descriptor.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "DESC-5",
@@ -260,14 +318,16 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "descriptor.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "DESC-12",
       "file": "descriptor.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "DESC-13",
@@ -337,14 +397,16 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "descriptor.md",
       "class": "required",
       "reach": "N",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "DESC-25",
       "file": "descriptor.md",
       "class": "required",
       "reach": "P",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "DESC-26",
@@ -379,7 +441,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "descriptor.md",
       "class": "required",
       "reach": "P",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "DESC-31",
@@ -387,6 +450,55 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "P",
       "introducedIn": "0.3"
+    },
+    {
+      "id": "DESC-32",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "N",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "DESC-33",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "DESC-34",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "DESC-35",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "DESC-36",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "DESC-37",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "DESC-38",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P",
+      "introducedIn": "0.4"
     },
     {
       "id": "ENDP-1",
@@ -407,7 +519,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "endpoints.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ENDP-4",
@@ -421,7 +534,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "endpoints.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ENDP-6",
@@ -463,7 +577,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "endpoints.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ENDP-16",
@@ -526,7 +641,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "endpoints.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ENDP-26",
@@ -554,7 +670,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "endpoints.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "ENDP-30",
@@ -597,6 +714,48 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "H",
       "introducedIn": "0.3"
+    },
+    {
+      "id": "ENDP-36",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ENDP-37",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ENDP-38",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ENDP-39",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ENDP-40",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "ENDP-41",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
     },
     {
       "id": "EVT-1",
@@ -645,14 +804,16 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "events.md",
       "class": "required",
       "reach": "N",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "EVT-11",
       "file": "events.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "EVT-12",
@@ -660,6 +821,34 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "W",
       "introducedIn": "0.1"
+    },
+    {
+      "id": "EVT-13",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "EVT-14",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "EVT-15",
+      "file": "events.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "EVT-16",
+      "file": "events.md",
+      "class": "required",
+      "reach": "N",
+      "introducedIn": "0.4"
     },
     {
       "id": "HLTH-1",
@@ -897,7 +1086,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "metrics.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "MET-21",
@@ -905,6 +1095,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "W",
       "introducedIn": "0.1"
+    },
+    {
+      "id": "MET-22",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
     },
     {
       "id": "NAME-1",
@@ -1016,7 +1213,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "registration.md",
       "class": "required",
       "reach": "P",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "REG-14",
@@ -1044,7 +1242,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "registration.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "REG-24",
@@ -1110,6 +1309,139 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.1"
     },
     {
+      "id": "REG-34",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "REG-35",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "P",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-1",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-2",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-3",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-4",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-5",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-6",
+      "file": "subscriptions.md",
+      "class": "recommended",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-7",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-8",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-9",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-10",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-11",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-12",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-13",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-14",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-15",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-16",
+      "file": "subscriptions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "SUB-17",
+      "file": "subscriptions.md",
+      "class": "recommended",
+      "reach": "H",
+      "introducedIn": "0.4"
+    },
+    {
       "id": "TASK-4",
       "file": "tasks.md",
       "class": "required",
@@ -1170,14 +1502,30 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "tasks.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
     },
     {
       "id": "TASK-32",
       "file": "tasks.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.1"
+      "introducedIn": "0.1",
+      "withdrawnIn": "0.4"
+    },
+    {
+      "id": "TASK-33",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "TASK-34",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
     }
   ],
   "codes": [
@@ -1276,12 +1624,11 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     "action-declaration": {
       "": "ACT-2",
       "completesWithinCall": "ACT-4",
-      "idempotency": "ACT-12",
-      "idempotency/from": "ENDP-15",
-      "idempotency/member": "ACT-12",
+      "idempotency": "ACT-19",
+      "idempotency/from": "ENDP-38",
       "idempotency/required": "ENDP-18",
       "input": "ACT-2",
-      "readAddress": "ACT-15",
+      "readAddress": "ACT-21",
       "result": "ACT-3"
     },
     "actions-entry": {
@@ -1289,19 +1636,18 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "accepts": "ACT-16",
       "accepts/*": "ACT-2",
       "accepts/*/completesWithinCall": "ACT-4",
-      "accepts/*/idempotency": "ACT-12",
-      "accepts/*/idempotency/from": "ENDP-15",
-      "accepts/*/idempotency/member": "ACT-12",
+      "accepts/*/idempotency": "ACT-19",
+      "accepts/*/idempotency/from": "ENDP-38",
       "accepts/*/idempotency/required": "ENDP-18",
       "accepts/*/input": "ACT-2",
-      "accepts/*/readAddress": "ACT-15",
+      "accepts/*/readAddress": "ACT-21",
       "accepts/*/result": "ACT-3",
-      "address": "DESC-12",
+      "address": "DESC-36",
       "version": "DESC-9"
     },
     "activity-entry": {
       "": "ACTV-1",
-      "address": "DESC-12",
+      "address": "DESC-36",
       "version": "DESC-9"
     },
     "activity-page": {
@@ -1318,6 +1664,11 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "since": "ACTV-3",
       "state": "ACTV-4",
       "summary": "ACTV-3"
+    },
+    "alert-ended": {
+      "": "EVT-15",
+      "id": "EVT-15",
+      "severity": "ALRT-4"
     },
     "alert-page": {
       "": "ALRT-2",
@@ -1336,12 +1687,12 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     },
     "alerts-entry": {
       "": "ALRT-1",
-      "address": "DESC-12",
+      "address": "DESC-36",
       "version": "DESC-9"
     },
     "capability-entry": {
       "": "DESC-22",
-      "address": "DESC-12",
+      "address": "DESC-36",
       "version": "DESC-9"
     },
     "capability-name": {
@@ -1351,45 +1702,45 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "": "DESC-1",
       "capabilities": "DESC-22",
       "capabilities/*": "DESC-22",
-      "capabilities/*/address": "DESC-12",
+      "capabilities/*/address": "DESC-36",
       "capabilities/*/version": "DESC-9",
       "edition": "DESC-23",
       "id": "DESC-6",
-      "skills": "TASK-31",
-      "skills/*": "TASK-31",
-      "skills/*/payload": "TASK-31",
-      "skills/*/produces": "TASK-31"
+      "skills": "TASK-33",
+      "skills/*": "TASK-33",
+      "skills/*/payload": "TASK-33",
+      "skills/*/produces": "TASK-33"
     },
     "error": {
-      "": "ENDP-25",
+      "": "ENDP-39",
       "class": "ENDP-26",
-      "code": "ENDP-25",
-      "message": "ENDP-25"
+      "code": "ENDP-39",
+      "message": "ENDP-39"
     },
     "event-destination": {
-      "": "EVT-11"
+      "": "EVT-13"
     },
     "event-type-declaration": {
       "": "EVT-12",
       "data": "EVT-12",
-      "destination": "EVT-11"
+      "destination": "EVT-13"
     },
     "events-entry": {
-      "": "EVT-11",
-      "address": "DESC-12",
-      "broker": "EVT-11",
-      "destination": "EVT-11",
-      "protocolBinding": "EVT-11",
+      "": "EVT-13",
+      "address": "DESC-36",
+      "broker": "EVT-13",
+      "destination": "EVT-13",
+      "protocolBinding": "EVT-13",
       "publishes": "EVT-12",
       "publishes/*": "EVT-12",
       "publishes/*/data": "EVT-12",
-      "publishes/*/destination": "EVT-11",
+      "publishes/*/destination": "EVT-13",
       "republishWindowSeconds": "EVT-8",
       "version": "DESC-9"
     },
     "health-entry": {
       "": "HLTH-1",
-      "address": "DESC-12",
+      "address": "DESC-36",
       "version": "DESC-9"
     },
     "health-status": {
@@ -1404,9 +1755,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "status": "HLTH-2"
     },
     "idempotency-declaration": {
-      "": "ACT-12",
-      "from": "ENDP-15",
-      "member": "ACT-12",
+      "": "ACT-19",
+      "from": "ENDP-38",
       "required": "ENDP-18"
     },
     "log-level": {
@@ -1425,7 +1775,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     },
     "logs-entry": {
       "": "LOG-1",
-      "address": "DESC-12",
+      "address": "DESC-36",
       "version": "DESC-9"
     },
     "metric-bucket": {
@@ -1457,7 +1807,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     },
     "metrics-entry": {
       "": "MET-1",
-      "address": "DESC-12",
+      "address": "DESC-36",
       "publishes": "MET-21",
       "publishes/*": "MET-21",
       "publishes/*/additive": "MET-3",
@@ -1475,7 +1825,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     },
     "nudges-entry": {
       "": "NDG-1",
-      "address": "DESC-12",
+      "address": "DESC-36",
       "version": "DESC-9"
     },
     "page": {
@@ -1487,9 +1837,55 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "": "NAME-7"
     },
     "skill-declaration": {
-      "": "TASK-31",
-      "payload": "TASK-31",
-      "produces": "TASK-31"
+      "": "TASK-33",
+      "payload": "TASK-33",
+      "produces": "TASK-33"
+    },
+    "subscription-ended": {
+      "": "SUB-15",
+      "since": "SUB-15"
+    },
+    "subscription-filter": {
+      "": "SUB-13",
+      "exact": "SUB-13",
+      "prefix": "SUB-13",
+      "suffix": "SUB-13"
+    },
+    "subscription-page": {
+      "": "SUB-8",
+      "items": "SUB-8",
+      "nextCursor": "ENDP-21"
+    },
+    "subscription-receipt": {
+      "id": "SUB-2"
+    },
+    "subscription-request": {
+      "": "SUB-2",
+      "filters": "SUB-13",
+      "sink": "SUB-5",
+      "sinkCredential": "SUB-11",
+      "types": "SUB-2"
+    },
+    "subscription": {
+      "": "SUB-8",
+      "endedAt": "SUB-15",
+      "failingSince": "SUB-16",
+      "filters": "SUB-13",
+      "id": "SUB-8",
+      "lastDeliveredAt": "SUB-16",
+      "sink": "SUB-5",
+      "types": "SUB-2"
+    },
+    "subscriptions-entry": {
+      "": "SUB-1",
+      "abandonAfterSeconds": "SUB-1",
+      "address": "DESC-36",
+      "version": "DESC-9"
+    },
+    "task-ended": {
+      "": "EVT-15",
+      "id": "EVT-15",
+      "type": "NAME-7"
     },
     "task-page": {
       "": "TASK-5",
@@ -1497,9 +1893,9 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "nextCursor": "ENDP-21"
     },
     "task-type-declaration": {
-      "": "TASK-32",
-      "answeredBy": "TASK-32",
-      "payload": "TASK-32"
+      "": "TASK-34",
+      "answeredBy": "TASK-34",
+      "payload": "TASK-34"
     },
     "task": {
       "": "TASK-28",
@@ -1510,11 +1906,11 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     },
     "tasks-entry": {
       "": "TASK-27",
-      "address": "DESC-12",
-      "raises": "TASK-32",
-      "raises/*": "TASK-32",
-      "raises/*/answeredBy": "TASK-32",
-      "raises/*/payload": "TASK-32",
+      "address": "DESC-36",
+      "raises": "TASK-34",
+      "raises/*": "TASK-34",
+      "raises/*/answeredBy": "TASK-34",
+      "raises/*/payload": "TASK-34",
       "version": "DESC-9"
     }
   }

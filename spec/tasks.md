@@ -23,19 +23,21 @@ than buried in the list, because a reader who remembers them is owed it.
 
 **TASK-27 (required). A `tasks` entry declares one address, which a read answers Tasks from.**
 
-**TASK-32 (required). The entry declares every Task type the Worker raises, keyed by name, each
-with the schema of its payload and the one Action of its own that answers it. Where a Task can end
-more than one way, the ways are variants of that Action's input, told apart by a discriminator.**
+**TASK-34 (required). The entry declares every Task type the Worker raises, keyed by name, each with
+the schema of its payload and, where one of its own Actions answers it, that one Action. Where a
+Task can end more than one way, the ways are variants of that Action's input, told apart by a
+discriminator.** A type no Action answers is work done elsewhere — a vehicle inspected on site — and
+its condition clears when a Fact the Worker observes changes, which TASK-15 already admits.
 
-**TASK-31 (required). The Descriptor declares under `skills`, at its root and not inside a
+**TASK-33 (required). The Descriptor declares under `skills`, at its root and not inside a
 Capability, the Task types the Worker answers — which is its Skill. It is a map keyed by Task type,
 as `raises` is, and each entry may declare two JSON Schemas: the payload that Worker requires in
-order to answer one, and what it produces in answer. A Worker with no Skill omits `skills`; a Skill
-that states neither is a claim of capability and nothing more.**
+order to answer one, and what it produces in answer. A Worker with no Skill omits `skills` or
+declares it empty; a Skill that states neither is a claim of capability and nothing more.**
 
 **TASK-4 (required). A Task type is a qualified name under NAME-7.**
 
-TASK-32 names *one of the owner's own Actions*: answering a Task is performing it, so it is
+TASK-34 names *one of the owner's own Actions*: answering a Task is performing it, so it is
 declared in that same Worker's `actions` entry and named here by its name. A Task type that names an
 Action the Worker does not accept is a Descriptor disagreeing with itself, which is the fault
 DESC-18 already describes one level up.
@@ -55,7 +57,7 @@ tell an Action performed *because of* a Task from one performed for any other re
 the same request. The name tells a consumer what would answer, and nothing refuses a performance
 that answers nothing.
 
-TASK-31 is the other side of the same name, and it is what makes the
+TASK-33 is the other side of the same name, and it is what makes the
 [architecture](../docs/architecture.md)'s *unit of discovery* concrete: the Tower catalogs Workers
 by the Task types they answer, so a Worker that answers `tech.rowing.fleet.verify-vehicle` says so
 where every reader already looks. Both lists are drawn from one vocabulary, and NAME-7 reaches both
@@ -104,20 +106,20 @@ the pairing is judged when the work arrives rather than when the operator asked.
 and it belongs to the Worker that made it.
 
 **It sits at the root rather than in the `tasks` entry, and where it sits is an argument.** A
-Capability is something a Worker *serves*: DESC-12 gives each entry an address, and a read of the
+Capability is something a Worker *serves*: DESC-36 gives each entry an address, and a read of the
 `tasks` address answers instances of the types under `raises`. A Skill is served at no address and
 answered by no surface — it is what a Worker *is*, like its id, and the Tower reads it the way it
 reads the id. Inside the entry it also made the pure answerer absurd: a field crew that knows how
 to verify a vehicle and raises nothing of its own had to declare a `tasks` Capability, with a
 reading address, in order to serve an empty page at it forever. At the root it declares a Skill and
-no `tasks` Capability at all, which is what DESC-2 says a Worker may do with any Capability it does
+no `tasks` Capability at all, which is what DESC-34 says a Worker may do with any Capability it does
 not implement.
 
 A Worker that raises Tasks and answers none, or answers and raises none, is the ordinary case
 rather than the exception. **Both rules bind anyway, and they say the empty case differently.** A
 Worker that raises nothing still declares `raises` as an empty map, because the entry exists and
 every reader parses one shape; a Worker that answers nothing omits `skills` entirely, because
-TASK-31 is a root field and DESC-2 already has a Worker leave out what it does not implement. What
+TASK-33 is a root field and DESC-34 already has a Worker leave out what it does not implement. What
 neither rule requires is *content* — and both require that what content there is be complete. A
 Worker that answers a Task type and leaves it out of `skills` is not conformant; it is merely
 undiscoverable, which is the same thing from the Tower's side and is why nothing outside can tell.
@@ -138,6 +140,10 @@ condition began, as an RFC 3339 instant carrying an offset.**
 
 **TASK-8 (required). A read filters by Task type with `type`. A type the entry does not declare is
 `400`, with the code `invalid_parameter`.**
+
+TASK-8 refuses a type the entry does not declare rather than answering an empty page, because an
+empty page reads as *no work* when the truth is *never raised here* — and a consumer that asked an
+owner for a type it does not raise has a mispairing an empty answer would hide for ever.
 
 TASK-6 answers the question this file was asked — whether the owner filters or the consumer reads
 and discards — and it goes to the owner for two reasons that point the same way. A list that showed
@@ -190,7 +196,9 @@ that can. This protocol does not hold the lock, and the section below is why.
 A nudge is best-effort by construction: whoever receives one reads as it would have on its next
 schedule, and losing one costs latency and never work. That is what lets this be the one call in
 the protocol that runs from an owner *to* a consumer without the machinery such a direction would
-otherwise need — no delivery guarantee to specify, and nothing a receiver holds afterwards.
+otherwise need — no delivery guarantee to specify, and nothing a receiver holds afterwards. The
+other direction-reversing path, [subscriptions](subscriptions.md), carries exactly that machinery,
+because what it pushes is an event, and an event cannot be read again the way a Task can.
 
 It was an Action until this edition, declared by the consumer under a name reserved for it, and
 [nudges](nudges.md) carries the argument for giving it an address of its own: a nudge's body is
@@ -235,7 +243,7 @@ anybody did about it.
 
 ## Still open here
 
-- **Who verifies that a Worker answers the Task types it declares under TASK-31.** The Tower at
+- **Who verifies that a Worker answers the Task types it declares under TASK-33.** The Tower at
   registration, the owner at claim time, or nobody. Open in [undecided](../docs/undecided.md).
 - Whether a Task may carry a deadline of its own.
 - **Whether a consumer can say it is working on something, without a lease.** An advisory note on
@@ -246,6 +254,19 @@ anybody did about it.
   it. Open in [undecided](../docs/undecided.md).
 
 ## Withdrawn
+
+- **TASK-32** (required, W, 0.1–0.4) — required that every Task type name exactly one answering
+  Action. Replaced by **TASK-34**, which admits a type no Action answers; a type cleared by
+  telemetry failed TASK-32 and satisfies TASK-34, so the verdict moves and the id did not survive.
+
+  The argument was one Action and not a list. It never addressed none, and TASK-15 derives a
+  condition from Facts that need not change through an Action.
+
+- **TASK-31** (required, W, 0.1–0.4) — required that a Worker with no Skill omit `skills`. Replaced
+  by **TASK-33**, which admits it declared empty; a generator that always writes the member failed
+  TASK-31 and satisfies TASK-33, so the verdict moves and the id did not survive.
+
+  No harm from an empty map was ever argued, and the two say the same thing to every reader.
 
 - **TASK-2** — required the same declaration with a *closed list* of Actions that may answer the
   type. Replaced by **TASK-32**, which names one Action and puts a Task's several endings inside its

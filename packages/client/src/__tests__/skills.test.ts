@@ -8,7 +8,7 @@ import { canAnswer } from "../skills.ts";
  * answerer, and what the answerer requires must be covered by what the owner sends. The answer goes
  * back, and what the owner's Action takes must be covered by what the answerer produces.
  *
- * **The sending half is where the design was nearly wrong, and the cases below are why.** TASK-32
+ * **The sending half is where the design was nearly wrong, and the cases below are why.** TASK-34
  * puts a Task's several endings in one Action's input as a union, told apart by a member the OWNER
  * mints — `outcome: "found"`. An answerer writes its `produces` from its own side, for owners it has
  * never read, so it cannot know that word. Charging it as coverage the answerer owes refused every
@@ -127,7 +127,7 @@ describe("the sending half, where a Task has several endings", () => {
   });
 
   it("says `unknown` where it claims the Skill and declares neither half", async () => {
-    // TASK-31 admits it, and a Tower reporting that as a refusal would invent an obligation.
+    // TASK-33 admits it, and a Tower reporting that as a refusal would invent an obligation.
     const silent = {
       id: "tech.rowing.field.crew",
       edition: "0.1",

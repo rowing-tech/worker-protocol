@@ -26,7 +26,7 @@ export const CLAIMS = [
   "ENDP-33",
   "TASK-6",
   "HLTH-4",
-  "ACT-14",
+  "ACT-20",
   "EVT-1",
 ] as const;
 
@@ -213,7 +213,7 @@ export async function checkArranged(
       say("REG-32", "notExercised", "the Worker refused neither, so there is nothing to compare");
     } else if (lacking.body === nonsense.body || lacking.status !== nonsense.status) {
       // Either the two refusals say the same thing, or they are different KINDS of refusal, which
-      // ENDP-29 divides at whether the credential could be read. Neither tells a caller which
+      // ENDP-40 divides at whether the credential could be read. Neither tells a caller which
       // credential or scope would have changed the answer.
       say("REG-32", "passes");
     } else {
@@ -240,17 +240,17 @@ export async function checkArranged(
     }
   }
 
-  // ACT-14: the input of `configure` is the complete settings document. What a check establishes
+  // ACT-20: the input of `configure` is the complete settings document. What a check establishes
   // is that the whole document round-trips — over a closed schema that requires every member,
   // replacing and merging are the same operation, and this is the honest limit of the witness.
   if (arrangement.replaceableSettings !== true || !mayPerform) {
     say(
-      "ACT-14",
+      "ACT-20",
       "notExercised",
       "the verifier was not permitted to replace this Worker's settings",
     );
   } else if (surfaces.settingsUrl === null || arrangement.actionsUrl === undefined) {
-    say("ACT-14", "notExercised", "no `configure` reading address was resolved");
+    say("ACT-20", "notExercised", "no `configure` reading address was resolved");
   } else {
     const before = await transcript.send(surfaces.settingsUrl, "the settings, before");
     const written = await transcript.send(
@@ -263,12 +263,12 @@ export async function checkArranged(
     );
     const after = await transcript.send(surfaces.settingsUrl, "the settings, after");
     if (written.status >= 400) {
-      say("ACT-14", "fails", `configure refused its own document with ${written.status}`);
+      say("ACT-20", "fails", `configure refused its own document with ${written.status}`);
     } else if (before.body === after.body) {
-      say("ACT-14", "passes");
+      say("ACT-20", "passes");
     } else {
       say(
-        "ACT-14",
+        "ACT-20",
         "fails",
         "the settings changed when the Worker was handed what it already held",
       );

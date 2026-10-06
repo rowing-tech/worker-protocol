@@ -1,0 +1,15 @@
+{
+  "schema": "events-entry",
+  "valid": false,
+  "rule": "EVT-13",
+  "why": "A broker and a destination with no protocol binding. EVT-13 has the three declared together or not at all: a consumer told the cluster and the topic but not how the envelope sits on a record cannot read what it attaches to.",
+  "document": {
+    "version": 1,
+    "broker": "kafka",
+    "destination": {
+      "topic": "fleet.telemetry"
+    },
+    "publishes": {},
+    "republishWindowSeconds": 3600
+  }
+}

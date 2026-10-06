@@ -10,6 +10,7 @@ import type { ActionFacts } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
 import type { LogFacts } from "./logs.ts";
 import type { MetricFacts } from "./metrics.ts";
+import type { SubscriptionFacts } from "./subscriptions.ts";
 import type { TaskFacts, TaskTypes } from "./tasks.ts";
 
 /**
@@ -27,7 +28,7 @@ import type { TaskFacts, TaskTypes } from "./tasks.ts";
  * `examples/minimal-worker` is a conformant Worker in under 150 lines, and anything above that
  * line is a rule `mount()` should have carried.
  *
- * A Capability left `undefined` is one the Descriptor does not declare (DESC-2), and its address is
+ * A Capability left `undefined` is one the Descriptor does not declare (DESC-34), and its address is
  * not served: a Descriptor naming a Capability that answers nothing is DESC-18's fault, and a
  * Worker built through this interface cannot produce one.
  */
@@ -40,7 +41,7 @@ export type Worker = {
   /** The edition this Worker speaks (DESC-23). Defaults to the one `@worker-protocol/schemas` encodes. */
   edition?: string;
   /**
-   * TASK-31. The Task types this Worker answers, which IS its Skill, keyed by type.
+   * TASK-33. The Task types this Worker answers, which IS its Skill, keyed by type.
    *
    * Beside the id rather than inside `tasks`, because a Skill is served at no address: it is what
    * this Worker is, and a Capability is what it serves. A Worker that only ANSWERS Tasks declares
@@ -52,10 +53,10 @@ export type Worker = {
    */
   skills?: Record<string, SkillDeclaration>;
   /**
-   * Whether a presented credential is good, on every address this protocol defines (REG-21).
+   * Whether a presented credential is good, on every address this protocol defines (REG-34).
    *
    * `token` is what followed `Bearer ` (REG-3), or `undefined` where nothing readable was
-   * presented. `unauthenticated` is `401`, `forbidden` is `403` (ENDP-29), and how the Worker
+   * presented. `unauthenticated` is `401`, `forbidden` is `403` (ENDP-40), and how the Worker
    * decides is its own. Left out, the Worker reads openly, which `spec/registration.md` permits.
    *
    * It may answer a promise, and it has to: `spec/registration.md` names *a Worker that validates
@@ -125,7 +126,7 @@ export type Worker = {
    */
   nudges?: (type: string) => void | Promise<void>;
   /**
-   * `events`: the entry and nothing else, because there is no address to serve (EVT-11).
+   * `events`: the entry and nothing else, because there is no address to serve (EVT-13).
    *
    * Each event type's `data` is a Zod object, as an Action's input and a Task's payload are.
    * `mount()` writes the JSON Schema the Descriptor carries, so a Worker declares one shape.
@@ -136,6 +137,16 @@ export type Worker = {
       Omit<z.infer<typeof eventTypeDeclaration>, "data"> & { data: z.ZodType }
     >;
   };
+  /**
+   * `subscriptions`: consumers subscribing to this Worker's events, and the push to their sinks.
+   *
+   * `mount()` serves the address — who may subscribe to what, the sink rules, the handshake, the
+   * idempotence and the caller scope. What it cannot carry is where the subscriptions live and what
+   * delivers them, which depend on the platform: a `SubscriptionStore` that is consistent, and a
+   * `DeliveryQueue`. The Worker publishes through `eventHub()`, from its own code, when a Fact
+   * changes; `spec/subscriptions.md` holds the argument.
+   */
+  subscriptions?: SubscriptionFacts;
   /** `tasks`: what the entry declares (TASK-27, TASK-2 to TASK-4), and which conditions hold. */
   tasks?: {
     /** TASK-2. Every Task type this Worker raises, with its payload schema and answering Actions. */
@@ -144,7 +155,7 @@ export type Worker = {
 };
 
 /**
- * What `authenticate` answers about one credential (REG-3, REG-21, ENDP-29).
+ * What `authenticate` answers about one credential (REG-3, REG-34, ENDP-40).
  *
  * The object form exists for acceptance alone. A refused credential names nobody, because REG-32
  * gives a refusal nothing to say, and a principal found for one would have nowhere to go.
@@ -156,7 +167,7 @@ export type Verdict =
   | { verdict: "accepted"; principal?: unknown; caller?: string };
 
 /**
- * TASK-31. What a Worker declares about one Skill: the payload it needs to receive to answer one.
+ * TASK-33. What a Worker declares about one Skill: the payload it needs to receive to answer one.
  *
  * A Zod object, as an Action's input and a Task's payload are, and `mount()` writes the JSON Schema
  * the Descriptor carries. It is this Worker's own requirement — NAME-6 judges it against what an
@@ -210,5 +221,5 @@ export type Activity = {
  */
 export type Refusal = { code: ErrorCode; message: string };
 
-/** A success. `body: null` is no body at all — not the four bytes `null` (ACT-10, ACT-11). */
+/** A success. `body: null` is no body at all — not the four bytes `null` (ACT-10, ACT-18). */
 export type Answer = { status: number; body: unknown };

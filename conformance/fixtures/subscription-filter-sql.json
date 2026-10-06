@@ -1,0 +1,9 @@
+{
+  "schema": "subscription-filter",
+  "valid": false,
+  "rule": "SUB-13",
+  "why": "The `sql` dialect, which the CloudEvents Subscriptions API makes optional and this protocol leaves out. A Worker would otherwise need a query engine to accept a subscription, and nothing here needs one yet.",
+  "document": {
+    "sql": "type = 'tech.rowing.worker-protocol.task-raised'"
+  }
+}

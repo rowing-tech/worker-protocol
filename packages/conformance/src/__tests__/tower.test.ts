@@ -13,7 +13,7 @@ import { createWorker } from "../../../../conformance/reference-worker/src/serve
  * declares, that a dead Worker is a fact the moment a poll fails, and that none of it requires the
  * Tower to be in anybody's execution path.
  *
- * Eight rules in `spec/` bind a Tower — DESC-19, DESC-20, REG-13, REG-14, REG-16, REG-19, REG-29,
+ * Eight rules in `spec/` bind a Tower — DESC-19, DESC-20, REG-35, REG-14, REG-16, REG-19, REG-29,
  * REG-30 — and `conformance/verifiability.md` classes every one of them `P`, because a verifier
  * pointed at a base URL never contacted the party they oblige. This is that party, written once so
  * the rules have somewhere to be true, and it is built on `@worker-protocol/client` because a
@@ -25,7 +25,7 @@ type Enrollment = {
   /** REG-26. What a person wrote down. The moment of trust, and the only input. */
   baseUrl: string;
   credential: string;
-  /** DESC-6. The id recorded the first time this enrollment answered. REG-13 never rebinds it. */
+  /** DESC-6. The id recorded the first time this enrollment answered. REG-35 never rebinds it. */
   id?: string;
   /** DESC-20. The last Descriptor this Tower saw, and when — dated, and authority over none of it. */
   descriptor?: unknown;
@@ -52,13 +52,13 @@ function tower() {
     entries: () => [...enrolled.values()],
     entry: (baseUrl: string) => enrolled.get(baseUrl),
 
-    /** DESC-19, DESC-20, REG-13, REG-14, REG-19 — one round of polling every enrollment. */
+    /** DESC-19, DESC-20, REG-35, REG-14, REG-19 — one round of polling every enrollment. */
     async poll() {
       for (const enrollment of enrolled.values()) {
         try {
           const worker = await consume(enrollment.baseUrl, { credential: enrollment.credential });
 
-          // REG-13: a Tower does not rebind an enrollment from the id it recorded to a different
+          // REG-35: a Tower does not rebind an enrollment from the id it recorded to a different
           // one. REG-14: it records that the id changed, and keeps what it had.
           if (enrollment.id !== undefined && enrollment.id !== worker.descriptor.id) {
             enrollment.notes.push(`REG-14: the id at this URL changed to ${worker.descriptor.id}`);
@@ -85,7 +85,7 @@ function tower() {
     },
 
     /**
-     * TASK-31: the unit of discovery. An owner names a Task type and never an actor, and this is
+     * TASK-33: the unit of discovery. An owner names a Task type and never an actor, and this is
      * the question it asks — *who answers this* — over what each Worker declared about itself.
      */
     bySkill(type: string): string[] {
@@ -100,7 +100,7 @@ function tower() {
     },
 
     /**
-     * TASK-31, NAME-6: can this Worker take that one's Tasks of this type?
+     * TASK-33, NAME-6: can this Worker take that one's Tasks of this type?
      *
      * `bySkill` says who declared the name. This says whether the work can be READ, and it is the
      * question an operator asks at enrollment — so it is answered from the two dated Descriptors
@@ -173,6 +173,7 @@ describe("a Control Tower, over Workers that answer", () => {
       "logs",
       "metrics",
       "nudges",
+      "subscriptions",
       "tasks",
     ]);
   });
@@ -223,7 +224,7 @@ describe("a Control Tower, over Workers that answer", () => {
     expect(held?.descriptor).toBeUndefined();
   });
 
-  it("REG-13, REG-14: does not rebind an enrollment to a different id, and says so", async () => {
+  it("REG-35, REG-14: does not rebind an enrollment to a different id, and says so", async () => {
     // A Worker redeployed with a new id at an address somebody already wrote down is a different
     // Worker as far as every Contract is concerned, and rebinding would move them silently.
     const registry = tower();
@@ -251,7 +252,7 @@ describe("a Control Tower, over Workers that answer", () => {
   it("answers at ENROLLMENT whether a Worker can read another's Tasks", async () => {
     // The question an operator asks when pasting a URL: can this Worker take that one's work?
     // Answered from the two Descriptors, so it arrives before any Task exists — which is the whole
-    // reason TASK-31 has the answerer declare what it requires instead of everyone finding out
+    // reason TASK-33 has the answerer declare what it requires instead of everyone finding out
     // when work is handed over.
     const registry = tower();
     registry.enroll(worker.url, "a-token");
@@ -280,7 +281,7 @@ describe("a Control Tower, over Workers that answer", () => {
     };
     const { skills } = held;
 
-    // TASK-31's third answer: the Skill is claimed and nothing is said about either half. Not a
+    // TASK-33's third answer: the Skill is claimed and nothing is said about either half. Not a
     // refusal — reporting one would invent an obligation the rule does not carry.
     skills[VERIFY_VEHICLE] = {};
     expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({

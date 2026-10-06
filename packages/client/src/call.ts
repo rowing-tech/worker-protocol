@@ -10,18 +10,18 @@ import type * as z from "zod";
  * They are all here, each cited where it is obeyed, and `__tests__/consumer-rules.test.ts` is what
  * holds this to them.
  *
- * DESC-13, DESC-30, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 — that is the
+ * DESC-13, DESC-38, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 — that is the
  * whole list, and a line below cites each. It was eleven until the Claim lifecycle was withdrawn:
  * TASK-18 bound a holder not to do arithmetic on a lease it no longer has, and TASK-20 had it name
  * that lease on the Action.
  */
 
-/** A Worker refused, and the refusal is the Worker's own statement about itself (ENDP-25). */
+/** A Worker refused, and the refusal is the Worker's own statement about itself (ENDP-39). */
 export class Refused extends Error {
   constructor(
     readonly code: string,
     readonly status: number,
-    /** ENDP-25. `reject` will be wrong again; `retry` may not be. */
+    /** ENDP-39. `reject` will be wrong again; `retry` may not be. */
     readonly kind: "reject" | "retry",
     readonly url: string,
     message: string,
@@ -50,11 +50,11 @@ export class Malformed extends Error {
   }
 }
 
-/** A declared address that serves nothing, which DESC-30 makes a contract error and not a retry. */
+/** A declared address that serves nothing, which DESC-38 makes a contract error and not a retry. */
 export class Unserved extends Error {
   constructor(readonly url: string) {
     super(
-      `DESC-30: ${url} is declared in the Descriptor and serves nothing. This is a contract error: the Descriptor says the Worker answers here and it does not.`,
+      `DESC-38: ${url} is declared in the Descriptor and serves nothing. This is a contract error: the Descriptor says the Worker answers here and it does not.`,
     );
     this.name = "Unserved";
   }
@@ -78,12 +78,12 @@ export type Call = {
   url: string;
   method?: "GET" | "POST";
   body?: string;
-  /** ENDP-15. Where the Action declares it reads a key from the header. */
+  /** ENDP-38. Where the Action declares it reads a key from the header. */
   idempotencyKey?: string;
   /**
-   * Whether a `404` here means the ADDRESS serves nothing (DESC-30) or that a resource is gone.
+   * Whether a `404` here means the ADDRESS serves nothing (DESC-38) or that a resource is gone.
    *
-   * The division is the one DESC-30 was narrowed to: a read of a Capability's own address asks
+   * The division is the one DESC-38 was narrowed to: a read of a Capability's own address asks
    * whether the Worker answers there at all, and a call naming a metric, an Action or a Task asks
    * about a thing — the first is a Descriptor that lied, the second is an ordinary refusal.
    */
@@ -105,10 +105,10 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
   // send a request somewhere. Without this, a Worker could name any host and be handed the token.
   const ownOrigin = new URL(descriptorUrl).origin;
 
-  /** DESC-30: addresses this consumer has found to serve nothing. It does not call them again. */
+  /** DESC-38: addresses this consumer has found to serve nothing. It does not call them again. */
   const unserved = new Set<string>();
 
-  /** ENDP-5. What the Worker last said produced an answer, for a caller that wants to notice. */
+  /** ENDP-37. What the Worker last said produced an answer, for a caller that wants to notice. */
   let lastEdition: string | undefined;
 
   const once = async (call: Call): Promise<Response> => {
@@ -153,13 +153,13 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
         json = null;
       }
 
-      // ENDP-5: a caller that sees an edition it did not expect re-reads the Descriptor rather
+      // ENDP-37: a caller that sees an edition it did not expect re-reads the Descriptor rather
       // than parsing the body. What it does about it is the caller's; noticing is this line.
       lastEdition = response.headers.get("worker-protocol-edition") ?? lastEdition;
 
       if (response.status < 400) return { status: response.status, body: text, json };
 
-      // DESC-30: an address the Descriptor declares and that serves nothing is a contract error,
+      // DESC-38: an address the Descriptor declares and that serves nothing is a contract error,
       // and a consumer stops. It is recorded so that nothing here calls it again, which is what
       // *does not retry* means when the same consumer keeps running.
       if (response.status === 404 && spec.addressLevel === true) {
@@ -208,7 +208,7 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
   return {
     call,
     validated,
-    /** DESC-12. Every address is resolved against the URL the Descriptor was read FROM. */
+    /** DESC-36. Every address is resolved against the URL the Descriptor was read FROM. */
     resolve: (address: string) => new URL(address, descriptorUrl).toString(),
     edition: () => lastEdition,
   };
@@ -216,7 +216,7 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
 
 export type Caller = ReturnType<typeof caller>;
 
-/** ENDP-29's `retry` rows, for an answer that carries no envelope to read a class off. */
+/** ENDP-40's `retry` rows, for an answer that carries no envelope to read a class off. */
 const RETRY_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 /**
@@ -298,7 +298,7 @@ export async function page<T>(
   if (cursor !== undefined) target.searchParams.set("cursor", cursor);
 
   const answered = await caller.validated(
-    // DESC-30: a `404` from the bare address means the address serves nothing. With a filter on it
+    // DESC-38: a `404` from the bare address means the address serves nothing. With a filter on it
     // — or a cursor, which names a position — it is about what was asked, and is an ordinary refusal.
     {
       url: target.toString(),

@@ -4,7 +4,7 @@
  * What a Worker knows is how much of something happened. What it has had to write until now is the
  * parameter validation, the half-open interval, the boundaries cut in a declared zone, the ISO
  * week, the ordering with its tiebreak and the page envelope — all of it fixed by MET-8 through
- * MET-20 and identical in every Worker. So this asks a Worker for values over buckets it has
+ * MET-22 and identical in every Worker. So this asks a Worker for values over buckets it has
  * already cut, and answers the rest itself.
  */
 
@@ -17,7 +17,7 @@ import type { Refusal } from "./worker.ts";
 
 export type MetricDeclarations = Record<string, z.infer<typeof metricDeclaration>>;
 
-/** One period of one metric, already cut in the zone the entry declares (MET-12, MET-20). */
+/** One period of one metric, already cut in the zone the entry declares (MET-12, MET-22). */
 export type Bucket = { start: Date; end: Date };
 
 /** What a Worker is asked for: values, over buckets it did not have to compute. */

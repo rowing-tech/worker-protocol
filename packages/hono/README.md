@@ -108,6 +108,9 @@ and a Worker that reads them at module scope works in one place only.
 - The idempotency window: a repeat under a key replays the recorded outcome instead of performing
   the work twice. A header key is scoped to the caller your `authenticate` names as `caller`, and
   a key read from the input is the Action's whoever sends it (ENDP-34, ENDP-35).
+- The `subscriptions` address — who may subscribe to what, the sink rules, the webhook handshake,
+  idempotence — and, through `eventHub()`, matching each event you publish against every
+  subscription and delivering it with the retries SUB-12 fixes.
 - Authentication, as `Authorization: Bearer <token>` on every address, answered by your
   `authenticate`; and the refusal of a Nudge for a Task type you declare no Skill for.
 

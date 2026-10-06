@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "subscription-request.json",
+  "type": "object",
+  "properties": {
+    "types": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "qualified-name.json"
+      },
+      "description": "SUB-2. The event types to receive. Each is one the `events` entry publishes (SUB-3) and one the caller's Contract lets it consume (SUB-4)."
+    },
+    "filters": {
+      "description": "SUB-13. Every filter in the list must hold for an event to be delivered. Absent, every event of the named types is.",
+      "type": "array",
+      "items": {
+        "$ref": "subscription-filter.json"
+      }
+    },
+    "sink": {
+      "type": "string",
+      "pattern": "^https:\\/\\/\\S+$",
+      "format": "uri",
+      "description": "SUB-5. Where events are delivered: an absolute https URL, because the sink credential travels on every delivery. SUB-10's handshake runs against it before anything is stored."
+    },
+    "sinkCredential": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SUB-11. What the sink expects in `Authorization: Bearer` on every delivery — chosen by the subscriber, presented by the Worker, and never listed back."
+    }
+  },
+  "required": [
+    "types",
+    "sink",
+    "sinkCredential"
+  ],
+  "additionalProperties": false,
+  "title": "Subscription request",
+  "description": "SUB-2. The body of a POST that subscribes."
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "subscriptions-entry",
+  "valid": true,
+  "rule": "SUB-1",
+  "why": "An address, and how long a sink may fail before its subscription ends. That window is the whole of what replaces a lease: nothing is renewed, and a sink nobody listens at is cleaned up after it.",
+  "document": {
+    "version": 1,
+    "address": "../subscriptions",
+    "abandonAfterSeconds": 604800
+  }
+}

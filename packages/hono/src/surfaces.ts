@@ -12,6 +12,8 @@ import {
   metricGranularity,
   metricPage,
   registry,
+  subscriptionPage,
+  subscriptionReceipt,
   taskPage,
 } from "@worker-protocol/schemas";
 import { byCode, type ErrorCode } from "./codes.ts";
@@ -74,22 +76,40 @@ const ref = <T extends z.ZodType>(schema: T): T => {
 /** `RULE. text`, the citation convention every description here and in `schemas/` holds. */
 const cite = (rule: string, text: string) => `${rule}. ${text}`;
 
-/** ENDP-5 — on every protocol response, whatever it says. */
+/** ENDP-37 — on every protocol response, whatever it says. */
 export const RESPONSE_HEADERS = {
   "Worker-Protocol-Edition": {
     description: cite(
-      "ENDP-5",
+      "ENDP-37",
       "The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
     ),
     required: true,
     schema: { type: "string", pattern: "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$" },
   },
   "Worker-Protocol-Capability-Version": {
-    description: cite("ENDP-5", "The Capability version that produced this answer."),
+    description: cite(
+      "ENDP-37",
+      "The Capability version that produced this answer, on every response from an address a Capability entry declares.",
+    ),
     required: true,
     schema: { type: "integer", minimum: 1 },
   },
 } as const;
+
+/**
+ * ENDP-37 — the Descriptor's route states the edition and no Capability's version, because no
+ * Capability answered it.
+ */
+const editionOnly = <T extends Record<string, object>>(responses: T): T =>
+  Object.fromEntries(
+    Object.entries(responses).map(([status, response]) => [
+      status,
+      {
+        ...response,
+        headers: { "Worker-Protocol-Edition": RESPONSE_HEADERS["Worker-Protocol-Edition"] },
+      },
+    ]),
+  ) as T;
 
 /** ENDP-6 — a caller may state the version it expects, on any request. */
 const expectedVersion = z.coerce
@@ -149,7 +169,7 @@ const refusals = (codes: [code: ErrorCode, rule: string][]) => {
     [...byStatus].map(([status, names]) => [
       status,
       {
-        description: `ENDP-25. The shared error envelope, carrying one of: ${names.join(", ")}.`,
+        description: `ENDP-39. The shared error envelope, carrying one of: ${names.join(", ")}.`,
         headers: RESPONSE_HEADERS,
         content: { "application/json": { schema: ref(error) } },
       },
@@ -161,9 +181,9 @@ const refusals = (codes: [code: ErrorCode, rule: string][]) => {
 const SHARED: [ErrorCode, string][] = [
   ["unsupported_version", "ENDP-6"],
   ["unauthenticated", "REG-3"],
-  ["forbidden", "ENDP-29"],
-  ["internal_error", "ENDP-29"],
-  ["unavailable", "ENDP-29"],
+  ["forbidden", "ENDP-40"],
+  ["internal_error", "ENDP-40"],
+  ["unavailable", "ENDP-40"],
 ];
 
 // ---- the routes ---------------------------------------------------------------------------------
@@ -174,13 +194,13 @@ export const readDescriptor = createRoute({
   summary: "Read the Descriptor",
   description: cite(
     "DESC-5",
-    "Reading a Descriptor is a GET and changes nothing. REG-21 has the Worker accept the credential recorded for it here as on every other address.",
+    "Reading a Descriptor is a GET and changes nothing. REG-34 has the Worker accept the credential recorded for it here as on every other address.",
   ),
   request: { headers: versionHeader },
-  responses: {
+  responses: editionOnly({
     200: answer("DESC-1", "The Descriptor.", descriptor),
     ...refusals(SHARED),
-  },
+  }),
 });
 
 export const pollHealth = createRoute({
@@ -304,7 +324,7 @@ export const performAction = createRoute({
         .optional()
         .openapi({
           description: cite(
-            "ENDP-15",
+            "ENDP-38",
             "Where the Action declares it reads a key from the header. Within the declared window a repeat under the same key is not a second performance; the same key with a different body is `409`.",
           ),
         }),
@@ -330,7 +350,7 @@ export const performAction = createRoute({
     ),
     204: answer("ACT-10", "The Action completed and declares no result.", null),
     202: answer(
-      "ACT-11",
+      "ACT-18",
       "The Action declares that it does not complete within the call. No body.",
       null,
     ),
@@ -340,7 +360,7 @@ export const performAction = createRoute({
       ["idempotency_key_required", "ENDP-18"],
       ["not_found", "ACT-6"],
       ["idempotency_key_reused", "ENDP-17"],
-      ["unprocessable_content", "ACT-9"],
+      ["unprocessable_content", "ACT-17"],
       ...SHARED,
     ]),
   },
@@ -389,7 +409,7 @@ export const takeNudge = createRoute({
     // `nudges` is an address rather than an Action: ACT-2 has an Action's input be the shape its
     // declarer chose, and this one is fixed here. Written as a reference rather than a Zod object
     // because `mount()` validates it itself — every refusal from this address is then one this
-    // repository wrote, in the envelope ENDP-25 fixes.
+    // repository wrote, in the envelope ENDP-39 fixes.
     body: {
       required: true,
       description: cite("NDG-2", "One Task type, and nothing else."),
@@ -482,6 +502,88 @@ export const readLogs = createRoute({
   },
 });
 
+export const listSubscriptions = createRoute({
+  method: "get",
+  path: "/",
+  summary: "List this caller's subscriptions",
+  description: cite(
+    "SUB-8",
+    "A subscription belongs to the caller that created it, and this lists that caller's and no other's — with when a delivery last succeeded, since when its sink has been failing (SUB-16), and, for one that ended without its subscriber ending it, when and why (SUB-15).",
+  ),
+  request: { headers: versionHeader },
+  responses: {
+    200: answer(
+      "SUB-8",
+      "This caller's subscriptions, in the shared page envelope.",
+      subscriptionPage,
+    ),
+    ...refusals([["unknown_filter", "ENDP-24"], ...SHARED]),
+  },
+});
+
+export const subscribe = createRoute({
+  method: "post",
+  path: "/",
+  summary: "Subscribe",
+  description: cite(
+    "SUB-2",
+    "The body is the event types, optionally filters, the sink and the credential the sink expects, and nothing else. SUB-7 makes the content the identity: the same caller naming the same sink, types and filters finds the subscription that exists. SUB-10's handshake runs against the sink before anything is stored.",
+  ),
+  request: {
+    headers: versionHeader,
+    // Validated by `mount()` itself, as a nudge's body is, so every refusal from this address is one
+    // this repository wrote, in the envelope ENDP-39 fixes.
+    body: {
+      required: true,
+      description: cite("SUB-2", "What to receive, and where."),
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/subscription-request" } as never,
+        },
+      },
+    },
+  },
+  responses: {
+    201: answer("SUB-2", "A new subscription, and its id.", subscriptionReceipt),
+    200: answer("SUB-7", "The subscription that already existed, and its id.", subscriptionReceipt),
+    ...refusals([
+      ["schema_mismatch", "SUB-2, SUB-5"],
+      ["malformed_request", "ENDP-4"],
+      ["invalid_parameter", "SUB-2"],
+      ["unprocessable_content", "SUB-3, SUB-6, SUB-10"],
+      ...SHARED,
+    ]),
+  },
+});
+
+export const endSubscription = createRoute({
+  method: "delete",
+  path: "/",
+  summary: "End a subscription",
+  description: cite(
+    "SUB-9",
+    "A DELETE, because this protocol fixes the operation and so fixes its verb (ENDP-36), and HTTP already makes a DELETE safe to repeat. The subscription is named in a parameter on the declared address rather than in a path, because ENDP-1 lets a caller use only declared addresses.",
+  ),
+  request: {
+    query: z.object({
+      subscription: z
+        .string()
+        .min(1)
+        .openapi({
+          description: cite(
+            "SUB-9",
+            "The id of a subscription of this caller's. One that does not exist, or that belongs to another caller, is `404` — never `403`, so nobody learns which ids are real.",
+          ),
+        }),
+    }),
+    headers: versionHeader,
+  },
+  responses: {
+    204: answer("SUB-9", "The subscription ended. No body.", null),
+    ...refusals([["invalid_parameter", "SUB-9"], ["not_found", "SUB-9"], ...SHARED]),
+  },
+});
+
 // ---- the documents ------------------------------------------------------------------------------
 
 export type Surface = {
@@ -492,19 +594,22 @@ export type Surface = {
   /**
    * The server variable this document is served under — which is a *declared address* and never a
    * path. ENDP-1 says no reader assembles an address, so a generated client is constructed with
-   * one read from the Descriptor and resolved per DESC-12, and concatenates nothing.
+   * one read from the Descriptor and resolved per DESC-36, and concatenates nothing.
    */
   server: { variable: string; rule: string; description: string };
   title: string;
   description: string;
-  /** The route this document describes: one declared address, one operation. */
-  route: RouteConfig;
+  /**
+   * The routes this document describes: one declared address, and every operation on it — one for
+   * every Capability but `subscriptions`, which lists with a GET and changes with a POST.
+   */
+  routes: [RouteConfig, ...RouteConfig[]];
 };
 
 const address = (capability: string, rule: string, extra = "") => ({
   variable: "address",
   rule,
-  description: `The address the \`${capability}\` entry declares, resolved per DESC-12${extra}.`,
+  description: `The address the \`${capability}\` entry declares, resolved per DESC-36${extra}.`,
 });
 
 export const SURFACES: Surface[] = [
@@ -513,14 +618,14 @@ export const SURFACES: Surface[] = [
     capability: "descriptor",
     server: {
       variable: "baseUrl",
-      rule: "DESC-3",
+      rule: "DESC-35",
       description:
         "The Worker's enrolled base URL: one absolute `https` URL, with or without a path.",
     },
     title: "worker-protocol — the Descriptor",
     description:
       "The one route this protocol fixes, and the whole of what every Worker owes. Every other address is declared in the document this answers (ENDP-1).",
-    route: readDescriptor,
+    routes: [readDescriptor],
   },
   {
     document: "health",
@@ -528,7 +633,7 @@ export const SURFACES: Surface[] = [
     server: address("health", "HLTH-1", " against the URL the Descriptor was read from"),
     title: "worker-protocol — health",
     description: "The answer to a poll: one status for the Worker and a map of named checks.",
-    route: pollHealth,
+    routes: [pollHealth],
   },
   {
     document: "metrics",
@@ -537,7 +642,7 @@ export const SURFACES: Surface[] = [
     title: "worker-protocol — metrics",
     description:
       "Named quantities accumulated over declared periods. The Descriptor is the catalog: this surface answers values and never lists what exists (MET-21).",
-    route: readMetric,
+    routes: [readMetric],
   },
   {
     document: "actions",
@@ -545,8 +650,8 @@ export const SURFACES: Surface[] = [
     server: address("actions", "ACT-16"),
     title: "worker-protocol — actions",
     description:
-      "Performing an operation a Worker accepts. The `configure` reading address of ACT-15 is not described here: its address is declared inside an Action rather than beside the Capability, and the document it answers is shaped by that Action's own input schema, which is the Worker's.",
-    route: performAction,
+      "Performing an operation a Worker accepts. The `configure` reading address of ACT-21 is not described here: its address is declared inside an Action rather than beside the Capability, and the document it answers is shaped by that Action's own input schema, which is the Worker's.",
+    routes: [performAction],
   },
   {
     document: "tasks",
@@ -554,12 +659,12 @@ export const SURFACES: Surface[] = [
     server: {
       variable: "address",
       rule: "TASK-27",
-      description: "The one address the `tasks` entry declares, resolved per DESC-12.",
+      description: "The one address the `tasks` entry declares, resolved per DESC-36.",
     },
     title: "worker-protocol — tasks",
     description:
       "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
-    route: readTasks,
+    routes: [readTasks],
   },
   {
     document: "nudges",
@@ -568,7 +673,7 @@ export const SURFACES: Surface[] = [
     title: "worker-protocol — nudges",
     description:
       "Being told there is work of a Task type. Declaring it is optional and what it buys is latency: a consumer that reads on its own schedule is slower and never wrong (TASK-19).",
-    route: takeNudge,
+    routes: [takeNudge],
   },
   {
     document: "alerts",
@@ -576,8 +681,8 @@ export const SURFACES: Surface[] = [
     server: address("alerts", "ALRT-1"),
     title: "worker-protocol — alerts",
     description:
-      "Conditions an operator should see. An Alert ends when its condition stops holding and nobody dismisses one (ALRT-5), so there is no write here.",
-    route: readAlerts,
+      "Conditions an operator should see. An Alert ends when its condition stops holding and nobody dismisses one (ALRT-8), so there is no write here.",
+    routes: [readAlerts],
   },
   {
     document: "activity",
@@ -585,8 +690,8 @@ export const SURFACES: Surface[] = [
     server: address("activity", "ACTV-1"),
     title: "worker-protocol — activity",
     description:
-      "What a Worker is doing and has undertaken to do. An activity ends when the Worker stops holding it and nobody declares that (ACTV-5), so there is no write here.",
-    route: readActivity,
+      "What a Worker is doing and has undertaken to do. An activity ends when the Worker stops holding it and nobody declares that (ACTV-7), so there is no write here.",
+    routes: [readActivity],
   },
   {
     document: "logs",
@@ -595,7 +700,16 @@ export const SURFACES: Surface[] = [
     title: "worker-protocol — logs",
     description:
       "What a Worker recorded while it was working, most recent first. A window rather than an archive: nothing here fixes how far back a Worker keeps, and the end of the collection means the end of what it still holds.",
-    route: readLogs,
+    routes: [readLogs],
+  },
+  {
+    document: "subscriptions",
+    capability: "subscriptions",
+    server: address("subscriptions", "SUB-1"),
+    title: "worker-protocol — subscriptions",
+    description:
+      "A consumer subscribing to this Worker's events, and ending a subscription. The deliveries themselves are not described here: they go to the subscriber's own sink, as CloudEvents in the HTTP binding's structured mode (SUB-11), validated first by the CloudEvents webhook handshake (SUB-10).",
+    routes: [listSubscriptions, subscribe, endSubscription],
   },
 ];
 

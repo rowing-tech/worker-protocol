@@ -26,7 +26,7 @@ describe("mount()", () => {
   it("serves the Descriptor with only the Capabilities the Worker implements", async () => {
     const response = await get("/.well-known/worker-protocol");
     expect(response.status).toBe(200);
-    // ENDP-5 on every response.
+    // ENDP-37 on every response.
     expect(response.headers.get("worker-protocol-edition")).toBe(EDITION);
     const document = (await response.json()) as { capabilities: Record<string, unknown> };
     expect(Object.keys(document.capabilities)).toEqual(["health"]);
@@ -423,7 +423,7 @@ describe("mount(), with one key from two callers", () => {
           "by-input": {
             input: z.object({ reading: z.string(), n: z.number() }),
             result: z.object({ n: z.number() }),
-            idempotency: { required: true, from: "input", member: "reading", windowSeconds: 60 },
+            idempotency: { required: true, from: "input", members: ["reading"], windowSeconds: 60 },
             run: ({ n }: { n: number }, call: ActionCall) => {
               calls.push(call);
               return { n };
@@ -620,7 +620,7 @@ describe("mount(), telling a performance about its call", () => {
         },
         "by-input": {
           input: z.object({ order: z.string() }),
-          idempotency: { required: true, from: "input", member: "order", windowSeconds: 60 },
+          idempotency: { required: true, from: "input", members: ["order"], windowSeconds: 60 },
           run: refusingOnce(),
         },
         unkeyed: { input: z.object({}), run: refusingOnce() },
@@ -745,9 +745,104 @@ describe("mount(), told there is work of a Task type", () => {
     expect(await answer.json()).toMatchObject({ code: "schema_mismatch" });
   });
 
-  it("refuses a body that does not parse, in the envelope ENDP-25 fixes", async () => {
+  it("refuses a body that does not parse, in the envelope ENDP-39 fixes", async () => {
     const answer = await nudge("{");
     expect(answer.status).toBe(400);
     expect(await answer.json()).toMatchObject({ code: "malformed_request", class: "reject" });
+  });
+});
+
+/**
+ * What the audit of 0.4 changed in what `mount()` answers: secrets that are written and never read,
+ * a `202` that carries what the Action declares, a key made of several members, and a Capability's
+ * version stated only where a Capability answered.
+ */
+describe("mount(), after the audit of 0.4", () => {
+  let settings: Record<string, unknown> = { label: "fleet", apiKey: "k-1" };
+  const runs: unknown[] = [];
+  const app = mount({
+    id: "tech.rowing.test.audited",
+    health: () => ({ status: "healthy", checks: {} }),
+    actions: {
+      outcomes: memoryOutcomes(),
+      settings: () => settings,
+      accepts: {
+        configure: {
+          input: z.object({
+            label: z.string(),
+            apiKey: z.string().meta({ writeOnly: true }),
+          }),
+          run: (next: Record<string, unknown>) => {
+            settings = next;
+          },
+        },
+        "rebuild-index": {
+          input: z.object({}),
+          result: z.object({ job: z.string() }),
+          completesWithinCall: false,
+          run: () => ({ job: "j-42" }),
+        },
+        "record-reading": {
+          input: z.object({ vehicle: z.string(), kind: z.string(), value: z.number() }),
+          idempotency: {
+            required: true,
+            from: "input",
+            members: ["vehicle", "kind"],
+            windowSeconds: 60,
+          },
+          run: (input: unknown, call: ActionCall) => {
+            runs.push(call.idempotencyKey);
+          },
+        },
+      },
+    },
+  });
+  const post = (action: string, body: unknown) =>
+    app.fetch(
+      new Request(`http://worker.invalid/actions?action=${action}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    );
+
+  it("never reads back a writeOnly member, and keeps it when a form omits it (ACT-20, ACT-21)", async () => {
+    const read = await app.fetch(new Request("http://worker.invalid/settings"));
+    expect(await read.json()).toEqual({ label: "fleet" });
+
+    expect((await post("configure", { label: "renamed" })).status).toBe(204);
+    expect(settings).toEqual({ label: "renamed", apiKey: "k-1" });
+
+    await post("configure", { label: "renamed", apiKey: "k-2" });
+    expect(settings).toEqual({ label: "renamed", apiKey: "k-2" });
+  });
+
+  it("answers 202 with the result an asynchronous Action declares (ACT-18)", async () => {
+    const answer = await post("rebuild-index", {});
+    expect(answer.status).toBe(202);
+    expect(await answer.json()).toEqual({ job: "j-42" });
+  });
+
+  it("makes one key of several members, in order (ENDP-38)", async () => {
+    await post("record-reading", { vehicle: "ABC-123", kind: "temp", value: 1 });
+    // The same vehicle and kind is the same reading: `409` for another body, and no second run.
+    expect(
+      (await post("record-reading", { vehicle: "ABC-123", kind: "temp", value: 2 })).status,
+    ).toBe(409);
+    expect(runs).toEqual([JSON.stringify(["ABC-123", "temp"])]);
+  });
+
+  it("states a Capability's version where one answered, and only there (ENDP-37)", async () => {
+    const descriptor = await app.fetch(
+      new Request("http://worker.invalid/.well-known/worker-protocol"),
+    );
+    expect(descriptor.headers.get("worker-protocol-edition")).toBe(EDITION);
+    expect(descriptor.headers.has("worker-protocol-capability-version")).toBe(false);
+
+    const health = await app.fetch(new Request("http://worker.invalid/health"));
+    expect(health.headers.get("worker-protocol-capability-version")).toBe("1");
+
+    const nowhere = await app.fetch(new Request("http://worker.invalid/nowhere"));
+    expect(nowhere.status).toBe(404);
+    expect(nowhere.headers.has("worker-protocol-capability-version")).toBe(false);
   });
 });

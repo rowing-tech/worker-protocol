@@ -1,0 +1,18 @@
+{
+  "schema": "subscription-request",
+  "valid": true,
+  "rule": "SUB-2",
+  "why": "The typical subscription: Tasks of one type being raised, filtered on the extension EVT-15 puts the type in, delivered to an https sink with the credential that sink expects.",
+  "document": {
+    "types": ["tech.rowing.worker-protocol.task-raised"],
+    "filters": [
+      {
+        "exact": {
+          "tasktype": "tech.rowing.fleet.verify-vehicle"
+        }
+      }
+    ],
+    "sink": "https://happy-otter-123.convex.site/events",
+    "sinkCredential": "s3cret"
+  }
+}

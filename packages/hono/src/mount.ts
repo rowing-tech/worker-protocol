@@ -1,12 +1,21 @@
 import { OpenAPIHono, type RouteConfig } from "@hono/zod-openapi";
 import { EDITION, nudge } from "@worker-protocol/schemas";
 import type { Context, MiddlewareHandler } from "hono";
-import { actions as actionsSurface, IN_MEMORY, jsonSchema, type OutcomeStore } from "./actions.ts";
+import {
+  actions as actionsSurface,
+  IN_MEMORY,
+  jsonSchema,
+  type OutcomeStore,
+  writeOnlyMembers,
+} from "./actions.ts";
 import { byCode } from "./codes.ts";
 import { collection, serializeSince } from "./collection.ts";
 import { logs as logsSurface } from "./logs.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
+import { subscriptionsSurface } from "./subscriptions.ts";
 import {
+  endSubscription,
+  listSubscriptions,
   performAction,
   pollHealth,
   readActivity,
@@ -16,6 +25,7 @@ import {
   readMetric,
   readTasks,
   SURFACES,
+  subscribe,
   takeNudge,
 } from "./surfaces.ts";
 import { tasks as taskSurface } from "./tasks.ts";
@@ -25,7 +35,7 @@ import type { Answer, Refusal, Worker } from "./worker.ts";
  * Everything a conformant Worker owes and nobody should write twice, as one Hono app.
  *
  * `mount(worker)` takes what only the Worker knows — see `worker.ts` — and returns an app that
- * serves the Descriptor at the one route this protocol fixes (DESC-3) and every declared
+ * serves the Descriptor at the one route this protocol fixes (DESC-35) and every declared
  * Capability at an address of its own. Mount it wherever the Worker lives: at the root, or under a
  * path beside an application that already owns the root.
  *
@@ -44,11 +54,11 @@ import type { Answer, Refusal, Worker } from "./worker.ts";
  * export const app = mount(worker)
  * ```
  *
- * What it carries, so that a Worker author does not: ENDP-5's two headers on every response;
- * REG-3 and REG-21; ENDP-6's whole refusal of a version it cannot answer; ENDP-24; ENDP-25 and
- * ENDP-26's envelope; ENDP-19 through ENDP-23's page and cursor; DESC-12's addresses; TASK-5's
- * filter and TASK-28's page; MET-7 through MET-20, the parameters and the boundaries; ACT-6 through
- * ACT-12 and ENDP-15 through ENDP-18; and ACT-2 and ACT-3's JSON Schema, generated from the Zod
+ * What it carries, so that a Worker author does not: ENDP-37's two headers on every response;
+ * REG-3 and REG-34; ENDP-6's whole refusal of a version it cannot answer; ENDP-24; ENDP-39 and
+ * ENDP-26's envelope; ENDP-19 through ENDP-23's page and cursor; DESC-36's addresses; TASK-5's
+ * filter and TASK-28's page; MET-7 through MET-22, the parameters and the boundaries; ACT-6 through
+ * ACT-19 and ENDP-38 through ENDP-18; and ACT-2 and ACT-3's JSON Schema, generated from the Zod
  * object a Worker declared so the document a console renders a form from and the object a request
  * is validated against are one declaration.
  *
@@ -116,7 +126,7 @@ export const defineWorker = <E = unknown>(build: WorkerBuilder<E>): WorkerBuilde
 
 const JSON_UTF8 = { "content-type": "application/json; charset=utf-8" };
 
-/** ENDP-25, ENDP-26: the envelope, with the status and class the code fixes and nothing chosen. */
+/** ENDP-39, ENDP-26: the envelope, with the status and class the code fixes and nothing chosen. */
 const envelope = ({ code, message }: Refusal): Response => {
   const row = byCode.get(code);
   return new Response(JSON.stringify({ code, message, class: row?.class ?? "reject" }), {
@@ -155,15 +165,14 @@ const defaultHook = (result: { success: boolean }) =>
 // silence answers with MORE than the caller asked for, in a shape it will happily parse. The
 // surfaces with parameters of their own check them where they know what they mean; the rest take
 // none, so anything at all is a parameter they cannot know.
-const noParameters: MiddlewareHandler = async (c, next) => {
+const strayParameter = (c: Context): Response | undefined => {
   const [first] = Object.keys(c.req.query());
-  if (first !== undefined) {
-    return envelope({
-      code: "unknown_filter",
-      message: `This address takes no parameter named ${first}.`,
-    });
-  }
-  await next();
+  return first === undefined
+    ? undefined
+    : envelope({
+        code: "unknown_filter",
+        message: `This address takes no parameter named ${first}.`,
+      });
 };
 
 /**
@@ -273,7 +282,7 @@ function descriptorOf(worker: Worker, edition: string): string {
         ...(action.result === undefined ? {} : { result: jsonSchema(action.result) }),
         completesWithinCall: action.completesWithinCall ?? true,
         ...(action.idempotency === undefined ? {} : { idempotency: action.idempotency }),
-        // ACT-15: where the Worker exposes its settings, the reading address is this app's to fix,
+        // ACT-21: where the Worker exposes its settings, the reading address is this app's to fix,
         // because this app serves it — written into the declaration so the two cannot disagree.
         ...(name === "configure" && worker.actions.settings ? { readAddress: "../settings" } : {}),
       };
@@ -281,7 +290,7 @@ function descriptorOf(worker: Worker, edition: string): string {
     capabilities.actions = { version: 1, address: "../actions", accepts: declared };
   }
 
-  // EVT-12, TASK-32, TASK-31: the Descriptor carries JSON Schema, generated from the Zod object the
+  // EVT-12, TASK-34, TASK-33: the Descriptor carries JSON Schema, generated from the Zod object the
   // Worker declared — the same move ACT-2 makes, so a Worker writes one declaration and never two.
   if (worker.events) {
     capabilities.events = {
@@ -294,20 +303,29 @@ function descriptorOf(worker: Worker, edition: string): string {
     };
   }
 
+  // SUB-1: the address this app serves, and how long a sink may fail before its subscription ends.
+  if (worker.subscriptions) {
+    capabilities.subscriptions = {
+      version: 1,
+      address: "../subscriptions",
+      abandonAfterSeconds: worker.subscriptions.abandonAfterSeconds,
+    };
+  }
+
   if (worker.tasks) {
     capabilities.tasks = {
       version: 1,
       address: "../tasks",
       raises: mapValues(worker.tasks.raises, (declared) => ({
         payload: jsonSchema(declared.payload),
-        answeredBy: declared.answeredBy,
+        ...(declared.answeredBy === undefined ? {} : { answeredBy: declared.answeredBy }),
       })),
     };
   }
 
   const document: Record<string, unknown> = { id: worker.id, edition };
-  // TASK-31: at the root, beside the id, and omitted by a Worker with no Skill — which is what
-  // DESC-2 lets a Worker do with anything it does not implement. A Skill that states no
+  // TASK-33: at the root, beside the id, and omitted by a Worker with no Skill — which is what
+  // DESC-34 lets a Worker do with anything it does not implement. A Skill that states no
   // requirement travels as `{}`: the claim, and nothing about what it needs.
   if (worker.skills !== undefined) {
     document.skills = mapValues(worker.skills, (skill) => ({
@@ -404,15 +422,22 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
 
   const app = new OpenAPIHono({ defaultHook });
 
-  // ENDP-5, outermost, so that a refusal from any guard below carries the headers too. A caller
-  // reading a version it did not expect re-reads the Descriptor whatever the status was.
+  // ENDP-37, outermost, so that a refusal from any guard below carries the edition too. A caller
+  // reading a version it did not expect re-reads the Descriptor whatever the status was. The
+  // Capability's version is set where a Capability answers, in `serve`, and nowhere else: the
+  // Descriptor's route and an address nobody declared have no Capability to state one of.
   app.use(async (c, next) => {
     await next();
     if (!c.res.headers.has("worker-protocol-edition")) {
       c.res.headers.set("worker-protocol-edition", staticEdition);
     }
-    c.res.headers.set("worker-protocol-capability-version", "1");
   });
+
+  /** ENDP-37: every response from an address a Capability entry declares states its version. */
+  const capabilityVersion: MiddlewareHandler = async (c, next) => {
+    await next();
+    c.res.headers.set("worker-protocol-capability-version", "1");
+  };
 
   // REG-7 and its converse: an address this Worker genuinely does not serve is `404`, and an
   // address it does serve is never `404` in place of `401` — the guard below is registered on
@@ -439,7 +464,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
 
   const guard: MiddlewareHandler = async (c, next) => {
     const worker = await audited(c);
-    // REG-21: the Worker accepts the credential recorded for it on every address this protocol
+    // REG-34: the Worker accepts the credential recorded for it on every address this protocol
     // defines, the Descriptor's route included. What makes one good is the Worker's (REG-3).
     // REG-32: the refusal distinguishes nothing — a refusal that explains itself is an oracle.
     const answered = (await worker.authenticate?.(bearer(c))) ?? "accepted";
@@ -468,20 +493,35 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
    * **Every route is registered whether or not this Worker declares its Capability**, and the
    * handler answers `404` when it does not — because with a Worker resolved per request there is
    * no Worker at mount time to ask. That is the same answer an undeclared address gives today:
-   * DESC-2 admits any combination of Capabilities including none, and nothing a Descriptor does
+   * DESC-34 admits any combination of Capabilities including none, and nothing a Descriptor does
    * not declare is an address any reader of this protocol calls (ENDP-1).
    */
+  const guarded = new Set<string>();
   const serve = (
-    capability: string | null,
-    path: string,
-    route: RouteConfig,
+    where: {
+      capability: string | null;
+      path: string;
+      route: RouteConfig;
+      /** Whether the surface reads parameters of its own; one that takes none refuses any. */
+      ownParameters?: boolean;
+    },
     handler: (c: Context, resolved: Resolved) => Response | Promise<Response>,
-    ownParameters = false,
   ) => {
+    const { capability, path, route, ownParameters = false } = where;
     if (capability !== null && declared !== null && !declared.has(capability)) return;
-    app.use(path, guard);
-    if (!ownParameters) app.use(path, noParameters);
-    app.openapi({ ...route, path }, (async (c: Context) => handler(c, held(c))) as never);
+    // Once per address: `subscriptions` serves two operations at one address, and a guard
+    // registered twice would authenticate one request twice.
+    if (!guarded.has(path)) {
+      guarded.add(path);
+      if (capability !== null) app.use(path, capabilityVersion);
+      app.use(path, guard);
+    }
+    // Per operation and not per address: one address may serve an operation that reads its own
+    // parameters beside one that takes none, as `subscriptions` does.
+    app.openapi({ ...route, path }, (async (c: Context) => {
+      const stray = ownParameters ? undefined : strayParameter(c);
+      return stray ?? handler(c, held(c));
+    }) as never);
   };
 
   const undeclared = (capability: string) =>
@@ -500,32 +540,29 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   const staticDescriptor =
     typeof source === "function" ? null : descriptorOf(source, source.edition ?? EDITION);
 
-  serve(null, readDescriptor.path, readDescriptor, async (c, { worker }) =>
-    c.body(staticDescriptor ?? descriptorOf(worker, worker.edition ?? EDITION), 200, JSON_UTF8),
+  serve(
+    { capability: null, path: readDescriptor.path, route: readDescriptor },
+    async (c, { worker }) =>
+      c.body(staticDescriptor ?? descriptorOf(worker, worker.edition ?? EDITION), 200, JSON_UTF8),
   );
 
   // HLTH-5: `200` whatever it reports. The status is read from the body.
-  serve("health", "/health", pollHealth, async (c, { worker }) =>
+  serve({ capability: "health", path: "/health", route: pollHealth }, async (c, { worker }) =>
     worker.health ? c.json(await worker.health(), 200) : undeclared("health"),
   );
 
   serve(
-    "metrics",
-    "/metrics",
-    readMetric,
+    { capability: "metrics", path: "/metrics", route: readMetric, ownParameters: true },
     async (c, { worker }) => {
       const read = surfacesOf(worker).metrics;
       if (!read) return undeclared("metrics");
       return page(c, await read(query(c)));
     },
-    true,
   );
 
   // ACT-5: the Action is named in the query and the body is the input, raw.
   serve(
-    "actions",
-    "/actions",
-    performAction,
+    { capability: "actions", path: "/actions", route: performAction, ownParameters: true },
     async (c, { worker, principal, caller }) => {
       const perform = surfacesOf(worker).actions;
       if (!perform) return undeclared("actions");
@@ -541,59 +578,58 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
         }),
       );
     },
-    true,
   );
 
-  // ACT-15: where the Worker exposes its settings, this app serves the reading address, which is
+  // ACT-21: where the Worker exposes its settings, this app serves the reading address, which is
   // why the declaration above points at it and the two cannot disagree.
+  app.use("/settings", capabilityVersion);
   app.use("/settings", guard);
-  app.use("/settings", noParameters);
   app.get("/settings", async (c) => {
+    const stray = strayParameter(c);
+    if (stray) return stray;
     const { worker } = held(c);
     const settings = worker.actions?.settings;
-    if (!settings || !worker.actions?.accepts.configure) return undeclared("configure");
-    return c.json((await settings()) as Record<string, unknown>);
+    const configure = worker.actions?.accepts.configure;
+    if (!settings || !configure) return undeclared("configure");
+    // ACT-21: what `configure` would accept, without what its schema marks `writeOnly` — a value
+    // that is sent and never read back, which is how an operator rotates a key nobody can read.
+    const current = (await settings()) as Record<string, unknown>;
+    const hidden = writeOnlyMembers(configure.input);
+    return c.json(
+      Object.fromEntries(Object.entries(current).filter(([name]) => !hidden.has(name))),
+    );
   });
 
   // ALRT-2, ENDP-20: the Alerts whose conditions hold, in the page envelope this app builds.
   serve(
-    "alerts",
-    "/alerts",
-    readAlerts,
+    { capability: "alerts", path: "/alerts", route: readAlerts, ownParameters: true },
     async (c, { worker }) =>
       worker.alerts
         ? page(c, collection(await worker.alerts(), query(c), serializeSince))
         : undeclared("alerts"),
-    true,
   );
 
   // ACTV-2, ENDP-20, ENDP-23: what this Worker holds, serialized and ordered here so that a Worker
   // writes neither the instant's format nor the order. By id, which the Worker mints and nothing
   // else here reorders — the same order the Tasks surface declares, for the same reason.
   serve(
-    "activity",
-    "/activity",
-    readActivity,
+    { capability: "activity", path: "/activity", route: readActivity, ownParameters: true },
     async (c, { worker }) =>
       worker.activity
         ? page(c, collection(await worker.activity(), query(c), serializeSince))
         : undeclared("activity"),
-    true,
   );
 
   // LOG-2, LOG-7, LOG-8, ENDP-20: the query is decoded here and the read is the Worker's, which is
   // `metrics`' division rather than `activity`'s — a feed is not bounded by what is happening now,
   // so only the store holding it can filter and page it.
   serve(
-    "logs",
-    "/logs",
-    readLogs,
+    { capability: "logs", path: "/logs", route: readLogs, ownParameters: true },
     async (c, { worker }) => {
       const read = surfacesOf(worker).logs;
       if (!read) return undeclared("logs");
       return page(c, await read(query(c)));
     },
-    true,
   );
 
   /**
@@ -602,9 +638,9 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
    * Every refusal here is written out rather than left to the route's validator, because the body is
    * the one in this protocol whose shape is fixed by the protocol: a Worker that declares `nudges`
    * owes exactly these answers, and a library's own `400` for a body it could not parse is not one
-   * of them (ENDP-25).
+   * of them (ENDP-39).
    */
-  serve("nudges", "/nudges", takeNudge, async (c, { worker }) => {
+  serve({ capability: "nudges", path: "/nudges", route: takeNudge }, async (c, { worker }) => {
     if (!worker.nudges) return undeclared("nudges");
     let body: unknown;
     try {
@@ -633,15 +669,82 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
 
   // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers.
   serve(
-    "tasks",
-    "/tasks",
-    readTasks,
+    { capability: "tasks", path: "/tasks", route: readTasks, ownParameters: true },
     async (c, { worker, principal }) => {
       const tasks = surfacesOf(worker).tasks;
       if (!tasks) return undeclared("tasks");
       return page(c, await tasks.read(query(c), bearer(c), principal));
     },
-    true,
+  );
+
+  /**
+   * SUB-2 to SUB-10: one address, three operations — a GET that lists, a POST that subscribes and a
+   * DELETE that ends the subscription named in `subscription` (ENDP-36 lets this protocol fix that
+   * verb). The list takes no parameter, and the POST and the DELETE check their own.
+   */
+  const subscriptionsOf = (c: Context, { worker, caller, principal }: Resolved) =>
+    worker.subscriptions
+      ? {
+          surface: subscriptionsSurface({
+            facts: worker.subscriptions,
+            workerId: worker.id,
+            publishes: Object.keys(worker.events?.publishes ?? {}),
+          }),
+          // SUB-8: the caller ENDP-34 scopes a key to. Naming none, every caller is one.
+          call: { caller: caller ?? null, token: bearer(c), principal },
+        }
+      : undefined;
+
+  serve(
+    {
+      capability: "subscriptions",
+      path: "/subscriptions",
+      route: listSubscriptions,
+    },
+    async (c, resolved) => {
+      const found = subscriptionsOf(c, resolved);
+      if (!found) return undeclared("subscriptions");
+      return page(c, await found.surface.list(found.call));
+    },
+  );
+
+  serve(
+    { capability: "subscriptions", path: "/subscriptions", route: subscribe, ownParameters: true },
+    async (c, resolved) => {
+      const found = subscriptionsOf(c, resolved);
+      if (!found) return undeclared("subscriptions");
+      const [stray] = Object.keys(c.req.query());
+      if (stray !== undefined) {
+        return envelope({
+          code: "invalid_parameter",
+          message: `Subscribing takes no parameter named ${stray}.`,
+        });
+      }
+      return reply(c, await found.surface.subscribe({ raw: await c.req.text(), call: found.call }));
+    },
+  );
+
+  serve(
+    {
+      capability: "subscriptions",
+      path: "/subscriptions",
+      route: endSubscription,
+      ownParameters: true,
+    },
+    async (c, resolved) => {
+      const found = subscriptionsOf(c, resolved);
+      if (!found) return undeclared("subscriptions");
+      const parameters = query(c);
+      const id = parameters.get("subscription");
+      const stray = [...parameters.keys()].find((name) => name !== "subscription");
+      if (id === null || id === "" || stray !== undefined) {
+        return envelope({
+          code: "invalid_parameter",
+          message: "Ending a subscription takes one parameter, `subscription`.",
+        });
+      }
+      return reply(c, await found.surface.unsubscribe({ id, call: found.call }));
+    },
   );
 
   return app;

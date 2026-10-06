@@ -11,7 +11,8 @@
     "nudges",
     "tasks",
     "events",
-    "logs"
+    "logs",
+    "subscriptions"
   ],
   "title": "Capability name",
   "description": "DESC-8. The Capability names the current edition of worker-protocol defines."

@@ -1,7 +1,7 @@
 {
   "schema": "error",
   "valid": true,
-  "rule": "ENDP-25",
+  "rule": "ENDP-39",
   "why": "The envelope every response that is not a success carries: a code from the closed enumeration, a human-readable message, and the class the code carries.",
   "document": {
     "code": "not_found",

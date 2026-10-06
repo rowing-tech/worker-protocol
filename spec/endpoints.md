@@ -37,8 +37,8 @@ Worker and its own maintainers, and no reader depends on it.
 
 **ENDP-2 (required). Reading is GET, and a GET changes nothing a later reader could observe.**
 
-**ENDP-3 (required). Everything that changes state is POST, on an address declared for the purpose.
-This protocol defines no PUT, PATCH or DELETE.**
+**ENDP-36 (required). An operation a Worker defines is a POST, on an address declared for it. Where
+this protocol fixes an operation itself, the file of that surface fixes its verb.**
 
 **ENDP-4 (required). Bodies and responses are JSON, UTF-8, `application/json`.**
 
@@ -53,16 +53,22 @@ answer that is only true because the state changed — it is not a read and it i
 the line: if a caller could not run it twice and get the same answer, it is not on the read side of
 this protocol.
 
-One verb on the writing side, because the reader that matters never chose it. A console renders a
-form from a schema it did not author and posts the result to an address it does not understand;
-so does a teams app, and so does any consumer acting under a Contract. Give a Worker four verbs to
-choose between and every one of those readers must be told which, which means the Descriptor
-carries a verb per address and every client branches on it — a field, a branch and a way to get it
-wrong, bought in exchange for a distinction no reader of this protocol acts on. The address already
-says what the call does, because ENDP-1 makes every address declared for one purpose.
+One verb for the operations a Worker defines, because the reader that matters never chose it. A
+console renders a form from a schema it did not author and posts the result to an address it does
+not understand; so does a teams app, and so does any consumer acting under a Contract. Give a Worker
+four verbs to choose between and every one of those readers must be told which, which means the
+Descriptor carries a verb per address and every client branches on it — a field, a branch and a way
+to get it wrong, bought in exchange for a distinction no reader of this protocol acts on. The
+address already says what the call does, because ENDP-1 makes every address declared for one
+purpose.
 
-ENDP-3's second sentence is about this protocol and not about a Worker: serving PUT, PATCH or
-DELETE outside it is a Worker's own business, and invisible to it.
+**That argument is about an operation the reader does not understand, and it stops there.** Where
+this protocol fixes an operation itself — taking a nudge, subscribing, ending a subscription — no
+reader is told a verb by the Worker: it reads it in the same file that tells it what the operation
+does, as it reads that a read is a GET. Nothing branches on a field, so the cost the paragraph above
+names does not arise, and a surface may use the verb whose meaning HTTP already gives — a DELETE
+that every client, proxy and retry library knows it may repeat. Serving PUT, PATCH or DELETE outside
+this protocol is a Worker's own business, and invisible to it.
 
 ENDP-4 is narrower than it looks and follows from where the normative weight sits. Every shape this
 protocol fixes is a JSON Schema in [schemas/](../schemas/), so a body that is not JSON has no
@@ -74,8 +80,9 @@ rather than holding except where somebody needed an exception.
 
 ## Versions on a call
 
-**ENDP-5 (required). Every protocol response carries `Worker-Protocol-Edition` and
-`Worker-Protocol-Capability-Version`, stating what produced it.**
+**ENDP-37 (required). Every protocol response carries `Worker-Protocol-Edition`, and every response
+from an address a Capability entry declares carries `Worker-Protocol-Capability-Version` beside it,
+stating what produced it.**
 
 **ENDP-6 (required). A caller may send `Worker-Protocol-Capability-Version` on a request. A Worker
 that cannot answer that version refuses the request whole with `400`, and never substitutes its
@@ -87,7 +94,7 @@ already answers the version it declared. A caller reads the Descriptor, finds a 
 understands, and calls the address beside it. There is no path segment to compute.
 
 What remains is drift: a caller holding a Descriptor read an hour ago, calling a Worker that has
-been redeployed since. That is what ENDP-5 is for — a caller that sees a version it did not expect
+been redeployed since. That is what ENDP-37 is for — a caller that sees a version it did not expect
 re-reads the Descriptor rather than parsing the body. The cost is two headers; the alternative is a
 caller that decodes a shape it does not know.
 
@@ -98,8 +105,8 @@ and the caller's recourse is to re-read the Descriptor, which is where the answe
 
 ## Errors: which responses mean stop, and which mean try again
 
-**ENDP-25 (required). Every response that is not a success carries the shared error envelope: a
-code from the closed enumeration in [schemas/error.json](../schemas/error.json), a human-readable
+**ENDP-39 (required). Every response with a `4xx` or `5xx` status carries the shared error envelope:
+a code from the closed enumeration in [schemas/error.json](../schemas/error.json), a human-readable
 message, and an explicit class, one of `reject` or `retry`.**
 
 **ENDP-26 (required). A code fixes one status and one class. A Worker answers a code with the
@@ -143,8 +150,19 @@ discovered by whoever eventually goes looking for records that were never writte
 between "you are wrong" and "I am busy" is the single most load-bearing thing this file says, and a
 specification that leaves it to be guessed from a status code has chosen that outcome.
 
-**ENDP-29 (required). A response that is not a success carries one of the status codes below, and
-the class named beside it. This protocol does not fix the status of a success.**
+**ENDP-40 (required). A response with a `4xx` or `5xx` status carries one of the status codes below,
+and the class named beside it. This protocol does not fix the status of a success.**
+
+**ENDP-41 (required). A Worker may answer a conditional read `304`, and does not redirect a request
+this protocol defines.**
+
+A failure has to be classified by a caller that cannot see inside the Worker, which is the whole of
+ENDP-39's and ENDP-40's argument — and a `3xx` is not a failure, so neither reaches it. What
+ENDP-41 adds is the one distinction among them that matters here. A `304` answers a read that asked
+*has this changed?*, at the address the caller already holds, and costs nothing. A redirect hands a
+caller an address the Descriptor did not declare, which ENDP-1 says no caller uses, and a caller
+that followed it would carry its credential there, which is what DESC-13 exists to prevent. A Worker
+that moved changes the address in its Descriptor; it does not send its callers on a detour.
 
 | Status | Class | What it means |
 |---|---|---|
@@ -162,7 +180,7 @@ the class named beside it. This protocol does not fix the status of a success.**
 
 The table is closed and the success side is not, because the two sides are read by different
 readers for different reasons. A failure has to be classified by a caller that cannot see inside
-the Worker, which is the whole argument for ENDP-25 and the reason a code may not wander between
+the Worker, which is the whole argument for ENDP-39 and the reason a code may not wander between
 statuses. A success is read by a caller that already knows what it asked for, and whether an
 accepted Action answers `200` with its outcome, `201` with a resource or `202` because it will
 happen later is a question about that Action and belongs to [actions](actions.md). The earlier form
@@ -198,30 +216,30 @@ the argument beneath each code — why `502` and `504` are two of them, why `sch
 
 | Code | Status | Class | The condition, and the rule that already commits to it |
 |---|---|---|---|
-| `malformed_request` | `400` | `reject` | A body that will not parse, or a content type that is not `application/json` — ENDP-4, ENDP-29 |
+| `malformed_request` | `400` | `reject` | A body that will not parse, or a content type that is not `application/json` — ENDP-4, ENDP-40 |
 | `schema_mismatch` | `400` | `reject` | A body that parses and does not match the schema the surface declared — ACT-8 |
-| `invalid_parameter` | `400` | `reject` | A parameter missing or malformed — ENDP-29 |
+| `invalid_parameter` | `400` | `reject` | A parameter missing or malformed — ENDP-40 |
 | `unknown_filter` | `400` | `reject` | A filter parameter the Worker does not recognize — ENDP-24 |
 | `unsupported_version` | `400` | `reject` | A requested Capability version the Worker cannot answer — ENDP-6 |
 | `idempotency_key_required` | `400` | `reject` | An Action requires a key and none was sent — ENDP-18 |
-| `unauthenticated` | `401` | `reject` | No credential, or one the Worker cannot read — ENDP-29 |
-| `forbidden` | `403` | `reject` | The credential is understood and does not carry the right — ENDP-29 |
-| `not_found` | `404` | `reject` | No such address, or no such resource — ENDP-29, DESC-30 |
-| `request_timeout` | `408` | `retry` | The request did not arrive in time to be answered — ENDP-29 |
-| `conflict` | `409` | `reject` | The request conflicts with the current state — ENDP-29 |
+| `unauthenticated` | `401` | `reject` | No credential, or one the Worker cannot read — ENDP-40 |
+| `forbidden` | `403` | `reject` | The credential is understood and does not carry the right — ENDP-40 |
+| `not_found` | `404` | `reject` | No such address, or no such resource — ENDP-40, DESC-38 |
+| `request_timeout` | `408` | `retry` | The request did not arrive in time to be answered — ENDP-40 |
+| `conflict` | `409` | `reject` | The request conflicts with the current state — ENDP-40 |
 | `idempotency_key_reused` | `409` | `reject` | A key reused with a different body — ENDP-17 |
-| `unprocessable_content` | `422` | `reject` | Well-formed, schema-valid, and refused on the Worker's own rules — ENDP-29, ENDP-12 |
-| `rate_limited` | `429` | `retry` | Too many requests — ENDP-29 |
-| `internal_error` | `500` | `retry` | The Worker failed for its own reasons — ENDP-29 |
-| `unavailable` | `503` | `retry` | Starting, `unhealthy`, a dependency down, or a key still being performed — ENDP-29, ENDP-32 |
-| `upstream_error` | `502` | `retry` | Something the Worker depends on answered badly — ENDP-29 |
-| `upstream_timeout` | `504` | `retry` | Something the Worker depends on did not answer in time — ENDP-29 |
+| `unprocessable_content` | `422` | `reject` | Well-formed, schema-valid, and refused on the Worker's own rules — ENDP-40, ENDP-12 |
+| `rate_limited` | `429` | `retry` | Too many requests — ENDP-40 |
+| `internal_error` | `500` | `retry` | The Worker failed for its own reasons — ENDP-40 |
+| `unavailable` | `503` | `retry` | Starting, `unhealthy`, a dependency down, or a key still being performed — ENDP-40, ENDP-32 |
+| `upstream_error` | `502` | `retry` | Something the Worker depends on answered badly — ENDP-40 |
+| `upstream_timeout` | `504` | `retry` | Something the Worker depends on did not answer in time — ENDP-40 |
 
 Every code above names a condition some rule already states. None was invented to fill a gap, and
 where the text has not committed to a condition there is deliberately no code for it — with one
 exception, and it is now the only loose thread in the vocabulary. **`conflict` is broad, and today
 nothing but `idempotency_key_reused` answers under its status.** It was written broad because
-ENDP-29 named *a Task already claimed* among its 409s, and the three rules in [tasks](tasks.md)
+ENDP-40 named *a Task already claimed* among its 409s, and the three rules in [tasks](tasks.md)
 that used it are withdrawn with the lease they were about. Whether a code with no condition left to
 name should survive an edition is a question for the next one; withdrawing it now would be spending
 an edition's price to remove a code nobody sends, which is the same ceremony in the other
@@ -231,7 +249,7 @@ direction.
 `malformed_request`, and the difference is what a caller does next: a body that will not parse
 at all is a serializer bug in the caller, and a body that parses and does not match is a caller
 built against a declaration that has since moved — it re-reads the Descriptor, which is where
-the answer is, and ENDP-5's headers already told it the version changed. One code for both
+the answer is, and ENDP-37's headers already told it the version changed. One code for both
 would have sent every caller to the wrong half of its own code, which is ENDP-12's argument
 one layer down.
 
@@ -244,7 +262,7 @@ surface leans on.
 
 ENDP-26 forbids one code under two statuses for a reason worth stating: if a code could arrive with
 either of two statuses, a caller reading the code would still have to read the status to know what
-had happened, and the code would have bought nothing. That rule is what splits ENDP-29's one
+had happened, and the code would have bought nothing. That rule is what splits ENDP-40's one
 `502, 504` row into two codes here. They are genuinely two conditions — a dependency that answered
 badly, and one that did not answer at all — and a Worker that could not tell them apart was not
 going to send either code accurately.
@@ -263,9 +281,10 @@ refreshed, and what an unrecognized caller is told rather than shown are
 
 ## Posting an Action, and saying it is the same call again
 
-**ENDP-15 (required). An Action declares in the [Descriptor](descriptor.md) whether it requires an
-idempotency key; if it does, it declares where the key is read from — the `Idempotency-Key` header
-or a named field of the payload — and how long the Worker honors one.**
+**ENDP-38 (required). An Action declares in the [Descriptor](descriptor.md) whether it requires an
+idempotency key; if it does, it declares where the key is read from — the `Idempotency-Key` header,
+or one or more named members of the payload whose values together are the key — and how long the
+Worker honors one.**
 
 **ENDP-16 (required). Within that window, a repeat under the same key, in the scope ENDP-34 and
 ENDP-35 give it, is not a second performance: the Worker answers the outcome it recorded.**
@@ -379,7 +398,7 @@ what a value means, so the scope cannot turn on it. An Action that wants a key p
 from the header; one that needs it in the body makes the value unique per caller, and a prefix of
 the caller's own is enough. That leaves a caller that can set no header at all, and the case is
 weak: the usual automation platforms set headers on an HTTP request. If one appears, a scope
-declared on the Action is an optional field, which DESC-24 admits in a MINOR.
+declared on the Action is an optional field, which DESC-32 admits in a MINOR.
 
 How an Action expresses these declarations, what it answers on success, and whether performing one
 is synchronous at all are [actions](actions.md)'s.
@@ -459,6 +478,49 @@ anything happened.
   previous-page control eventually wants.
 
 ## Withdrawn
+
+- **ENDP-29** (required, W, 0.1–0.4) — required that every response that is not a success carry a
+  status from the table. Replaced by **ENDP-40**, which reaches only `4xx` and `5xx`; a `304` to a
+  conditional read failed ENDP-29 and satisfies ENDP-40, so the verdict moves and the id did not
+  survive.
+
+  *Not a success* swept in every `3xx` with an argument written only for failures. ENDP-41 now says
+  which of those a Worker may give, and why.
+
+- **ENDP-25** (required, W, 0.1–0.4) — required that every response that is not a success carry the
+  error envelope. Replaced by **ENDP-39**, which reaches only `4xx` and `5xx`; a `304` with no body
+  failed ENDP-25 and satisfies ENDP-39, so the verdict moves and the id did not survive.
+
+  The same sweep as ENDP-29's, and the same argument: a failure is classified by a caller that
+  cannot see inside the Worker, and a `3xx` is not a failure.
+
+- **ENDP-15** (required, W, 0.1–0.4) — required that a key read from the payload be one named field.
+  Replaced by **ENDP-38**, which admits one or more members whose values together are the key; an
+  Action keyed by vehicle, kind and instant failed ENDP-15 and satisfies ENDP-38, so the verdict
+  moves and the id did not survive.
+
+  The rule's own example was a key of three members, and a single field made the caller invent the
+  composite key the argument called ceremony.
+
+- **ENDP-5** (required, W, 0.1–0.4) — required that every protocol response carry both version
+  headers. Replaced by **ENDP-37**, which asks for the Capability's version only where a Capability
+  answered; a Descriptor answered without one failed ENDP-5 and satisfies ENDP-37, so the verdict
+  moves and the id did not survive.
+
+  The argument was drift between a caller's Descriptor and the surface it calls. The Descriptor's
+  own route and an address nobody declared have no Capability to state a version of, and an SDK was
+  writing a made-up one to obey the rule.
+
+- **ENDP-3** (required, W, 0.1–0.4) — required that everything changing state be a POST, and said
+  that this protocol defines no PUT, PATCH or DELETE. Replaced by **ENDP-36**, which keeps the
+  first half for the operations a Worker defines and lets the file of a surface this protocol fixes
+  choose its verb. A Worker answering `subscriptions`' DELETE failed ENDP-3 and satisfies ENDP-36,
+  so the verdict moves and the id did not survive.
+
+  The argument beneath ENDP-3 only ever defended one verb for a reader that cannot be told which —
+  a console posting a form to an Action it does not understand. It never defended the protocol
+  refusing itself a verb for an operation it defines and every reader already knows, and the
+  second sentence was found forbidding exactly that when `subscriptions` needed a way to end one.
 
 - **ENDP-9** — required a caller to back off and repeat a `retry` unchanged. Replaced by
   **ENDP-30**, the same sentence as a recommendation. A caller that declines to retry drops its own

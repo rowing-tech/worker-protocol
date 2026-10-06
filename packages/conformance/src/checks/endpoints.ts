@@ -13,22 +13,27 @@ export const CLAIMS = [
   "ENDP-1",
   "ENDP-11",
   "ENDP-4",
-  "ENDP-5",
+  "ENDP-37",
   "ENDP-19",
-  "ENDP-25",
+  "ENDP-39",
   "ENDP-26",
-  "ENDP-29",
+  "ENDP-40",
+  "ENDP-41",
 ] as const;
 
 /** The status and class each code fixes, generated from endpoints.md into rules.json (ENDP-26). */
 export type Code = { code: string; status: number; class: "reject" | "retry" };
 
-export function judgeTranscript(
-  exchanges: Exchange[],
-  codes: Code[],
-  declared: Set<string>,
-  rules: Map<string, Rule>,
-): Result[] {
+export function judgeTranscript(given: {
+  exchanges: Exchange[];
+  codes: Code[];
+  /** Every address the Descriptor declared, its own route included (ENDP-1). */
+  declared: Set<string>;
+  /** The Descriptor's own route, which no Capability answers (ENDP-37). */
+  descriptorUrl: string | null;
+  rules: Map<string, Rule>;
+}): Result[] {
+  const { exchanges, codes, declared, descriptorUrl, rules } = given;
   const { results, say } = verdicts(rules, CLAIMS);
 
   if (exchanges.length === 0) {
@@ -49,6 +54,7 @@ export function judgeTranscript(
     return `${parsed.origin}${parsed.pathname}`;
   };
   const addresses = new Set([...declared].map(address));
+  const descriptorAddress = descriptorUrl === null ? null : address(descriptorUrl);
 
   const byCode = new Map(codes.map((c) => [c.code, c]));
   const failures = new Map<string, string[]>();
@@ -64,14 +70,15 @@ export function judgeTranscript(
     // ENDP-1: every address other than the Descriptor's own route is declared in the Descriptor.
     // The verifier can only judge its own behaviour here: it reaches an address because it read
     // one, so what this establishes is that nothing it called was undeclared.
-    if (!addresses.has(address(exchange.url))) {
+    const here = address(exchange.url);
+    if (!addresses.has(here)) {
       fail("ENDP-1", `${where} — an address the Descriptor did not declare`);
     }
 
     // ENDP-4: bodies and responses are JSON, UTF-8, `application/json`.
     //
     // A response with no body is not judged, and that is the rule read as written rather than a
-    // concession. A content type is a claim ABOUT a body; ACT-10 and ACT-11 have a Worker answer
+    // concession. A content type is a claim ABOUT a body; ACT-10 and ACT-18 have a Worker answer
     // `204` and `202` with none, and requiring one there would be this verifier inventing an
     // obligation out of a sentence that constrains bodies.
     if (exchange.body.length > 0) {
@@ -83,24 +90,39 @@ export function judgeTranscript(
       }
     }
 
-    // ENDP-5: every protocol response carries both headers, stating what produced it.
-    for (const header of ["worker-protocol-edition", "worker-protocol-capability-version"]) {
-      if (!exchange.headers.has(header)) fail("ENDP-5", `${where} — no ${header}`);
+    // ENDP-37: every protocol response states the edition, and every response from an address a
+    // Capability entry declares states that Capability's version beside it. The Descriptor's own
+    // route, and an address nobody declared, have no Capability to state a version of.
+    if (!exchange.headers.has("worker-protocol-edition")) {
+      fail("ENDP-37", `${where} — no worker-protocol-edition`);
+    }
+    const capability = addresses.has(here) && here !== descriptorAddress;
+    if (capability && !exchange.headers.has("worker-protocol-capability-version")) {
+      fail("ENDP-37", `${where} — no worker-protocol-capability-version`);
     }
 
-    if (exchange.status >= 200 && exchange.status < 300) continue;
+    // ENDP-41: a Worker does not redirect a request this protocol defines, and answers `304` only
+    // to a conditional read — which this verifier never sends, so any `304` it receives is one.
+    if ([301, 302, 303, 307, 308].includes(exchange.status)) {
+      fail("ENDP-41", `${where} — a redirect to ${exchange.headers.get("location") ?? "nowhere"}`);
+    } else if (exchange.status === 304) {
+      fail("ENDP-41", `${where} — \`304\` to a read that was not conditional`);
+    }
 
-    // ENDP-29: a response that is not a success carries one of the statuses the table lists. The
-    // success side is deliberately open, which is why only this branch is judged.
+    // ENDP-39 and ENDP-40 judge failures, which are `4xx` and `5xx` and nothing else.
+    if (exchange.status < 400) continue;
+
+    // ENDP-40: a `4xx` or `5xx` carries one of the statuses the table lists. The success side, and
+    // the `3xx` side ENDP-41 governs, are deliberately open here.
     const statuses = new Set(codes.map((c) => c.status));
     if (!statuses.has(exchange.status)) {
-      fail("ENDP-29", `${where} — a status no code in spec/endpoints.md names`);
+      fail("ENDP-40", `${where} — a status no code in spec/endpoints.md names`);
     }
 
-    // ENDP-25: every response that is not a success carries the shared envelope.
+    // ENDP-39: every `4xx` and `5xx` carries the shared envelope.
     const envelope = errorSchema.safeParse(exchange.json);
     if (!envelope.success) {
-      fail("ENDP-25", `${where} — ${envelope.error.issues[0]?.message ?? "no error envelope"}`);
+      fail("ENDP-39", `${where} — ${envelope.error.issues[0]?.message ?? "no error envelope"}`);
       continue;
     }
 

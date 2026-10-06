@@ -236,7 +236,11 @@ for (const source of sources) {
     const inWithdrawnSection =
       isOwnWithdrawnSection(prefix) && offset >= source.text.length - p.withdrawnSection.length;
 
-    if (p.withdrawn.has(n) && !inWithdrawnSection) {
+    // A release note says which rule a release carried, under the id it had then. Rewriting it to
+    // a successor's id would make the history say something that never shipped, so `CHANGELOG.md`
+    // may cite a withdrawn id; a cited id that was never issued is still a reference to nothing.
+    const history = source.name === "CHANGELOG.md";
+    if (p.withdrawn.has(n) && !inWithdrawnSection && !history) {
       report(source.name, cited, "withdrawn-cited", "written outside its file's `Withdrawn` list");
     } else if (!p.withdrawn.has(n) && !p.live.has(n)) {
       report(source.name, cited, "dangling", `no such rule in spec/${p.file}`);

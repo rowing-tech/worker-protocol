@@ -2,8 +2,8 @@
  * Whether one Worker can answer another's Tasks, decided from what both of them declared.
  *
  * This is the question an operator asks when enrolling a Worker — *can it take that one's work?* —
- * and `spec/tasks.md` is what answers it. TASK-32 has the owner declare the payload it sends under
- * `raises`; TASK-31 has the answerer declare what it requires under `skills`. NAME-6 fixes which
+ * and `spec/tasks.md` is what answers it. TASK-34 has the owner declare the payload it sends under
+ * `raises`; TASK-33 has the answerer declare what it requires under `skills`. NAME-6 fixes which
  * way to judge the two: a document a Worker receives is judged against the party that sends it.
  *
  * **It compares declarations and calls nothing.** Both Descriptors are already in hand — a Tower
@@ -37,10 +37,10 @@ type Declared = {
 const variantsOf = (schema: Declared): Declared[] => schema.anyOf ?? schema.oneOf ?? [schema];
 
 /**
- * The member that tells a union's variants apart, where one does — TASK-32's discriminator.
+ * The member that tells a union's variants apart, where one does — TASK-34's discriminator.
  *
  * It is a member every variant fixes to a different constant, which is what `z.discriminatedUnion`
- * writes and what TASK-32 requires of a Task with several endings.
+ * writes and what TASK-34 requires of a Task with several endings.
  */
 function discriminator(variants: Declared[]): string | undefined {
   if (variants.length < 2) return undefined;
@@ -56,7 +56,7 @@ function discriminator(variants: Declared[]): string | undefined {
  * What was decided, and why — so that a console can say it rather than showing a boolean.
  *
  * `unknown` is not `false`. An answerer that declares the Skill and states no requirement has
- * claimed the capability and said nothing about what it needs, which TASK-31 admits; a Tower that
+ * claimed the capability and said nothing about what it needs, which TASK-33 admits; a Tower that
  * reported that as a refusal would be inventing an obligation the specification does not carry.
  */
 export type Compatibility = {
@@ -74,7 +74,7 @@ const typeOf = (schema: Declared, member: string): unknown => schema.properties?
 /**
  * Whether what one party requires is covered by what the other provides — NAME-6, one direction.
  *
- * The tractable part of comparing two JSON Schemas, and the part `spec/tasks.md` states in TASK-31:
+ * The tractable part of comparing two JSON Schemas, and the part `spec/tasks.md` states in TASK-33:
  * a receiver may ask for less than the sender produces and may not ask for more. So every member
  * the receiver requires must be one the sender declares, and where both fix a `type` for it the two
  * must agree. Full subsumption is undecidable in general, and a Tower that attempted it would refuse
@@ -82,7 +82,7 @@ const typeOf = (schema: Declared, member: string): unknown => schema.properties?
  * and it reads the same in both directions, which is why it is stated here once rather than derived
  * from either half's rule.
  *
- * **The discriminator is the owner's word and is not charged to the answerer.** TASK-32 puts a
+ * **The discriminator is the owner's word and is not charged to the answerer.** TASK-34 puts a
  * Task's endings in a union told apart by a member the OWNER mints — `outcome: "found"` — and an
  * answerer writing its own Descriptor cannot know that word, because it serves owners it has never
  * read. Counting it as coverage the answerer owes would refuse every honest answerer and would put
@@ -133,11 +133,11 @@ function accepts(requires: Declared, provides: Declared, told: string | undefine
  * Can `answerer` answer `owner`'s Tasks of this type?
  *
  * Two documents travel, one each way, so there are two halves to judge and both must hold. The
- * Task goes from owner to answerer: what the answerer REQUIRES (TASK-31 `payload`) must be covered
- * by what the owner SENDS (TASK-32 `payload`). The answer goes back: what the owner's answering
- * Action TAKES (ACT-2 `input`, named by TASK-32 `answeredBy`) must be covered by what the answerer
- * PRODUCES (TASK-31 `produces`). Either half the answerer left undeclared is `unknown` — a claim
- * with nothing to check, which TASK-31 admits and a Tower must not report as a refusal.
+ * Task goes from owner to answerer: what the answerer REQUIRES (TASK-33 `payload`) must be covered
+ * by what the owner SENDS (TASK-34 `payload`). The answer goes back: what the owner's answering
+ * Action TAKES (ACT-2 `input`, named by TASK-34 `answeredBy`) must be covered by what the answerer
+ * PRODUCES (TASK-33 `produces`). Either half the answerer left undeclared is `unknown` — a claim
+ * with nothing to check, which TASK-33 admits and a Tower must not report as a refusal.
  */
 export function canAnswer(owner: Descriptor, answerer: Descriptor, type: string): Compatibility {
   const skill = answerer.skills?.[type];

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { unstable_dev } from "wrangler";
-import { type Report, type Result, verify } from "../index.ts";
+import { type Report, type Result, universe, verify } from "../index.ts";
 
 /**
  * The verifier against a Worker deployed the way this protocol's architecture assumes.
@@ -62,30 +62,30 @@ describe("a Worker on workerd, verified over HTTP", () => {
   const result = (id: string): Result | undefined =>
     report.results.find((one) => one.rule.id === id);
 
-  it("fails nothing but DESC-3, which a loopback address cannot satisfy", () => {
-    // DESC-3 fixes `https`, and a dev server on 127.0.0.1 serves `http`. It is the one rule this
-    // harness cannot satisfy rather than one the Worker gets wrong, and it is asserted rather than
-    // excluded so that the day a SECOND rule fails, this test says which.
+  it("fails nothing, over plaintext on a loopback address", () => {
+    // DESC-35 requires `https` wherever a network is crossed, and a dev server on 127.0.0.1 crosses
+    // none — so the one rule this harness used to fail for want of a certificate is satisfied, and
+    // the day any rule fails, this test says which.
     const failing = report.results.filter((one) => one.verdict === "fails").map((r) => r.rule.id);
-    expect(failing).toEqual(["DESC-3"]);
+    expect(failing).toEqual([]);
   });
 
   it("keeps ENDP-16's promise across requests, which is what the Durable Object is for", () => {
     // The rules that need a store outliving the request. A Worker holding them in a Map passes
     // these in one isolate and breaks them in two, and nothing in the report would say so — which
     // is why this Worker exists and why this assertion is here rather than in the other suites.
-    for (const id of ["ENDP-15", "ENDP-16", "ENDP-17", "ACT-12"]) {
+    for (const id of ["ENDP-38", "ENDP-16", "ENDP-17", "ACT-19"]) {
       expect(result(id)?.verdict, `${id} over a durable store`).toBe("passes");
     }
   });
 
-  it("is judged on the same rules as a Worker on Node, from the same universe", () => {
+  it("is judged on the same rules as a Worker on Node, from the same universe", async () => {
     // Nothing in `verify` knows what runtime answered, so every rule in the universe is reported
     // on here exactly as it is against a Worker on Node. The count is of DISTINCT ids rather than
     // of results, because a rule observed on several surfaces is reported once per surface.
     const judged = new Set(report.results.map((one) => one.rule.id));
-    expect(judged.size).toBe(167);
-    // DESC-25 did not stop the run, so what follows is a verdict rather than a version complaint.
+    expect(judged.size).toBe((await universe()).rules.length);
+    // DESC-33 did not stop the run, so what follows is a verdict rather than a version complaint.
     expect(report.older).toBeUndefined();
     expect(report.edition).toBe(report.verifierEdition);
   });
@@ -98,9 +98,9 @@ describe("a Worker on workerd, verified over HTTP", () => {
       expect(result(id)?.verdict, id).toBe("passes");
     }
 
-    // TASK-31 moved OUT of a Capability entry and onto the Descriptor root. This Worker raises
+    // TASK-33 moved OUT of a Capability entry and onto the Descriptor root. This Worker raises
     // Tasks and answers none, so it declares no Skill at all — which under the old shape it could
     // not have said without also declaring a `tasks` entry it had nothing to put in.
-    expect(result("TASK-31")?.verdict).toBe("notExercised");
+    expect(result("TASK-33")?.verdict).toBe("notExercised");
   });
 });

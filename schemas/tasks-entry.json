@@ -10,10 +10,10 @@
     },
     "address": {
       "type": "string",
-      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "pattern": "^(?:https:\\/\\/|http:\\/\\/(?:localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(?=[:/?#]|$)|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
       "title": "Address",
       "format": "uri-reference",
-      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+      "description": "DESC-36. An absolute https URL — or http on a loopback host, where no network path exists to read a credential on — or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
     },
     "raises": {
       "type": "object",
@@ -23,7 +23,7 @@
       "additionalProperties": {
         "$ref": "task-type-declaration.json"
       },
-      "description": "TASK-32. Every Task type this Worker raises. A Worker that raises none declares an empty map rather than omitting it, so that every reader parses one shape."
+      "description": "TASK-34. Every Task type this Worker raises. A Worker that raises none declares an empty map rather than omitting it, so that every reader parses one shape."
     }
   },
   "required": [
@@ -33,5 +33,5 @@
   ],
   "additionalProperties": {},
   "title": "Tasks capability entry",
-  "description": "TASK-27. The shared Capability entry with the reading address required, and the Task types this Worker raises. What it ANSWERS is TASK-31's `skills`, on the Descriptor root."
+  "description": "TASK-27. The shared Capability entry with the reading address required, and the Task types this Worker raises. What it ANSWERS is TASK-33's `skills`, on the Descriptor root."
 }

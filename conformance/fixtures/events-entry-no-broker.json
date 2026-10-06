@@ -1,0 +1,17 @@
+{
+  "schema": "events-entry",
+  "valid": true,
+  "rule": "EVT-13",
+  "why": "A Worker that publishes through no broker and declares none of the three broker members. What it publishes and how long a consumer must remember are still declared; it reaches consumers through `subscriptions`, which EVT-14 has it declare beside this entry — a statement about two entries that the verifier judges, since no schema of one entry can.",
+  "document": {
+    "version": 1,
+    "publishes": {
+      "tech.rowing.worker-protocol.task-raised": {
+        "data": {
+          "$ref": "https://worker-protocol.rowing.tech/schemas/task.json"
+        }
+      }
+    },
+    "republishWindowSeconds": 3600
+  }
+}

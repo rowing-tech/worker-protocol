@@ -1,0 +1,31 @@
+{
+  "schema": "subscription-filter",
+  "valid": true,
+  "rule": "SUB-13",
+  "why": "Dialects nest: a Task raised of either of two types, from any source but one. `all`, `any` and `not` combine the three attribute dialects, which is the whole of the language — `sql` is not part of it.",
+  "document": {
+    "all": [
+      {
+        "any": [
+          {
+            "exact": {
+              "tasktype": "tech.rowing.fleet.verify-vehicle"
+            }
+          },
+          {
+            "prefix": {
+              "tasktype": "tech.rowing.fleet.inspect-"
+            }
+          }
+        ]
+      },
+      {
+        "not": {
+          "exact": {
+            "source": "tech.rowing.fleet.sandbox"
+          }
+        }
+      }
+    ]
+  }
+}

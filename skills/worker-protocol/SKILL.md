@@ -6,15 +6,15 @@ description: >-
   nudges, tasks, events, logs), the credential, the error and page envelopes, cursors, idempotency,
   and verification with npx @worker-protocol/conformance. Use this skill whenever the work touches a
   Worker, a Descriptor, an Action, a Task type, a Skill, a metric, an Alert or a log record;
-  whenever a conformance report or an error names a rule id such as DESC-3, ENDP-25 or LOG-7;
+  whenever a conformance report or an error names a rule id such as DESC-35, ENDP-39 or LOG-7;
   whenever somebody is deciding which Capability a fact belongs on, or why a Worker is being refused
   400, 404 or 409; and whenever code is generated from openapi/ or validated against schemas/ —
   even when nobody says "worker-protocol" out loud. For TypeScript on Hono, also load
   worker-protocol-hono.
 license: Apache-2.0
 metadata:
-  workerProtocolEdition: "0.3"
-  version: "2.2.0"
+  workerProtocolEdition: "0.4"
+  version: "2.3.0"
 ---
 
 # worker-protocol, in any language
@@ -52,8 +52,8 @@ Cite rule ids in the code too. A failure that names `ENDP-24` can be looked up; 
 | The question it answers | Capability | What makes it that one |
 |---|---|---|
 | Can I rely on it right now? | `health` | One status, never better than its checks (HLTH-3) |
-| What should I look at right now? | `alerts` | A condition that holds, and ends by itself (ALRT-5) |
-| What is it working on right now? | `activity` | Undertaken and unfinished; gone when released (ACTV-5) |
+| What should I look at right now? | `alerts` | A condition that holds, and ends by itself (ALRT-8) |
+| What is it working on right now? | `activity` | Undertaken and unfinished; gone when released (ACTV-7) |
 | What does it need somebody else to do? | `tasks` | A condition only another party's Action resolves (TASK-15) |
 | How much of something happened? | `metrics` | Accumulated over declared periods; never an occurrence |
 | What happened, and is over? | `logs` | Written deliberately, past tense, acted on by nobody |
@@ -81,13 +81,14 @@ whose reason is understood is one that survives a refactor.
 ### Identity and the Descriptor
 
 - **The edition is `MAJOR.MINOR` and describes the protocol, not the package version** (DESC-23).
-  Declare exactly one. A reader that does not hold the MAJOR verifies nothing and says so (DESC-25);
+  Declare exactly one. A reader that does not hold the MAJOR — or, before 1.0, the MINOR — verifies
+  nothing and says so (DESC-33);
   one holding a later MINOR judges the Worker only by the rules its declared edition contains
   (DESC-31), so declare the edition the Worker was built and verified against, not the newest.
 - **The `id` is a constant the Worker is deployed with**, never the URL and never derived from it
   (DESC-6, DESC-27). Moving hosts must not make it another Worker, and no two share an id (NAME-9).
 - **A relative address resolves against `<base>/.well-known/worker-protocol`**, not the base URL
-  (DESC-12). A bare `health` lands under `.well-known/`; write `../health` or an absolute https URL.
+  (DESC-36). A bare `health` lands under `.well-known/`; write `../health` or an absolute https URL.
 - **Declare only what is served.** A Capability that answers nothing is a fault (DESC-18); leaving
   one out is always allowed (DESC-2).
 - **Every caller that authenticates gets the same Descriptor** (REG-8). Configuration that changes
@@ -113,9 +114,9 @@ whose reason is understood is one that survives a refactor.
   gone when that stops being true (TASK-15). Derive the open ones on every read; there is no "done"
   call and nothing can be left open by a consumer that crashed.
 - **One Task type names one Action.** A Task with several endings makes them variants of that
-  Action's input, told apart by a discriminator (TASK-32). One Action per ending leaves nobody able
+  Action's input, told apart by a discriminator (TASK-34). One Action per ending leaves nobody able
   to say which ending they are reporting without a mapping agreed out of band.
-- **Skills sit at the Descriptor's root, not inside the `tasks` entry** (TASK-31). `skills` is what
+- **Skills sit at the Descriptor's root, not inside the `tasks` entry** (TASK-33). `skills` is what
   this Worker does for others; `tasks` is what it needs done. A Worker that only answers others'
   Tasks declares `skills` and no `tasks` at all.
 - **A header idempotency key is the caller's; an input key is the Action's** (ENDP-34, ENDP-35).
@@ -124,8 +125,12 @@ whose reason is understood is one that survives a refactor.
   it did not cause. An input key names the same performance whoever sends it, which is what makes
   two consumers answering one Task count as one: key that Action's answer from its input.
 - **`configure` is the one reserved Action name**, and it replaces the whole settings document. Pair
-  it with a reading address for the same document (ACT-15), or a console shows an operator an empty
-  form and every field they forget resets. Keep secrets out of it by value.
+  it with a reading address for the same document (ACT-21), or a console shows an operator an empty
+  form and every field they forget resets. Mark a secret `writeOnly` in its schema: the reading
+  address leaves it out, and a `configure` that omits it keeps it (ACT-20).
+- **A schema-valid input refused on its content is `422`; one refused because of current state is
+  `409 conflict`** (ACT-17). A Worker that does not finish within the call answers `202`, with its
+  declared `result` as the body if it declares one — a job id, say (ACT-18).
 
 ### The state-bearing surfaces
 
@@ -140,8 +145,22 @@ whose reason is understood is one that survives a refactor.
 - **A nudge carries one Task type and nothing else** (NDG-2), answers `204`, and a type with no
   declared Skill is `404` (NDG-3). Then go and read the work: whoever raised it is the only party
   who knows whether it still holds. Nudges are optional and buy latency alone (TASK-19).
-- **`events` has no address** (EVT-11) — it declares a broker, a binding, a destination and the
-  event types, and nothing crosses it but events.
+- **`events` has no address** (EVT-13) — it declares the event types, and either a broker with its
+  binding and destination, or none of the three and `subscriptions` beside it (EVT-14). Nothing
+  crosses the broker but events.
+- **`subscriptions` pushes events with no broker** (SUB-1 to SUB-16). One address: `GET` lists the
+  caller's own, `POST` subscribes with `{ types, filters?, sink, sinkCredential }`, and
+  `DELETE ?subscription=<id>` ends one (ENDP-36 lets the protocol fix that verb; an id is never a
+  path, ENDP-1). Run the CloudEvents webhook handshake
+  (`OPTIONS`, `WebHook-Request-Origin`, expect `WebHook-Allowed-Origin`) before storing; `422` if
+  refused. Deliver structured CloudEvents with `Authorization: Bearer <sinkCredential>`, retrying
+  only within EVT-8's window. Subscribing is idempotent by content and nothing is renewed: end a
+  subscription only when its subscriber does, its sink fails for `abandonAfterSeconds`, or its
+  caller is revoked, and announce and keep the last two.
+- **The lifecycle of Tasks and Alerts has fixed names** (EVT-15): `task-raised`, `task-ended`,
+  `alert-raised`, `alert-ended` under `tech.rowing.worker-protocol`, with the id in `subject` and
+  `tasktype` or `alertseverity` as an extension. Publish them where your code knows the moment — a
+  Task is derived on read, so no read sees one born.
 
 ### logs
 
@@ -190,8 +209,9 @@ so rather than failing it.
 Prefer the environment variable to `--credential`: argv is readable by every process on the machine.
 `--json` writes the report for CI to keep.
 
-A run over loopback fails DESC-3, which fixes `https`, and that verdict is correct. Do not teach any
-implementation an exception for localhost.
+`https` is required wherever a network is crossed, and a loopback host crosses none, so a run
+against `http://127.0.0.1` is judged like a deployed one (DESC-35, DESC-36). Never accept `http` on
+any other host.
 
 ## Reference
 

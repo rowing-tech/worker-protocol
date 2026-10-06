@@ -43,7 +43,7 @@ where it can be argued with: a named person did it, on a day, and it is in the T
 It recommends rather than binds because no Worker can tell how it got into a registry, and nothing
 in a call turns on the answer. A Tower that automates enrollment against a directory it already
 trusts has made a choice about its own operations; the Workers it enrolls are conformant or not
-entirely independently of it. DESC-3 fixes what the recorded URL is — one absolute `https` URL,
+entirely independently of it. DESC-35 fixes what the recorded URL is — one absolute `https` URL,
 with or without a path — and that half does bind, because it is where a reader looks.
 
 ## One presentation, and no opinion about the token
@@ -51,8 +51,9 @@ with or without a path — and that half does bind, because it is where a reader
 **REG-3 (required). A credential is presented as `Authorization: Bearer <token>`. This protocol
 fixes nothing about the token's contents: to whoever presents it, it is an opaque string.**
 
-**REG-21 (required). A Worker accepts the credential recorded for it on every address this protocol
-defines, the Descriptor's route included.**
+**REG-34 (required). A Worker accepts the credential recorded for it on the Descriptor's route and
+on every address this protocol defines for reading, and reads it on every other: a write it refuses
+that credential is `403`, never `401`.**
 
 These two are the binding core of the file, and between them they are the whole of what a client
 and a Worker must agree on. A client that presents a token somewhere else, or a Worker that will
@@ -75,19 +76,19 @@ buying. One scheme rather than a negotiated set, for the same reason: a caller t
 how to authenticate before it can authenticate needs a surface it can reach without a credential,
 and inventing one to avoid fixing a scheme is a poor trade.
 
-What a Worker answers a caller it cannot read is ENDP-29's — `401`, with the code
+What a Worker answers a caller it cannot read is ENDP-40's — `401`, with the code
 `unauthenticated` — and what it answers one it reads that does not carry the right is `403`, with
 `forbidden`. Both are `reject`: ENDP-28 forbids the caller from retrying either.
 
-A Worker may answer more than REG-21 requires. Nothing here forbids serving a Descriptor, a health
+A Worker may answer more than REG-34 requires. Nothing here forbids serving a Descriptor, a health
 answer or a set of metrics to a caller presenting nothing at all: a Worker that owns its origin
 root and serves the well-known URI of RFC 8615 openly is discoverable from a bare hostname, which
-DESC-3 makes possible and which is worth something, at the cost of publishing the address of every
+DESC-35 makes possible and which is worth something, at the cost of publishing the address of every
 surface it has. That trade belongs to the Worker.
 
 **REG-31 (recommended). A Worker requires a credential on every address that changes state.**
 
-The line falls where ENDP-2 and ENDP-3 already put it, so it needs no machinery of its own. A read
+The line falls where ENDP-2 and ENDP-36 already put it, so it needs no machinery of its own. A read
 published to the world discloses something, and the Worker knows what. A write accepted from the
 world is an operation performed by anyone who asks — and this protocol has published the address
 and the schema of every one of them in the Descriptor, which is to say it has done the hard half of
@@ -104,10 +105,10 @@ Saying so plainly is better than a rule a conformance report would have to fail 
 serves.**
 
 REG-7 refuses a habit that is ordinarily good practice, and the reason is specific to this
-protocol. DESC-30 makes a consumer that meets a declared address serving nothing stop permanently
+protocol. DESC-38 makes a consumer that meets a declared address serving nothing stop permanently
 and report a contract error, because an address that answers `404` to everything means the
 Descriptor is wrong. A Worker that hides an authentication failure behind a `404` has therefore
-told every consumer that the surface does not exist — and told it in the one way DESC-30 reaches,
+told every consumer that the surface does not exist — and told it in the one way DESC-38 reaches,
 since a credential that is refused is refused on every request the address takes. The operator goes
 looking for a missing endpoint while the credential that actually failed is never examined: the
 work stops, the diagnosis points at the wrong half of the system, and the Descriptor takes the
@@ -139,7 +140,7 @@ once. DESC-20 has the Tower catalog what the Descriptor declared — so a filter
 the registry a statement about what the Tower is allowed to see rather than about what the Worker
 implements, and nothing anywhere says which it is. And a consumer under a Contract that reads a
 short Descriptor cannot tell a Capability it may not use from a Capability the Worker withdrew;
-DESC-18, DESC-19, DESC-20 and DESC-30 exist to make that distinction, and per-reader filtering
+DESC-18, DESC-19, DESC-20 and DESC-38 exist to make that distinction, and per-reader filtering
 erases it. That is
 a misreading by a party who cannot detect it, which is what puts this rule on the binding side.
 
@@ -176,8 +177,8 @@ This used to be an open question about a Task already claimed, and it went with 
 
 ## When the id at an enrolled URL changes
 
-**REG-13 (required). A Tower does not rebind an enrollment from the Worker id it recorded to a
-different one.**
+**REG-35 (required). A Tower does not rebind an enrollment from the Worker id it recorded to a
+different one unless a person directs it.**
 
 **REG-14 (required). A Tower that reads a Descriptor whose id differs from the one recorded records
 the mismatch, and does not drop the entry.**
@@ -192,7 +193,7 @@ first one used to hold, and the causes are ordinary: a path redeployed to someth
 hostname that lapsed and was taken, a copy-pasted base URL that was always wrong and only now
 answers.
 
-REG-13 binds because silent rebinding turns any of those into a grant: the new occupant inherits
+REG-35 binds because silent rebinding turns any of those into a grant: the new occupant inherits
 every Contract made with the previous one, and every consumer holding one of those Contracts now
 believes it is talking to a Worker it is not. That is a misreading by parties who cannot detect it,
 and no amount of care at either end of the call prevents it.
@@ -225,7 +226,7 @@ client presents at an address the credential recorded for that address's origin.
 REG-16 binds because DESC-13 is undecidable without it. DESC-13 forbids a client from presenting a
 credential at an origin the operator did not record as the Worker's own, and a client cannot apply
 that rule unless *the Worker's own* has one meaning both parties share. An origin is scheme, host
-and port in the sense of RFC 6454; DESC-3 fixes the scheme to `https`, so in practice it is host
+and port in the sense of RFC 6454; DESC-35 fixes the scheme to `https`, so in practice it is host
 and port.
 
 REG-16 also refuses the obvious shortcut, and the shortcut is why DESC-13 exists. A Descriptor is a
@@ -244,7 +245,7 @@ made a choice about its own secrets; the prohibition that protects the *Worker* 
 it binds.
 
 What a client does at an address it may not authenticate against is settled in descriptor.md's
-argument for DESC-12: it reads it unauthenticated or not at all, and reports the entry as
+argument for DESC-36: it reads it unauthenticated or not at all, and reports the entry as
 unverifiable rather than failing quietly.
 
 ## An operator learning that a credential is wrong
@@ -285,6 +286,12 @@ forbids is a Tower that keeps polling *instead of* telling somebody, which is th
 Control Tower. What else it consults in order to decide — its own store, an identity provider,
 anything it chose — is its own.**
 
+**REG-24 forbids the call, and not only the dependence, because a call that is allowed becomes a
+call that is relied on.** An owner that consults the Tower when it is up and falls back when it is
+down has two paths, and the one exercised every day is the one that keeps working when the other has
+quietly broken; the day the Tower is down is the day the fallback is found not to work. An owner
+that never calls has one path, and the Tower's availability is not a property of it.
+
 A Contract's credential is a credential like any other: presented by REG-3, and everything about
 its life recommended rather than required, for the reasons the section above gives. REG-33 says
 where it comes from, and it goes to the owner because the alternative excludes the Worker this
@@ -323,6 +330,23 @@ Contract is. The rule is about the call, not about the history.
   a Tower's own API is not in it.
 
 ## Withdrawn
+
+- **REG-21** (required, W, 0.1–0.4) — required that a Worker accept the recorded credential on every
+  address. Replaced by **REG-34**, which requires acceptance on the Descriptor and every reading
+  address, and lets a write refuse it `403`; a Worker whose console is read-only failed REG-21 and
+  satisfies REG-34, so the verdict moves and the id did not survive.
+
+  The argument was agreeing on where a credential is presented, and the Tower being able to poll. It
+  never argued that the Tower may perform every operation a Worker exposes, and REG-8's own prose
+  answers a right withheld with `403`.
+
+- **REG-13** (required, P, 0.1–0.4) — required that a Tower never rebind an enrollment to a
+  different Worker id. Replaced by **REG-35**, which forbids it unless a person directs it; a Tower
+  carrying out an operator's decision failed REG-13 and satisfies REG-35, so the verdict moves and
+  the id did not survive.
+
+  The argument was silent rebinding turning a mistake into a grant. The same section has a person
+  resolve the mismatch, including deciding it is the same system under new management.
 
 The first three entries are from the audit that read every rule against the argument beneath it. The
 rest are from the sort that followed, which read every rule against a different question: *must a
@@ -376,7 +400,7 @@ than demoted.
 - **REG-5** — permitted an uncredentialed Descriptor route and forbade an uncredentialed anything
   else. Replaced by **REG-31**, which recommends a credential on every address that changes state
   and leaves reads to the Worker. REG-5 was the carve-out REG-4 needed; with REG-4 gone the line
-  falls where ENDP-2 and ENDP-3 already draw it, between disclosing and doing.
+  falls where ENDP-2 and ENDP-36 already draw it, between disclosing and doing.
 - **REG-6** — required that a refusal carry the envelope and nothing else: no Descriptor, no
   address, no statement about which credential would have worked. Replaced by **REG-32**, which
   keeps the last clause, generalizes it to every reason a refusal might distinguish, and drops the

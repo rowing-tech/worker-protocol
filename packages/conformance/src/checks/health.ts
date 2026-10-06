@@ -23,7 +23,7 @@ export async function checkHealth(
   const { results, say } = verdicts(rules, CLAIMS);
 
   if (entry === undefined) {
-    // DESC-2: a Worker that declares no `health` is conformant, and DESC-1's argument says what
+    // DESC-34: a Worker that declares no `health` is conformant, and DESC-1's argument says what
     // stands in for it — the Tower fetches the Descriptor on a schedule anyway.
     for (const id of CLAIMS) say(id, "notExercised", "the Worker declares no `health`");
     return results;

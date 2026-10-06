@@ -17,16 +17,16 @@
     },
     "completesWithinCall": {
       "type": "boolean",
-      "description": "ACT-4. Declared rather than discovered, because a caller decides whether it can wait before it sends. ACT-11: one that does not answers `202` with no body."
+      "description": "ACT-4. Declared rather than discovered, because a caller decides whether it can wait before it sends. ACT-18: one that does not answers `202` with no body."
     },
     "idempotency": {
-      "description": "ACT-12, ENDP-15. Absent where the Action takes no key.",
+      "description": "ACT-19, ENDP-38. Absent where the Action takes no key.",
       "$ref": "idempotency-declaration.json"
     },
     "readAddress": {
-      "description": "ACT-15. Where a GET answers a document this Action would accept. Required of `configure` and optional for every other Action — which is a condition on the KEY an entry is held under, and so a rule rather than a shape.",
+      "description": "ACT-21. Where a GET answers a document this Action would accept. Required of `configure` and optional for every other Action — which is a condition on the KEY an entry is held under, and so a rule rather than a shape.",
       "type": "string",
-      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "pattern": "^(?:https:\\/\\/|http:\\/\\/(?:localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(?=[:/?#]|$)|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
       "title": "Address",
       "format": "uri-reference"
     }

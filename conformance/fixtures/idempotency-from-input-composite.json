@@ -1,0 +1,12 @@
+{
+  "schema": "idempotency-declaration",
+  "valid": true,
+  "rule": "ENDP-38",
+  "why": "A key of three members, read in order — the reading keyed by vehicle, kind and instant that ENDP-38's own argument names. Forcing it into one member would make the caller invent the composite key the rule calls ceremony.",
+  "document": {
+    "required": true,
+    "from": "input",
+    "members": ["vehicle", "kind", "at"],
+    "windowSeconds": 3600
+  }
+}

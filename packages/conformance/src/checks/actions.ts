@@ -27,18 +27,18 @@ export const CLAIMS = [
   "ACT-6",
   "ACT-7",
   "ACT-8",
-  "ACT-12",
-  "ACT-15",
-  "DESC-11",
-  "ENDP-3",
-  "ENDP-15",
+  "ACT-19",
+  "ACT-21",
+  "DESC-37",
+  "ENDP-36",
+  "ENDP-38",
   "ENDP-18",
   "REG-31",
   // Only observable against a Worker whose operators arranged one, and said so.
   "ACT-5",
-  "ACT-9",
+  "ACT-17",
   "ACT-10",
-  "ACT-11",
+  "ACT-18",
   "ENDP-12",
   "ENDP-16",
   "ENDP-17",
@@ -50,7 +50,7 @@ type Declaration = {
   input: Record<string, unknown>;
   result?: Record<string, unknown>;
   completesWithinCall: boolean;
-  idempotency?: { required: boolean; from: string; member?: string; windowSeconds: number };
+  idempotency?: { required: boolean; from: string; members?: string[]; windowSeconds: number };
   readAddress?: string;
 };
 
@@ -72,7 +72,7 @@ export async function checkActions(
     return { results, addresses };
   }
 
-  // ACT-16 to ACT-4, ACT-12 and ENDP-15 are read off the Descriptor, and a verifier fails the
+  // ACT-16 to ACT-4, ACT-19 and ENDP-38 are read off the Descriptor, and a verifier fails the
   // Worker on them without sending anything at all.
   const declared = actionsEntry.safeParse(entry);
   if (!declared.success) {
@@ -92,36 +92,36 @@ export async function checkActions(
   };
   for (const id of ["ACT-16", "ACT-2", "ACT-3", "ACT-4"]) say(id, "passes");
 
-  // ACT-12 and ENDP-15 are the same declaration seen from two files: ENDP-15 requires it and
-  // ACT-12 says where it lives and what it carries. Where no Action takes a key there is nothing
+  // ACT-19 and ENDP-38 are the same declaration seen from two files: ENDP-38 requires it and
+  // ACT-19 says where it lives and what it carries. Where no Action takes a key there is nothing
   // to judge, and saying so is not the same as passing.
   const withKeys = Object.entries(actions).filter(([, a]) => a.idempotency !== undefined);
   if (withKeys.length === 0) {
-    say("ACT-12", "notExercised", "no Action declares an idempotency key");
-    say("ENDP-15", "notExercised", "no Action declares an idempotency key");
-    say("DESC-11", "notExercised", "no Capability declares a behaviour conditional on a call");
+    say("ACT-19", "notExercised", "no Action declares an idempotency key");
+    say("ENDP-38", "notExercised", "no Action declares an idempotency key");
+    say("DESC-37", "notExercised", "no Capability declares a behaviour conditional on a call");
   } else {
     // The schema made the half-set state unspellable — `from: "input"` with no member named is a
     // document nobody can write — so validating it IS the check.
-    say("ACT-12", "passes");
-    say("ENDP-15", "passes");
-    // DESC-11: where a Capability's behaviour on a call is conditional, the condition is declared
+    say("ACT-19", "passes");
+    say("ENDP-38", "passes");
+    // DESC-37: where a Capability's behaviour on a call is conditional, the condition is declared
     // in its entry. An idempotency declaration is that rule's first case.
-    say("DESC-11", "passes");
+    say("DESC-37", "passes");
   }
 
-  // ACT-15: a Worker that declares `configure` declares a reading address for it, and a GET of
+  // ACT-21: a Worker that declares `configure` declares a reading address for it, and a GET of
   // that address answers a document its own `configure` would accept. Without it a console renders
   // an empty form and an operator replaces everything they did not remember.
   const configure = actions.configure;
   if (configure === undefined) {
-    say("ACT-15", "notExercised", "the Worker declares no `configure`");
+    say("ACT-21", "notExercised", "the Worker declares no `configure`");
   } else if (typeof configure.readAddress !== "string" || configure.readAddress.length === 0) {
-    say("ACT-15", "fails", "`configure` is declared with no reading address");
+    say("ACT-21", "fails", "`configure` is declared with no reading address");
   } else if (url === null) {
-    say("ACT-15", "notExercised", "the `actions` address did not resolve");
+    say("ACT-21", "notExercised", "the `actions` address did not resolve");
   } else {
-    // DESC-12 resolves a relative reference against the URL THE DESCRIPTOR WAS READ FROM, not
+    // DESC-36 resolves a relative reference against the URL THE DESCRIPTOR WAS READ FROM, not
     // against the Capability's own address. The two coincide for a Worker at the origin root and
     // diverge the moment one is mounted under a path, which is the case that catches it.
     const target = new URL(configure.readAddress, descriptorUrl).toString();
@@ -131,11 +131,11 @@ export async function checkActions(
     addresses.push(target);
     const answer = await transcript.send(target, "the `configure` reading address");
     if (answer.status !== 200) {
-      say("ACT-15", "fails", `${target} answered ${answer.status}`);
+      say("ACT-21", "fails", `${target} answered ${answer.status}`);
     } else if (answer.json === null || typeof answer.json !== "object") {
-      say("ACT-15", "fails", "the reading address did not answer a document");
+      say("ACT-21", "fails", "the reading address did not answer a document");
     } else {
-      say("ACT-15", "passes");
+      say("ACT-21", "passes");
     }
   }
 
@@ -145,10 +145,10 @@ export async function checkActions(
       "ACT-2",
       "ACT-3",
       "ACT-4",
-      "ACT-12",
-      "ACT-15",
-      "DESC-11",
-      "ENDP-15",
+      "ACT-19",
+      "ACT-21",
+      "DESC-37",
+      "ENDP-38",
     ]);
     return { results, addresses };
   }
@@ -158,13 +158,13 @@ export async function checkActions(
       "ACT-6",
       "ACT-7",
       "ACT-8",
-      "ENDP-3",
+      "ENDP-36",
       "ENDP-18",
       "REG-31",
       "ACT-5",
-      "ACT-9",
+      "ACT-17",
       "ACT-10",
-      "ACT-11",
+      "ACT-18",
       "ENDP-12",
       "ENDP-16",
       "ENDP-17",
@@ -190,17 +190,17 @@ export async function checkActions(
   if (unnamed.status === 400 && code(unnamed) === "invalid_parameter") say("ACT-7", "passes");
   else say("ACT-7", "fails", `answered ${unnamed.status} with \`${code(unnamed) ?? "no code"}\``);
 
-  // ENDP-3: everything that changes state is POST, on an address declared for the purpose. The
+  // ENDP-36: an operation a Worker defines is a POST, on an address declared for it. The
   // witness is the converse — the address answers a POST, and does not serve the same operation
   // to a GET, which ENDP-2 reserves for reads that change nothing.
   const asRead = await transcript.send(
     `${url}?action=${encodeURIComponent(Object.keys(actions)[0] ?? "x")}`,
     "the Actions address as a GET",
   );
-  if (unnamed.status !== 404 && asRead.status === 404) say("ENDP-3", "passes");
+  if (unnamed.status !== 404 && asRead.status === 404) say("ENDP-36", "passes");
   else if (asRead.status !== 404)
-    say("ENDP-3", "fails", `a GET of the Actions address answered ${asRead.status}`);
-  else say("ENDP-3", "fails", "the Actions address does not answer a POST");
+    say("ENDP-36", "fails", `a GET of the Actions address answered ${asRead.status}`);
+  else say("ENDP-36", "fails", "the Actions address does not answer a POST");
 
   // REG-31 recommends a credential on every address that changes state. A write accepted from the
   // world is an operation performed by anyone who asks — and this protocol has published the
@@ -385,12 +385,12 @@ async function checkArranged(
 
   await checkScope({ actions, arrangement, post, say });
 
-  // ACT-9 and ENDP-12: an input that matches the schema and that the Worker will not accept on its
+  // ACT-17 and ENDP-12: an input that matches the schema and that the Worker will not accept on its
   // own rules. ENDP-12 needs BOTH halves — a 400 for a body it could not read and a 422 for one it
   // read and refused — and the 400 came from the schema-mismatch probe above.
   const refused = arrangement.refusedInput;
   if (refused === undefined) {
-    say("ACT-9", "notExercised", "no input was named that this Worker refuses on its own rules");
+    say("ACT-17", "notExercised", "no input was named that this Worker refuses on its own rules");
     say("ENDP-12", "notExercised", "nothing provoked a 422 to compare against the 400");
   } else {
     const answer = await post(
@@ -400,32 +400,35 @@ async function checkArranged(
       { permanent: true },
     );
     if (answer.status === 422 && code(answer) === "unprocessable_content") {
-      say("ACT-9", "passes");
+      say("ACT-17", "passes");
       if (mismatchedStatus === 400) say("ENDP-12", "passes");
       else say("ENDP-12", "fails", `an unreadable body answered ${mismatchedStatus}, not 400`);
     } else {
-      say("ACT-9", "fails", `answered ${answer.status} with \`${code(answer) ?? "no code"}\``);
+      say("ACT-17", "fails", `answered ${answer.status} with \`${code(answer) ?? "no code"}\``);
       say("ENDP-12", "notExercised", "no 422 was provoked");
     }
   }
 
-  // ACT-11: an Action that declares it does not complete within the call answers `202` and no
+  // ACT-18: an Action that declares it does not complete within the call answers `202` and no
   // body. The declaration is read from the Descriptor, so a Worker that named the wrong Action
   // here fails on what it itself declared.
   const async = arrangement.asyncAction;
   if (async === undefined) {
-    say("ACT-11", "notExercised", "no Action was named that does not complete within the call");
+    say("ACT-18", "notExercised", "no Action was named that does not complete within the call");
   } else if (actions[async.name]?.completesWithinCall !== false) {
-    say("ACT-11", "fails", `\`${async.name}\` declares that it DOES complete within the call`);
+    say("ACT-18", "fails", `\`${async.name}\` declares that it DOES complete within the call`);
   } else {
     const answer = await post(
       query(async.name),
       JSON.stringify(async.input),
       `\`${async.name}\`, which does not complete within the call`,
     );
-    if (answer.status === 202 && answer.body.length === 0) say("ACT-11", "passes");
-    else if (answer.status !== 202) say("ACT-11", "fails", `answered ${answer.status}, not 202`);
-    else say("ACT-11", "fails", "answered 202 with a body");
+    // ACT-18: `202`, carrying the result the Action declares where it declares one, and nothing
+    // where it declares none.
+    const declares = actions[async.name]?.result !== undefined;
+    if (answer.status !== 202) say("ACT-18", "fails", `answered ${answer.status}, not 202`);
+    else if (declares || answer.body.length === 0) say("ACT-18", "passes");
+    else say("ACT-18", "fails", "answered 202 with a body the Action declares no result for");
   }
 }
 
@@ -435,18 +438,19 @@ type Idempotency = Declaration["idempotency"];
  * A second input carrying the first one's key, where the key is read from the input.
  *
  * ENDP-17 and ENDP-35 need a different body under the SAME key, and for an input key the key is a
- * member of the body. The verifier knows the declared member, so it copies the value rather than
+ * member of the body. The verifier knows the declared members, so it copies them rather than
  * trusting the operator to have kept the two in step; a header key travels beside the body and the
  * input is sent as given.
  */
 const withKey = ({ input, otherInput: other }: SafeAction, idempotency: Idempotency): unknown => {
-  if (idempotency?.from !== "input" || idempotency.member === undefined) return other;
+  if (idempotency?.from !== "input" || idempotency.members === undefined) return other;
   if (typeof other !== "object" || other === null || typeof input !== "object" || input === null) {
     return other;
   }
+  const source = input as Record<string, unknown>;
   return {
     ...(other as Record<string, unknown>),
-    [idempotency.member]: (input as Record<string, unknown>)[idempotency.member],
+    ...Object.fromEntries(idempotency.members.map((member) => [member, source[member]])),
   };
 };
 

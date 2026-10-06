@@ -68,7 +68,7 @@ which is what this package exists to stop.
 ## The rules that bind the other side
 
 `mount()` carries what a Worker owes; `consume()` carries what a *consumer* owes, and that list is
-not short. Nine rules in `spec/` oblige a caller rather than a Worker — DESC-13, DESC-30, ENDP-13,
+not short. Nine rules in `spec/` oblige a caller rather than a Worker — DESC-13, DESC-38, ENDP-13,
 ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 — and every one is required. Until this
 package existed they had no subject anywhere: `conformance/verifiability.md` classes them `P` and a
 report says *other subject*, correctly, because a tool pointed at a Worker never contacted whoever
@@ -138,16 +138,18 @@ fact about which specification the code now running implements, and after an upg
 different one; a Worker that went on declaring the old number would be the failure this arrangement
 exists to prevent — a claim maintained by hand, drifting away from the code that has to honour it.
 
-Within a MAJOR that is safe by construction, and DESC-24 is why: a MINOR only adds what a reader
-holding an earlier MINOR of the same MAJOR may ignore and still be correct. Declaring `0.2` while
-implementing nothing `0.2` introduced costs nothing, because everything it introduced is ignorable
-and everything already implemented still means what it meant.
+From 1.0, within a MAJOR that is safe by construction, and DESC-32 is why: a MINOR only adds what a
+reader holding an earlier MINOR of the same MAJOR may ignore and still be correct. Declaring a later
+MINOR while implementing nothing it introduced costs nothing, because everything it introduced is
+ignorable and everything already implemented still means what it meant. While the MAJOR is 0,
+DESC-32 lets a MINOR break as a MAJOR does, and the next paragraph is the one that applies.
 
-A MAJOR is the one that is not safe, and the protocol makes it visible rather than quiet. DESC-25
-has a verifier compare the edition it holds against the one a Worker declares and report *itself*
-older, judging nothing — so a Worker that moves a MAJOR ahead of the tooling around it stops being
-verifiable until that tooling follows. That is the cost of an edition change, and it is why the
-release rule above will not let one arrive in a release somebody's caret would take on its own.
+A MAJOR is the one that is not safe — and before 1.0, every MINOR — and the protocol makes it
+visible rather than quiet. DESC-33 has a verifier compare the edition it holds against the one a
+Worker declares and report *itself* older, judging nothing — so a Worker that moves a MAJOR ahead of
+the tooling around it stops being verifiable until that tooling follows. That is the cost of an
+edition change, and it is why the release rule above will not let one arrive in a release somebody's
+caret would take on its own.
 
 **`Worker.edition` is the way out, and there is one good reason to reach for it**: you want the
 Descriptor to keep asserting the edition you actually verified against, rather than whatever the
@@ -174,7 +176,7 @@ not perform work on it uninvited. `--json` writes the report instead of renderin
 
 **The exit code is the part a CI reads, and it has three values rather than two.** Zero when no
 rule failed, 1 when one did, and 2 when no verdict was reached at all — which is this verifier
-being older than the edition the Worker declares (DESC-25), and almost nothing else. A Worker that
+being older than the edition the Worker declares (DESC-33), and almost nothing else. A Worker that
 cannot be reached is not that case and exits 1: it fails DESC-1, because a Worker is not conformant
 at an address that does not answer.
 

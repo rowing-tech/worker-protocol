@@ -53,7 +53,7 @@ export const fleetWorker = defineWorker<Env>((env) => {
     // DESC-6: the Worker's own id, which is not the URL it is served from.
     id: "tech.rowing.fleet.tracker",
 
-    // REG-3, REG-21. It may await, and a Worker reading a token from an identity provider would.
+    // REG-3, REG-34. It may await, and a Worker reading a token from an identity provider would.
     authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
 
     // HLTH-2: one status and named checks. HLTH-3 forbids `healthy` while a check is not, so the
@@ -155,7 +155,7 @@ export const fleetWorker = defineWorker<Env>((env) => {
         })),
     },
 
-    // EVT-11: the broker, the layout of the envelope, and WHERE on that broker these land. The
+    // EVT-13: the broker, the layout of the envelope, and WHERE on that broker these land. The
     // keys of `destination` are this Worker's own and nothing in the protocol parses them.
     events: {
       broker: "kafka",

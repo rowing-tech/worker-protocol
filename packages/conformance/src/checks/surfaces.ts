@@ -11,7 +11,7 @@ export const CLAIMS = [
   "DESC-18",
   "REG-3",
   "REG-7",
-  "REG-21",
+  "REG-34",
   "ENDP-2",
   "ENDP-6",
   "ENDP-24",
@@ -23,8 +23,8 @@ export type Surface = { capability: string; url: string };
  * Capabilities whose surface is written rather than read.
  *
  * DESC-18's witness is a declared address answering `404`, and this sweep finds it with a GET —
- * which is the right question for every surface but one. ENDP-3 puts everything that changes state
- * behind a POST, so the Actions address answers `404` to a GET while serving perfectly well, and a
+ * which is the right question for every surface but one. ENDP-36 puts every operation a Worker
+ * defines behind a POST, so the Actions address answers `404` to a GET while serving perfectly well, and a
  * check that read that as an undeclared surface would fail a conformant Worker on the one
  * Capability that does anything. `checks/actions.ts` judges that address instead, with the POST it
  * had to ask permission for, and `checks/nudges.ts` does the same for the other one.
@@ -67,7 +67,7 @@ export async function callSurfaces(
       missing.push(`\`${surface.capability}\` is declared at ${surface.url} and answers 404`);
     }
 
-    // REG-21: a Worker accepts the credential recorded for it on every address this protocol
+    // REG-34: a Worker accepts the credential recorded for it on every address this protocol
     // defines. A surface that refuses the recorded credential is not a surface a Tower can poll.
     if (answer.status === 401 || answer.status === 403) {
       refused.push(`\`${surface.capability}\` at ${surface.url} answered ${answer.status}`);
@@ -87,20 +87,20 @@ export async function callSurfaces(
 
   if (credential === undefined) {
     // Without one there is nothing to present, and a Worker that reads openly is conformant —
-    // registration.md says in as many words that a Worker may answer more than REG-21 requires.
-    for (const id of ["REG-3", "REG-7", "REG-21"]) {
+    // registration.md says in as many words that a Worker may answer more than REG-34 requires.
+    for (const id of ["REG-3", "REG-7", "REG-34"]) {
       say(id, "notExercised", "no credential was given to the verifier");
     }
     return results;
   }
 
   if (refused.length === 0) {
-    say("REG-21", "passes");
+    say("REG-34", "passes");
     // REG-3 fixes only how a credential is presented. What establishes it is that the Worker read
     // one arriving as `Authorization: Bearer <token>` — which is what every call above did.
     say("REG-3", "passes");
   } else {
-    say("REG-21", "fails", refused.join("; "));
+    say("REG-34", "fails", refused.join("; "));
     say("REG-3", "notExercised", "the recorded credential was refused, so nothing read it");
   }
 

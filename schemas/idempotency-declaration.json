@@ -12,12 +12,12 @@
         "from": {
           "type": "string",
           "const": "header",
-          "description": "ENDP-15. The key arrives in `Idempotency-Key`. It is opaque, and the Worker records it without parsing it."
+          "description": "ENDP-38. The key arrives in `Idempotency-Key`. It is opaque, and the Worker records it without parsing it."
         },
         "windowSeconds": {
           "type": "integer",
           "minimum": 1,
-          "description": "ENDP-15, ENDP-16. How long the Worker answers the recorded outcome for a repeat. Declared because the guarantee is worthless without it: no Worker remembers forever, and one that has forgotten performs the Action again while the caller still believes it is protected."
+          "description": "ENDP-38, ENDP-16. How long the Worker answers the recorded outcome for a repeat. Declared because the guarantee is worthless without it: no Worker remembers forever, and one that has forgotten performs the Action again while the caller still believes it is protected."
         }
       },
       "required": [
@@ -36,12 +36,16 @@
         "from": {
           "type": "string",
           "const": "input",
-          "description": "ACT-12. The key is a named member of the input. A payload that already carries its own identity needs no second key beside it, and the member is the Worker's own data."
+          "description": "ACT-19. The key is made of named members of the input. A payload that already carries its own identity needs no second key beside it, and the members are the Worker's own data."
         },
-        "member": {
-          "type": "string",
-          "minLength": 1,
-          "description": "ACT-12. Which member of the input the Worker reads the key from."
+        "members": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "ENDP-38, ACT-19. The members of the input whose values together are the key, in order — a reading keyed by vehicle, kind and instant names three. One that is absent leaves the call with no key."
         },
         "windowSeconds": {
           "type": "integer",
@@ -51,12 +55,12 @@
       "required": [
         "required",
         "from",
-        "member",
+        "members",
         "windowSeconds"
       ],
       "additionalProperties": false
     }
   ],
   "title": "Idempotency declaration",
-  "description": "ACT-12. Carried in an Action's entry, because a caller decides whether it can retry safely BEFORE it sends anything. This is DESC-11's first case."
+  "description": "ACT-19. Carried in an Action's entry, because a caller decides whether it can retry safely BEFORE it sends anything. This is DESC-37's first case."
 }

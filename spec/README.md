@@ -31,8 +31,9 @@ a version of its own:
 | `activity` | [activity.md](activity.md) | What a Worker is doing, and what it has undertaken to do |
 | `nudges` | [nudges.md](nudges.md) | Being told there is work, best effort and carrying nothing |
 | `tasks` | [tasks.md](tasks.md) | Exposing the Tasks a condition holds open, and answering one |
-| `events` | [events.md](events.md) | The envelope, the broker, deduplication |
+| `events` | [events.md](events.md) | The envelope, the broker, deduplication, the lifecycle of Tasks and Alerts |
 | `logs` | [logs.md](logs.md) | What a Worker recorded while it was working, most recent first |
+| `subscriptions` | [subscriptions.md](subscriptions.md) | A consumer subscribing to a Worker, and the Worker pushing its events |
 
 The Capability names in that table are a reading aid. The normative list is
 [schemas/capability-name.json](../schemas/capability-name.json), and where the two differ the
@@ -47,8 +48,8 @@ spread across four files each arguing from its own side.
 | The question | The surface | What makes it that one |
 |---|---|---|
 | Can I rely on it right now? | `health` | One status, and never better than its checks (HLTH-3) |
-| What should I look at right now? | `alerts` | A condition that **holds**, and ends by itself when it stops (ALRT-5) |
-| What is it working on right now? | `activity` | Undertaken and not finished; gone when the Worker stops holding it (ACTV-5) |
+| What should I look at right now? | `alerts` | A condition that **holds**, and ends by itself when it stops (ALRT-8) |
+| What is it working on right now? | `activity` | Undertaken and not finished; gone when the Worker stops holding it (ACTV-7) |
 | What does it need somebody to do? | `tasks` | A condition only *another* party's Action resolves (TASK-15) |
 | How much of something happened? | `metrics` | Accumulated over declared periods; a number, never an occurrence |
 | What happened, and is over? | `logs` | Written deliberately, past tense, acted on by nobody |
@@ -116,7 +117,7 @@ the exception *had to stay small* and named two. The register, the first time an
 question to every rule in turn, found sixteen. Whether that is too many is worth arguing about, and
 the argument is now possible — which is the point of the count living somewhere gated rather than
 in a sentence here that would drift the moment a rule was written. It has drifted since: the
-specification is thirteen files rather than six; the register counts twenty-two, which is a larger
+specification is fourteen files rather than six; the register counts twenty-two, which is a larger
 number and the same proportion. Whether that is too many is still worth arguing about, and the
 argument is still there to be had.
 
@@ -203,6 +204,7 @@ so that two files never race for the same one:
 | | | [activity.md](activity.md) | `ACTV` |
 | | | [nudges.md](nudges.md) | `NDG` |
 | | | [logs.md](logs.md) | `LOG` |
+| | | [subscriptions.md](subscriptions.md) | `SUB` |
 
 Numbers are issued in the order rules are written, not in the order they appear, so a file's ids
 need not read in sequence. **The number never restarts, and an id is never reused and never

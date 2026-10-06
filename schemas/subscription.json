@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "subscription.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SUB-8. The subscription's id."
+    },
+    "types": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "qualified-name.json"
+      },
+      "description": "SUB-2. The types it receives."
+    },
+    "filters": {
+      "description": "SUB-13. Its filters, as subscribed.",
+      "type": "array",
+      "items": {
+        "$ref": "subscription-filter.json"
+      }
+    },
+    "sink": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SUB-5. Where it is delivered."
+    },
+    "lastDeliveredAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+      "format": "date-time",
+      "description": "SUB-16. When a delivery to this sink last succeeded. Absent before the first."
+    },
+    "failingSince": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+      "format": "date-time",
+      "description": "SUB-16. Since when deliveries to this sink have failed without interruption. Absent while they succeed. SUB-14 ends the subscription once this is `abandonAfterSeconds` old."
+    },
+    "endedAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+      "format": "date-time",
+      "description": "SUB-15. When it ended, for a subscription kept in the list after an ending its subscriber did not cause. It receives nothing."
+    },
+    "reason": {
+      "$ref": "subscription-end-reason.json"
+    }
+  },
+  "required": [
+    "id",
+    "types",
+    "sink"
+  ],
+  "additionalProperties": false,
+  "title": "Subscription",
+  "description": "SUB-8. One subscription, as the caller that created it lists it, with its state (SUB-16) and, if it ended without its subscriber ending it, when and why (SUB-15)."
+}

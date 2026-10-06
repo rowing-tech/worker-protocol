@@ -100,8 +100,12 @@ it — so it arrives the way the base URL and the credential do: out of band, fr
 
 `arrangement` takes `safeAction`, `secondSafeAction`, `refusedInput`, `asyncAction`,
 `secondCredential`, `otherCallerCredential`, `consumerCredential`, `unprivilegedCredential`,
-`justStarted`, `replaceableSettings` and `publishedEvent`. Anything not arranged reports
-`notExercised` naming what was missing.
+`justStarted`, `replaceableSettings`, `publishedEvent`, `sink` and `publishingAction`. Anything not
+arranged reports `notExercised` naming what was missing.
+
+`subscriptions` is judged at a sink: `sink` is a URL the Worker can reach and a function answering
+what arrived there, and `publishingAction` an Action safe to perform that publishes a named event
+type. `verify()` starts no server, so the sink is yours to run.
 
 A safe Action may carry an `otherInput`: a second input its schema accepts, which ENDP-17, ENDP-34
 and ENDP-35 send under the same key. The two scope rules play two callers, so they also need

@@ -9,15 +9,15 @@ and activity, and answering the one question those four cannot: *what happened?*
 
 **Until this file, nothing in this protocol answered in the past tense**, and that is a structural
 hole rather than a missing convenience. Health is now. An activity is now, and vanishes when the
-Worker stops holding it (ACTV-5). An Alert is now, and ends when its condition stops holding
-(ALRT-5). A Task is now, for the same reason (TASK-15). A metric is an aggregate and a number never
+Worker stops holding it (ACTV-7). An Alert is now, and ends when its condition stops holding
+(ALRT-8). A Task is now, for the same reason (TASK-15). A metric is an aggregate and a number never
 says which occurrence it counted. An event is pushed to whoever contracted for it and is gone.
 
 So a Worker could say what it is doing, what it wants looked at, what it needs done and how much it
 managed — and nothing about anything that had finished. Every one of those surfaces is a summary,
 and the moment a summary is not enough the operator's next question had no address here at all.
 
-[activity](activity.md) names the hole in passing and declines it. ACTV-5 refused to carry `done`
+[activity](activity.md) names the hole in passing and declines it. ACTV-7 refused to carry `done`
 and `failed` because doing so would have made that surface *a job log, with a retention question, a
 paging question and a state machine*. All three of those questions are real, and this file is where
 they are answered rather than answered badly somewhere they do not belong.
@@ -56,7 +56,7 @@ is worth recording is nothing going wrong at all**, and a surface for conditions
 act on has no place to put any of it.
 
 Where the two do overlap is on failure, and there the difference is whether it is still true. An
-Alert is a condition that **holds**: it exists while it is, it ends when it stops (ALRT-5), nobody
+Alert is a condition that **holds**: it exists while it is, it ends when it stops (ALRT-8), nobody
 dismisses one, and it offers the Actions that answer it. A record is over. It offers nothing and it
 does not go away when the situation improves. *The outbox has forty events waiting* is an Alert —
 still true, and there is something to do about it. *The broker refused `e-91` at 14:03* is a
@@ -218,20 +218,23 @@ reading the console, and a flat map of scalars is renderable by anything that ha
 — which is the shape both standards above admit: syslog allows nothing else, and OpenTelemetry's
 attributes permit more while every backend that renders them reads them this way.
 
-Flat, and scalars, is therefore the load-bearing part rather than a tidiness rule. Nesting is what
+Flat, and scalars, is therefore the load-bearing part rather than a tidiness rule. Arrays of scalars
+are left out until somebody needs them, and only because admitting them later is an addition while
+withdrawing them would not be. Nesting is what
 turns a rendering into a tree widget and what tempts the next reader to reach into it; a map one
 level deep can be shown, filtered by eye, and copied into a ticket, and offers nothing to build a
 contract on. A Worker with a structure that does not fit flattens it or writes it into the message,
 and the second is not a defeat: the message is where anything a person needs to read in full
 belongs.
 
-**This protocol defines no filter over `fields`, and a console may not require one.** A Worker that
+**This protocol defines no filter over `fields`, so a console cannot count on one.** A Worker that
 offers its own is offering something of its own, which is its business and ENDP-24 already governs
 how an unrecognized one is answered.
 
 ## Who may read it
 
-**LOG-10 (required). A Worker answers the same records to every caller it authenticates.**
+**LOG-10 (required). A Worker never varies by caller which records it answers. Refusing a caller the
+surface outright, with `403`, is not varying it (REG-8).**
 
 ALRT-6 and ACTV-6's reasoning, one surface along. The party this surface is for is whoever operates
 the Worker, which is enrollment rather than a Contract.

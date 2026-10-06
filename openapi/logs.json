@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — logs",
-    "version": "0.3",
+    "version": "0.4",
     "description": "What a Worker recorded while it was working, most recent first. A window rather than an archive: nothing here fixes how far back a Worker keeps, and the end of the collection means the end of what it still holds.",
     "license": {
       "name": "Apache-2.0",
@@ -12,11 +12,11 @@
   "servers": [
     {
       "url": "{address}",
-      "description": "LOG-1. The address the `logs` entry declares, resolved per DESC-12.",
+      "description": "LOG-1. The address the `logs` entry declares, resolved per DESC-36.",
       "variables": {
         "address": {
           "default": "/",
-          "description": "Read from the Worker's Descriptor and resolved per DESC-12. Never assembled by a caller (ENDP-1). The default is `/` and not a host on purpose: a client that was never given an address should fail at its own origin rather than reach somebody else's."
+          "description": "Read from the Worker's Descriptor and resolved per DESC-36. Never assembled by a caller (ENDP-1). The default is `/` and not a host on purpose: a client that was never given an address should fail at its own origin rather than reach somebody else's."
         }
       }
     }
@@ -90,7 +90,7 @@
             "description": "LOG-2. The records the Worker holds, most recent first, in the shared page envelope.",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -98,7 +98,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -115,10 +115,10 @@
             }
           },
           "400": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `invalid_parameter` (LOG-7), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `invalid_parameter` (LOG-7), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -126,7 +126,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -143,10 +143,10 @@
             }
           },
           "401": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `unauthenticated` (REG-3).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `unauthenticated` (REG-3).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -154,7 +154,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -171,10 +171,10 @@
             }
           },
           "403": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `forbidden` (ENDP-29).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `forbidden` (ENDP-40).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -182,7 +182,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -199,10 +199,10 @@
             }
           },
           "500": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `internal_error` (ENDP-29).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `internal_error` (ENDP-40).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -210,7 +210,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -227,10 +227,10 @@
             }
           },
           "503": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `unavailable` (ENDP-29).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `unavailable` (ENDP-40).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -238,7 +238,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",

@@ -1,0 +1,9 @@
+{
+  "schema": "subscription-filter",
+  "valid": false,
+  "rule": "SUB-13",
+  "why": "An `all` holding nothing. The CloudEvents dialect requires at least one nested filter, and a vacuous `all` would read as a filter while letting everything through.",
+  "document": {
+    "all": []
+  }
+}

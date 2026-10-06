@@ -1,6 +1,8 @@
+import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorker } from "../../../../conformance/reference-worker/src/server.ts";
+import type { SinkExchange } from "../checks/subscriptions.ts";
 import { verify } from "../index.ts";
 import { tally } from "../report.ts";
 
@@ -26,6 +28,50 @@ const start = (options: Parameters<typeof createWorker>[0] = {}) =>
   });
 
 /**
+ * A sink on a loopback socket, which allows any origin in the webhook handshake and answers every
+ * delivery `200` — the arrangement SUB-2 to SUB-16 need, standing where a Convex app would.
+ */
+const startSink = () =>
+  new Promise<{
+    url: string;
+    origin: string;
+    received: () => SinkExchange[];
+    close: () => Promise<void>;
+  }>((resolve) => {
+    const received: SinkExchange[] = [];
+    const server = createServer((request, response) => {
+      let body = "";
+      request.on("data", (chunk) => {
+        body += chunk;
+      });
+      request.on("end", () => {
+        const headers = Object.fromEntries(
+          Object.entries(request.headers).map(([key, value]) => [key, String(value)]),
+        );
+        received.push({ method: request.method ?? "GET", headers, body });
+        if (request.method === "OPTIONS") {
+          response.writeHead(200, {
+            "webhook-allowed-origin": String(request.headers["webhook-request-origin"] ?? "*"),
+          });
+        } else {
+          response.writeHead(200);
+        }
+        response.end();
+      });
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as AddressInfo;
+      const origin = `http://127.0.0.1:${port}`;
+      resolve({
+        url: `${origin}/events`,
+        origin,
+        received: () => [...received],
+        close: () => new Promise<void>((done) => server.close(() => done())),
+      });
+    });
+  });
+
+/**
  * What this Worker's operators would tell a verifier, if it had any.
  *
  * `conformance/verifiability.md` classes a rule `H` when nothing a tool can do to an UNARRANGED
@@ -33,7 +79,21 @@ const start = (options: Parameters<typeof createWorker>[0] = {}) =>
  * scaffolding in a Descriptor would be carried by every Worker in the network — so it arrives out
  * of band, the way the base URL and the credential do.
  */
+/** The sink of the test in progress, which `ARRANGEMENT.sink` reads when a run is arranged. */
+let sinkServer: Awaited<ReturnType<typeof startSink>>;
+
 const ARRANGEMENT = {
+  // SUB-2 to SUB-16: a sink the Worker can reach — exempted by name for this loopback origin, as a
+  // local Convex backend would be — and the Action whose performance publishes. Verifying DEF-456
+  // ends `task-2`, and only this Worker knows that moment, so it publishes `task-ended` (EVT-15).
+  get sink() {
+    return { url: sinkServer.url, received: sinkServer.received };
+  },
+  publishingAction: {
+    name: "record-verification",
+    input: { vehicle: "DEF-456", verified: true },
+    publishes: "tech.rowing.worker-protocol.task-ended",
+  },
   safeAction: {
     name: "record-verification",
     input: { vehicle: "ABC-123", verified: true },
@@ -78,7 +138,9 @@ describe("the reference worker, verified", () => {
   // condition of a Task this Worker was raising (TASK-15), so a second run against the same
   // process would read a shorter list. A Worker arranged to be checked is arranged for one check.
   beforeEach(async () => {
+    sinkServer = await startSink();
     worker = await start({
+      insecureSinkOrigins: [sinkServer.origin],
       credential: "a-token",
       secondCredential: "b-token",
       consumerCredential: "d-token",
@@ -91,6 +153,7 @@ describe("the reference worker, verified", () => {
 
   afterEach(async () => {
     await worker.close();
+    await sinkServer.close();
   });
 
   it("reads the Descriptor and reports on every rule in the specification", async () => {
@@ -101,7 +164,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.3");
+    expect(report.edition).toBe("0.4");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -109,7 +172,7 @@ describe("the reference worker, verified", () => {
     expect(report.results.length).toBeGreaterThan(100);
   });
 
-  it("passes every rule it judges but DESC-3, which the harness cannot satisfy", async () => {
+  it("passes every rule it judges", async () => {
     const report = await verify({
       baseUrl: worker.url,
       credential: "a-token",
@@ -123,20 +186,17 @@ describe("the reference worker, verified", () => {
     // only knows how to say yes — the thing this repository objects to everywhere else.
     const failing = report.results.filter((r) => r.verdict === "fails").map((r) => r.rule.id);
 
-    // DESC-3 fixes `https`, and this test reaches the Worker over a loopback socket in plaintext.
-    // The verdict is correct and the fault is the harness's: a Worker is not conformant at an
-    // address nobody may send it a credential to. The tool is not taught an exception for
-    // localhost, because a verifier that quietly excused a rule would be deciding something the
-    // specification did not.
-    expect(failing).toEqual(["DESC-3"]);
+    // Over a loopback socket in plaintext, which DESC-35 admits because no network is crossed: the
+    // exception is the specification's own, read off its argument, and not the verifier's.
+    expect(failing).toEqual([]);
 
-    // TASK-31's positive witness. This is the only Worker here that HAS a Skill, so it is the only
+    // TASK-33's positive witness. This is the only Worker here that HAS a Skill, so it is the only
     // place the rule can be seen passing — the other two suites assert its absence, and a pair of
     // tests that only ever saw a field missing would prove nothing about the field.
-    expect(report.results.find((r) => r.rule.id === "TASK-31")?.verdict).toBe("passes");
+    expect(report.results.find((r) => r.rule.id === "TASK-33")?.verdict).toBe("passes");
   });
 
-  it("declares its Skill on the Descriptor root, where TASK-31 puts it", async () => {
+  it("declares its Skill on the Descriptor root, where TASK-33 puts it", async () => {
     const descriptor = await fetch(new URL("/.well-known/worker-protocol", worker.url), {
       headers: { authorization: "Bearer a-token" },
     });
@@ -166,7 +226,11 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    const observable = report.results.filter((r) => r.rule.reach === "W");
+    // Only what the declared edition contains: a rule withdrawn by it is not one this Worker owes
+    // (DESC-31), and is reported as such rather than counted as a gap.
+    const observable = report.results.filter(
+      (r) => r.rule.reach === "W" && r.rule.withdrawnIn === undefined,
+    );
     const unexercised = observable
       .filter((r) => r.verdict === "notExercised")
       .map((r) => r.rule.id);
@@ -179,7 +243,7 @@ describe("the reference worker, verified", () => {
   });
 
   it("resolves a declared address against the Descriptor's route, not the base URL", async () => {
-    // DESC-12 resolves a relative reference against `<base>/.well-known/worker-protocol`, so a
+    // DESC-36 resolves a relative reference against `<base>/.well-known/worker-protocol`, so a
     // bare `health` lands under `.well-known/` where nothing is served. The reference Worker
     // declares `../health` and this is what holds it to it — under a path as well as at the root,
     // which is the case an absolute `/health` would have got wrong.
@@ -194,7 +258,7 @@ describe("the reference worker, verified", () => {
       const verdict = (id: string) => report.results.find((r) => r.rule.id === id)?.verdict;
       expect(verdict("DESC-18")).toBe("passes");
       expect(verdict("HLTH-5")).toBe("passes");
-      expect(verdict("ACT-15")).toBe("passes");
+      expect(verdict("ACT-21")).toBe("passes");
     } finally {
       await mounted.close();
     }
@@ -220,11 +284,11 @@ describe("the reference worker, verified", () => {
     const arranged = report.results.filter(
       (r) => r.rule.reach === "H" && (r.verdict === "passes" || r.verdict === "fails"),
     );
-    expect(arranged.length).toBe(21);
+    expect(arranged.length).toBe(31);
 
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(115);
-    expect(counts.fails).toBe(1);
+    expect(counts.passes).toBe(132);
+    expect(counts.fails).toBe(0);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
     );
@@ -237,14 +301,14 @@ describe("the reference worker, verified", () => {
     const report = await verify({ baseUrl: worker.url, credential: "a-token" });
     const result = (id: string) => report.results.find((r) => r.rule.id === id);
 
-    for (const id of ["ACT-6", "ACT-7", "ACT-8", "ENDP-3", "ENDP-18"]) {
+    for (const id of ["ACT-6", "ACT-7", "ACT-8", "ENDP-36", "ENDP-18"]) {
       expect(result(id)?.verdict, `${id} should not have been exercised`).toBe("notExercised");
       expect(result(id)?.detail).toContain("not permitted to POST");
     }
 
     // What the Descriptor alone establishes is judged either way: asking permission costs the
     // rules that need a request, and none of the ones that need only the document.
-    for (const id of ["ACT-16", "ACT-2", "ACT-3", "ACT-4", "ACT-12", "ACT-15", "ENDP-15"]) {
+    for (const id of ["ACT-16", "ACT-2", "ACT-3", "ACT-4", "ACT-19", "ACT-21", "ENDP-38"]) {
       expect(result(id)?.verdict, `${id} needs no POST`).toBe("passes");
     }
   });
@@ -264,11 +328,11 @@ describe("the reference worker, verified", () => {
       expect(result(id)?.verdict, id).toBe("notExercised");
       expect(result(id)?.detail).toContain("safe to perform");
     }
-    expect(result("ACT-9")?.detail).toContain("refuses on its own rules");
-    expect(result("ACT-11")?.detail).toContain("does not complete within the call");
+    expect(result("ACT-17")?.detail).toContain("refuses on its own rules");
+    expect(result("ACT-18")?.detail).toContain("does not complete within the call");
 
     // And nothing that needed only a POST is held back by the missing arrangement.
-    for (const id of ["ACT-6", "ACT-7", "ACT-8", "ENDP-3", "ENDP-18", "REG-31"]) {
+    for (const id of ["ACT-6", "ACT-7", "ACT-8", "ENDP-36", "ENDP-18", "REG-31"]) {
       expect(result(id)?.verdict, id).toBe("passes");
     }
   });
@@ -353,7 +417,7 @@ describe("the reference worker, verified", () => {
   });
 
   it("verifies nothing against a Worker whose edition it does not hold", async () => {
-    // DESC-25 binds a verifier, and publishing an edition is what made it ours to obey. A tool
+    // DESC-33 binds a verifier, and publishing an edition is what made it ours to obey. A tool
     // that met an edition it could not read and failed the Worker for it would be blaming a party
     // for what is the reader's problem — so it verifies nothing and says which of the two is
     // behind, which is a sentence an operator can act on.
@@ -363,9 +427,23 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.3");
+      expect(report.verifierEdition).toBe("0.4");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.3");
+      expect(report.results[0]?.detail).toContain("holds edition 0.4");
+    } finally {
+      await ahead.close();
+    }
+  });
+
+  it("verifies nothing against a later MINOR while the MAJOR is 0", async () => {
+    // DESC-32 lets a MINOR break before 1.0, so DESC-33 has a verifier behind on MINOR treat it as
+    // it treats a later MAJOR: judging a 0.5 Worker by 0.4's rules could fail it for what 0.5
+    // changed, and the honest sentence is that the verifier is the one behind.
+    const ahead = await start({ edition: "0.5" });
+    try {
+      const report = await verify({ baseUrl: ahead.url });
+      expect(report.older).toBe(true);
+      expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
     } finally {
       await ahead.close();
     }
@@ -537,14 +615,14 @@ describe("the reference worker, verified", () => {
 });
 
 /**
- * TASK-32's second obligation, which had no check until now.
+ * TASK-34's second obligation, which had no check until now.
  *
  * The rule has two halves. The first is the NAME: the Action a Task type is answered by is one of
  * the owner's own, so a name its `actions` entry does not accept is a Descriptor disagreeing with
  * itself. The second is that Action's INPUT: where a Task can end more than one way the endings are
  * variants of it, told apart by a discriminator.
  *
- * The second half is what makes the first one worth anything. TASK-32 replaced a list of one Action
+ * The second half is what makes the first one worth anything. TASK-34 replaced a list of one Action
  * per ending precisely so that nobody has to agree a mapping out of band — but a union whose
  * variants cannot be told apart puts that conversation straight back: a consumer holding a schema
  * it can satisfy still cannot say WHICH ending it is reporting. A Worker in that state passed every
@@ -558,7 +636,7 @@ describe("a Descriptor whose answering Action cannot say which ending it carries
       new Response(
         JSON.stringify({
           id: "tech.rowing.fleet.watcher",
-          edition: "0.1",
+          edition: "0.4",
           capabilities: {
             tasks: {
               version: 1,
@@ -575,7 +653,7 @@ describe("a Descriptor whose answering Action cannot say which ending it carries
         {
           headers: {
             "content-type": "application/json",
-            "worker-protocol-edition": "0.1",
+            "worker-protocol-edition": "0.4",
             "worker-protocol-capability-version": "1",
           },
         },
@@ -589,10 +667,10 @@ describe("a Descriptor whose answering Action cannot say which ending it carries
 
   const verdict = async (input: unknown) => {
     const report = await verify({ baseUrl: "https://worker.example.com", fetch: canned(input) });
-    return report.results.find((r) => r.rule.id === "TASK-32");
+    return report.results.find((r) => r.rule.id === "TASK-34");
   };
 
-  it("fails TASK-32 where the two endings share no member fixed to a constant", async () => {
+  it("fails TASK-34 where the two endings share no member fixed to a constant", async () => {
     const result = await verdict({
       anyOf: [
         variant({ vehicle: { type: "string" }, reachable: { type: "boolean" } }, ["vehicle"]),

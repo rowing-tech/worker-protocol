@@ -19,25 +19,25 @@ import type { Transcript } from "../transcript.ts";
  */
 export const CLAIMS = [
   "DESC-1",
-  "DESC-3",
+  "DESC-35",
   "DESC-5",
   "DESC-6",
   "DESC-8",
   "DESC-9",
-  "DESC-12",
+  "DESC-36",
   "DESC-14",
   "DESC-22",
   "DESC-23",
-  // TASK-31 lives here rather than in the tasks check because `skills` is on the ROOT: a Worker
+  // TASK-33 lives here rather than in the tasks check because `skills` is on the ROOT: a Worker
   // that only ANSWERS Tasks declares a Skill and no `tasks` Capability at all, and a verdict
   // reached only through that Capability would have been silent about exactly that Worker.
-  "TASK-31",
+  "TASK-33",
 ] as const;
 
 export type Descriptor = {
   id: string;
   edition: string;
-  /** TASK-31. Absent for a Worker with no Skill, which DESC-2 admits of anything it does not do. */
+  /** TASK-33. Absent for a Worker with no Skill, which DESC-34 admits of anything it does not do. */
   skills?: Record<string, unknown>;
   capabilities: Record<string, Record<string, unknown>>;
 };
@@ -48,7 +48,7 @@ export type DescriptorReading = {
   document: Descriptor | null;
   /** The route it was read from, which later checks probe again. */
   url: string | null;
-  /** Each declared address resolved against that route (DESC-12). */
+  /** Each declared address resolved against that route (DESC-36). */
   surfaces: { capability: string; url: string }[];
 };
 
@@ -65,20 +65,24 @@ export async function readDescriptor(
     for (const id of CLAIMS) if (!except.includes(id)) say(id, "notExercised", why);
   };
 
-  // DESC-3 is answered before anything is called, because its subject is the enrolled base URL and
+  // DESC-35 is answered before anything is called, because its subject is the enrolled base URL and
   // not the document. A verifier that reached the Worker over plaintext has already established
   // the fault, and says so without pretending a call proved it.
   let base: URL;
   try {
     base = new URL(baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
   } catch {
-    say("DESC-3", "fails", `not a URL: ${baseUrl}`);
-    nothingRead("no Descriptor could be read", ["DESC-3"]);
+    say("DESC-35", "fails", `not a URL: ${baseUrl}`);
+    nothingRead("no Descriptor could be read", ["DESC-35"]);
     return { results, document: null, url: null, surfaces: [] };
   }
 
-  if (base.protocol === "https:") say("DESC-3", "passes");
-  else say("DESC-3", "fails", `the base URL is \`${base.protocol}\` and DESC-3 fixes \`https\``);
+  // `https`, or `http` on a loopback host, where no network path exists to read a credential on.
+  if (base.protocol === "https:" || (base.protocol === "http:" && loopback(base.hostname))) {
+    say("DESC-35", "passes");
+  } else {
+    say("DESC-35", "fails", `the base URL is \`${base.protocol}\` on a host a network reaches`);
+  }
 
   const url = new URL(ROUTE, base).toString();
 
@@ -88,19 +92,19 @@ export async function readDescriptor(
   } catch (cause) {
     const why = cause instanceof Error ? cause.message : String(cause);
     say("DESC-1", "fails", `${url} could not be reached: ${why}`);
-    nothingRead("no Descriptor could be read", ["DESC-1", "DESC-3"]);
+    nothingRead("no Descriptor could be read", ["DESC-1", "DESC-35"]);
     return { results, document: null, url, surfaces: [] };
   }
 
   if (first.status < 200 || first.status >= 300) {
     say("DESC-1", "fails", `${url} answered ${first.status}`);
-    nothingRead("no Descriptor could be read", ["DESC-1", "DESC-3"]);
+    nothingRead("no Descriptor could be read", ["DESC-1", "DESC-35"]);
     return { results, document: null, url, surfaces: [] };
   }
 
   if (first.json === null) {
     say("DESC-1", "fails", `${url} did not answer JSON`);
-    nothingRead("the Descriptor did not parse", ["DESC-1", "DESC-3"]);
+    nothingRead("the Descriptor did not parse", ["DESC-1", "DESC-35"]);
     return { results, document: null, url, surfaces: [] };
   }
 
@@ -165,7 +169,7 @@ export async function readDescriptor(
       say(id, "fails", `${issue.path.join(".") || "(root)"}: ${issue.message}`);
     }
     nothingRead("the Descriptor did not validate, so this could not be judged", [
-      "DESC-3",
+      "DESC-35",
       "DESC-5",
       ...blamed,
     ]);
@@ -174,13 +178,13 @@ export async function readDescriptor(
 
   const document = validation.data as Descriptor;
   say("DESC-1", "passes");
-  // TASK-31: what this Worker answers, which is what a Tower catalogs it by. Absent is conformant
+  // TASK-33: what this Worker answers, which is what a Tower catalogs it by. Absent is conformant
   // and is not a pass — a Worker with no Skill exercised nothing, and saying so is the difference
   // between a report that was checked and one that had nothing to check.
   if (document.skills === undefined) {
-    say("TASK-31", "notExercised", "the Worker declares no Skill");
+    say("TASK-33", "notExercised", "the Worker declares no Skill");
   } else {
-    say("TASK-31", "passes");
+    say("TASK-33", "passes");
   }
 
   // DESC-6: the id is not the URL it is served from. DESC-27 and DESC-28 carry the clauses nothing
@@ -194,11 +198,11 @@ export async function readDescriptor(
 
   // The rest are what validation established. Saying so per rule rather than once is the whole
   // point of the ids: a reader learns which obligations were actually judged.
-  for (const id of ["DESC-8", "DESC-9", "DESC-12", "DESC-14", "DESC-22", "DESC-23"]) {
+  for (const id of ["DESC-8", "DESC-9", "DESC-36", "DESC-14", "DESC-22", "DESC-23"]) {
     if (!judgedKeys.has(id)) say(id, "passes");
   }
 
-  // DESC-12: an address is an absolute https URL, or a relative reference resolved against the URL
+  // DESC-36: an address is an absolute https URL, or a relative reference resolved against the URL
   // the Descriptor was read from — which is this route, not the base URL.
   const surfaces: { capability: string; url: string }[] = [];
   for (const [capability, entry] of Object.entries(document.capabilities)) {
@@ -207,9 +211,15 @@ export async function readDescriptor(
       surfaces.push({ capability, url: new URL(entry.address, url).toString() });
     } catch {
       // Unreachable while validation passed, and swallowing it silently would be the one thing
-      // this file exists against — so it is left to DESC-12, which validation already judged.
+      // this file exists against — so it is left to DESC-36, which validation already judged.
     }
   }
 
   return { results, document, url, surfaces };
 }
+
+/** DESC-35, DESC-36: a host nothing outside the process can reach, so nothing can read a token on. */
+const loopback = (hostname: string): boolean => {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  return host === "localhost" || host === "::1" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+};

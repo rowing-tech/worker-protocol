@@ -17,6 +17,110 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+The packages encode **edition 0.4**, which breaks what a 0.3 reader assumed — an `events` entry may
+now declare no broker — and is a MINOR anyway, under the rule this edition adopts: until 1.0, a
+MINOR may break as a MAJOR does (DESC-32). A verifier on 0.3 meeting a 0.4 Worker now says it is
+behind rather than judging it (DESC-33). The release that carries it is a MINOR of the packages,
+which `^0.5.0` does not take.
+
+### Edition 0.4
+
+- **`subscriptions`, a tenth Capability** (`spec/subscriptions.md`, SUB-1 to SUB-16). A consumer
+  subscribes to a Worker over the Worker API and the Worker pushes every matching event to the
+  consumer's sink: validated first by the CloudEvents webhook handshake, delivered as a structured
+  CloudEvent with the sink's own bearer, at least once within EVT-8's window. Subscribing is
+  idempotent and nothing is renewed; a subscription ends when its subscriber ends it, when its sink
+  has failed for `abandonAfterSeconds`, or when its caller is no longer accepted — and the last two
+  are announced and left listed. Filters are the six dialects the CloudEvents Subscriptions API
+  requires. Ending one is `DELETE ?subscription=<id>` on the declared address.
+- **An audit of every prohibition against the argument written for it.** Where the argument earned
+  less than the rule forbade, the rule was narrowed and reissued; where it earned the whole but the
+  argument was missing, the argument was written. Reissued, with what each now allows:
+  - DESC-35 and DESC-36 (were DESC-3 and DESC-12): `http` on a loopback host, where no network is
+    crossed. A Worker on a developer's machine no longer fails the base-URL rule.
+  - DESC-37 (DESC-11): only conditions that change what a caller sends, or whether it may repeat a
+    call, are declared.
+  - DESC-38 (DESC-30): a consumer does not retry an address that serves nothing, and may read the
+    Descriptor again later.
+  - ENDP-37 (ENDP-5): `Worker-Protocol-Capability-Version` only where a Capability answered; not on
+    the Descriptor's route or a `404` for an undeclared address.
+  - ENDP-38 and ACT-19 (ENDP-15, ACT-12): an input key may be several members, in order —
+    `members` replaces `member` in the idempotency declaration.
+  - ENDP-39 and ENDP-40 (ENDP-25, ENDP-29): the error envelope and the status table bind `4xx` and
+    `5xx`. ENDP-41 is new: a `304` to a conditional read is allowed, and a redirect never is, since
+    it would take a credential to an undeclared address.
+  - ACT-17 (ACT-9): a refusal caused by the current state is `409 conflict`.
+  - ACT-18 (ACT-11): a `202` carries the result the Action declares.
+  - ACT-20 and ACT-21 (ACT-14, ACT-15): a `writeOnly` member is never read back, and a `configure`
+    that omits it keeps it.
+  - ALRT-8 and ACTV-7 (ALRT-5, ACTV-5): a Worker's own Action may change an Alert's condition or
+    stop an activity; what stays forbidden is somebody declaring either ended.
+  - REG-34 (REG-21): the recorded credential is accepted on the Descriptor and every reading
+    address; a write may refuse it `403`.
+  - REG-35 (REG-13): a Tower rebinds an enrollment only when a person directs it.
+  - TASK-33 and TASK-34 (TASK-31, TASK-32): `skills` may be empty, and a Task type may name no
+    answering Action.
+  - MET-22 (MET-20): the declared zone cuts the buckets of a caller with no other agreement.
+  - EVT-16 (EVT-9): only the declared destinations must carry nothing but declared events.
+- **Arguments written where they were missing**, scope unchanged: REG-24, DESC-6, NAME-7, NDG-2,
+  HLTH-2, HLTH-4, MET-3, MET-4, MET-7, MET-15, TASK-8, LOG-9 and ACTV-4. LOG-10, ALRT-6 and ACTV-6
+  now say outright what REG-8 already meant: refusing a caller the surface with `403` is not varying
+  it by caller.
+- **DESC-2 is withdrawn for DESC-34**: Capabilities are still declared or left out freely and
+  conformance requires none of them, but the clause that no Capability is a precondition of another
+  is gone. It was never argued, and EVT-14 contradicted it.
+- **EVT-1 binds the events a Worker publishes**, which is all it ever meant: `subscription-ended`
+  is addressed to one subscriber and declared under no `publishes`.
+- **ENDP-3 is withdrawn for ENDP-36**: an operation a Worker defines is still a POST, and where this
+  protocol fixes an operation itself, that surface's file fixes its verb. The old rule's second
+  sentence — this protocol defines no PUT, PATCH or DELETE — was never argued, and forbade the
+  DELETE that ends a subscription.
+- **The broker becomes optional.** EVT-11 is withdrawn: EVT-13 has the broker, the
+  `protocolBinding` and the destination declared together or not at all, and EVT-14 has a Worker
+  that declares `events` declare a broker, `subscriptions`, or both.
+- **The lifecycle of Tasks and Alerts is named** (EVT-15): `task-raised`, `task-ended`,
+  `alert-raised` and `alert-ended`, under `tech.rowing.worker-protocol`. `subject` is the resource's
+  id and `tasktype` or `alertseverity` the extension a subscriber filters on. *Ended* says the
+  condition stopped holding and nothing about why. Publishing them is optional; their names are not.
+- **Until 1.0, a MINOR may break.** DESC-24 and DESC-25 are withdrawn for DESC-32, which adds
+  SemVer's `0.x` clause, and DESC-33, which has a verifier behind on MINOR verify nothing while the
+  MAJOR is 0. The withdrawn rules carry their class, reach and editions in their `Withdrawn`
+  entries, and a Worker of 0.3 is still judged by them (DESC-31).
+
+### Added
+
+- **`@worker-protocol/schemas`**: `subscriptionsEntry`, `subscriptionRequest`, `subscriptionFilter`,
+  `subscription`, `subscriptionPage`, `subscriptionReceipt`, `subscriptionEnded` and its reason,
+  and `taskEnded` and `alertEnded`, the data of two lifecycle events. `subscriptions` is a reserved
+  Capability name.
+- **`@worker-protocol/hono`**: `mount()` serves `/subscriptions` — validation, the Contract hook
+  `allows`, the sink rules with an `insecureSinkOrigins` list for development, the handshake,
+  idempotence, the caller scope. `eventHub({ id, events, subscriptions })` — the Worker's own
+  declaration, so an event's `source` and its retry window cannot drift from the Descriptor, and a
+  type `events` does not declare is refused — publishes and delivers, behind a `SubscriptionStore`
+  and a `DeliveryQueue`, with `memorySubscriptions()` and `memoryDeliveries()` for one process.
+  `taskRaised`, `taskEnded`, `alertRaised` and `alertEnded` build lifecycle events, and
+  `lifecycleChanges()` compares two snapshots for a Worker that chooses to; nothing detects them on
+  its own.
+- **`@worker-protocol/conformance`**: the `subscriptions` checks, with two new arrangements — a
+  `sink` the Worker can reach and a `publishingAction` that makes it publish — and EVT-13 and
+  EVT-14 judged off the Descriptor.
+
+### Changed
+
+- **`@worker-protocol/hono`**: `serve()` inside `mount()` takes its route as one named object, and
+  one address may serve more than one operation behind a single guard. `Surface.route` in
+  `surfaces.ts` is now `routes`, a list.
+- **`@worker-protocol/conformance`**: `checkEvents` and `judgeTranscript` take one named object.
+  `CHANGELOG.md` may cite a withdrawn id, since a release note names the rule a release carried.
+
+### Upgrading
+
+- An Action keyed by its input declares `members: ["…"]` where it declared `member: "…"`.
+- A Worker that declares a broker needs no change. One that publishes only through `subscriptions`
+  declares none of the three broker members.
+- `@worker-protocol/conformance` on 0.5 judges a 0.4 Worker by nothing, and says it is behind.
+
 ## [0.5.0] - 2026-10-02 — edition 0.3
 
 All four packages encode **edition 0.3**, a MINOR under DESC-24: a caller holding 0.2 retries

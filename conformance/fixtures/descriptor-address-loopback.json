@@ -1,0 +1,16 @@
+{
+  "schema": "descriptor",
+  "valid": true,
+  "rule": "DESC-36",
+  "why": "An absolute address over plaintext on a loopback host. DESC-36 requires https where a network is crossed, because a bearer token read off the wire is the whole of the access it grants — and nothing between a process and itself can read one. This is how a Worker on a developer's machine is checked as it will be deployed.",
+  "document": {
+    "id": "worker-7f3a",
+    "edition": "0.4",
+    "capabilities": {
+      "health": {
+        "version": 1,
+        "address": "http://127.0.0.1:8787/health"
+      }
+    }
+  }
+}

@@ -77,7 +77,9 @@ compress a folder at midnight and a Worker with four hundred items waiting in a 
 running*, and collapsing them would make an operator unable to tell *backing up* from *waiting for
 its time*, which is exactly the thing they came to find out. So: `scheduled` is undertaken for a
 later moment the Worker knows, and nothing is wrong. `pending` is undertaken and waiting to start,
-and the length of that list is what an operator watches. `running` is under way.
+and the length of that list is what an operator watches. `running` is under way. Work that started
+and is now suspended — paused, blocked on something — is `pending` again: undertaken and not under
+way, which is what the operator needs to read, and *why* belongs in the summary.
 
 The instant is when the activity entered its current state, and it is read the way TASK-28's and
 ALRT-3's are. For `running` it is when work began. For `pending` it is when the item joined the
@@ -87,8 +89,10 @@ about the future this file declines to fix and says why below.
 
 ## How an activity ends
 
-**ACTV-5 (required). An activity ends when the Worker stops holding it. No party declares that, and
-a Worker exposes no way to.**
+**ACTV-7 (required). An activity ends when the Worker stops holding it, and no party's say-so is
+what ends it.** An Action of the Worker's own — cancelling work it queued — may make it stop holding
+one; the activity is gone because the Worker no longer has it, not because somebody declared it
+done.
 
 An item that has finished, failed, or been dropped is gone from the list, and what became of it is
 not this surface's to say: what a Worker *did* is a metric, and what it *published* about doing it
@@ -96,13 +100,14 @@ is an event. Carrying `done` and `failed` here would have made this a job log, w
 question, a paging question and a state machine, when the question it answers is only ever asked
 in the present tense.
 
-This is ALRT-5 and TASK-15 for the third time, and the argument does not change: the Worker
+This is ALRT-8 and TASK-15 for the third time, and the argument does not change: the Worker
 derives the list from its own Facts, so a party declaring an item over would be telling the Worker
 something about that party.
 
 ## Who may read it
 
-**ACTV-6 (required). A Worker answers the same activities to every caller it authenticates.**
+**ACTV-6 (required). A Worker never varies by caller which activities it answers. Refusing a caller
+the surface outright, with `403`, is not varying it (REG-8).**
 
 The party this surface is for is whoever operates the Worker, and that is enrollment rather than a
 Contract — ALRT-6's reasoning one surface along. A consumer under a Contract has no business
@@ -140,4 +145,12 @@ conformant, exactly as one raising no Alerts is.
 
 ## Withdrawn
 
-Nothing yet.
+- **ACTV-5** (required, N, 0.1–0.4) — required that no party declare an activity ended and that a
+  Worker expose no way to. Replaced by **ACTV-7**, which admits a Worker's own Action that makes it
+  stop holding one; a cancel Action failed ACTV-5 and satisfies ACTV-7, so the verdict moves and the
+  id did not survive.
+
+  Its argument was the one ALRT-8 narrows, about conditions derived from Facts. An activity is the
+  Worker's own undertaking, and whoever gave it the work may withdraw it; a cancel is an
+  instruction, not a false claim.
+

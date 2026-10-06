@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "subscription-end-reason.json",
+  "type": "string",
+  "enum": [
+    "abandoned",
+    "revoked",
+    "withdrawn"
+  ],
+  "title": "Subscription end reason",
+  "description": "SUB-14, SUB-15. `abandoned`: the sink failed without interruption for `abandonAfterSeconds`. `revoked`: the Worker no longer accepts the caller. `withdrawn`: the Worker ended it itself — it stopped publishing a type it names, or its operators ended it. An ending by the subscriber has no reason, because the subscriber knows it."
+}

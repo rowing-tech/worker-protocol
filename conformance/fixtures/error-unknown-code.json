@@ -1,7 +1,7 @@
 {
   "schema": "error",
   "valid": false,
-  "rule": "ENDP-25",
+  "rule": "ENDP-39",
   "why": "A code outside the enumeration. Closing the vocabulary costs a new edition for every new code, and this is what it buys: a caller validating against the schema refuses a code the specification does not list, rather than reading a string it cannot act on.",
   "document": {
     "code": "banana",

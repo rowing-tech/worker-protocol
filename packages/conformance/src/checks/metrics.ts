@@ -31,7 +31,7 @@ export const CLAIMS = [
   "MET-17",
   "MET-18",
   "MET-19",
-  "MET-20",
+  "MET-22",
   "NAME-1",
   // Judged here because this check already holds a valid page. A generic probe cannot construct a
   // read for an arbitrary surface — which parameters a surface requires is each Capability file's
@@ -285,7 +285,7 @@ export async function checkMetrics(
   if (ascending) say("MET-14", "passes");
   else say("MET-14", "fails", "buckets are not ascending by start");
 
-  // MET-20, and MET-7 for a week. Every boundary is cut in the zone the entry declares — so the
+  // MET-22, and MET-7 for a week. Every boundary is cut in the zone the entry declares — so the
   // wall-clock reading of a bucket's start in that zone is midnight, or the top of an hour.
   const misaligned = buckets.filter((bucket) => {
     const at = localParts(bucket.start, timeZone);
@@ -293,10 +293,10 @@ export async function checkMetrics(
     return at.hour !== "00" || at.minute !== "00" || at.second !== "00";
   });
   if (misaligned.length === 0) {
-    say("MET-20", "passes");
+    say("MET-22", "passes");
   } else {
     const at = localParts(misaligned[0].start, timeZone);
-    say("MET-20", "fails", `${misaligned[0].start} is ${at.hour}:${at.minute} in ${timeZone}`);
+    say("MET-22", "fails", `${misaligned[0].start} is ${at.hour}:${at.minute} in ${timeZone}`);
   }
 
   if (granularity === "week") {

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { unstable_dev, unstable_readConfig } from "wrangler";
-import type { Report } from "../index.ts";
+import { type Report, universe } from "../index.ts";
 
 /**
  * The verifier running on workerd, rather than a Worker on workerd being verified from Node.
@@ -52,16 +52,18 @@ describe("the verifier inside a Worker runtime, with no Node in it", () => {
   });
 
   it("fails nothing, reaching the minimal Worker over https through the fetch it was handed", () => {
-    // No DESC-3 exemption: an in-process `fetch` needs no socket, so the base URL is `https`, and
-    // this is the one suite in this package where every rule the Worker can satisfy, it does.
+    // An in-process `fetch` needs no socket, so the base URL is `https` and the Worker is reached as a
+    // Tower would reach it on the platform, with nothing in between.
     const failing = report.results.filter((one) => one.verdict === "fails").map((r) => r.rule.id);
     expect(failing).toEqual([]);
   });
 
-  it("reports on the whole universe, from the module rather than from a file", () => {
+  it("reports on the whole universe, from the module rather than from a file", async () => {
     // Every rule has a verdict, so the universe arrived intact. And most of the `W` rules were
     // judged, so the run was a run rather than a Descriptor that never loaded.
-    expect(new Set(report.results.map((one) => one.rule.id)).size).toBe(167);
+    expect(new Set(report.results.map((one) => one.rule.id)).size).toBe(
+      (await universe()).rules.length,
+    );
     const judged = report.results.filter(
       (one) => one.rule.reach === "W" && (one.verdict === "passes" || one.verdict === "fails"),
     );

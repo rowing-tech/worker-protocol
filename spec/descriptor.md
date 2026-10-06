@@ -17,8 +17,8 @@ schema can state. Rules carry ids; the convention is in [spec/README.md](README.
 **DESC-1 (required). Every Worker serves a Descriptor, and that is the whole of what every Worker
 owes.**
 
-**DESC-2 (required). Capabilities are declared or left out freely, in any combination including
-none, and no Capability is a precondition of another.** A Worker that raises no Tasks declares no
+**DESC-34 (required). Capabilities are declared or left out freely, in any combination including
+none, and conformance requires none of them.** A Worker that raises no Tasks declares no
 `tasks`, a Worker that only ever answers people declares no `events`, and a Worker that declares an
 empty list is conformant and does nothing. There is no half a Worker must implement in order to be
 one. Conformance is a statement about whether a Worker can be read and believed, never about
@@ -37,10 +37,11 @@ poller nothing it could not already learn by fetching the Descriptor.
 
 ## The route
 
-**DESC-3 (required). A Worker is enrolled as a base URL — one absolute `https` URL, with or without
-a path — and serves its Descriptor at `.well-known/worker-protocol` beneath it.**
+**DESC-35 (required). A Worker is enrolled as a base URL — one absolute URL, `https` unless its host
+is a loopback address, with or without a path — and serves its Descriptor at
+`.well-known/worker-protocol` beneath it.**
 
-**DESC-26 (required). Every Descriptor a Worker serves is the Descriptor at DESC-3's route. A
+**DESC-26 (required). Every Descriptor a Worker serves is the Descriptor at DESC-35's route. A
 Worker serves no second Descriptor that differs from it, at any address.**
 
 **DESC-5 (required). Reading a Descriptor is a GET and changes nothing.**
@@ -67,7 +68,10 @@ divergence, which cost a Worker its aliases and bought nothing; it is withdrawn 
 The scheme is `https` and not a preference. A credential travels in a header on every one of these
 calls, by [registration](registration.md), and a bearer token read off the wire is the whole of the
 access it grants — there is nothing to replay-protect it and nothing to bind it to a request. A
-Worker reachable over plaintext has published its Tower's credential to the path between them.
+Worker reachable over plaintext has published its Tower's credential to the path between them. A
+loopback address has no path between them — nothing between a process and itself can read a
+credential — so DESC-35 and DESC-36 require `https` wherever a network is crossed and nowhere
+else, which is what lets a Worker on a developer's machine be checked as it will be deployed.
 
 DESC-5 fixes the verb for the same reason ENDP-2 fixes it everywhere else, and
 [endpoints](endpoints.md) makes that argument at length: a document a console, a verifier and a
@@ -94,10 +98,10 @@ reader holding the id alone, with no knowledge of the deployment it came from, k
 is meant.**
 
 The root carries one more thing about the Worker itself, and it is declared in
-[tasks](tasks.md) rather than here because its vocabulary is that file's: **TASK-31's `skills`**,
+[tasks](tasks.md) rather than here because its vocabulary is that file's: **TASK-33's `skills`**,
 the Task types this Worker answers. It sits beside the id for the same reason the id does — it is
 what a Worker *is* and not what it serves, no surface answers it, and the Tower reads both on the
-same fetch. A Worker with no Skill omits it, exactly as DESC-2 lets it omit a Capability.
+same fetch. A Worker with no Skill omits it, exactly as DESC-34 lets it omit a Capability.
 
 Three rules where there was one, and the split is about what a report can honestly say rather than
 about a change of mind. Only DESC-6 has a witness: a verifier holds the URL it read the Descriptor
@@ -117,7 +121,7 @@ id computed from the address — a slug of the hostname, a hash of the base URL,
 configuration at boot — is an id that is computed again the next time the Worker starts, and a
 Worker that moved starts with a different one. It does not survive the move, and nothing announces
 that it did not: the Descriptor answers cleanly at the new address with an id the Tower has never
-seen, and REG-13 correctly refuses to treat it as the same Worker. The Contracts that DESC-27
+seen, and REG-35 correctly refuses to treat it as the same Worker. The Contracts that DESC-27
 promises would survive are then attached to an id nobody serves. A rule drawn at *looks like a URL*
 would catch the slug and miss the hash, which is the case that fails silently; drawn at derivation
 it catches the mechanism, and the implementer is the one party who knows which it used. The
@@ -141,9 +145,9 @@ as numbers.**
 [schemas/capability-name.json](../schemas/capability-name.json), which is normative and is the list
 a verifier checks against.**
 
-**DESC-24 (required). A MAJOR bump changes what a reader cannot survive not knowing. A MINOR bump
-only adds what a reader holding an earlier MINOR of the same MAJOR may ignore and still be
-correct.**
+**DESC-32 (required). A MAJOR bump changes what a reader cannot survive not knowing. A MINOR bump
+only adds what a reader holding an earlier MINOR of the same MAJOR may ignore and still be correct
+— except while the MAJOR is 0, when a MINOR may do either.**
 
 **DESC-9 (required). A Capability version is a single integer. There is no minor version.**
 
@@ -155,25 +159,41 @@ new Capability exist at all, because the closed list of Capability names is a pr
 edition and not of the protocol forever. Prose does not repeat that list; the table in
 [spec/README.md](README.md) is a reading aid and the schema wins.
 
-*Exactly one* is what makes DESC-25 decidable. A verifier compares the edition it holds against the
+DESC-6 is the form of DESC-27 a verifier can see. An id that is its URL is the id the next Worker to
+occupy that address will mint once it lapses — two Workers with one id, which NAME-9 forbids and
+REG-35 exists to catch — and it is the id the first move forces a Worker to change,
+which is the failure DESC-27 names. Appearance is a poor place to draw the line, and it is the only
+place a tool pointed at a Worker can draw it.
+
+*Exactly one* is what makes DESC-33 decidable. A verifier compares the edition it holds against the
 edition the Worker declares and reports itself older or not; given two declared editions there is
 no *the* edition to compare against, and a Worker could always avoid the verdict by declaring one
 edition the verifier holds beside one it does not. A Worker that wants to serve two editions serves
 two Descriptors, which is to say it is two Workers with two ids — and that is the honest shape,
 because a Contract is made over a declaration and there would otherwise be no saying which.
 
-Editions are ordered because DESC-25 spends the ordering: a verifier that meets an edition it does
+Editions are ordered because DESC-33 spends the ordering: a verifier that meets an edition it does
 not hold reports that it is *older than the Worker*, and there is no way to say "older" about two
 values that cannot be compared. The alternative was to let a verifier report only that it did not
 recognize the edition, and that loses a diagnostic worth keeping — knowing the verifier is behind
 tells an operator to upgrade the verifier, where an unrecognized token leaves the Worker under
 suspicion for what is the reader's problem.
 
-DESC-24 is what makes that diagnostic *actionable* rather than merely true. An order alone tells a
+DESC-32 is what makes that diagnostic *actionable* rather than merely true. An order alone tells a
 reader which of two editions is newer; it does not tell it whether it can still talk. With the
 meaning attached, the two components answer different questions: MAJOR asks *can I read this at
 all*, MINOR asks *am I seeing everything*. A reader behind on MINOR is not broken, only partial,
 and knows which of the two it is.
+
+**While the MAJOR is 0, a MINOR may break, and that is SemVer's own convention rather than an
+exception made for convenience.** Before 1.0 a protocol is still finding its shape, and the price
+of keeping every MINOR ignorable is that each correction which is not purely additive either waits
+for a MAJOR or is shaped around the readers of an edition nobody yet depends on. The packages that
+encode an edition already work this way (`packages/README.md`: on a zero MAJOR a MINOR is a wall
+nobody crosses without editing their own manifest), and an edition that promised more than the
+code built on it would be a promise nothing keeps. So before 1.0 a reader treats a later MINOR as
+it treats a later MAJOR — DESC-33 has a verifier do exactly that — and from 1.0 the guarantee is
+the whole of the sentence above.
 
 This is deliberately the same shape as the dotted and undotted Capability names. There, a name a
 reader does not recognize is either safely ignorable or a failure, and the dot is what tells the
@@ -204,12 +224,12 @@ is declared at most once. Each entry carries that Capability's version. An addre
 this shared entry and required by each Capability's own file: every Capability answered over HTTP
 requires one, and `events`, which is answered over a broker, does not.**
 
-**DESC-11 (required). Where a Capability's behavior on a call is conditional, the condition is
-declared in its entry.**
+**DESC-37 (required). Where what a caller must send, or whether it may safely send a call again,
+depends on a condition, the condition is declared in the Capability's entry.**
 
-**DESC-12 (required). An address is an absolute `https` URL, or a relative reference resolved
-against the URL the Descriptor was read from. It may point away from the origin that served the
-Descriptor.**
+**DESC-36 (required). An address is an absolute URL, `https` unless its host is a loopback address,
+or a relative reference resolved against the URL the Descriptor was read from. It may point away
+from the origin that served the Descriptor.**
 
 **DESC-13 (required). A client does not present a credential it was granted for this Worker to an
 address on an origin the operator did not record as the Worker's own.**
@@ -233,7 +253,7 @@ broker — and each of those files extends
 [schemas/capability-entry.json](../schemas/capability-entry.json) with what its own surface needs.
 This file fixes only the envelope they share.
 
-An Action that requires an idempotency key is the first case of DESC-11: it declares that in its
+An Action that requires an idempotency key is the first case of DESC-37: it declares that in its
 entry, together with where the key is read from and how long the Worker honors one; see
 [endpoints](endpoints.md) for what those mean on a call and [actions](actions.md) for the shape of
 the declaration. The reason it lives in the Descriptor and not in a response is the order of
@@ -262,30 +282,31 @@ That rule is all a verifier needs, and it needs no registry:
   ignored.**
 - **DESC-16 (required). A verifier fails a Worker for an undotted name it does not know, when it
   knows the declared edition:** the Descriptor claims a Capability that edition does not define.
-- **DESC-25 (required). A verifier that does not hold the declared edition's MAJOR verifies
-  nothing, and reports that it is older than the Worker. One that holds the MAJOR but not that
-  MINOR verifies what the edition it does hold defines, ignores every undotted name that edition
-  does not name, and reports what it ignored** — rather than failing a Worker for a Capability
-  added after the verifier was built.
+- **DESC-33 (required). A verifier that does not hold the declared edition's MAJOR — or, while the
+  MAJOR is 0, that holds an earlier MINOR than the declared one — verifies nothing, and reports
+  that it is older than the Worker. From 1.0, one that holds the MAJOR but not that MINOR verifies
+  what the edition it does hold defines, ignores every undotted name that edition does not name,
+  and reports what it ignored** — rather than failing a Worker for a Capability added after the
+  verifier was built.
 - **DESC-31 (required). A verifier that holds a later MINOR of the declared edition's MAJOR judges
   the Worker by the rules the declared edition contains, including those a later edition
   withdrew, and by no other. It reports each later rule as not exercised, naming the edition that
   introduced it, and a withdrawn rule it no longer carries a check for as not exercised, saying
   so — never passed and never left out.**
 
-DESC-16 and DESC-25 divide cleanly because DESC-16 fires only when the verifier holds the declared
+DESC-16 and DESC-33 divide cleanly because DESC-16 fires only when the verifier holds the declared
 edition exactly. A verifier one MINOR behind does not, so it never fails a Worker for a name it
 could not have heard of; a verifier holding the edition does, and an undotted name that edition
 does not define is then a real fault with nowhere to hide. The two together are why an older
 verifier is useful rather than merely safe: it still checks everything it knows.
 
-**DESC-31 is DESC-25 the other way round.** A Worker built to an earlier MINOR and correct in it is
-correct — DESC-24 is what makes it so — and a verifier that judged it by a rule added since would
-be failing it for not having read an edition it never claimed. The withdrawn rules are in it
-because the id convention in [the README](README.md) retires a rule whenever a rewrite could change
-a verdict: without them, a Worker of the earlier edition would be judged neither by the withdrawn
-id nor by the one that replaced it, and a correction would quietly have exempted it from both. The
-edition each rule arrived in is written beside its class in
+**DESC-31 is DESC-33 the other way round.** A Worker built to an earlier MINOR and correct in it is
+correct — in the edition it claimed, which is all DESC-32 lets anybody ask of it — and a verifier
+that judged it by a rule added since would be failing it for not having read an edition it never
+claimed. The withdrawn rules are in it because the id convention in [the README](README.md) retires
+a rule whenever a rewrite could change a verdict: without them, a Worker of the earlier edition
+would be judged neither by the withdrawn id nor by the one that replaced it, and a correction would
+quietly have exempted it from both. The edition each rule arrived in is written beside its class in
 [conformance/verifiability.md](../conformance/verifiability.md), and a retired rule carries both
 editions in its `Withdrawn` entry; neither is read off git, because a rule that turned on what was
 pushed where is one a rebase could break.
@@ -311,13 +332,15 @@ It is read that way by all three readers:
   Worker claims leaves the Worker's claim and the catalog disagreeing with nothing written down,
   and an operator looking at a Capability missing from the console cannot tell whether it was never
   declared or quietly discarded.
-- **DESC-30 (required). A consumer that meets a declared address serving nothing — one that answers
-  `404` to every request the Descriptor says it answers — stops, and does not retry.** It is a
-  contract error, and [endpoints](endpoints.md) says why at length. A consumer that treats a
+- **DESC-38 (required). A consumer that meets a declared address serving nothing — one that answers
+  `404` to every request the Descriptor says it answers — does not retry it, and reports it as a
+  fault in the Descriptor.** It may read the Descriptor again on its next cycle and call what that
+  declares; what this forbids is a retry loop against an address that has said it is not there. It
+  is a contract error, and [endpoints](endpoints.md) says why at length. A consumer that treats a
   missing declared surface as a transient failure retries against a Worker that will never answer,
   and the mistake surfaces as slow silence instead of a refusal.
 
-**DESC-30 is about the address and not about a request to it, and the distinction is the whole of
+**DESC-38 is about the address and not about a request to it, and the distinction is the whole of
 what the earlier form of this rule got wrong.** It said *a declared surface answering `404`*, which,
 read as a rule is meant to be read — alone, by somebody who never saw this paragraph — reached every
 `404` that address ever gives. But a surface that answers perfectly well says `404` about resources
@@ -326,7 +349,7 @@ holds (ACT-6), a resource that was there when it was listed. A consumer obeying
 that text stopped permanently the first time a Task closed between two of its own calls, which is
 the failure this rule exists to prevent, pointed at the wrong party. The argument above defends *an
 address that is not served*, so that is what the rule now says, and a `404` about a resource at an
-address that answers is an ordinary refusal under ENDP-29 like any other. It is withdrawn below.
+address that answers is an ordinary refusal under ENDP-40 like any other. It is withdrawn below.
 
 Which `404`s those are is read from the Descriptor and not guessed: the requests the Descriptor
 says an address answers are the ones each Capability's own file defines for it. A consumer that has
@@ -339,7 +362,7 @@ between a consumer and this Worker. But the party it fails is the operator, and 
 party this whole specification exists for: someone who must see, operate and give work to Workers
 they did not build. The catalog is the surface they see, and a catalog that quietly omits an entry
 tells them the Worker was never enrolled. Something was produced and a party read it wrongly, which
-is the same fault DESC-30 describes and not a different kind of thing. That the Control Tower is
+is the same fault DESC-38 describes and not a different kind of thing. That the Control Tower is
 named and defined in these files is what gives this specification the standing to require it.
 
 The converse is not a fault. A Worker serves whatever else it likes at whatever address it likes,
@@ -413,6 +436,68 @@ and stays structural; this section adds no rule, because there is no new violati
   not a correction's, so it belongs to the next one.
 
 ## Withdrawn
+
+- **DESC-30** (required, P, 0.1–0.4) — required that a consumer meeting a declared address that
+  serves nothing stop and not retry. Replaced by **DESC-38**, which keeps the refusal to retry and
+  lets the consumer read the Descriptor again later; a consumer that came back on its next cycle
+  failed DESC-30 and satisfies DESC-38, so the verdict moves and the id did not survive.
+
+  The argument was always against a retry loop, and ENDP-28's own withdrawal had already called
+  forbidding a later fresh request exactly backwards. *Stops* read as for ever, and REG-7's prose
+  said so.
+
+- **DESC-12** (required, W, 0.1–0.4) — required that every absolute address be `https`. Replaced by
+  **DESC-36**, which exempts a loopback host; an `http://127.0.0.1` address failed DESC-12 and
+  satisfies DESC-36, so the verdict moves and the id did not survive.
+
+  The argument was the path a credential crosses in plaintext. A loopback address crosses none, and
+  every local test of a Worker failed this rule for it.
+
+- **DESC-11** (required, W, 0.1–0.4) — required that any conditional behaviour of a Capability on a
+  call be declared in its entry. Replaced by **DESC-37**, which requires it only where the condition
+  changes what a caller sends or whether it may repeat a call; a Worker answering `503` when a
+  dependency is down, undeclared, failed DESC-11 and satisfies DESC-37, so the verdict moves and the
+  id did not survive.
+
+  The argument was idempotency's — a caller decides before it sends whether it may retry — and it
+  never reached a refusal on business rules or a dependency that went down, which nobody can declare
+  ahead of time.
+
+- **DESC-3** (required, W, 0.1–0.4) — required that a Worker be enrolled at an absolute `https` URL.
+  Replaced by **DESC-35**, which exempts a loopback host; a Worker enrolled at `http://127.0.0.1`
+  failed DESC-3 and satisfies DESC-35, so the verdict moves and the id did not survive.
+
+  Every run of the verifier against a Worker on a developer's machine failed DESC-3, and the tests
+  excused it by name. The argument it rests on — a credential crossing a network in plaintext —
+  never applied there.
+
+- **DESC-2** (required, P, 0.1–0.4) — required that Capabilities be declared or left out freely and
+  that no Capability be a precondition of another. Replaced by **DESC-34**, which keeps the first
+  half and drops the second. EVT-14 has an `events` entry without a broker declare `subscriptions`
+  beside it, which the old clause forbade; a verifier failing such a Worker violated DESC-2 and
+  obeys DESC-34, so the verdict moves and the id did not survive.
+
+  The argument beneath DESC-2 was always the floor — no half a Worker must implement in order to be
+  one — and never that one declaration may not depend on another. An `events` entry that names no
+  way out is a claim nobody could believe, which is the test this file applies to everything else.
+
+- **DESC-24** (required, N, 0.1–0.4) — required that a MAJOR change what a reader cannot survive
+  not knowing and a MINOR only add what a reader may ignore, with no exception. Replaced by
+  **DESC-32**, which keeps the sentence and adds that while the MAJOR is 0 a MINOR may do either.
+  An edition 0.4 that broke a 0.3 reader failed DESC-24 and satisfies DESC-32, so the verdict moves
+  and the id did not survive.
+
+  What forced it was the first change that was not purely additive: an `events` entry with no
+  broker, which a 0.3 reader cannot ignore. The choice was a 1.0 spent on a protocol nobody depends
+  on yet, a shape bent around readers that do not exist, or the convention SemVer already has for
+  exactly this, which the packages encoding an edition already followed.
+
+- **DESC-25** (required, P, 0.1–0.4) — required that a verifier not holding the declared MAJOR
+  verify nothing, and that one holding the MAJOR but behind on MINOR verify what it does hold.
+  Replaced by **DESC-33**, which treats a later MINOR as a later MAJOR while the MAJOR is 0. A 0.3
+  verifier meeting a 0.4 Worker used to judge it by 0.3's rules and could fail it for what 0.4
+  changed; now it verifies nothing and says it is behind, so the verdict moves and the id did not
+  survive.
 
 - **DESC-7** — required that a Descriptor carry exactly one edition, without saying what an edition
   is as a value. Replaced by **DESC-23**, which gives it the form `MAJOR.MINOR` and an ordering.

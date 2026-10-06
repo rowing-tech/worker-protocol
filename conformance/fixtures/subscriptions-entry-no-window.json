@@ -1,0 +1,10 @@
+{
+  "schema": "subscriptions-entry",
+  "valid": false,
+  "rule": "SUB-1",
+  "why": "An address and no abandonment window. Without it a subscriber cannot know how long a broken sink keeps its subscription, and nothing would ever clean up one nobody listens at.",
+  "document": {
+    "version": 1,
+    "address": "../subscriptions"
+  }
+}

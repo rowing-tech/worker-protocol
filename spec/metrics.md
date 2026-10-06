@@ -29,7 +29,7 @@ by name. The Descriptor is the catalog: this surface answers values and never li
 **MET-3 (required). Each metric declares a unit, whether it is additive, and at least one
 granularity, from `hour`, `day`, `week`, `month` and `year`.**
 
-**MET-4 (required). Each metric declares its dimensions, keyed by name — none, or several — and
+**MET-4 (required). Each metric declares its dimensions, keyed by name, which may be none, and
 each dimension either declares the closed set of values it takes or declares none, which means any
 string.**
 
@@ -51,7 +51,8 @@ can build a control for. A console renders a period selector from the granularit
 declares; an arbitrary duration — every seven minutes, every 36 hours — would make that selector a
 free-text box and would make two Workers' answers incomparable for no gain anybody asked for. Five
 is also where accumulation stops being a time series, which is the distinction this Capability rests
-on and the reason a Prometheus scrape is a different thing.
+on and the reason a Prometheus scrape is a different thing. There is no `quarter` because nothing
+has needed one, and adding a calendar period is an addition a later edition can make.
 
 A metric declares only the granularities it actually keeps, and that is the point rather than a
 concession. A Worker whose store lets it group on demand declares all five; a Worker holding one
@@ -79,8 +80,8 @@ schema asserts the characters a name may use and this rule asserts the rest.
 
 **MET-6 (required). The entry declares one IANA time zone.**
 
-**MET-20 (required). Every bucket boundary is cut in that zone. A caller with whom the Worker has
-agreed nothing else receives that calendar.**
+**MET-22 (required). A caller with whom the Worker has agreed nothing else receives buckets cut in
+the zone the entry declares.**
 
 **MET-7 (required). A `week` is an ISO 8601 week, beginning Monday.**
 
@@ -94,7 +95,12 @@ the Descriptor the whole of what *every* Worker owes — including one that publ
 all. If a second surface ever needs a calendar, the declaration moves up, which is what an edition
 is for.
 
-MET-20's second sentence is what a multi-tenant Worker needs. A Worker serving several consumers may
+MET-7 fixes where a week starts rather than letting each Worker declare it, as it declares its zone,
+because the two are not alike: a zone is a fact about where a Worker's day ends, and two Workers in
+two zones are both right; a week that began on Sunday at one Worker and on Monday at another would
+make `week` mean two things, which is the incomparability MET-3 closed the list to prevent.
+
+MET-22's second sentence is what a multi-tenant Worker needs. A Worker serving several consumers may
 have agreed a calendar with one of them — a tenant whose day ends where its own operators say it
 does — and cutting that consumer's buckets in it is a better answer than handing everyone the
 deployment's zone and asking them to re-aggregate, which is the one thing accumulation exists to
@@ -140,14 +146,16 @@ down by within one start.**
 
 **MET-15 (required). A bucket the Worker accumulated nothing in is absent from the answer. A bucket
 the Worker no longer holds is answered with a null value, which means it cannot say and never means
-zero.**
+zero.** Absent rather than zero because one spelling of *nothing happened* is what keeps an answer
+the size of what happened and not of the range asked for: a year of hours with three events in it
+is three buckets, and the page and its cursor walk those three.
 
 One metric per read, and the read is one series. A dashboard asking for six metrics makes six calls,
 which over one connection costs little and keeps both the answer and the paging on a single axis;
 naming several would put the metric's name inside every bucket, make the declared order of ENDP-23 a
 compound one, and let a page cut a series in half.
 
-MET-8's condition is read off the Descriptor before the call, which is what DESC-11 asks of any
+MET-8's condition is read off the Descriptor before the call, which is what DESC-37 asks of any
 behaviour that is conditional on a call. A Worker that holds one pre-aggregate is asked for it
 without ceremony — there is nothing to choose and nothing to say — and a Worker offering several
 makes the caller choose, because there is no answer the Worker could pick that would not be a guess
@@ -155,7 +163,7 @@ at which question was asked. The cost is that a client cannot write one URL for 
 reading a declaration it was going to read anyway.
 
 MET-9 and MET-10 divide by which side is wrong about what. A metric that is not declared is a
-resource that does not exist, which is `404` exactly as ENDP-29 has it. A granularity is a parameter
+resource that does not exist, which is `404` exactly as ENDP-40 has it. A granularity is a parameter
 whose value this Worker will not accept: the metric exists, the caller asked for it over a period
 the Worker does not accumulate, and `invalid_parameter` says so. Both are `reject`, so ENDP-28 stops
 a caller from retrying either; the difference is what the caller has to change, and that is the
@@ -307,6 +315,14 @@ monitoring system. The period is the distinction.
   Worker to declare its own. Open in [undecided](../docs/undecided.md).
 
 ## Withdrawn
+
+- **MET-20** (required, W, 0.1–0.4) — required that every bucket boundary be cut in the declared
+  zone. Replaced by **MET-22**, which cuts in it for a caller the Worker agreed nothing else with; a
+  tenant's buckets cut in its own agreed zone failed MET-20 and satisfies MET-22, so the verdict
+  moves and the id did not survive.
+
+  The rule contradicted itself: its second sentence, and the prose beneath, admitted the agreed
+  calendar its first sentence forbade.
 
 - **MET-2** — required the same declaration, keyed by name under `metrics`. Replaced by **MET-21**,
   which puts it under `publishes`. A Descriptor written against MET-2 fails MET-21 and the other

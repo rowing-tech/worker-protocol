@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alert-ended.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EVT-15. The ended Alert's id, as ALRT-3 gave it."
+    },
+    "severity": {
+      "$ref": "alert-severity.json"
+    }
+  },
+  "required": [
+    "id",
+    "severity"
+  ],
+  "additionalProperties": {},
+  "title": "Alert ended",
+  "description": "EVT-15. The data of `tech.rowing.worker-protocol.alert-ended`: the Alert's condition stopped holding (ALRT-8), and nobody dismissed it. At least these members; a Worker may carry more of its own."
+}

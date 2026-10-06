@@ -8,8 +8,7 @@ import { verify } from "../index.ts";
  * This is a Control Tower's position rather than an operator's: the tool runs INSIDE a Worker
  * runtime, with no filesystem and no Node built-ins, and reaches the Worker it verifies through a
  * `fetch` it was handed. Here that `fetch` is the minimal Worker's `app.fetch`, in the same isolate,
- * so nothing crosses a socket and the base URL can be `https` — which DESC-3 fixes and a loopback
- * dev server cannot give.
+ * so nothing crosses a socket and the base URL can be `https`, as it would be on the platform.
  */
 
 const CREDENTIAL = "w-token";

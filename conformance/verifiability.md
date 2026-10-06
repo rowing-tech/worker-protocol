@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the thirteen `draft` files — all of them — classified by what a check would observe.
+Every rule in the fourteen `draft` files — all of them — classified by what a check would observe.
 This is the audit [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place
 only if you can name what a conformance check would observe when it is broken* — run for the first
 time, and it is also the specification of what `packages/conformance` implements.
@@ -17,8 +17,8 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 95 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 23 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 101 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 37 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 27 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
@@ -33,9 +33,9 @@ with a party has somewhere to be true.
 
 | Subject | Rules | Where they are checked |
 |---|---|---|
-| A consumer or a caller | DESC-13, DESC-30, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 | `packages/client`, one test per id, against a Worker made to misbehave |
-| A Control Tower | DESC-19, DESC-20, REG-13, REG-14, REG-16, REG-19, REG-29, REG-30 | `packages/conformance/src/__tests__/tower.test.ts`, a Tower simulated over the example Workers |
-| A verifier | DESC-2, DESC-15, DESC-16, DESC-19, DESC-25 | `packages/conformance` itself, which is the verifier they bind |
+| A consumer or a caller | DESC-13, DESC-38, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 | `packages/client`, one test per id, against a Worker made to misbehave |
+| A Control Tower | DESC-19, DESC-20, REG-35, REG-14, REG-16, REG-19, REG-29, REG-30 | `packages/conformance/src/__tests__/tower.test.ts`, a Tower simulated over the example Workers |
+| A verifier | DESC-34, DESC-15, DESC-16, DESC-19, DESC-33 | `packages/conformance` itself, which is the verifier they bind |
 | An issuer, a subscriber, this specification | REG-27, REG-33, EVT-5, EVT-6, EVT-7, NAME-3 | Nowhere, and the subject is the reason: no party here issues a credential or subscribes to a broker |
 
 The nine consumer rules had no witness anywhere until `@worker-protocol/client` existed, which is
@@ -60,14 +60,13 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
 | DESC-1 | W | 0.1 | `GET {base}/.well-known/worker-protocol` answers a document that validates |
-| DESC-2 | P | 0.1 | Binds a verifier and a Tower: neither may require a Capability. No Worker witness — a Worker declaring none is the passing case |
-| DESC-3 | W | 0.1 | The route resolves beneath the enrolled base URL, scheme is `https` |
+| DESC-35 | W | 0.4 | The base URL is absolute and `https`, or `http` on a loopback host |
 | DESC-5 | W | 0.1 | GET answers; a second GET answers the same |
 | DESC-6 | W | 0.1 | The id compared against the base URL the Descriptor was read from |
 | DESC-8 | W | 0.1 | Every undotted name is in `capability-name.json` |
 | DESC-9 | W | 0.1 | A single integer, read off the entry |
-| DESC-11 | W | 0.1 | The condition, read off the entry. ACT-12 is the first case and gives it a shape, so this no longer needs a Worker arranged for it |
-| DESC-12 | W | 0.1 | Each address is absolute `https` or resolves relative |
+| DESC-37 | W | 0.4 | Where what a caller sends or whether it may repeat a call depends on a condition, the entry declares it; an idempotency declaration is the first case |
+| DESC-36 | W | 0.4 | Every absolute address is `https`, or `http` on a loopback host |
 | DESC-13 | P | 0.1 | Binds a client. Observable only in the client's own behaviour |
 | DESC-14 | W | 0.1 | Dotted vs undotted, read off the declaration |
 | DESC-15 | P | 0.1 | Binds a verifier — checkable, against the verifier |
@@ -75,32 +74,32 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | DESC-18 | W | 0.1 | A declared address that answers `404` |
 | DESC-19 | P | 0.1 | Binds a verifier |
 | DESC-20 | P | 0.1 | Binds a Tower. It is also unobservable, as every Tower rule is, and the class goes to the SUBJECT: `unverified` is what a report says about a rule whose subject is the Worker, and saying it here would vouch for a party the tool never contacted |
-| DESC-30 | P | 0.1 | Binds a consumer |
+| DESC-38 | P | 0.4 | Binds a consumer |
 | DESC-22 | W | 0.1 | `capabilities` is a map, each entry carries a version |
 | DESC-23 | W | 0.1 | Exactly one edition, `MAJOR.MINOR`, parses and orders |
-| DESC-24 | N | 0.1 | Binds whoever edits this specification across editions. No single-Worker witness |
-| DESC-25 | P | 0.1 | Binds a verifier, and `packages/conformance` now obeys it: it carries the edition it holds on every report, and stops the run when it does not hold the declared MAJOR. Publishing edition 0.1 is what made this rule ours rather than somebody else's |
 | DESC-31 | P | 0.3 | Binds a verifier, and `packages/conformance` obeys it: against a Worker that declares an earlier MINOR it judges only the rules that edition contains, and reports every later one as not exercised, naming the edition that introduced it |
+| DESC-32 | N | 0.4 | Binds whoever edits this specification across editions, including the `0.x` clause. No single-Worker witness |
+| DESC-33 | P | 0.4 | Binds a verifier, and `packages/conformance` obeys it: it stops the run and reports itself older when it does not hold the declared MAJOR, or, while the MAJOR is 0, when the Worker declares a later MINOR |
+| DESC-34 | P | 0.4 | Binds a verifier and a Tower: neither may require a Capability. No Worker witness — a Worker declaring none is the passing case |
 | DESC-26 | N | 0.1 | Admitted exception. A second Descriptor at an address nobody enumerated |
 | DESC-27 | N | 0.1 | Derivation is invisible from outside, and a move is two deployments. Split from DESC-6 so that the clause with a witness can be reported on its own |
 | DESC-28 | N | 0.1 | Opacity, stability and freedom from ambient context are properties of an id's behaviour over time, not of the string a reader holds |
 | DESC-29 | N | 0.1 | What a version counts is a claim about the Worker's own history. Split from DESC-9 for the same reason as above |
 
-## endpoints.md — 30
+## endpoints.md — 31
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
 | ENDP-1 | W | 0.1 | Every address called is one the Descriptor declared. The negative — that no undeclared surface exists — is unreachable and is not what the rule says |
 | ENDP-2 | W | 0.1 | A GET, repeated, leaves the readable state unchanged |
-| ENDP-3 | W | 0.1 | Declared write addresses accept POST |
 | ENDP-4 | W | 0.1 | `application/json`, UTF-8, parses |
-| ENDP-5 | W | 0.1 | Both headers on every response. Cheapest strong check in the protocol |
+| ENDP-37 | W | 0.4 | Every response carries the edition; every response from a declared Capability address also carries its version, and the Descriptor's does not need one |
 | ENDP-6 | W | 0.1 | Send an unanswerable Capability version, expect `400` + `unsupported_version` |
 | ENDP-11 | W | 0.1 | Judged over the transcript. Every probe this verifier sends is deliberately and permanently wrong — an Action no entry declares, a filter no surface knows, a credential never issued — so a `5xx` to any of them is the rule broken, and no arrangement is needed to provoke one |
 | ENDP-12 | H | 0.1 | The Worker must offer an address that parses a body and refuses it on its content |
 | ENDP-13 | P | 0.1 | Binds a caller |
 | ENDP-14 | P | 0.1 | Binds a caller |
-| ENDP-15 | W | 0.1 | The declaration itself, read off an Action's entry; ACT-12 gives it a shape |
+| ENDP-38 | W | 0.4 | The declaration itself, read off an Action's entry: the header, or one or more named members, and the window; ACT-19 gives it a shape |
 | ENDP-16 | H | 0.1 | Needs a performance, repeated under the same key, against a Worker that offers one that is safe to perform |
 | ENDP-17 | H | 0.1 | Needs one performance to record a key, then a second body under it |
 | ENDP-18 | W | 0.1 | An Action that requires a key, posted without one, is `400` and performs nothing |
@@ -110,16 +109,18 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ENDP-23 | W | 0.1 | Page twice, check the order holds and paging terminates |
 | ENDP-24 | W | 0.1 | An invented filter parameter is `400` + `unknown_filter` |
 | ENDP-33 | H | 0.2 | Page twice while the collection is being added to, and check the second page repeats nothing from the first. It needs a Worker whose collection changes on demand, which is `logs` with a Worker that records when it is read — under an offset the arrivals push the collection along and the repeat is the failure |
-| ENDP-25 | W | 0.1 | Every non-success carries code, message, class |
+| ENDP-39 | W | 0.4 | Every 4xx and 5xx response carries code, message and class |
 | ENDP-26 | W | 0.1 | Across every response collected, no code under two statuses |
 | ENDP-27 | P | 0.1 | Binds a caller |
 | ENDP-28 | P | 0.1 | Binds a caller |
-| ENDP-29 | W | 0.1 | Every non-success status is in the table with the class beside it |
+| ENDP-40 | W | 0.4 | Every 4xx and 5xx status is in the table with the class beside it |
+| ENDP-41 | W | 0.4 | Judged over the transcript: no request this verifier sends is answered with a redirect, and a `304` comes only to a conditional read |
 | ENDP-30 | P | 0.1 | Binds a caller |
 | ENDP-31 | P | 0.1 | Binds a caller |
 | ENDP-32 | H | 0.1 | Two requests must overlap under one key, which needs an Action safe to perform and slow enough that the second arrives before the first has recorded |
 | ENDP-34 | H | 0.3 | Needs a credential the Worker attributes to another caller, a header-keyed Action safe to perform and a second input for it: one caller performs, the other posts the other input under the same key, and it must be performed — not `409`, and not the first caller's outcome |
 | ENDP-35 | H | 0.3 | Needs the same credential and an input-keyed Action safe to perform with a second input: one caller performs, the other posts the other input carrying the same key, and it must be `409` |
+| ENDP-36 | W | 0.4 | The Actions address answers a POST, and does not serve the same operation to a GET |
 
 ## registration.md — 17
 
@@ -128,11 +129,11 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | REG-3 | W | 0.1 | `Authorization: Bearer` is accepted; another scheme is not required to work |
 | REG-7 | W | 0.1 | A declared address with a bad credential answers `401`/`403`, never `404` |
 | REG-8 | H | 0.1 | Two credentials must exist; the two Descriptors are compared |
-| REG-13 | P | 0.1 | Binds a Tower |
+| REG-35 | P | 0.4 | Binds a Tower |
 | REG-14 | P | 0.1 | Binds a Tower |
 | REG-16 | P | 0.1 | Binds a Tower and an operator. The origin list is state outside the Worker |
 | REG-19 | P | 0.1 | Binds a Tower |
-| REG-21 | W | 0.1 | The recorded credential is accepted on every declared address and on the Descriptor route |
+| REG-34 | W | 0.4 | The recorded credential is accepted on the Descriptor route and on every declared reading address; a write may refuse it, with `403` and never `401` |
 | REG-24 | N | 0.1 | Nothing outside can see whether the owner called the Tower. Running with the Tower down is an arrangement of the whole deployment, not an observation of this Worker |
 | REG-26 | N | 0.1 | The file says it: no Worker can tell how it got into a registry |
 | REG-27 | N | 0.1 | The file says it: it binds an issuer who is party to no call |
@@ -155,21 +156,21 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ACT-6 | W | 0.1 | An Action name no entry declares is `404` + `not_found`, and nothing is performed |
 | ACT-7 | W | 0.1 | A request naming no Action is `400` + `invalid_parameter`, and nothing is performed |
 | ACT-8 | W | 0.1 | An input no declared schema could accept is `400` + `schema_mismatch`, and nothing is performed |
-| ACT-9 | H | 0.1 | The Worker must offer an input that is schema-valid and that it refuses on its own rules |
+| ACT-17 | H | 0.4 | The Worker must offer an input that is schema-valid and that it refuses on its own rules |
 | ACT-10 | H | 0.1 | Needs a performance that succeeds |
-| ACT-11 | H | 0.1 | Needs an Action that declares it does not complete, and a performance of it |
-| ACT-12 | W | 0.1 | The idempotency declaration ENDP-15 requires, read off the entry |
-| ACT-13 | N | 0.1 | A Worker that declares `configure` meaning something else is indistinguishable from one that means this. What a name is reserved FOR has no witness; what a Worker must then serve does, and that is ACT-15's |
-| ACT-14 | H | 0.1 | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
-| ACT-15 | W | 0.1 | A GET of the declared reading address answers a document `configure` would accept |
+| ACT-18 | H | 0.4 | An Action declared not to complete within the call answers `202`, with its declared result as the body where it declares one |
+| ACT-19 | W | 0.4 | The idempotency declaration ENDP-38 requires, read off the entry |
+| ACT-13 | N | 0.1 | A Worker that declares `configure` meaning something else is indistinguishable from one that means this. What a name is reserved FOR has no witness; what a Worker must then serve does, and that is ACT-21's |
+| ACT-20 | H | 0.4 | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
+| ACT-21 | W | 0.4 | `configure` has a reading address, and it answers a document its own input schema would accept, without the members marked `writeOnly` |
 
 ## tasks.md — 10
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
 | TASK-27 | W | 0.1 | The entry carries one address, which a read answers Tasks from |
-| TASK-32 | W | 0.1 | Every Task type it raises, with a payload schema and the one Action that answers it, which its `actions` entry accepts — and where that Action's input is a union, a member every variant fixes to a constant of its own. Both halves are agreements between two entries, which no schema reaches |
-| TASK-31 | W | 0.1 | The Task types it answers, read off the Descriptor root under `skills`, keyed by type. The two schemas an entry may declare are validated by the schema and not otherwise reached: whether a Worker requires or produces the right thing has no witness against that Worker alone, and `packages/client`'s `canAnswer` is where two Descriptors are compared |
+| TASK-34 | W | 0.4 | Every Task type it raises, with a payload schema and, where one answers it, the one Action — which its `actions` entry accepts, and whose input takes what the type's variants carry |
+| TASK-33 | W | 0.4 | The Task types it answers, read off the Descriptor root under `skills`, keyed by type. The two schemas an entry may declare are validated by the schema and not otherwise reached: whether a Worker requires or produces the right thing has no witness against that Worker alone, and `packages/client`'s `canAnswer` is where two Descriptors are compared |
 | TASK-4 | W | 0.1 | Every Task type name is a qualified name |
 | TASK-5 | W | 0.1 | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
 | TASK-6 | H | 0.1 | Two credentials covering different Tasks must exist before two lists can be compared |
@@ -190,7 +191,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | ALRT-2 | W | 0.1 | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
 | ALRT-3 | W | 0.1 | Each Alert carries its id, severity, the instant it began, a summary and its Actions |
 | ALRT-4 | W | 0.1 | Every severity is one of the two |
-| ALRT-5 | N | 0.1 | An Alert that disappears may have had its condition stop holding, or may have been dismissed by somebody the verifier never saw. Nothing outside can tell — which is the same shape as TASK-15 and the same reason it matters |
+| ALRT-8 | N | 0.4 | An Alert that disappears may have had its condition stop holding, or may have been dismissed by somebody the verifier never saw. Nothing outside can tell — which is the same shape as TASK-15 and the same reason it matters |
 | ALRT-6 | H | 0.1 | Two credentials must exist before two lists can be compared |
 | ALRT-7 | W | 0.1 | Every Action an Alert offers is one the Worker's own `actions` entry accepts. An agreement between two entries, which no schema reaches |
 
@@ -202,7 +203,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | ACTV-2 | W | 0.1 | A read answers the page envelope. A Worker holding nothing exercises nothing, which is `not exercised` |
 | ACTV-3 | W | 0.1 | Each activity carries its id, its state, the instant it entered that state, and a summary |
 | ACTV-4 | W | 0.1 | Every state is one of the three |
-| ACTV-5 | N | 0.1 | An activity that disappears may have finished, failed or been dropped. Nothing outside can tell — the same shape as ALRT-5 and TASK-15, and the same reason it matters |
+| ACTV-7 | N | 0.4 | An activity that disappears may have finished, failed or been dropped. Nothing outside can tell — the same shape as ALRT-8 and TASK-15, and the same reason it matters |
 | ACTV-6 | H | 0.1 | Two credentials must exist before two lists can be compared |
 
 ## nudges.md — 3
@@ -213,19 +214,21 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | NDG-2 | H | 0.1 | A nudge that is accepted sends the Worker to read somebody's Tasks, so it needs a Worker arranged to be told — the same position ACT-5 is in, and the same permission |
 | NDG-3 | W | 0.1 | A nudge for a type the Worker declares no Skill for is `404` + `not_found`, and nothing happened. The same shape as ACT-6, and W for the same reason: the witness is a refusal |
 
-## events.md — 9
+## events.md — 11
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
 | EVT-1 | H | 0.1 | The verifier holds no broker and sees no event. An arrangement would have to hand it one the Worker published |
-| EVT-11 | W | 0.1 | The entry declares a broker, a `protocolBinding` and a destination |
+| EVT-13 | W | 0.4 | The entry declares the broker, the `protocolBinding` and the destination together, or none of them |
+| EVT-14 | W | 0.4 | A Worker that declares `events` declares a broker, `subscriptions`, or both — read off the two entries |
+| EVT-15 | H | 0.4 | Observed at an arranged sink, when the Action that publishes publishes a lifecycle type: the resource's id in `subject`, its property as the named extension |
 | EVT-12 | W | 0.1 | Every event type it publishes under `publishes`, each with the schema of its data |
 | EVT-4 | W | 0.1 | Every event type name is a qualified name |
 | EVT-5 | P | 0.1 | Binds the Tower, which brokers the Contract, and states a negative about what does NOT travel here |
 | EVT-6 | P | 0.1 | Recommended. Binds a consumer, about a component this protocol does not see |
 | EVT-7 | P | 0.1 | Binds a subscriber — a party this protocol does not otherwise name, sitting between two that both did everything right |
 | EVT-8 | W | 0.1 | The republish window, read off the entry |
-| EVT-9 | N | 0.1 | A subscriber sees the topic it was given and not the Worker's other uses of the same cluster. What would be seen, if anything could, is a deduplication store filling with ids for documents that were never events |
+| EVT-16 | N | 0.4 | A subscriber sees the topic it was given and not the Worker's other uses of the same cluster. What would be seen, if anything could, is a deduplication store filling with ids for documents that were never events |
 
 ## naming.md — 9
 
@@ -278,7 +281,7 @@ then echoed, where no party's correctness turns on the spelling and nothing is l
 | MET-17 | W | 0.1 | A value outside a declared set is `400` + `invalid_parameter` |
 | MET-18 | W | 0.1 | The file names the check: an unfiltered answer smaller than one of its own filtered answers over the same interval, on a metric that only accumulates upward |
 | MET-19 | W | 0.1 | `by` on a free dimension is refused |
-| MET-20 | W | 0.1 | Every bucket's start and end land on a boundary cut in the declared zone. Split from MET-6, whose two halves a report could otherwise only pass or fail together |
+| MET-22 | W | 0.4 | Every bucket's start and end land on a boundary cut in the declared zone, for a caller with no other agreement — which the verifier is |
 
 **The most checkable file in the specification**: 19 of 20, and the twentieth is an admitted
 exception. Several need buckets to exist before they say anything, which is `not exercised` and not
@@ -306,9 +309,31 @@ that binds all four surfaces is actually observed. LOG-10 needed no new arrangem
 and ACTV-6's comparison, pinned with LOG-8's `to` so that a feed being written to can be compared
 at all.
 
+## subscriptions.md — 17
+
+| Rule | Class | Introduced in | What a check observes, or why nothing does |
+|---|---|---|---|
+| SUB-1 | W | 0.4 | The entry declares an address and `abandonAfterSeconds` |
+| SUB-2 | H | 0.4 | Subscribing to an arranged sink answers `201` with an id. It needs a sink the Worker can reach |
+| SUB-3 | W | 0.4 | A subscription to a type the entry does not publish is `422` with `unprocessable_content` |
+| SUB-4 | H | 0.4 | Needs a credential whose Contract does not let it consume a type the Worker publishes. No check yet |
+| SUB-5 | W | 0.4 | A sink in plaintext is `400` with `schema_mismatch` |
+| SUB-6 | W | 0.4 | Recommended. A loopback sink is `422` |
+| SUB-7 | H | 0.4 | The same caller, sink, types and filters answer `200` with the same id |
+| SUB-8 | H | 0.4 | The caller's list carries its subscription, and another caller's does not — which needs a credential of another caller |
+| SUB-9 | H | 0.4 | Another caller ending it is `404`, and its owner ending it is `204` |
+| SUB-10 | H | 0.4 | The arranged sink saw the webhook handshake naming the Worker's id before the subscription was answered |
+| SUB-11 | H | 0.4 | A delivery reached the arranged sink in structured mode, with the sink's own credential, after the Action that publishes was performed |
+| SUB-12 | H | 0.4 | Needs a sink that fails and then answers, and a window long enough to watch a retry. No check yet |
+| SUB-13 | H | 0.4 | A subscription whose filter nothing satisfies receives nothing, while one beside it does |
+| SUB-14 | H | 0.4 | Needs a sink that fails for the whole of `abandonAfterSeconds`, or a caller the Worker stops accepting. No check yet |
+| SUB-15 | H | 0.4 | Needs a subscription that ended without its subscriber ending it, which SUB-14's arrangement would provoke. No check yet |
+| SUB-16 | H | 0.4 | After a delivery, the caller's list shows when it last succeeded |
+| SUB-17 | H | 0.4 | Recommended. Another caller ending a subscription it does not own is `404`, the same as one that does not exist |
+
 ## Where this stands
 
-167 rules across thirteen files, none of them `open`, under edition 0.3. Every rule the register
+187 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.
@@ -347,12 +372,13 @@ Two credentials for one holder (REG-8, REG-28, REG-32, one of them authenticatin
 a boot window left pollable (HLTH-4); a condition that will not change, induced (ENDP-11); an
 address that parses a body and refuses it on content (ENDP-12); a state-changing address (REG-31); a
 declared name with a capital in it (NAME-1); a Capability whose behaviour on a call is conditional
-(DESC-11). That is what the reference Worker is *for* — it is a conformance fixture, not a demo, and
+(DESC-37). That is what the reference Worker is *for* — it is a conformance fixture, not a demo, and
 everything on this list is a deliberate arrangement rather than a feature anybody would otherwise
 build.
 
 **3. Thirteen rules have no witness and are not on the admitted list.** The exception
-[spec/README.md](../spec/README.md) admits names DESC-26 and DESC-20 only. DESC-24, DESC-27,
+[spec/README.md](../spec/README.md) admits names DESC-26 and DESC-20 only. DESC-32 (under its
+earlier id), DESC-27,
 DESC-28, DESC-29, REG-24, REG-26, REG-27, REG-33, NAME-2, NAME-5, NAME-6, NAME-8 and NAME-9 are
 equally unreachable. Most already say so in their own prose, which is the obligation met — but the
 list in the README is incomplete, and a reader extracting the bold lines cannot tell. This document
@@ -362,7 +388,7 @@ is the exhaustive register whether or not the README ever becomes one.
 DESC-9 two and MET-6 two, against [spec/README.md](../spec/README.md)'s *an id belongs to one
 independently checkable obligation*. DESC-6 now says only that the id is not the URL, which is the
 clause a verifier can reach, and DESC-27 and DESC-28 carry the rest; DESC-9 keeps the integer and
-DESC-29 takes what it counts; MET-6 keeps the declaration and MET-20 takes the cutting. No edition
+DESC-29 takes what it counts; MET-6 keeps the declaration and MET-22 takes the cutting. No edition
 is published, so under [spec/README.md](../spec/README.md) each rule was edited in place and
 nothing was withdrawn — which is the cheapest this correction will ever be.
 

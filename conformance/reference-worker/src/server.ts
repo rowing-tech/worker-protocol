@@ -1,6 +1,14 @@
 import { createServer, type Server } from "node:http";
 import { getRequestListener } from "@hono/node-server";
-import { mount, type Worker } from "@worker-protocol/hono";
+import {
+  eventHub,
+  LIFECYCLE,
+  memoryDeliveries,
+  memorySubscriptions,
+  mount,
+  type Worker,
+} from "@worker-protocol/hono";
+import { taskEnded } from "@worker-protocol/schemas";
 import { Hono } from "hono";
 import * as z from "zod";
 import { createActions } from "./actions.ts";
@@ -68,9 +76,43 @@ export type WorkerOptions = {
   readyAfterMs?: number;
   /** Which Tasks each credential covers, for TASK-6. A credential absent from it covers all. */
   visibleTasks?: Record<string, string[]>;
+  /**
+   * Sink origins exempted from SUB-5 and SUB-6, so a test can receive deliveries on a loopback
+   * socket in plaintext. The Worker breaks both rules for these origins on purpose, and for no
+   * other: a verifier probing with any other insecure sink is still refused.
+   */
+  insecureSinkOrigins?: string[];
 };
 
+/** SUB-1: how long a sink may fail before its subscription ends. A day, for a double. */
+const ABANDON_AFTER_SECONDS = 86_400;
+
+/** EVT-8: what a consumer sizes its deduplication store against, and what bounds a retry. */
+const REPUBLISH_WINDOW_SECONDS = 3600;
+
 const DEFAULT_ID = "tech.rowing.worker-protocol.reference";
+
+// EVT-13: no address at all, which is the one case DESC-22 leaves the shared entry's address
+// optional for. An event travels over a broker, and this Worker names the broker, the binding
+// and where on it the events land — none of which anything here parses.
+const EVENTS = {
+  broker: "nats",
+  protocolBinding: "cloudevents/nats-1.0",
+  // The shape NATS needs, under keys this Worker chose. On Kafka it would be bootstrap
+  // servers and a topic; on Event Hubs a namespace and a hub. Nothing here reads a key.
+  destination: { servers: "nats://events.invalid:4222", subject: "worker-protocol.reference" },
+  publishes: {
+    "tech.rowing.worker-protocol.vehicle-verified": {
+      data: z.strictObject({ vehicle: z.string() }),
+    },
+    // EVT-15: the specification's own name and shape, published when a verification ends a
+    // Task — which is the moment only this Worker knows.
+    [LIFECYCLE.taskEnded]: { data: taskEnded },
+  },
+  // EVT-8: what a consumer sizes its deduplication store against. An hour, declared, because
+  // `remember forever` is not implementable.
+  republishWindowSeconds: REPUBLISH_WINDOW_SECONDS,
+} satisfies NonNullable<Worker["events"]>;
 
 /**
  * What this Worker knows, which outlives any one request and is not read from the environment.
@@ -80,11 +122,24 @@ const DEFAULT_ID = "tech.rowing.worker-protocol.reference";
  * Building these inside `referenceWorker` made every request start a Worker that had never seen a
  * verification, so a Task closed by an Action reopened on the next call and TASK-15 was untestable.
  */
-export function createFacts() {
+export function createFacts(id: string = DEFAULT_ID) {
   const tasks = createTasks();
+  // SUB-13: the subscriptions and the deliveries outlive a request, as every Fact here does. One
+  // process, so the memory store and queue are the right ones, as `memoryOutcomes()` is.
+  const deliveries = memoryDeliveries();
+  const subscriptions = {
+    abandonAfterSeconds: ABANDON_AFTER_SECONDS,
+    store: memorySubscriptions(),
+    queue: deliveries,
+  };
+  // The same declaration the Worker hands `mount()`, so an event's `source` is this Worker's id
+  // and its window is the one the Descriptor states — whatever id the Worker was started with.
+  const hub = eventHub({ id, events: EVENTS, subscriptions });
+  deliveries.consume(hub.deliver);
   return {
     tasks,
-    ...createActions(tasks.verify),
+    subscriptions,
+    ...createActions({ verify: tasks.verify, publish: hub.publish }),
     // LOG-2: the records, and the one thing that writes them. `logs.ts` says why a Worker that
     // records a line per request is what puts LOG-3 and ENDP-33 within reach of a check.
     logs: createLogs(),
@@ -106,7 +161,10 @@ export type Facts = ReturnType<typeof createFacts>;
  * `process.env` — and `facts` is its store. Both arrive from outside for the same reason: this is
  * resolved on every request, so anything it built itself would be built again.
  */
-export function referenceWorker(options: WorkerOptions = {}, facts: Facts = createFacts()): Worker {
+export function referenceWorker(
+  options: WorkerOptions = {},
+  facts: Facts = createFacts(options.id),
+): Worker {
   const { tasks, actions, settings, outcomes, started, nudged, logs } = facts;
   const readyAfter = options.readyAfterMs ?? 0;
 
@@ -120,12 +178,12 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     id: options.id ?? DEFAULT_ID,
     edition: options.edition,
 
-    // TASK-31: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
+    // TASK-33: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
     // at no address — it is what this Worker IS, and a Capability is what it serves.
     skills: SKILLS,
 
-    // REG-21 on every address. `403` for the credential this Worker reads and that carries no
-    // right, because ENDP-29 divides `401` from `403` at whether it could be READ.
+    // REG-34 on every address. `403` for the credential this Worker reads and that carries no
+    // right, because ENDP-40 divides `401` from `403` at whether it could be READ.
     //
     // ENDP-34: two callers, named for who holds the credential and not for the credential itself.
     // Both recorded credentials are the operator's — rotating one is the same caller retrying the
@@ -142,7 +200,7 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     },
 
     // HLTH-4: until it has established its state it answers `unhealthy`, never `healthy`.
-    // Answering `unhealthy` costs nothing, because ENDP-29 classes the condition `retry` and a
+    // Answering `unhealthy` costs nothing, because ENDP-40 classes the condition `retry` and a
     // poller comes round again. HLTH-2: this Worker depends on nothing, so `checks` is empty.
     health: () =>
       Date.now() - started < readyAfter
@@ -158,7 +216,7 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     },
 
     // ACT-16: the Actions this Worker accepts, keyed by name. `mount()` generates each one's JSON
-    // Schema from the Zod object beside it and writes `configure`'s reading address (ACT-15).
+    // Schema from the Zod object beside it and writes `configure`'s reading address (ACT-21).
     // ENDP-16: `outcomes` travels with them, because `record-verification` declares a key and a
     // Worker that declares one and names nowhere to record it is refused at construction.
     actions: { accepts: actions, settings, outcomes },
@@ -191,24 +249,11 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
     // every request — see `createWorker` below, and `logs.ts` for why that is what a check needs.
     logs: logs.facts,
 
-    // EVT-11: no address at all, which is the one case DESC-22 leaves the shared entry's address
-    // optional for. An event travels over a broker, and this Worker names the broker, the binding
-    // and where on it the events land — none of which anything here parses.
-    events: {
-      broker: "nats",
-      protocolBinding: "cloudevents/nats-1.0",
-      // The shape NATS needs, under keys this Worker chose. On Kafka it would be bootstrap
-      // servers and a topic; on Event Hubs a namespace and a hub. Nothing here reads a key.
-      destination: { servers: "nats://events.invalid:4222", subject: "worker-protocol.reference" },
-      publishes: {
-        "tech.rowing.worker-protocol.vehicle-verified": {
-          data: z.strictObject({ vehicle: z.string() }),
-        },
-      },
-      // EVT-8: what a consumer sizes its deduplication store against. An hour, declared, because
-      // `remember forever` is not implementable.
-      republishWindowSeconds: 3600,
-    },
+    // EVT-13: declared once, above, and handed to the hub that publishes it as well as here.
+    events: EVENTS,
+
+    // SUB-1 to SUB-16: the same store and queue on every request, and the origins a test exempts.
+    subscriptions: { ...facts.subscriptions, insecureSinkOrigins: options.insecureSinkOrigins },
   };
 }
 
@@ -224,7 +269,7 @@ export function referenceWorker(options: WorkerOptions = {}, facts: Facts = crea
  */
 export function createWorker(options: WorkerOptions = {}): Server {
   // The Facts are built once, here, and the Worker is answered from them on every request.
-  const facts = createFacts();
+  const facts = createFacts(options.id);
   const mounted = mount<WorkerOptions>((env) => referenceWorker(env, facts));
   // LOG-3, ENDP-33: the arrangement, and the whole of it. A verifier holding no knowledge of this
   // Worker's domain still has a way to make a record exist — read anything — which is what lets it
@@ -251,7 +296,7 @@ export function createWorker(options: WorkerOptions = {}): Server {
   const base = (options.basePath ?? "").replace(/\/*$/, "");
   if (base === "") return createServer(getRequestListener(serve));
 
-  // Under a path, exactly as an application that already owns the root would mount it (DESC-3).
+  // Under a path, exactly as an application that already owns the root would mount it (DESC-35).
   // The addresses in the Descriptor are relative and climb one segment, so they resolve beside
   // the base URL wherever that is — which is the case an absolute `/health` would have got wrong.
   const app = new Hono()

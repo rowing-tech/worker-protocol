@@ -1,7 +1,7 @@
 /**
  * Bucket boundaries, cut in the time zone a Worker declares.
  *
- * MET-20 cuts every boundary in the zone the `metrics` entry declares, MET-7 makes a week the ISO
+ * MET-22 cuts every boundary in the zone the `metrics` entry declares, MET-7 makes a week the ISO
  * 8601 one beginning Monday, and MET-13 has each bucket carry an end rather than a duration —
  * because a day across a daylight-saving transition is 23 or 25 hours and a reader comparing
  * against its own clock would otherwise need a calendar.
@@ -75,7 +75,7 @@ function instantOf(parts: Parts, zone: string): number {
   return local - offset(first, zone);
 }
 
-/** MET-20, MET-7 — the start of the bucket an instant falls in. */
+/** MET-22, MET-7 — the start of the bucket an instant falls in. */
 export function startOf(at: number, granularity: Granularity, zone: string): number {
   const local = wallClock(at, zone);
   const midnight = { ...local, hour: 0, minute: 0 };

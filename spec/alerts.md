@@ -17,7 +17,7 @@ every poller in order to reach one operator. Fold Alerts into health and a Worke
 misreport its own state or never mention the thing a person has three days to fix.
 
 Against [tasks](tasks.md): a Task is delegation, and an Alert delegates nothing. A Task requires a
-Skill and is discovered by it — TASK-31 makes the Task types a Worker answers the unit a Tower
+Skill and is discovered by it — TASK-33 makes the Task types a Worker answers the unit a Tower
 catalogs by — and an Alert has no Skill, because its audience is whoever operates this Worker and
 that is a relationship of enrollment rather than of Contract. TASK-6 follows from the same place: a
 Task is shown only to the consumer whose Contract covers it, where ALRT-6 answers the same Alerts
@@ -26,7 +26,7 @@ the surface is for.
 
 Folding them would therefore have meant a Task type carrying an exception to the rules that make a
 Task a Task, which is how you can tell it is a different thing. What it borrows instead is the one
-idea that does transfer, and ALRT-5 is where.
+idea that does transfer, and ALRT-8 is where.
 
 *This argument used to rest on a third leg: that a Task was claimed under an exclusive lease and an
 Alert two operators can both see is working. The lease is withdrawn, and the leg with it. What is
@@ -64,15 +64,18 @@ honest spelling. Here there is no such gap: the only decision an operator takes 
 whether to look now or look later, and a third value would be a place for a Worker to hedge rather
 than a state it needed to express. A protocol that offers a middle value gets middle values.
 
-ALRT-7 is TASK-32's agreement in the other Capability, and it is checked the same way: an Alert that
+ALRT-7 is TASK-34's agreement in the other Capability, and it is checked the same way: an Alert that
 offered an Action its own `actions` entry does not accept would be a Descriptor disagreeing with
 itself, which is DESC-18 one level down. It carries names and not schemas because the schema is
 already in the `actions` entry, and a second copy is a second thing to keep in step.
 
 ## How an Alert ends
 
-**ALRT-5 (required). An Alert ends when its condition stops holding. No party dismisses one, and a
-Worker exposes no way to.**
+**ALRT-8 (required). An Alert ends when its condition stops holding, and no party declares that it
+has. A Worker keeps no record of who has seen one.** An Action of the Worker's own that changes a
+Fact the condition is derived from — a maintenance silence it holds for everybody, a threshold —
+ends an Alert the way any change of Fact does: because the condition changed, not because somebody
+said so.
 
 This is the one idea Alerts borrow from Tasks, and TASK-15 already carries the argument: the Worker
 derives the condition from its own Facts, so a party declaring it over is telling the Worker
@@ -91,12 +94,13 @@ same thing as yesterday* — which is most of what dismissal was being asked to 
 
 ## Who may read them
 
-**ALRT-6 (required). A Worker answers the same Alerts to every caller it authenticates.**
+**ALRT-6 (required). A Worker never varies by caller which Alerts it answers. Refusing a caller the
+surface outright, with `403`, is not varying it (REG-8).**
 
 **Reading Alerts needs no Contract, and that settles the second question this file was asked.** A
 Contract is made over a Service — its Events, its Task types, its Actions — and an Alert is none of
 those. The party an Alert is for is whoever operates the Worker, and that relationship is
-enrollment: REG-21 already has a Worker accept the recorded credential on every address this
+enrollment: REG-34 already has a Worker accept the recorded credential on every address this
 protocol defines, and this is one of them.
 
 ALRT-6 is REG-8's reasoning one surface along. A list filtered per reader is a different document to
@@ -109,7 +113,7 @@ cleared from one they were not shown.
 question [naming](naming.md) parked until this file existed. Alerts are read by whoever operates a
 Worker; a consumer under a Contract is not that party and may hold no credential for this address
 at all. The loud discovery naming.md describes — a `400` naming the version, under ENDP-6, with
-ENDP-5's headers on every response — remains the whole of what a consumer gets, and it remains
+ENDP-37's headers on every response — remains the whole of what a consumer gets, and it remains
 sufficient for the reason given there: it arrives on the next call, which is before any harm.
 
 **What a Worker raises an Alert about is its own business.** Nothing here enumerates conditions,
@@ -125,4 +129,13 @@ page and is conformant, exactly as one reporting no health checks is.
 
 ## Withdrawn
 
-Nothing yet.
+- **ALRT-5** (required, N, 0.1–0.4) — required that no party dismiss an Alert and that a Worker
+  expose no way to. Replaced by **ALRT-8**, which forbids declaring an Alert ended and keeping who
+  has seen one, and admits a Worker's own Action that changes the condition; a shared maintenance
+  silence held as the Worker's Fact failed ALRT-5 and satisfies ALRT-8, so the verdict moves and the
+  id did not survive.
+
+  The argument was a per-viewer snooze stored by the one party that cannot know who is viewing. A
+  Fact the Worker holds for everybody is the model TASK-15 already has, and ALRT-7 already lets an
+  Alert offer the Worker's Actions.
+

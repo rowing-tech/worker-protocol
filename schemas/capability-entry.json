@@ -10,10 +10,10 @@
     },
     "address": {
       "type": "string",
-      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "pattern": "^(?:https:\\/\\/|http:\\/\\/(?:localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(?=[:/?#]|$)|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
       "title": "Address",
       "format": "uri-reference",
-      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+      "description": "DESC-36. An absolute https URL — or http on a loopback host, where no network path exists to read a credential on — or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
     }
   },
   "required": [
@@ -21,5 +21,5 @@
   ],
   "additionalProperties": {},
   "title": "Capability entry",
-  "description": "DESC-22. What a Worker declares about one Capability: its version, and the address it answers at where it answers over HTTP. The Capability's name is the key this entry is held under, which is what makes it declarable at most once. The address is optional HERE ONLY: each Capability's own file requires one, and every Capability answered over HTTP does — `events`, answered over a broker, is why the shared entry cannot require it. Open to the extensions each Capability's own file defines, including the conditional declarations of DESC-11."
+  "description": "DESC-22. What a Worker declares about one Capability: its version, and the address it answers at where it answers over HTTP. The Capability's name is the key this entry is held under, which is what makes it declarable at most once. The address is optional HERE ONLY: each Capability's own file requires one, and every Capability answered over HTTP does — `events`, answered over a broker, is why the shared entry cannot require it. Open to the extensions each Capability's own file defines, including the conditional declarations of DESC-37."
 }

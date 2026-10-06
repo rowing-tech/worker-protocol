@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "subscription-receipt.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SUB-2. The subscription's id, opaque."
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "title": "Subscription receipt",
+  "description": "SUB-2, SUB-7. The id of the subscription a subscribe created or found."
+}

@@ -45,6 +45,32 @@ export {
   type WorkerSource,
 } from "./mount.ts";
 export {
+  alertEnded,
+  alertRaised,
+  type CloudEvent,
+  type Delivery,
+  type DeliveryOutcome,
+  type DeliveryQueue,
+  type EndReason,
+  eventHub,
+  holds,
+  LIFECYCLE,
+  lifecycleChanges,
+  matches,
+  memoryDeliveries,
+  memorySubscriptions,
+  type Publishable,
+  type Publisher,
+  type StoredSubscription,
+  SUBSCRIPTION_ENDED,
+  type SubscriptionFacts,
+  type SubscriptionStore,
+  taskEnded,
+  taskRaised,
+} from "./subscriptions.ts";
+export {
+  endSubscription,
+  listSubscriptions,
   performAction,
   pollHealth,
   readActivity,
@@ -53,6 +79,7 @@ export {
   readLogs,
   readMetric,
   readTasks,
+  subscribe,
 } from "./surfaces.ts";
 export type { OpenTask, TaskFacts, TaskTypes } from "./tasks.ts";
 export type {

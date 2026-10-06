@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — actions",
-    "version": "0.3",
-    "description": "Performing an operation a Worker accepts. The `configure` reading address of ACT-15 is not described here: its address is declared inside an Action rather than beside the Capability, and the document it answers is shaped by that Action's own input schema, which is the Worker's.",
+    "version": "0.4",
+    "description": "Performing an operation a Worker accepts. The `configure` reading address of ACT-21 is not described here: its address is declared inside an Action rather than beside the Capability, and the document it answers is shaped by that Action's own input schema, which is the Worker's.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -12,11 +12,11 @@
   "servers": [
     {
       "url": "{address}",
-      "description": "ACT-16. The address the `actions` entry declares, resolved per DESC-12.",
+      "description": "ACT-16. The address the `actions` entry declares, resolved per DESC-36.",
       "variables": {
         "address": {
           "default": "/",
-          "description": "Read from the Worker's Descriptor and resolved per DESC-12. Never assembled by a caller (ENDP-1). The default is `/` and not a host on purpose: a client that was never given an address should fail at its own origin rather than reach somebody else's."
+          "description": "Read from the Worker's Descriptor and resolved per DESC-36. Never assembled by a caller (ENDP-1). The default is `/` and not a host on purpose: a client that was never given an address should fail at its own origin rather than reach somebody else's."
         }
       }
     }
@@ -41,7 +41,7 @@
             "name": "Idempotency-Key",
             "in": "header",
             "required": false,
-            "description": "ENDP-15. Where the Action declares it reads a key from the header. Within the declared window a repeat under the same key is not a second performance; the same key with a different body is `409`.",
+            "description": "ENDP-38. Where the Action declares it reads a key from the header. Within the declared window a repeat under the same key is not a second performance; the same key with a different body is `409`.",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -70,7 +70,7 @@
             "description": "ACT-10. The Action completed and declares a result, against its own declared schema.",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -78,7 +78,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -88,10 +88,10 @@
             }
           },
           "202": {
-            "description": "ACT-11. The Action declares that it does not complete within the call. No body.",
+            "description": "ACT-18. The Action declares that it does not complete within the call. No body.",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -99,7 +99,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -112,7 +112,7 @@
             "description": "ACT-10. The Action completed and declares no result.",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -120,7 +120,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -130,10 +130,10 @@
             }
           },
           "400": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `invalid_parameter` (ACT-7), `schema_mismatch` (ACT-8), `idempotency_key_required` (ENDP-18), `unsupported_version` (ENDP-6).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `invalid_parameter` (ACT-7), `schema_mismatch` (ACT-8), `idempotency_key_required` (ENDP-18), `unsupported_version` (ENDP-6).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -141,7 +141,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -158,10 +158,10 @@
             }
           },
           "401": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `unauthenticated` (REG-3).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `unauthenticated` (REG-3).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -169,7 +169,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -186,10 +186,10 @@
             }
           },
           "403": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `forbidden` (ENDP-29).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `forbidden` (ENDP-40).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -197,7 +197,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -214,10 +214,10 @@
             }
           },
           "404": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `not_found` (ACT-6).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `not_found` (ACT-6).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -225,7 +225,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -242,10 +242,10 @@
             }
           },
           "409": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `idempotency_key_reused` (ENDP-17).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `idempotency_key_reused` (ENDP-17).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -253,7 +253,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -270,10 +270,10 @@
             }
           },
           "422": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `unprocessable_content` (ACT-9).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `unprocessable_content` (ACT-17).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -281,7 +281,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -298,10 +298,10 @@
             }
           },
           "500": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `internal_error` (ENDP-29).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `internal_error` (ENDP-40).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -309,7 +309,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",
@@ -326,10 +326,10 @@
             }
           },
           "503": {
-            "description": "ENDP-25. The shared error envelope, carrying one of: `unavailable` (ENDP-29).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `unavailable` (ENDP-40).",
             "headers": {
               "Worker-Protocol-Edition": {
-                "description": "ENDP-5. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
+                "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
                 "required": true,
                 "schema": {
                   "type": "string",
@@ -337,7 +337,7 @@
                 }
               },
               "Worker-Protocol-Capability-Version": {
-                "description": "ENDP-5. The Capability version that produced this answer.",
+                "description": "ENDP-37. The Capability version that produced this answer, on every response from an address a Capability entry declares.",
                 "required": true,
                 "schema": {
                   "type": "integer",

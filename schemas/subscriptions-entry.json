@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "subscriptions-entry.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "DESC-9. A single integer; there is no minor version. DESC-29 makes it count breaking changes to this Capability's own surface alone."
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|http:\\/\\/(?:localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(?=[:/?#]|$)|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "DESC-36. An absolute https URL — or http on a loopback host, where no network path exists to read a credential on — or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+    },
+    "abandonAfterSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "SUB-1. How long a sink may fail without interruption before its subscription ends (SUB-14). Also how long an ended subscription stays listed (SUB-15). Declared because a subscription is never renewed: this is the work a lease did, cleaning up a sink nobody is listening at, without ending one an automation merely forgot to renew."
+    }
+  },
+  "required": [
+    "version",
+    "address",
+    "abandonAfterSeconds"
+  ],
+  "additionalProperties": {},
+  "title": "Subscriptions capability entry",
+  "description": "SUB-1. The shared Capability entry with the address required, and the abandonment window."
+}

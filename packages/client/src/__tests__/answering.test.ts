@@ -10,7 +10,7 @@ import { consume } from "../index.ts";
  * already in the document a consumer holds, two walks apart, and every consumer was making those
  * walks by hand.
  *
- * Where a Task can end more than one way, the endings are variants of that input (TASK-32), so
+ * Where a Task can end more than one way, the endings are variants of that input (TASK-34), so
  * what comes back here is a discriminated union and a consumer picks the variant it can produce.
  */
 

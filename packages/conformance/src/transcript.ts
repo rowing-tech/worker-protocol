@@ -3,7 +3,7 @@
  * judged over all of them.
  *
  * Several rules in [endpoints](../../../spec/endpoints.md) are about *every* response rather than
- * about one surface — ENDP-5 puts two headers on all of them, ENDP-26 forbids one code arriving
+ * about one surface — ENDP-37 puts two headers on all of them, ENDP-26 forbids one code arriving
  * under two statuses, which is a statement no single response can break. A verifier that checked
  * those inside each surface's own check would be asking a question it could not answer, so the
  * exchanges are collected first and the cross-cutting checks run last, over the whole record.

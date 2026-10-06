@@ -11,6 +11,7 @@ import { checkHealth } from "./checks/health.ts";
 import { checkLogs } from "./checks/logs.ts";
 import { checkMetrics } from "./checks/metrics.ts";
 import { checkNudges } from "./checks/nudges.ts";
+import { checkSubscriptions, type SinkExchange } from "./checks/subscriptions.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
 import { checkTasks } from "./checks/tasks.ts";
 import { type Report, type Result, type Rule, unclaimed } from "./report.ts";
@@ -96,9 +97,9 @@ export type Arrangement = {
    * no such credential to hand in, and both rules report that rather than a verdict.
    */
   otherCallerCredential?: string;
-  /** An input that is schema-valid and that the Worker refuses on its own rules (ACT-9). */
+  /** An input that is schema-valid and that the Worker refuses on its own rules (ACT-17). */
   refusedInput?: { name: string; input: unknown };
-  /** An Action that declares it does not complete within the call, and an input for it (ACT-11). */
+  /** An Action that declares it does not complete within the call, and an input for it (ACT-18). */
   asyncAction?: { name: string; input: unknown };
   /** A second credential issued to the same holder (REG-8, REG-28, ALRT-6). */
   secondCredential?: string;
@@ -113,7 +114,7 @@ export type Arrangement = {
   unprivilegedCredential?: string;
   /** That this Worker was started moments ago, so HLTH-4's window is still open. */
   justStarted?: boolean;
-  /** That the operators will let the verifier write this Worker's settings back (ACT-14). */
+  /** That the operators will let the verifier write this Worker's settings back (ACT-20). */
   replaceableSettings?: boolean;
   /**
    * That this Worker records a log record for every request it serves (LOG-3, ENDP-33).
@@ -127,6 +128,22 @@ export type Arrangement = {
   recordsEveryRequest?: boolean;
   /** An event this Worker published, since a verifier holds no broker and sees none (EVT-1). */
   publishedEvent?: unknown;
+  /**
+   * A sink the Worker can reach, and what arrived at it (SUB-2 to SUB-16, EVT-1, EVT-15).
+   *
+   * The caller's, because `verify()` starts no server and so runs in any runtime: `url` is where
+   * the Worker delivers, and `received` answers every request that reached it — the handshake and
+   * the deliveries alike — oldest first. The sink allows the Worker's origin in the webhook
+   * handshake and answers deliveries `2xx`.
+   */
+  sink?: { url: string; received: () => Promise<SinkExchange[]> | SinkExchange[] };
+  /**
+   * An Action safe to perform that publishes one named event type (SUB-11, SUB-13, EVT-15).
+   *
+   * Nothing else lets a verifier make a Worker publish. It is performed once, after the verifier
+   * has subscribed to `publishes` at the arranged sink, and what reaches the sink is judged.
+   */
+  publishingAction?: { name: string; input: unknown; publishes: string };
   /** Resolved by `verify` and not by a caller: the addresses the arranged checks need. */
   healthUrl?: string;
   actionsUrl?: string;
@@ -206,13 +223,19 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     tape,
   );
 
-  // DESC-25: a verifier that does not hold the declared edition's MAJOR verifies NOTHING and
+  // DESC-33: a verifier that does not hold the declared edition's MAJOR verifies NOTHING and
   // reports that it is older than the Worker — rather than failing a Worker for a surface added
-  // after this tool was built. The ordering DESC-23 fixes is what lets it say `older` rather than
-  // merely `unrecognised`, and that is the difference between telling an operator to upgrade the
-  // verifier and leaving the Worker under suspicion for what is the reader's problem.
-  const declaredMajor = descriptor.document?.edition.split(".")[0];
-  if (declaredMajor !== undefined && declaredMajor !== EDITION.split(".")[0]) {
+  // after this tool was built. While the MAJOR is 0 a later MINOR counts the same, because DESC-32
+  // lets a MINOR break before 1.0. The ordering DESC-23 fixes is what lets it say `older` rather
+  // than merely `unrecognised`, and that is the difference between telling an operator to upgrade
+  // the verifier and leaving the Worker under suspicion for what is the reader's problem.
+  const declaredEdition = descriptor.document?.edition;
+  const [heldMajor] = EDITION.split(".");
+  const behind =
+    declaredEdition !== undefined &&
+    (declaredEdition.split(".")[0] !== heldMajor ||
+      (heldMajor === "0" && later(declaredEdition, EDITION)));
+  if (behind) {
     return {
       baseUrl: options.baseUrl,
       edition: descriptor.document?.edition ?? null,
@@ -227,12 +250,13 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   }
 
   // DESC-31: a Worker is judged by the rules the edition it declares contains, and by no other. A
-  // Worker built to an earlier MINOR and correct in it is correct (DESC-24), so a rule added since
-  // is not exercised rather than failed, and a rule withdrawn since is still one it owes. Where the
-  // Worker declares a later MINOR than this verifier holds, DESC-25 has it judge by what it holds,
-  // and with no edition read there is nothing to place the Worker in but this verifier's own.
-  const claims = descriptor.document?.edition;
-  const judged = claims === undefined || later(claims, EDITION) ? EDITION : claims;
+  // Worker built to an earlier MINOR and correct in it is correct in the edition it claimed, so a
+  // rule added since is not exercised rather than failed, and a rule withdrawn since is still one
+  // it owes. From 1.0, where the Worker declares a later MINOR than this verifier holds, DESC-33 has
+  // it judge by what it holds; with no edition read there is nothing to place the Worker in but
+  // this verifier's own.
+  const judged =
+    declaredEdition === undefined || later(declaredEdition, EDITION) ? EDITION : declaredEdition;
   const byId = new Map(all.filter((rule) => contains(judged, rule)).map((rule) => [rule.id, rule]));
 
   const results: Result[] = descriptor.results.filter((result) => byId.has(result.rule.id));
@@ -241,7 +265,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   // Descriptor declared, so an address it could not see would read as the Worker's fault.
   const nested: string[] = [];
 
-  /** The address a Capability declared, resolved by `readDescriptor` per DESC-12. */
+  /** The address a Capability declared, resolved by `readDescriptor` per DESC-36. */
   const surface = (name: string) =>
     descriptor.surfaces.find((one) => one.capability === name)?.url ?? null;
 
@@ -260,7 +284,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         options.mayPerform === true,
       )),
     );
-    // TASK-32 is an agreement between two entries rather than a shape inside one, so the tasks
+    // TASK-34 is an agreement between two entries rather than a shape inside one, so the tasks
     // check is handed the `actions` entry itself: it judges the name an entry points at AND the
     // input that Action declares, and neither is reachable from inside `tasks`.
     const accepts =
@@ -306,7 +330,14 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     );
     // `events` has no address by design (DESC-22), so this check sends nothing and takes no
     // transcript. It is the only Capability a verifier judges entirely from the Descriptor.
-    results.push(...checkEvents(descriptor.document.capabilities.events, byId, attribution));
+    results.push(
+      ...checkEvents({
+        entry: descriptor.document.capabilities.events,
+        subscriptions: descriptor.document.capabilities.subscriptions,
+        rules: byId,
+        attribution,
+      }),
+    );
     results.push(
       ...(await checkAlerts(
         descriptor.document.capabilities.alerts,
@@ -396,6 +427,28 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     );
   }
 
+  // SUB-1 to SUB-16, and EVT-1 and EVT-15 at last: what the Worker pushes. After every other
+  // check, because the Action that publishes changes the Worker's Facts like any performance.
+  if (descriptor.document !== null) {
+    const events = descriptor.document.capabilities.events as
+      | { publishes?: Record<string, unknown> }
+      | undefined;
+    results.push(
+      ...(await checkSubscriptions({
+        entry: descriptor.document.capabilities.subscriptions,
+        url: surface("subscriptions"),
+        workerId: descriptor.document.id,
+        publishes: Object.keys(events?.publishes ?? {}),
+        actionsUrl: surface("actions"),
+        mayPerform: options.mayPerform === true,
+        arrangement: options.arrangement ?? {},
+        rules: byId,
+        attribution,
+        transcript: tape,
+      })),
+    );
+  }
+
   // Last, and over everything the run provoked. ENDP-26 is a statement about a set of responses
   // rather than about one, so it cannot be asked until there are no more to come.
   const declared = new Set([
@@ -403,7 +456,15 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     ...descriptor.surfaces.map((s) => s.url),
     ...nested,
   ]);
-  results.push(...judgeTranscript(tape.exchanges, codes, declared, byId));
+  results.push(
+    ...judgeTranscript({
+      exchanges: tape.exchanges,
+      codes,
+      declared,
+      descriptorUrl: descriptor.url,
+      rules: byId,
+    }),
+  );
 
   // Every rule gets a verdict, never only the ones a check claimed. A report covering 23 rules of
   // 102, all green, tells an operator the Worker was checked against the protocol — and the reader

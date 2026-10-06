@@ -107,7 +107,7 @@ describe("the rules that bind a consumer", () => {
     });
     const client = await consume(BASE, { fetch: worker.fetch, wait: nowait });
 
-    // 418 is in no row of ENDP-29 and carries no envelope: neither the class nor the status
+    // 418 is in no row of ENDP-40 and carries no envelope: neither the class nor the status
     // classifies it, so ENDP-13 makes it `reject` and nothing is sent twice.
     await expect(client.health?.()).rejects.toBeInstanceOf(Refused);
     expect(attempts).toBe(1);
@@ -198,7 +198,7 @@ describe("the rules that bind a consumer", () => {
     expect(health?.authorization).toBeNull();
   });
 
-  it("DESC-30: stops on a declared address that serves nothing, and does not call it again", async () => {
+  it("DESC-38: stops on a declared address that serves nothing, and does not call it again", async () => {
     // It is a contract error: the Descriptor says the Worker answers here and it does not. A
     // consumer that treated it as transient would retry against a Worker that will never answer,
     // and the mistake would surface as slow silence instead of a refusal.
@@ -217,8 +217,8 @@ describe("the rules that bind a consumer", () => {
     expect(calls).toBe(1);
   });
 
-  it("DESC-30: a 404 about a RESOURCE is an ordinary refusal and not that", async () => {
-    // The narrowing DESC-30 was written for. An Action no entry declares is ACT-6's `404` from an
+  it("DESC-38: a 404 about a RESOURCE is an ordinary refusal and not that", async () => {
+    // The narrowing DESC-38 was written for. An Action no entry declares is ACT-6's `404` from an
     // address that answers perfectly well, and a consumer that stopped polling over it would be
     // making the mistake this rule exists to prevent, pointed at the wrong party.
     const worker = fakeWorker(() => ({
@@ -247,7 +247,7 @@ describe("the rules that bind a consumer", () => {
     expect((thrown as Malformed).detail).toContain("since");
   });
 
-  it("resolves every address against the Descriptor's own route (DESC-12)", async () => {
+  it("resolves every address against the Descriptor's own route (DESC-36)", async () => {
     // Relative, and resolved against the URL the Descriptor was READ FROM — not against the base
     // URL. The two coincide for a Worker at the origin root and diverge the moment one is mounted
     // under a path, which is the case that catches it.

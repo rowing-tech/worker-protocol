@@ -19,7 +19,7 @@ export const PRICE_A_QUOTE = `${NAMESPACE}.price-a-quote`;
 export const RAISES: TaskTypes = {
   [VERIFY_VEHICLE]: {
     payload: z.strictObject({ vehicle: z.string().min(1) }),
-    // TASK-32: the closed list is a list of the OWNER's own Actions, by the names its `actions`
+    // TASK-34: the closed list is a list of the OWNER's own Actions, by the names its `actions`
     // entry holds them under. A name that entry does not hold is a Descriptor disagreeing with
     // itself, which is the fault DESC-18 describes one level up.
     answeredBy: "record-verification",
@@ -31,7 +31,7 @@ export const RAISES: TaskTypes = {
 };
 
 /**
- * TASK-31: the Task types this Worker answers, each with the payload it needs to receive.
+ * TASK-33: the Task types this Worker answers, each with the payload it needs to receive.
  *
  * It answers the type it also raises, which `examples/minimal-worker` deliberately does not — a
  * Worker that needs somebody to go and look at a vehicle cannot be that somebody, and the template
@@ -74,21 +74,30 @@ const RAISED: (OpenTask & { vehicle?: string })[] = [
   },
 ];
 
+/** A raised Task as the protocol sees it, without the Fact this double keys its condition on. */
+const open = ({ id, type, payload, since }: OpenTask): OpenTask => ({ id, type, payload, since });
+
 export function createTasks() {
   /** A Fact of this Worker's: the vehicles with a verification on record. */
   const verified = new Set<string>();
 
   return {
-    /** The Action `record-verification` changes this Worker's Facts, and the Tasks follow. */
-    verify: (vehicle: string) => verified.add(vehicle),
+    /**
+     * The Action `record-verification` changes this Worker's Facts, and the Tasks follow — and
+     * this is the moment they end, so it answers which did. Only the Worker knows when a Task is
+     * born or ends (EVT-15), and here that is exactly when a vehicle is first verified.
+     */
+    verify: (vehicle: string): OpenTask[] => {
+      if (verified.has(vehicle)) return [];
+      verified.add(vehicle);
+      return RAISED.filter((task) => task.vehicle === vehicle).map(open);
+    },
 
     /**
      * TASK-15: the condition, derived from this Worker's own Facts and from nothing anybody
      * declared. A verify-vehicle Task exists while its vehicle has no verification on record.
      */
     current: (): OpenTask[] =>
-      RAISED.filter((task) => task.vehicle === undefined || !verified.has(task.vehicle)).map(
-        ({ id, type, payload, since }) => ({ id, type, payload, since }),
-      ),
+      RAISED.filter((task) => task.vehicle === undefined || !verified.has(task.vehicle)).map(open),
   };
 }

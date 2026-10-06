@@ -7,7 +7,7 @@ import type { Alert } from "@worker-protocol/hono";
  * between two entries and a Worker whose Alerts offer nothing never exercises it.
  *
  * Both conditions simply hold. There is no way to dismiss one and no state to hold if there were:
- * ALRT-5 ends an Alert when its condition stops, and a snooze belongs to whoever is looking.
+ * ALRT-8 ends an Alert when its condition stops, and a snooze belongs to whoever is looking.
  */
 
 const began = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000);

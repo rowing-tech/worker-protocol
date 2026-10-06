@@ -1,0 +1,16 @@
+{
+  "schema": "task-type-declaration",
+  "valid": true,
+  "rule": "TASK-34",
+  "why": "A Task type no Action answers: work done elsewhere — a vehicle inspected on site — whose condition clears when a Fact the Worker observes changes. TASK-15 already derives a condition from Facts that need not change through an Action.",
+  "document": {
+    "payload": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

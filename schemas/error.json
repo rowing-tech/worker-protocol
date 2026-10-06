@@ -21,11 +21,11 @@
             "unprocessable_content",
             "schema_mismatch"
           ],
-          "description": "ENDP-25. A code naming a condition this request will meet again (ENDP-28). endpoints.md gives the status each is answered with."
+          "description": "ENDP-39. A code naming a condition this request will meet again (ENDP-28). endpoints.md gives the status each is answered with."
         },
         "message": {
           "type": "string",
-          "description": "ENDP-25. A human-readable message. Not addressed to a program."
+          "description": "ENDP-39. A human-readable message. Not addressed to a program."
         },
         "class": {
           "type": "string",
@@ -53,11 +53,11 @@
             "upstream_error",
             "upstream_timeout"
           ],
-          "description": "ENDP-25. A code naming a condition that may have passed by the time the request is sent again (ENDP-30). endpoints.md gives the status each is answered with."
+          "description": "ENDP-39. A code naming a condition that may have passed by the time the request is sent again (ENDP-30). endpoints.md gives the status each is answered with."
         },
         "message": {
           "type": "string",
-          "description": "ENDP-25. A human-readable message. Not addressed to a program."
+          "description": "ENDP-39. A human-readable message. Not addressed to a program."
         },
         "class": {
           "type": "string",
@@ -74,5 +74,5 @@
     }
   ],
   "title": "Error",
-  "description": "ENDP-25. The error envelope shared by every surface. The code is drawn from a closed enumeration, so a new code requires a new edition — the price of a vocabulary a conformance check can actually verify. ENDP-27 decides whether the code or the status wins when they disagree."
+  "description": "ENDP-39. The error envelope shared by every surface. The code is drawn from a closed enumeration, so a new code requires a new edition — the price of a vocabulary a conformance check can actually verify. ENDP-27 decides whether the code or the status wins when they disagree."
 }

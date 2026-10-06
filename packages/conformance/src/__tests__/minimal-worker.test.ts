@@ -30,7 +30,7 @@ import { type Report, verify } from "../index.ts";
  * what its operators have to say.
  */
 const ARRANGEMENT = {
-  // One Action answers the Task, and its input is a union of the ways it can end (TASK-32): the
+  // One Action answers the Task, and its input is a union of the ways it can end (TASK-34): the
   // arrangement picks the `found` ending, which is what a safe performance looks like here.
   safeAction: {
     name: "answer-check",
@@ -67,12 +67,11 @@ describe("the minimal worker", () => {
   const verdict = (id: string) => report.results.find((r) => r.rule.id === id)?.verdict;
 
   it("conforms, with nothing in it but its own domain", () => {
-    // DESC-3 fixes `https` and this test reaches the Worker over a loopback socket in plaintext,
-    // which is the harness's fault and not the Worker's — the verifier is deliberately not taught
-    // an exception for localhost, because a tool that quietly excused a rule would be deciding
-    // something the specification did not.
+    // This test reaches the Worker over a loopback socket in plaintext, and DESC-35 requires
+    // `https` only where a network is crossed — the exception is the specification's, read off its
+    // own argument, and not one this verifier quietly taught itself.
     const failing = report.results.filter((r) => r.verdict === "fails").map((r) => r.rule.id);
-    expect(failing).toEqual(["DESC-3"]);
+    expect(failing).toEqual([]);
   });
 
   it("is judged on every rule a tool can observe against a Worker nobody arranged", () => {
@@ -94,9 +93,9 @@ describe("the minimal worker", () => {
     // What a Worker would otherwise implement: the page envelope, the cursor, the ordering that
     // makes paging terminate, the filter that must be refused rather than ignored.
     // `examples/minimal-worker` declares `raises`, `current()` and a Skill, and nothing else.
-    // TASK-31 is the Skill, read off the Descriptor ROOT rather than the entry — so a Worker that
+    // TASK-33 is the Skill, read off the Descriptor ROOT rather than the entry — so a Worker that
     // only ever answered Tasks would pass it while declaring no `tasks` Capability at all.
-    for (const id of ["TASK-27", "TASK-32", "TASK-4", "TASK-5", "TASK-8", "TASK-28", "TASK-31"]) {
+    for (const id of ["TASK-27", "TASK-34", "TASK-4", "TASK-5", "TASK-8", "TASK-28", "TASK-33"]) {
       expect(verdict(id), id).toBe("passes");
     }
 
@@ -107,15 +106,15 @@ describe("the minimal worker", () => {
   });
 
   it("cuts its metric buckets in a zone that observes daylight saving", () => {
-    // MET-20 and MET-7 are the rules a Worker author would have got right in UTC and wrong
+    // MET-22 and MET-7 are the rules a Worker author would have got right in UTC and wrong
     // everywhere else. This Worker declares `Europe/Madrid` and writes no calendar arithmetic.
-    for (const id of ["MET-6", "MET-13", "MET-20"]) expect(verdict(id), id).toBe("passes");
+    for (const id of ["MET-6", "MET-13", "MET-22"]) expect(verdict(id), id).toBe("passes");
   });
 
   it("answers the page envelope and the refusals it never wrote either", () => {
     // ENDP-20 through ENDP-24 and the error vocabulary: a Worker that declared a Capability got
     // the cursor, the ordering, the unknown-filter refusal and the envelope with it.
-    for (const id of ["ENDP-5", "ENDP-20", "ENDP-24", "ENDP-25", "ENDP-26", "ENDP-29"]) {
+    for (const id of ["ENDP-37", "ENDP-20", "ENDP-24", "ENDP-39", "ENDP-26", "ENDP-40"]) {
       expect(verdict(id), id).toBe("passes");
     }
   });

@@ -231,6 +231,13 @@ keeps the cursor and pushes each event to the worker's endpoint. The worker owns
 subscriber owns nothing but its position in the stream. Delivery is at least once, so the worker
 deduplicates by event id.
 
+**Or the worker pushes them itself.** A worker that declares `subscriptions` keeps who subscribed to
+which event types and delivers each matching event to the subscriber's own address — a Convex app,
+a Tower, an automation — over the Worker API's own transport, after a handshake that proves the
+address asked for it. Nobody renews anything: a subscription lasts until its subscriber ends it, its
+address stops answering for long enough, or its Contract is revoked, and none of those is silent.
+A worker publishes through a broker, through its subscriptions, or both.
+
 **The Worker API.** Everything a worker exposes for reading or acting on, over HTTP and JSON
 Schema: its **Descriptor**, which says which of the rest it serves and where; its **health**, the
 cheapest surface to poll and optional like the rest, since a Descriptor that stops answering carries
@@ -271,7 +278,7 @@ carries its own status and a short human-readable detail: the upstream source, t
 store, whatever the worker depends on. **All three answer HTTP 200**, and the status is read from
 the body; anything other than 200 means the worker did not answer, not that it is unwell. *This
 paragraph previously said `unhealthy` answers 503. Drafting [spec/health.md](../spec/health.md)
-found that 503 collides with ENDP-29, which classes it `retry`, so a poller obeying the spec would
+found that 503 collides with ENDP-40, which classes it `retry`, so a poller obeying the spec would
 back off from a worker that had answered it correctly — and a worker that is unwell would be
 indistinguishable from one that is unreachable, which is the one distinction health exists to draw.
 HLTH-5 is normative; a worker that wants the load-balancer behaviour serves that probe outside the

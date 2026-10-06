@@ -12,8 +12,8 @@ description: >-
   TypeScript service. Load the worker-protocol skill first for the rules themselves.
 license: Apache-2.0
 metadata:
-  workerProtocolEdition: "0.3"
-  version: "2.2.0"
+  workerProtocolEdition: "0.4"
+  version: "2.3.0"
 ---
 
 # Workers on `@worker-protocol/hono`
@@ -85,7 +85,7 @@ Read `references/members.md` for the signature of each member, and
   the shape gets written twice, which is two declarations that can disagree silently.
 - **`run` never chooses a status.** Return the result for `200`, `undefined` for `204` (ACT-10), or
   `{ code: "unprocessable_content", message }` for input that is schema-valid and the Worker's own
-  rules refuse (ACT-9). Every other refusal belongs to `mount()`.
+  rules refuse (ACT-17). Every other refusal belongs to `mount()`.
 - **One Zod object is used twice**: `mount()` generates the JSON Schema the Descriptor carries from
   it and validates incoming requests against the same object. Never write that JSON Schema by hand
   beside it.
@@ -116,6 +116,7 @@ Read `references/members.md` for the signature of each member, and
 | Input validation, and the JSON Schema in the Descriptor | The Zod object, and what `run` does |
 | Key required, repeat replayed, key reused with another body, a header key scoped to its caller | Where outcomes are recorded (`actions.outcomes`), and who the caller is |
 | Nudge body shape, `404` for an undeclared Skill, `204` | What to do when told there is work |
+| `/subscriptions`: types, sink rules, handshake, idempotence, caller scope | Where subscriptions live and what delivers them; when to publish |
 
 ## Reference
 

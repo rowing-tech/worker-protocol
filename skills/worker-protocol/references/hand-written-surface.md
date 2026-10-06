@@ -13,19 +13,19 @@ Tasks. Every other address is declared there and assembled by nobody (ENDP-1).
 
 ## 2. Two headers on every protocol response
 
-`Worker-Protocol-Edition` and `Worker-Protocol-Capability-Version` (ENDP-5), on refusals as well as
+`Worker-Protocol-Edition` and `Worker-Protocol-Capability-Version` (ENDP-37), on refusals as well as
 on answers. A caller that sees an edition it did not expect re-reads the Descriptor rather than
 parsing the body.
 
 ## 3. The credential
 
-`Authorization: Bearer <token>` (REG-3), accepted on every address the protocol defines (REG-21).
-`401` when it cannot be read, `403` when it is understood and carries no right (ENDP-29). What makes
+`Authorization: Bearer <token>` (REG-3), accepted on every address the protocol defines (REG-34).
+`401` when it cannot be read, `403` when it is understood and carries no right (ENDP-40). What makes
 a token good is the Worker's own business and may be a network call.
 
 ## 4. The error envelope
 
-`schemas/error.json`: `{ code, message, class }` (ENDP-25). The code fixes both the status and the
+`schemas/error.json`: `{ code, message, class }` (ENDP-39). The code fixes both the status and the
 class, so neither is chosen beside it (ENDP-26).
 
 | class | codes |
@@ -48,7 +48,8 @@ cannot answer is refused whole with `unsupported_version`, never answered with a
 
 ## 7. Idempotency, where an Action declares it
 
-Declared per Action (ENDP-15):
+Declared per Action (ENDP-38), read from the header or from one or more named members of the input,
+in order — a reading keyed by vehicle, kind and instant names three:
 
 - a required key that is absent is `400` (ENDP-18);
 - a key reused with a different body is `409` (ENDP-17);
@@ -76,5 +77,5 @@ key and mean two performances (ENDP-34) — and keep the derivation stable acros
 
 Against the JSON Schema published for that Action (ACT-2). A body that parses and does not match is
 `schema_mismatch`; one that matches and the Worker's own rules refuse is `unprocessable_content`
-(ACT-9). Publish the schema and validate against the same declaration, so the form a console renders
-and the validation a request meets cannot drift apart.
+(ACT-17). Publish the schema and validate against the same declaration, so the form a console
+renders and the validation a request meets cannot drift apart.

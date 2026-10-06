@@ -58,13 +58,13 @@ export type Report = {
   /**
    * The edition this verifier holds.
    *
-   * DESC-25 binds a verifier rather than a Worker, and publishing an edition is what made it ours
+   * DESC-33 binds a verifier rather than a Worker, and publishing an edition is what made it ours
    * to obey: a tool that does not hold the declared MAJOR verifies nothing and says it is the one
    * that is behind. A report that left this out would leave a reader unable to tell a Worker that
    * failed from a verifier that could not read it.
    */
   verifierEdition: string;
-  /** Set where DESC-25 stopped the run: this verifier is older than the Worker. */
+  /** Set where DESC-33 stopped the run: this verifier is older than the Worker. */
   older?: true;
   results: Result[];
 };
@@ -117,7 +117,7 @@ export const tally = (results: Result[]): Record<Verdict, number> => {
  *
  * `say` drops an id the universe does not carry rather than throwing, and that is deliberate: a
  * verifier holding an older `rules.json` than the module was written against reports what it can
- * and stays silent about what it cannot, which is DESC-25's posture one level down.
+ * and stays silent about what it cannot, which is DESC-33's posture one level down.
  */
 export function verdicts(rules: Map<string, Rule>, claims: readonly string[]) {
   const results: Result[] = [];

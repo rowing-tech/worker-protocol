@@ -80,8 +80,8 @@ pnpm --filter @worker-protocol/conformance test
 Runs the verifier. [that package's fleet-worker suite][verify] starts this Worker on workerd over a
 real socket with `wrangler`'s `unstable_dev`, and points `verify()` at the port with nothing changed
 — the same tool, the same rule universe, and the same 144 verdicts it produces against the two
-Workers that run on Node. It fails one rule, DESC-3, because a loopback address serves `http` and
-DESC-3 fixes `https`; that is the harness and not the Worker, and it is asserted rather than
+Workers that run on Node. It fails one rule, DESC-35, because a loopback address serves `http` and
+DESC-35 fixes `https`; that is the harness and not the Worker, and it is asserted rather than
 excluded so that a second failure says which.
 
 [verify]: ../../packages/conformance/src/__tests__/fleet-worker.test.ts

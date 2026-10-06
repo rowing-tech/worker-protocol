@@ -24,10 +24,10 @@ const at = (path: string, init: RequestInit = {}) =>
 const fleet = () => fleetOf(env);
 
 describe("what a Tower reads first", () => {
-  it("serves the Descriptor at the address DESC-3 fixes, declaring this Worker's Capabilities", async () => {
+  it("serves the Descriptor at the address DESC-35 fixes, declaring this Worker's Capabilities", async () => {
     const response = await at("/.well-known/worker-protocol");
     expect(response.status).toBe(200);
-    // ENDP-5: every answer carries the edition, so a reader that got one it did not expect knows
+    // ENDP-37: every answer carries the edition, so a reader that got one it did not expect knows
     // to re-read rather than to guess.
     expect(response.headers.get("worker-protocol-edition")).toBeTruthy();
 

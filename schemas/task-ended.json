@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task-ended.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EVT-15. The ended Task's id, as TASK-28 gave it."
+    },
+    "type": {
+      "description": "EVT-15. The ended Task's type.",
+      "$ref": "qualified-name.json"
+    }
+  },
+  "required": [
+    "id",
+    "type"
+  ],
+  "additionalProperties": {},
+  "title": "Task ended",
+  "description": "EVT-15. The data of `tech.rowing.worker-protocol.task-ended`: the Task's condition stopped holding, for whatever reason, and nobody closed it. At least these members; a Worker may carry more of its own."
+}

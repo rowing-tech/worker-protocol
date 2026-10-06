@@ -10,20 +10,20 @@
     },
     "address": {
       "type": "string",
-      "pattern": "^(?:https:\\/\\/|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "pattern": "^(?:https:\\/\\/|http:\\/\\/(?:localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(?=[:/?#]|$)|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
       "title": "Address",
       "format": "uri-reference",
-      "description": "DESC-12. An absolute https URL, or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+      "description": "DESC-36. An absolute https URL — or http on a loopback host, where no network path exists to read a credential on — or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
     },
     "broker": {
+      "description": "EVT-13. WHICH broker this Worker publishes to, named however its operators name it — the cluster or the service, not the place on it, which is `destination`. Nothing here parses it, exactly as nothing parses a metric unit.",
       "type": "string",
-      "minLength": 1,
-      "description": "EVT-11. WHICH broker this Worker publishes to, named however its operators name it — the cluster or the service, not the place on it, which is `destination`. Nothing here parses it, exactly as nothing parses a metric unit."
+      "minLength": 1
     },
     "protocolBinding": {
+      "description": "EVT-13. Which CloudEvents protocol binding the attributes are laid out under. Not fixed and not parsed: a protocol binding is a property of a transport, and fixing one would mean naming a broker or publishing a list of the ones somebody had thought of. It is spelled in full because `binding` alone is what a deployment calls a resource it was handed, which is a different thing that sits a few lines away in the same config.",
       "type": "string",
-      "minLength": 1,
-      "description": "EVT-11. Which CloudEvents protocol binding the attributes are laid out under. Not fixed and not parsed: a protocol binding is a property of a transport, and fixing one would mean naming a broker or publishing a list of the ones somebody had thought of. It is spelled in full because `binding` alone is what a deployment calls a resource it was handed, which is a different thing that sits a few lines away in the same config."
+      "minLength": 1
     },
     "destination": {
       "$ref": "event-destination.json"
@@ -41,18 +41,48 @@
     "republishWindowSeconds": {
       "type": "integer",
       "minimum": 1,
-      "description": "EVT-8. How long this Worker may publish the same `source` and `id` again. A consumer that remembers them for at least this long sees each event once. Declared because `remember forever` is not implementable, and a consumer that forgot too early would process an event twice while believing it was protected — the same reasoning that has ENDP-15 declare an idempotency window."
+      "description": "EVT-8. How long this Worker may publish the same `source` and `id` again. A consumer that remembers them for at least this long sees each event once. Declared because `remember forever` is not implementable, and a consumer that forgot too early would process an event twice while believing it was protected — the same reasoning that has ENDP-38 declare an idempotency window."
     }
   },
   "required": [
     "version",
-    "broker",
-    "protocolBinding",
-    "destination",
     "publishes",
     "republishWindowSeconds"
   ],
   "additionalProperties": {},
   "title": "Events capability entry",
-  "description": "EVT-11. The shared Capability entry with NO address: the broker, the protocol binding and the destination this Worker publishes to, what it publishes, and how long it may republish one."
+  "description": "EVT-13. The shared Capability entry with NO address: what this Worker publishes and how long it may republish one, and — where it publishes through a broker — the broker, the protocol binding and the destination, all three or none.",
+  "dependentRequired": {
+    "broker": [
+      "protocolBinding"
+    ],
+    "protocolBinding": [
+      "broker"
+    ],
+    "destination": [
+      "broker",
+      "protocolBinding"
+    ]
+  },
+  "if": {
+    "required": [
+      "broker"
+    ],
+    "not": {
+      "required": [
+        "destination"
+      ]
+    }
+  },
+  "then": {
+    "properties": {
+      "publishes": {
+        "additionalProperties": {
+          "required": [
+            "destination"
+          ]
+        }
+      }
+    }
+  }
 }

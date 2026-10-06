@@ -1,6 +1,6 @@
 {
   // The Worker as Cloudflare sees it. Nothing about the protocol lives here: `mount()` serves the
-  // Descriptor at the one route DESC-3 fixes, and every address below it is relative to that — so
+  // Descriptor at the one route DESC-35 fixes, and every address below it is relative to that — so
   // this file says where the Worker runs and never where its surfaces are.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "fleet-worker",

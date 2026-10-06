@@ -8,7 +8,7 @@ Worker serves is its own business.
 
 This is the half of *operate* that does something. [health](health.md) says whether a Worker works
 and [metrics](metrics.md) says what it did, and both are read; an operator who can only read is
-watching rather than operating. It is also the first surface here that changes state, so ENDP-3 has
+watching rather than operating. It is also the first surface here that changes state, so ENDP-36 has
 something to be about and REG-31 has an address to recommend a credential on.
 
 The declaration is [schemas/actions-entry.json](../schemas/actions-entry.json) and one Action's is
@@ -41,7 +41,7 @@ because none of them reads prose. The schema is the Worker's own — this protoc
 and [naming](naming.md) leaves a Worker's member names alone — and what it buys is that an operator
 who never met this Worker can still act on it correctly.
 
-ACT-3 and ACT-4 are declared rather than discovered for the same reason ENDP-15 has the idempotency
+ACT-3 and ACT-4 are declared rather than discovered for the same reason ENDP-38 has the idempotency
 declaration live in the Descriptor: **the order of events**. A caller decides whether it can wait,
 whether it has somewhere to put a result, and whether a retry is safe *before* it sends anything. A
 caller that had to learn any of those from a reply has already sent the request it was reasoning
@@ -102,16 +102,18 @@ design available to anyone who wants it and imposed on nobody.
 **ACT-8 (required). An input that does not match the Action's declared schema is `400`, with the
 code `schema_mismatch`.**
 
-**ACT-9 (required). An input that matches the schema and that the Worker will not accept on its own
-rules is `422`, with the code `unprocessable_content`.**
+**ACT-17 (required). An input that matches the schema and whose content the Worker refuses on its
+own rules is `422`, with the code `unprocessable_content`; one refused because it conflicts with the
+Worker's current state is `409`, with the code `conflict`.**
 
 **ACT-10 (required). An Action that completes within the call answers `200` with its declared
 result, or `204` where it declares none.**
 
-**ACT-11 (required). An Action that declares it does not complete within the call answers `202`
-with no body.**
+**ACT-18 (required). An Action that declares it does not complete within the call answers `202`,
+with the result it declares under ACT-3 as the body where it declares one, and no body where it
+declares none.**
 
-ACT-8 and ACT-9 are ENDP-12 with the two cases named. *I cannot read this* and *I read it and I
+ACT-8 and ACT-17 are ENDP-12 with the two cases named. *I cannot read this* and *I read it and I
 will not have it* are fixed by looking at two different things — a serializer and a payload — and
 collapsing them makes both look like the other. An Action is where that distinction finally has a
 body to be about.
@@ -121,16 +123,16 @@ vocabulary means a new code requires a new edition, and this is the file that sp
 `malformed_request`, which names a body that will not parse at all, and the difference is what a
 caller does next. A body that will not parse is a serializer bug in the caller. A body that parses
 and does not match is a caller built against a declaration that has since changed — it re-reads the
-Descriptor, which is where the answer is, and ENDP-5's headers already told it the version moved.
+Descriptor, which is where the answer is, and ENDP-37's headers already told it the version moved.
 One code for both would have sent every caller to the wrong half of its own code.
 
-ENDP-29 leaves the status of a success open and says so, and this is the file it left it open for.
+ENDP-40 leaves the status of a success open and says so, and this is the file it left it open for.
 `200` and `204` are drawn at whether the Action declared a result, so a caller knows which to expect
 before it calls and a console knows whether it has anything to render. `201` is deliberately absent:
 this protocol has no resources a caller addresses afterwards, so a `Location` would point at
 something nothing here defines.
 
-**ACT-11 is the smallest honest answer to a question this file cannot yet finish.** A Worker whose
+**ACT-18 is the smallest honest answer to a question this file cannot yet finish.** A Worker whose
 operation outlives the call says so in its declaration and answers `202`, and that is the whole of
 what this edition defines: the caller knows it was accepted, and knows it will not learn the outcome
 here. How the outcome arrives — an event, a Task, a Worker the caller polls — is not something this
@@ -142,11 +144,11 @@ decision rather than an omission.
 
 ## Saying it is the same call again
 
-**ACT-12 (required). The declaration ENDP-15 requires is carried in the Action's entry: whether a
-key is required, where the Worker reads it from — the `Idempotency-Key` header or a named member of
-the input — and how long the Worker honors one.**
+**ACT-19 (required). The declaration ENDP-38 requires is carried in the Action's entry: whether a
+key is required, where the Worker reads it from — the `Idempotency-Key` header, or the named
+members of the input, in order — and how long the Worker honors one.**
 
-This is DESC-11's first case, which [descriptor](descriptor.md) promised and could not give a shape
+This is DESC-37's first case, which [descriptor](descriptor.md) promised and could not give a shape
 to until this file existed. What those declarations mean on a call is
 [endpoints](endpoints.md)'s — ENDP-16 makes a repeat under the same key answer the recorded outcome,
 ENDP-17 makes a key reused with a different body `409`, ENDP-18 makes a required key absent `400` —
@@ -164,11 +166,19 @@ declaration names is what decides between them.
 **ACT-13 (required). `configure` is an Action name this edition reserves. A Worker that declares it
 means the Action this file defines; a Worker that accepts no settings does not declare it.**
 
-**ACT-14 (required). The input of `configure` is the Worker's complete settings document, and a
-performance replaces what the Worker holds. This edition defines no partial update.**
+**ACT-20 (required). The input of `configure` is the Worker's complete settings document, and a
+performance replaces what the Worker holds — except a member its schema marks `writeOnly` that the
+input omits, which keeps its current value. This edition defines no other partial update.**
 
-**ACT-15 (required). A Worker that declares `configure` declares a reading address for it, and a
-GET of that address answers a document its own `configure` would accept.**
+**ACT-21 (required). A Worker that declares `configure` declares a reading address for it, and a
+GET of that address answers the settings it holds, as a document its own `configure` would accept,
+without the members its schema marks `writeOnly`.**
+
+`writeOnly` is JSON Schema's own word for a value that is sent and never read back, and every form
+renderer already knows it as a password field. It is what lets an operator rotate an upstream key
+from a console without anybody — that operator included — being able to read it back afterwards,
+and it is why ACT-20 keeps an omitted one: the form a console renders from the reading address has
+no value to post back for it, and posting it back would otherwise erase it.
 
 Every other Action name is the Worker's own; this one is reserved for the same reason the undotted
 Capability names of DESC-14 are. A console that can show *this Worker's settings* for a
@@ -178,18 +188,18 @@ to draw the line with, because Action names are never compared between Workers a
 reserved list is short, it is this edition's, and a Worker that wanted `configure` for something
 else has one word to avoid.
 
-ACT-14 replaces rather than merges, and the reason is the console rather than the Worker. ACT-15
+ACT-20 replaces rather than merges, and the reason is the console rather than the Worker. ACT-21
 hands a console the current document, the console renders a form from the schema and fills it, and
 the operator posts the whole thing back — so replacement is what actually happens on the wire
 whatever the protocol says, and a merge semantics would mean two callers with two mental models of
 the same POST. A partial update is a real want and it is a different operation: a Worker that needs
 one declares an Action for it, under its own name, with a schema saying which parts it takes.
 
-ACT-15 is what makes `configure` usable rather than merely postable. Without it a console renders an
+ACT-21 is what makes `configure` usable rather than merely postable. Without it a console renders an
 empty form, an operator fills in the fields they remember, and everything they did not remember is
 replaced with whatever the schema's defaults are — which is data loss performed by a well-meaning
 person through a surface this protocol published. The reading address is separate from the entry's
-posting address because ENDP-2 and ENDP-3 draw that line everywhere else: reading is a GET and it
+posting address because ENDP-2 and ENDP-36 draw that line everywhere else: reading is a GET and it
 changes nothing.
 
 What a setting *is* stays outside. Nothing here says a setting exists, what a Worker keeps in one,
@@ -204,12 +214,50 @@ that writing it is an Action like any other.
   it. [events](events.md) publishes Facts with no addressee, so a caller waiting on one particular
   outcome is not who an event is for. [tasks](tasks.md) inverts the direction
   — a Task is work an owner offers, not a result it owes a caller. So the question survives the
-  reason it was parked for, and ACT-11 still defines nothing rather than inventing a fourth.
+  reason it was parked for, and ACT-18 still defines nothing rather than inventing a fourth.
 - Whether an Action may be declared with no input at all, or whether the empty object is the
   spelling for that. The schema admits both today and nothing depends on which.
 - Whether this edition reserves any Action name other than `configure`.
 
 ## Withdrawn
+
+- **ACT-15** (required, W, 0.1–0.4) — required that the reading address answer a document
+  `configure` would accept. Replaced by **ACT-21**, which leaves out the members marked `writeOnly`;
+  a Worker keeping an API key in its settings could not satisfy ACT-15 without serving the key to
+  every reader, and satisfies ACT-21, so the verdict moves and the id did not survive.
+
+  The argument was a form posted back without losing what nobody remembered. It never argued that a
+  secret must be readable, and it forced exactly that.
+
+- **ACT-14** (required, H, 0.1–0.4) — required that `configure` replace the whole settings document.
+  Replaced by **ACT-20**, which keeps a `writeOnly` member the input omits; a Worker keeping it
+  failed ACT-14 and satisfies ACT-20, so the verdict moves and the id did not survive.
+
+  ACT-21's other half: a value a console cannot read back is one it cannot post back, and replacing
+  would erase it.
+
+- **ACT-12** (required, W, 0.1–0.4) — required that a key read from the input be one named member.
+  Replaced by **ACT-19**, which admits several, in order; see ENDP-38, so the verdict moves and the
+  id did not survive.
+
+  The same change as ENDP-38's, carried in the entry where the declaration lives.
+
+- **ACT-11** (required, H, 0.1–0.4) — required that an Action not completing within the call answer
+  `202` with no body. Replaced by **ACT-18**, which carries the result the Action declares, where it
+  declares one; a `202` carrying a declared job id failed ACT-11 and satisfies ACT-18, so the
+  verdict moves and the id did not survive.
+
+  The argument was against this protocol inventing a mechanism for following work it does not
+  finish. A body the Worker declares itself under ACT-3 is not one.
+
+- **ACT-9** (required, H, 0.1–0.4) — required that every refusal of a schema-valid input be `422`.
+  Replaced by **ACT-17**, which answers a refusal caused by the current state `409`; a Worker
+  answering a booked slot with `409 conflict` failed ACT-9 and satisfies ACT-17, so the verdict
+  moves and the id did not survive.
+
+  The argument was the line between *I cannot read this* and *I read it and will not have it*. It
+  never argued that a refusal which a change of state could undo is the same answer as one no change
+  could.
 
 - **ACT-1** — required the same entry, with the Actions keyed by name under `actions`. Replaced by
   **ACT-16**, which puts them under `accepts`. A Descriptor written against ACT-1 fails ACT-16 and

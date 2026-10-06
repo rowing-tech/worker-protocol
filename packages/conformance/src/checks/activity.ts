@@ -11,8 +11,8 @@ import type { Transcript } from "../transcript.ts";
  * checks can reach is exactly what a program can act on — that the page has the shape and that
  * every state is one of the three.
  *
- * ACTV-5 is absent because nothing can reach it. An activity that disappears may have finished,
- * failed, or been dropped, and no tool outside the Worker can tell which — the same shape as ALRT-5
+ * ACTV-7 is absent because nothing can reach it. An activity that disappears may have finished,
+ * failed, or been dropped, and no tool outside the Worker can tell which — the same shape as ALRT-8
  * and TASK-15. ACTV-6 is `H` and lives in `arranged.ts` with ALRT-6, because two credentials have
  * to exist before two lists can be compared.
  */

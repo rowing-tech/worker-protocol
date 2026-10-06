@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "subscription-filter.json",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "exact": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "SUB-13. Context attribute names, extensions included, each with the string its value must equal, case sensitive. Every pair must match, and an attribute the event does not carry matches nothing.",
+          "minProperties": 1
+        }
+      },
+      "required": [
+        "exact"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "prefix": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "SUB-13. Context attribute names, extensions included, each with the string its value must start with, case sensitive. Every pair must match, and an attribute the event does not carry matches nothing.",
+          "minProperties": 1
+        }
+      },
+      "required": [
+        "prefix"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "suffix": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "SUB-13. Context attribute names, extensions included, each with the string its value must end with, case sensitive. Every pair must match, and an attribute the event does not carry matches nothing.",
+          "minProperties": 1
+        }
+      },
+      "required": [
+        "suffix"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "all": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "subscription-filter.json"
+          }
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "any": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "subscription-filter.json"
+          }
+        }
+      },
+      "required": [
+        "any"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "not": {
+          "$ref": "subscription-filter.json"
+        }
+      },
+      "required": [
+        "not"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "title": "Subscription filter",
+  "description": "SUB-13. One filter: `exact`, `prefix` or `suffix` over context attributes, or `all`, `any` and `not` over nested filters — `all` and `any` holding at least one."
+}

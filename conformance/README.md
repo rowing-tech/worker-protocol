@@ -17,9 +17,9 @@ live Worker. `pnpm test` runs them from TypeScript today.
 a promise the directory makes and this Worker does not keep: it is not a template and nobody should
 copy it. Most of it is a `WorkerOptions` surface that exists so the suite can configure a Worker
 *wrong* on purpose — an edition of `banana`, an id that does not match, a boot window held open —
-because that is how DESC-23, DESC-25, DESC-27, HLTH-4 and ENDP-1 are provoked. It is a test double,
+because that is how DESC-23, DESC-33, DESC-27, HLTH-4 and ENDP-1 are provoked. It is a test double,
 and a reader who opened it looking for how to write a Worker was reading the wrong file. What it
-buys is twenty-one of the twenty-three rules the register marks `H`. `examples/` now holds two
+buys is thirty-one of the thirty-seven rules the register marks `H`. `examples/` now holds two
 Workers and both are templates: [minimal-worker](../examples/minimal-worker) to copy, and
 [fleet-worker](../examples/fleet-worker) to copy on Cloudflare.
 
@@ -28,8 +28,8 @@ Workers and both are templates: [minimal-worker](../examples/minimal-worker) to 
 A run produces a verdict for **every** rule in the specification, never only for the ones it
 exercised. That is the whole design of this vocabulary, and the reason is the one this repository
 applies everywhere else: something is produced and a party reads it. A report listing the checks
-that ran, all green, over a specification of 167 rules tells an operator that a Worker was checked
-against the protocol. Today that would be 118 of them, and nothing on the page would say which — so
+that ran, all green, over a specification of 187 rules tells an operator that a Worker was checked
+against the protocol. Today that would be 138 of them, and nothing on the page would say which — so
 the reader concludes more than was established, which is the same fault as a generated artifact
 nobody compares.
 
