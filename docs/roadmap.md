@@ -89,21 +89,45 @@ what a broker is.
   subscription that exists, answered `200`, so an orchestrator ensures its subscription on every
   deploy without keeping ids.
 - **A subscription is its caller's**, with the identity ENDP-34 uses: only that caller lists or
-  deletes it.
-- **Delivery is the CloudEvents webhook specification.** Before a sink is accepted, the Worker runs
-  its abuse-protection handshake (`OPTIONS` with `WebHook-Request-Origin`, answered with
-  `WebHook-Allowed-Origin`), which is what stops a credentialed caller pointing the Worker at
-  somebody else's URL. Each delivery is a CloudEvent in the HTTP binding, carrying `Authorization:
-  Bearer <sinkCredential>` — REG-3 in the other direction, a credential the sink chose.
+  deletes it, and another caller's is `404`, so nobody learns that it exists — REG-32's reasoning
+  about refusals. A view of every subscription for the Worker's operator would be additive, and
+  waits until a Tower asks for one.
+- **A sink is an absolute `https` URL**, or the request is `400 invalid_parameter`: the bearer below
+  travels on every delivery, and DESC-3 already asks the same of a Worker's own addresses. Refusing
+  a sink that resolves to a loopback, private or link-local address is recommended, because
+  whether it can be checked depends on the platform. One explicit development setting lifts both,
+  because the typical subscriber in development is a local Convex backend at
+  `http://127.0.0.1:3211`; a Worker running with it breaks the rule on purpose, as a test over
+  loopback already breaks DESC-3.
+- **Delivery is the CloudEvents webhook specification.** While the subscription is being created,
+  the Worker runs its abuse-protection handshake (`OPTIONS` with `WebHook-Request-Origin`, answered
+  with `WebHook-Allowed-Origin`); a sink that refuses it is `422 unprocessable_content` and nothing
+  is stored, so an orchestrator learns it the moment it tries, with no pending state. That is what
+  stops a credentialed caller pointing the Worker at somebody else's URL. Each delivery is a
+  CloudEvent in the HTTP binding's structured mode (`application/cloudevents+json`), carrying
+  `Authorization: Bearer <sinkCredential>` — REG-3 in the other direction, a credential the sink
+  chose. Structured, because a Convex HTTP action then reads the whole event with one `json()`.
 - **At least once, within EVT-8's window.** A `2xx` is delivered. A network failure, a `5xx`, a
   `408` or a `429` is retried with backoff, honouring `Retry-After`, only within the window EVT-8
   already declares: every retry is a republication the consumer's deduplication covers, so no
   second window is invented. Any other `4xx` is final for that event. No order is promised.
 - **No renewal.** A subscription ends when its subscriber deletes it, when its sink has failed
-  continuously for `abandonAfterSeconds`, or when the Worker no longer accepts its caller; in the
-  last two cases the Worker makes one best-effort delivery of a `subscription-ended` event. Each
+  continuously for `abandonAfterSeconds`, or when the Worker no longer accepts its caller. Each
   listed subscription carries `lastDeliveredAt`, and `failingSince` while it fails. None of the
   three endings is silent, which a lease an automation forgot to renew would have been.
+- **An ending the subscriber did not cause is announced and left visible.** The Worker makes one
+  best-effort delivery of `tech.rowing.worker-protocol.subscription-ended`, with the subscription
+  id in `subject` and `{ reason: "abandoned" | "revoked", since }` as data, regardless of the types
+  and filters subscribed. And the ended subscription stays in the listing for
+  `abandonAfterSeconds`, with `endedAt` and `reason` and receiving nothing, because the likeliest
+  ending — a sink that was down — is the one in which the final event does not arrive either.
+  Subscribing again with the same sink, types and filters creates a new subscription.
+- **Revocation is an optional hook.** The Worker may answer whether it still accepts a caller, by
+  the same identity it names in `authenticate`, and `deliver()` asks before delivering; a no ends
+  the subscription as `revoked`. Without the hook a subscription ends only by deletion or
+  abandonment. Storing the subscriber's credential and authenticating it again was refused: it
+  keeps another party's secret, and a rotated credential would end a subscription whose caller is
+  still entitled — a false revocation.
 - **Filters are the six dialects the CloudEvents Subscriptions API requires** — `exact`, `prefix`,
   `suffix`, `all`, `any`, `not` — with its JSON shape, over context attributes, all of the list
   holding. Their semantics are written out in our own text rather than cited, because that API is
@@ -116,9 +140,25 @@ what a broker is.
   entry of *Still open here* in `spec/events.md`. The typical subscription is *a Task of type X was
   raised*, filters reach only context attributes, so the name and the attribute have to agree on
   every Worker. Publishing them is not required; a Worker that does uses these types:
-  `tech.rowing.worker-protocol.task-raised` and `task-resolved`, with the Task type in `subject`,
-  and `alert-raised` and `alert-cleared`. *Resolved* and *cleared*, because nobody closes a Task
-  (TASK-15).
+  `tech.rowing.worker-protocol.task-raised` and `task-ended`, and `alert-raised` and
+  `alert-ended`. *Ended* is ALRT-5's word: it says the condition stopped holding and nothing about
+  why or by whose doing — an answer, a change upstream, or the work simply no longer being needed —
+  so it carries no reason, and nobody closes anything (TASK-15). `subject` is
+  the Task's or the Alert's id, because CloudEvents means it as the resource the event is about;
+  what a subscriber filters on travels as extension attributes, which every filter dialect reaches:
+  `tasktype` on a Task's events and `alertseverity` on an Alert's. A raised event carries the
+  document `schemas/` already defines; `task-ended` carries `{ id, type }` and `alert-ended`
+  `{ id, severity }`, which is what a Worker still holds when something stops existing. An Alert
+  has no type today; if it gains one — *Still open here* in `spec/alerts.md` — it arrives as one
+  more extension, additively.
+- **The SDK builds those events and never detects them.** Tasks are derived on read (TASK-15), so
+  nothing in `mount()` sees one being born: a comparison of snapshots would miss a Task that came
+  and went between two of them, would fire when it ran rather than when the fact changed, and would
+  announce every existing Task on its first run. Only the Worker knows the moment — an engine like
+  arbor knows it exactly — so the SDK offers `taskRaised`, `taskEnded`, `alertRaised` and
+  `alertEnded`, which build the event with the type, `subject`, extension and data fixed here,
+  and a pure `lifecycleChanges(previous, current)` for a Worker that chooses to compare snapshots
+  itself and accepts what that costs. Nothing calls it on its own and it keeps nothing.
 - **An incompatible change inside 0.x, made by rule rather than by exception.** An `events` entry
   without a broker is not something a 0.3 reader may ignore, so DESC-24 would ask for a MAJOR. The
   protocol is published and not yet in use, and 1.0 is not worth spending on this. DESC-24 and
@@ -137,6 +177,13 @@ what a broker is.
 - **`@worker-protocol/client` gains both halves**: subscribing, listing and unsubscribing, and a
   sink helper — the handshake, the bearer check, deduplication by `source` and `id` — which is what
   a Convex HTTP action needs to receive.
+- **Conformance observes delivery through its arrangement.** A `sink` — a URL the Worker can reach
+  and a function answering what arrived there, handshakes and deliveries alike — and a
+  `publishingAction`, an Action safe to perform that publishes a named event type, because nothing
+  else lets a verifier make a Worker publish. `verify()` starts no server, so it still runs in any
+  runtime; the Node CLI brings a sink of its own, with a port and, behind a tunnel, a public URL.
+  What a credential alone observes — the entry, the refusals for a type, a sink that is not
+  `https`, another caller's subscription — needs no arrangement.
 
 **Rejected, and why:**
 
@@ -156,19 +203,6 @@ what a broker is.
   implementation, and nothing needs it yet.
 - *Retries in a Durable Object with alarms.* One alarm per object means keeping a retry queue by
   hand, and every delivery through one single-threaded object.
-
-**Settled while writing it down, and open to change before it is built:**
-
-- Structured mode (`application/cloudevents+json`) for deliveries, the simplest for a Convex HTTP
-  action to receive.
-- The handshake runs when the subscription is created; a sink that refuses it is `422
-  unprocessable_content`, and nothing is stored.
-- Another caller's subscription is `404`, so nobody learns that it exists.
-- An Alert event carries the Alert id in `subject`; `task-resolved` carries `{ id, type }` and
-  `alert-cleared` carries `{ id }`; the final event is
-  `tech.rowing.worker-protocol.subscription-ended`, with the reason.
-- Revocation is an optional hook in which the Worker says whether it still accepts a caller;
-  without it, a subscription ends only by deletion or abandonment.
 
 **Lands in:** `spec/subscriptions.md`, a new file with a prefix of its own; `spec/events.md`,
 `spec/descriptor.md`, `spec/tasks.md` and `docs/architecture.md`; `schemas/`; `packages/hono`,
