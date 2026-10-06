@@ -62,16 +62,61 @@ against its own reference Worker in CI.
 
 ## A Cloudflare package
 
-**Decided 2026-10-06, with subscriptions.** What `examples/fleet-worker` writes to put the
-protocol's stores on Cloudflare — `durableOutcomes` for ENDP-16, `durableSubscriptions` for SUB-7,
-and the `queue` handler that runs `eventHub().deliver()` and hands its decision back to the Queue —
-becomes `@worker-protocol/cloudflare` once it has run against a real deployment rather than only on
-workerd in tests. Until then it stays in the example, where its reasoning already sits beside it,
-because a package is a promise about a shape and this one has not yet met production.
+**Decided 2026-10-06, and checked against a real Worker.** What a Worker on Cloudflare writes to put
+the protocol's stores in Durable Objects becomes `@worker-protocol/cloudflare`. It is built now, in
+`packages/cloudflare` with `private: true`, and `examples/fleet-worker` imports it; it is published
+once `fleet-worker` has run on a real Cloudflare account — its two Queues, its dead-letter queue,
+an alarm and a real sink — rather than only on workerd in tests.
 
-**What is still open:** whether the package owns the Durable Object class or hands a Worker the
-methods to put on its own. The example's one object holds every Fact the Worker has, which a
-package cannot assume, and a second object per Worker costs a second hop on every call.
+The shape was decided against `soriana-trip-tracker-workers`, the first Worker on this protocol in
+production, and that changed it. It does not keep one object: it keeps one `Asset` object per
+vehicle, each with its own outbox, and one `Fleet` object for the whole fleet. A package that put
+every store in one class would put subscription tables in thousands of objects, when SUB-7 needs
+them in exactly one.
 
-**Lands in:** `packages/cloudflare`, published beside the other four, with `examples/fleet-worker`
-importing from it.
+**What was decided:**
+
+- **One mixin per piece**: `withOutcomes` (ENDP-16), `withSubscriptions` (SUB-7), `withOutbox` and
+  `withLogs` (LOG-2, LOG-7, LOG-8, ENDP-33, and what a Tail Worker writes). Each adds its tables
+  and its RPC methods to whatever class it wraps, so each object carries only what it holds — in
+  Soriana, subscriptions in `Fleet` and an outbox in every `Asset`; in `fleet-worker`, all four in
+  its one object — and a mixin composes over another base class, such as an agent's.
+- **The outbox holds the whole event.** `enqueue(at, publishables)` writes each `Publishable` with
+  its id in the same transaction as the change it reports, and the row goes once it is sent. The
+  domain's own retention then need not wait for what is pending, which Soriana coordinates by hand
+  today, and the copy lives for the seconds it takes to leave.
+- **It drains when the call ends and retries by the one alarm.** The domain calls `flush()` at the
+  end of a method; a failed send schedules the alarm. A Durable Object has one alarm, so the
+  domain asks for its own through `wakeAt(at)`, which keeps the earliest, and calls `super.alarm()`
+  from its `alarm()`, which drains first — what Soriana does by hand for its deletion and its
+  outbox, made general. A retry from the Worker's cron was rejected: with an object per vehicle,
+  the cron would need an index of which objects have something pending.
+- **Fan-out happens in the consumer of an events Queue.** `flush()` sends events to an events Queue
+  with `sendBatch`. Its consumer reads the subscriptions once per batch — up to a hundred events
+  for one call to the object that holds them — and leaves one delivery per matching subscription on
+  a deliveries Queue, whose consumer runs `deliver()`. The broker, where one is declared, is
+  published to from the same consumer, after the subscribers. Publishing from each object was
+  rejected: a run touching thousands of vehicles would be thousands of calls to one object, and an
+  outage of that object would leave every outbox retrying.
+- **What is given up stays visible.** A delivery abandoned — refused for good, outside EVT-8's
+  window, or out of `max_retries` — goes to a dead-letter queue that is inspected and never
+  redriven, as Soriana's is, which is the only thing that sees what the platform drops after the
+  last retry. Where the object carries `withLogs`, a `warn` record also names the subscription, the
+  event and the reason, so an operator without access to the Cloudflare account reads it through
+  the protocol. `deliver()` answers *given up* rather than only *done*, which is a change to
+  `DeliveryOutcome` in `@worker-protocol/hono`; `fleet-worker` gains the dead-letter queue its
+  README now argues against.
+
+**Rejected, and why:**
+
+- *One base class holding every store.* Right for `fleet-worker` and wrong for any Worker that
+  shards its state, which the one in production does.
+- *Plain functions over `SqlStorage`, wrapped by hand.* No inheritance at all, at the cost of a
+  dozen one-line RPC wrappers per Worker per piece — the boilerplate a package exists to remove.
+- *An outbox of ids, with the Worker rendering events when they are sent.* Nothing duplicated, but
+  retention would still have to wait on what is pending, and the API would carry one more piece.
+- *Publishing a prerelease for Soriana to adopt first*, or installing it from git: both put an
+  untried shape where a deploy depends on it, when deploying `fleet-worker` costs nothing.
+
+**Lands in:** `packages/cloudflare`; `examples/fleet-worker`, rebuilt on it; `DeliveryOutcome` in
+`packages/hono`; `publish.yml` and `packages/README.md` when it is published.
