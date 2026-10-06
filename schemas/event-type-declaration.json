@@ -12,6 +12,10 @@
     "destination": {
       "description": "EVT-13. Where THIS type lands on the broker, for a Worker that divides its events by subject. Absent, it lands at the entry's destination, which is the ordinary case.",
       "$ref": "event-destination.json"
+    },
+    "supersededBy": {
+      "description": "NAME-10. The event type that replaces this one, by the name `publishes` holds it under. This type is still published exactly as declared. Followed from any type, it ends at one that names none — which no schema of one entry can assert, so the verifier judges it.",
+      "$ref": "qualified-name.json"
     }
   },
   "required": [

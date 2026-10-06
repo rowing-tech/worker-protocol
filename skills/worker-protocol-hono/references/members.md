@@ -24,25 +24,28 @@ and the rule each one cites.
 - `metrics: { timeZone, publishes, read({ metric, granularity, buckets, fixed, by }) }` — answer
   `{ start, value }` per bucket there is a number for, omitting the rest (MET-15).
 - `actions: { accepts, settings?, outcomes? }` — each entry of `accepts` is
-  `action({ input, result?, idempotency?, completesWithinCall?, run })`. `run(input, call)` is told
-  `call.name`, `call.token`, `call.idempotencyKey` — the key as the caller sent it —
-  `call.principal` and `call.caller`. A Worker forwarding to another derives its downstream key from
-  the key and the caller together. `idempotency` is `{ from: "header" }` or
+  `action({ input, result?, idempotency?, completesWithinCall?, supersededBy?, run })`.
+  `run(input, call)` is told `call.name`, `call.token`, `call.idempotencyKey` — the key as the
+  caller sent it — `call.principal` and `call.caller`. A Worker forwarding to another derives its
+  downstream key from the key and the caller together. `idempotency` is `{ from: "header" }` or
   `{ from: "input", members: [...] }`, several members making one key in order (ENDP-38). An
   asynchronous Action's declared `result` is the body of its `202` (ACT-18). Mark a `configure`
   secret with `.meta({ writeOnly: true })`: `mount()` leaves it out of the reading address and
-  keeps it when a form omits it (ACT-20, ACT-21).
+  keeps it when a form omits it (ACT-20, ACT-21). `supersededBy` names the Action in `accepts` that
+  replaces this one, which is still answered as declared (NAME-10).
 - `alerts: () => Alert[]` — `{ id, severity: "warning" | "critical", since, summary, actions }`.
   `since` is when the condition began (ALRT-3).
 - `activity: () => Activity[]` — `{ id, state, since, summary }`, state being `scheduled`, `pending`
   or `running` (ACTV-4).
 - `nudges: (type) => void` — note the type and read the work sooner. Optional, and what it buys is
   latency alone (TASK-19).
-- `tasks: { raises: { [type]: { payload, answeredBy? } }, current(), covers?, pageSize? }` —
-  `answeredBy` is absent for a type no Action answers, whose condition clears on a Fact (TASK-34);
-  `current()` derives the open Tasks on every read, because nobody closes one (TASK-15).
-- `events: { broker, protocolBinding, destination, publishes: { [type]: { data } },
-  republishWindowSeconds? }` — a declaration only. No address is served (EVT-13).
+- `tasks: { raises: { [type]: { payload, answeredBy?, supersededBy? } }, current(), covers?,
+  pageSize? }` — `answeredBy` is absent for a type no Action answers, whose condition clears on a
+  Fact (TASK-34); `current()` derives the open Tasks on every read, because nobody closes one
+  (TASK-15).
+- `events: { broker, protocolBinding, destination, publishes: { [type]: { data, supersededBy? } },
+  republishWindowSeconds? }` — a declaration only. No address is served (EVT-13). A Task type's or
+  an event type's `supersededBy` names its replacement in the same map, as an Action's does.
 - `subscriptions: { abandonAfterSeconds, store, queue, allows?, accepts?, insecureSinkOrigins? }` —
   `store` a consistent `SubscriptionStore` (a Durable Object, or `memorySubscriptions()` in one
   process), `queue` a `DeliveryQueue` whose consumer calls `eventHub(...).deliver`. `allows` is the

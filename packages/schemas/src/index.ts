@@ -798,6 +798,17 @@ export const actionDeclaration = z
         "`configure` and optional for every other Action — which is a condition on the KEY an " +
         "entry is held under, and so a rule rather than a shape.",
     }),
+    supersededBy: z
+      .string()
+      .min(1)
+      .optional()
+      .meta({
+        description:
+          "NAME-10. The Action that replaces this one, by the name `accepts` holds it under. It " +
+          "changes nothing on a call: this Action is still answered exactly as declared. Followed " +
+          "from any Action, it ends at one that names none — which no schema of one entry can " +
+          "assert, so the verifier judges it.",
+      }),
   })
   .meta({
     title: "Action declaration",
@@ -857,6 +868,13 @@ export const taskTypeDeclaration = z
           "who. Absent for a type no Action answers — work done elsewhere, whose condition " +
           "clears when a Fact the Worker observes changes.",
       }),
+    supersededBy: qualifiedName.optional().meta({
+      description:
+        "NAME-10. The Task type that replaces this one, by the name `raises` holds it under. A " +
+        "Task of this type is still raised and read exactly as declared. Followed from any type, " +
+        "it ends at one that names none — which no schema of one entry can assert, so the " +
+        "verifier judges it.",
+    }),
   })
   .meta({
     title: "Task type declaration",
@@ -1133,6 +1151,12 @@ export const eventTypeDeclaration = z
       description:
         "EVT-13. Where THIS type lands on the broker, for a Worker that divides its events by " +
         "subject. Absent, it lands at the entry's destination, which is the ordinary case.",
+    }),
+    supersededBy: qualifiedName.optional().meta({
+      description:
+        "NAME-10. The event type that replaces this one, by the name `publishes` holds it under. " +
+        "This type is still published exactly as declared. Followed from any type, it ends at " +
+        "one that names none — which no schema of one entry can assert, so the verifier judges it.",
     }),
   })
   .meta({

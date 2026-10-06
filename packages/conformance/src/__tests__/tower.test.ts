@@ -1,5 +1,5 @@
 import type { AddressInfo } from "node:net";
-import { type Compatibility, canAnswer, consume, Refused } from "@worker-protocol/client";
+import { type Compatibility, canAnswer, compare, consume, Refused } from "@worker-protocol/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createWorker } from "../../../../conformance/reference-worker/src/server.ts";
 
@@ -13,8 +13,8 @@ import { createWorker } from "../../../../conformance/reference-worker/src/serve
  * declares, that a dead Worker is a fact the moment a poll fails, and that none of it requires the
  * Tower to be in anybody's execution path.
  *
- * Eight rules in `spec/` bind a Tower — DESC-19, DESC-20, REG-35, REG-14, REG-16, REG-19, REG-29,
- * REG-30 — and `conformance/verifiability.md` classes every one of them `P`, because a verifier
+ * Nine rules in `spec/` bind a Tower — DESC-19, DESC-20, REG-35, REG-14, REG-16, REG-19, REG-29,
+ * REG-30, REG-36 — and `conformance/verifiability.md` classes every one of them `P`, because a verifier
  * pointed at a base URL never contacted the party they oblige. This is that party, written once so
  * the rules have somewhere to be true, and it is built on `@worker-protocol/client` because a
  * Tower is a consumer that only ever reads.
@@ -52,7 +52,7 @@ function tower() {
     entries: () => [...enrolled.values()],
     entry: (baseUrl: string) => enrolled.get(baseUrl),
 
-    /** DESC-19, DESC-20, REG-35, REG-14, REG-19 — one round of polling every enrollment. */
+    /** DESC-19, DESC-20, REG-35, REG-14, REG-19, REG-36 — one round of polling every enrollment. */
     async poll() {
       for (const enrollment of enrolled.values()) {
         try {
@@ -65,6 +65,19 @@ function tower() {
             continue;
           }
           enrollment.id ??= worker.descriptor.id;
+
+          // REG-36: what changed under a name the Worker kept, against the copy this Tower held —
+          // the only `before` anybody has. The comparison is `compare` in the client, for the reason
+          // `canAnswer` is there; what is the Tower's own is putting it where the operator looks.
+          if (enrollment.descriptor !== undefined) {
+            const before = enrollment.descriptor as Parameters<typeof compare>[0]["before"];
+            for (const change of compare({ before, after: worker.descriptor })) {
+              const at = change.at === "" ? "" : ` at \`${change.at}\``;
+              enrollment.notes.push(
+                `REG-36: ${change.carried} ${change.name}${at} is ${change.verdict}: ${change.why}`,
+              );
+            }
+          }
 
           // DESC-20: the copy is dated, and the Worker's own Descriptor wins wherever the two
           // differ. This is the one thing a Tower keeps that looks like a Worker's, and it is
@@ -247,6 +260,34 @@ describe("a Control Tower, over Workers that answer", () => {
     } finally {
       await renamed.close();
     }
+  });
+
+  it("REG-36: shows the operator a schema that changed breakingly under a name the Worker kept", async () => {
+    // NAME-2 forbids it and nothing on a call reveals it: the next call is refused, or is not and
+    // means something else. The Tower is the one party holding two moments of the same Worker.
+    const registry = tower();
+    registry.enroll(worker.url, "a-token");
+    await registry.poll();
+    await registry.poll();
+    // Two reads of a Worker that changed nothing: nothing to show, which is most polls.
+    expect(registry.entry(worker.url)?.notes).toEqual([]);
+
+    // The copy held before is made the one a Worker would have served before it began requiring a
+    // currency — the same move the REG-14 case makes, since no Worker here redeploys between polls.
+    const entry = registry.entry(worker.url);
+    const held = structuredClone(entry?.descriptor) as {
+      capabilities: { actions: { accepts: Record<string, { input: Record<string, unknown> }> } };
+    };
+    const quote = held.capabilities.actions.accepts["price-quote-in-currency"];
+    if (entry === undefined || quote === undefined) throw new Error("the reference Worker changed");
+    quote.input = { ...quote.input, required: ["amount"] };
+    entry.descriptor = held;
+
+    await registry.poll();
+    expect(entry.notes).toEqual([
+      "REG-36: action input price-quote-in-currency at `currency` is breaking: required by the new " +
+        "schema and not by the old",
+    ]);
   });
 
   it("answers at ENROLLMENT whether a Worker can read another's Tasks", async () => {

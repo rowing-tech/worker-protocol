@@ -275,7 +275,7 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(27);
+    expect(counts.otherSubject).toBe(28);
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(22);
     // How many of the rules that need a Worker ARRANGED to be observed this double actually buys.
@@ -287,7 +287,7 @@ describe("the reference worker, verified", () => {
     expect(arranged.length).toBe(31);
 
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(132);
+    expect(counts.passes).toBe(133);
     expect(counts.fails).toBe(0);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,

@@ -1,0 +1,17 @@
+{
+  "schema": "task-type-declaration",
+  "valid": true,
+  "rule": "NAME-10",
+  "why": "A Task type that names its replacement. It is still raised and read exactly as declared; what the member adds is the relation a reader could otherwise only guess from the spelling of two names. Whether the name it carries is one `raises` holds is a statement about the whole map, which no schema of one declaration can make, so the verifier judges that half.",
+  "document": {
+    "payload": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      }
+    },
+    "supersededBy": "tech.rowing.fleet.verify-vehicle-v2"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "@worker-protocol/schemas",
   "version": "0.6.0",
-  "workerProtocolEdition": "0.3",
+  "workerProtocolEdition": "0.4",
   "description": "The Zod objects that generate the worker-protocol JSON Schemas, and the way to consume them from TypeScript",
   "keywords": [
     "worker-protocol",

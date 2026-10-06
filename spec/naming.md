@@ -57,10 +57,13 @@ one of them at once, and the parties holding it are given no signal of any kind:
 resolves, the Worker still answers, and what comes back is something else.
 
 That is the same failure REG-35 refuses at the level of a Worker's identity, one level down in the
-vocabulary. It is worth noticing that this protocol has no mechanism that would catch it. The Tower
-keeps a dated copy of each Descriptor and could in principle see a name disappear and return, but
-it is authority over none of it and no rule asks it to look; a consumer sees nothing at all,
-because its next call succeeds.
+vocabulary. A consumer sees nothing at all, because its next call succeeds, and a verifier sees one
+Descriptor and never the one before it. The only party holding two moments of a Worker is the
+Tower, which keeps a dated copy of each Descriptor, and REG-36 in [registration](registration.md)
+asks it to compare them and show the operator what changed under a name that stayed. That reaches
+the half of a reuse a schema can show. The half NAME-5 says needs a person — a field that kept its
+type and changed its units — still reaches nobody, and a Tower that shows nothing has not said the
+name was kept for the same thing.
 
 The rule says *for a different thing*, which is narrower than it may read. Retiring a name and
 bringing it back for the same thing is not reuse and is not forbidden — a Worker that withdrew an
@@ -279,11 +282,11 @@ ones, deliberately, and each says which it is.
 file once listed it as blocked for a mechanical reason — DESC-22 keys Capabilities by name, so a
 Worker had nowhere to say *I also still answer the previous one*. descriptor.md has since settled
 that a Capability is declared once and explained why the second entry was the wrong instrument:
-what a consumer actually holds is an Action or a Task type, not a Capability surface, and NAME-2
-makes a payload that changed breakingly a different thing, which under NAME-7 is a different name.
-So an owner keeps an old consumer working by declaring **both names at once**, each with its own
-schema, and the old one leaving the Descriptor is the announcement that it is gone. There is now
-somewhere to declare it, and it was never the Capability entry.
+what a consumer actually holds is an Action, a Task type or an event type, not a Capability
+surface, and NAME-2 makes a payload that changed breakingly a different thing, which takes a
+different name. So an owner keeps an old consumer working by declaring **both names at once**, each
+with its own schema, and the old one leaving the Descriptor is the announcement that it is gone.
+There is now somewhere to declare it, and it was never the Capability entry.
 
 *How long* the old name stays is then the owner's, and this protocol does not state a number for
 the same reason [health](health.md) states no poll cadence: it would be a figure every deployment
@@ -291,24 +294,65 @@ was measured against, invented by somebody who had seen none of them. What the p
 that the window is *visible* — both names are in the Descriptor while both are answered — and that
 is already true.
 
-What a breaking change then costs is already fixed elsewhere and is not repeated here. DESC-9 makes
-a Capability's version a single integer and DESC-29 makes it count breaking changes to that
-Capability, so the number moving *is* the announcement. ENDP-37 puts that version on every response,
-and ENDP-6 lets a caller state the version it expects and be refused whole rather than guessed at. A
-consumer therefore discovers a breaking change on its next call, loudly, with a `400` that names the
-version — which is the discovery this protocol is built to deliver, and it needs nothing from this
-file.
+**NAME-10 (required). A declaration of an Action, a Task type or an event type may name in
+`supersededBy` the declaration that replaces it, which is another member of the same map in the
+same Descriptor. Followed from any declaration, `supersededBy` ends at a declaration that carries
+none.**
+
+The window being visible is not the same as it being legible. A reader holding `create-invoice`
+that finds `create-invoice-v2` beside it has two declarations and nothing that relates them; it
+can guess from the spelling, and the spelling is the one thing this file has declined to fix. A
+console cannot say *move to this one*, a Tower cannot tell the operator which Contracts still name
+the old one, and a consumer's author has to ask somebody. `supersededBy` is the Worker saying, in
+the document every reader already parses, what it said nowhere before.
+
+The map is the one the declaration already sits in — `accepts` for an Action, `raises` for a Task
+type, `publishes` for an event type — because that is the map a reader holds when it meets the old
+name, and resolving the reference needs nothing it has not already read. A Task type that moves to
+another Worker is a different event: it leaves this Descriptor and appears in that one, which no
+reference inside one document could express. A Skill carries no `supersededBy` for the same reason
+it carries no schema of the owner's: the Task type it answers is the owner's to replace, in
+`raises`, and an answering Worker follows by declaring the new Skill.
+
+What the member does not say is as deliberate. It changes nothing on a call: the old declaration is
+still in the Descriptor, so it is still answered exactly as it declares, and a caller that ignores
+`supersededBy` loses nothing it had. It carries no date, for the reason the paragraph above states
+no duration — a date would be a promise nobody could check and every reader would plan against. And
+it claims nothing about compatibility: the two declarations are different things under NAME-2, and
+each one's schema is read from its own entry.
+
+The rule binds, and the prohibition in its second sentence is what the binding is for. A reader
+that follows `supersededBy` to a name the map does not hold, or around a loop back to where it
+started, has moved off a declaration the Worker answers and onto nothing, on the Worker's own word.
+That is a party acting on what another produced and getting it wrong, and it is visible in the
+Descriptor alone: a verifier resolves every reference in the map it read.
+
+What a breaking change then costs depends on which of two things broke, and the two are discovered
+differently. A Capability's own surface breaking is a protocol event: DESC-9 makes its version a
+single integer and DESC-29 makes it count breaking changes to that surface, so the number moving
+*is* the announcement. ENDP-37 puts that version on every response, and ENDP-6 lets a caller state
+the version it expects and be refused whole with `unsupported_version` rather than guessed at. A
+payload breaking under a name the Worker kept is the reuse NAME-2 forbids, and nothing names a
+version for it: a caller sending the old shape is refused `400` because its body no longer matches
+the declared schema, and a change that kept the shape and moved the meaning is not refused at all.
+The first is the discovery this protocol is built to deliver. The second is why a breaking change to
+a payload takes a new name, and why `supersededBy` exists to point at it.
 
 **Whether anyone is told *proactively* when a breaking change lands under a Contract already
 granted was open, and is not any more.** It was parked until [alerts](alerts.md) was written,
 because a notification needs somewhere to arrive and that file was where it would be. It is not: an
 Alert is read by whoever operates a Worker, and a consumer under a Contract is not that party and
-may hold no credential for the address at all. So the loud discovery described above is the whole
-of it. The Contract's own contents are open in [undecided](../docs/undecided.md) besides.
+may hold no credential for the address at all. So for a consumer, the discovery described above is
+the whole of it: refused when the shape moved, and `supersededBy` read off the Descriptor when the
+Worker named a replacement. The operator is the party who can be shown more, and REG-36 is what
+shows them. The Contract's own contents are open in [undecided](../docs/undecided.md) besides.
 
 ## Still open here
 - Whether a name carries a length bound. Nothing here needs one, and every bound anyone proposed
   would be arbitrary; it is listed only so that its absence is visibly a decision.
+- Whether a metric declaration carries `supersededBy`. A metric's name is local to its Worker, as
+  an Action's is, and a dashboard holds it the way a consumer holds an Action; but no Contract
+  names one, and NAME-10 was written for the three names NAME-2 says a Contract does.
 
 ## Withdrawn
 

@@ -118,4 +118,10 @@ describe("the minimal worker", () => {
       expect(verdict(id), id).toBe("passes");
     }
   });
+
+  it("names the event type that replaced an old one, and the name resolves", () => {
+    // NAME-10, read off the Descriptor: the old event is still declared, says what replaced it, and
+    // what it names is in the same `publishes`. One line in the Worker, and nothing for `mount()`.
+    expect(verdict("NAME-10")).toBe("passes");
+  });
 });

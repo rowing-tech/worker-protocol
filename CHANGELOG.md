@@ -86,6 +86,17 @@ which `^0.5.0` does not take.
   SemVer's `0.x` clause, and DESC-33, which has a verifier behind on MINOR verify nothing while the
   MAJOR is 0. The withdrawn rules carry their class, reach and editions in their `Withdrawn`
   entries, and a Worker of 0.3 is still judged by them (DESC-31).
+- **A declaration may name what replaces it** (NAME-10). An Action, a Task type or an event type
+  carries an optional `supersededBy`: another member of the same map, and followed from anywhere it
+  ends at one that names none. A breaking change to a payload already took a new name under NAME-2;
+  now the Descriptor says which name replaces which, instead of a reader guessing from the spelling.
+  It changes nothing on a call, carries no date and claims nothing about compatibility.
+- **A Tower compares what changed under a kept name** (REG-36, recommended). Against the copy it
+  held, it shows the operator every Action, Task type and event type whose schema now refuses a
+  document the other side accepted, in NAME-6's direction. It reaches the half of NAME-5 a schema
+  can show; a Tower that shows nothing has certified nothing. `naming.md` no longer says the
+  discovery of a payload change is a `400` naming the version, which was only ever true of a
+  Capability's own surface.
 
 ### Added
 
@@ -104,7 +115,16 @@ which `^0.5.0` does not take.
   its own.
 - **`@worker-protocol/conformance`**: the `subscriptions` checks, with two new arrangements — a
   `sink` the Worker can reach and a `publishingAction` that makes it publish — and EVT-13 and
-  EVT-14 judged off the Descriptor.
+  EVT-14 judged off the Descriptor. NAME-10 is judged off the Descriptor too: a replacement the map
+  does not hold, or a chain that returns to where it started, fails it.
+- **`@worker-protocol/schemas`**: `supersededBy` on `actionDeclaration`, `taskTypeDeclaration` and
+  `eventTypeDeclaration`, a qualified name on the last two.
+- **`@worker-protocol/hono`**: `supersededBy` on an Action and on a Task type in `raises`, written
+  into the Descriptor as declared; an event type carries it already, being the schema's own shape.
+- **`@worker-protocol/client`**: `compare({ before, after })`, REG-36's comparison of two copies of
+  one Descriptor, beside `canAnswer` and for the same reason. Each `Change` names the schema, the
+  declaration, the member and why, and is `breaking` or `unjudged` — the second for a keyword it
+  does not read, said rather than passed.
 
 ### Changed
 

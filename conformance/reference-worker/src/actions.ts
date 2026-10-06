@@ -81,12 +81,24 @@ export function createActions(facts: {
     "price-quote": action({
       input: z.object({ amount: z.number() }),
       result: z.object({ quote: z.number() }),
+      // NAME-10: a quote now needs a currency, which every caller built on this input omits — so
+      // the new shape is a new name, this one is still answered exactly as before, and the
+      // Descriptor says which replaces which rather than leaving a reader to guess from spelling.
+      supersededBy: "price-quote-in-currency",
       run: ({ amount }): { quote: number } | Refusal =>
         // ACT-17: schema-valid, and refused on this Worker's own rules. ENDP-12's second half, and
         // the one case a verifier cannot provoke without a Worker built to offer it.
         amount <= 0
           ? { code: "unprocessable_content", message: "An amount is positive." }
           : { quote: amount * 1.21 },
+    }),
+    "price-quote-in-currency": action({
+      input: z.object({ amount: z.number(), currency: z.string().length(3) }),
+      result: z.object({ quote: z.number(), currency: z.string() }),
+      run: ({ amount, currency }): { quote: number; currency: string } | Refusal =>
+        amount <= 0
+          ? { code: "unprocessable_content", message: "An amount is positive." }
+          : { quote: amount * 1.21, currency },
     }),
     "rebuild-index": action({
       input: z.object({}),

@@ -18,8 +18,9 @@ behind it.
 
 So this file divides about evenly. Nine rules bind — how a credential is presented, that a Worker
 accepts the one recorded for it, that a refusal is not disguised, and what the Tower owes the
-operator reading its catalog. Eight recommend, and they are almost exactly the lifecycle: who holds
-a credential, how it is rotated, how much a refusal says. A recommendation carries an id and is
+operator reading its catalog. Nine recommend, and they are almost exactly the lifecycle: who holds
+a credential, how it is rotated, how much a refusal says — and, once, what a Tower compares between
+two copies of a Descriptor. A recommendation carries an id and is
 marked `(recommended)`; the convention, and what a conformance report does with one, is in
 [spec/README.md](README.md).
 
@@ -213,6 +214,45 @@ of them.
 A person resolves it, because a person is what created the binding. That is not ceremony: the only
 fact that would settle it — whether this is the same system under new management or a stranger — is
 not in any document either party serves.
+
+## When a declaration changes under a name it kept
+
+**REG-36 (recommended). A Tower compares each Descriptor it reads with the copy it held before, and
+shows the operator every Action, Task type and event type whose schema changed under the name it
+kept so that a document valid on one side is refused on the other: for what the Worker receives, a
+document the old schema accepted and the new one refuses; for what it sends, one the new schema
+accepts and the old one refuses.**
+
+This is the section above one level down. A different id at an enrolled URL is a different Worker
+where the old one stood; a different schema under a kept name is a different thing where the old
+one stood, which NAME-2 forbids and nothing on a call reveals. A consumer's next call either is
+refused, and it cannot tell a Worker that broke a name from one it is calling wrongly, or succeeds
+and means something else. A verifier reads one Descriptor and has no *before*. The Tower is the only
+party holding two moments of the same Worker, because DESC-20 has it keep a dated copy of what it
+read, so it is the only party that can look.
+
+The two directions are NAME-6's and are not a refinement. A required member added to an Action's
+input breaks every caller built on the old one; the same member added to an event's data breaks
+nobody. A Tower that compared without the direction would show the operator half of what broke and
+as much again that did not, and the operator would learn to ignore it.
+
+What it shows is the structural half of NAME-5 and nothing more, and a Tower that shows nothing
+has not certified anything. A field that kept its type and changed its units passes every
+comparison two schemas allow. Saying so is the difference between a check and an assurance, and
+this rule asks only for the check.
+
+*The copy it held before* is whatever the Tower kept. A Tower that keeps only the last copy compares
+consecutive reads and misses a name that left and came back changed; one that keeps more can
+compare against the last copy that declared the name, which is what NAME-2's *second life* would
+need. How much history a Tower keeps is its own, and this rule does not buy it a store.
+
+It recommends, and the reason is where the fault lies. The Worker that changed a schema under a
+kept name is the one that broke NAME-2, and a Tower that does not compare has misinformed nobody:
+its catalog still shows exactly what the Descriptor declares, which is all DESC-20 asks. What it has
+done is leave the operator to find out from a consumer, later, which makes one deployment worse
+while every call between the parties goes exactly as it would have — the shape of advice, not of a
+contract. The Control Tower is named in these files, which is what gives this specification the
+standing to offer it.
 
 ## Which origins are a Worker's own
 

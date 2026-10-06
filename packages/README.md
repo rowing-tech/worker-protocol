@@ -63,7 +63,8 @@ algorithm `spec/tasks.md` states rather than a policy anybody chooses — so `ca
 beside `consume`. A Control Tower product is a non-goal and this is not one: it is the question an
 operator asks when enrolling a Worker, answered from two Descriptors and calling nobody. Left
 unpublished, every Tower, teams app and proxy would derive it again and disagree about the edges —
-which is what this package exists to stop.
+which is what this package exists to stop. `compare` is beside it for the same reason: REG-36 has a
+Tower compare two copies of one Descriptor, and NAME-5 and NAME-6 state the comparison.
 
 ## The rules that bind the other side
 

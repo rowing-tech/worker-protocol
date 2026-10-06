@@ -346,6 +346,14 @@ export const fleetWorker = defineWorker<Env>((env) => ({
       "tech.rowing.fleet.vehicle-went-quiet": {
         data: z.object({ vehicle: z.string(), since: z.string() }),
       },
+      // What this event was before it carried an instant. A subscriber built on it would break on
+      // the shape above, so that shape took a new name rather than this one — and this one stays
+      // declared, exactly as it was, saying which name replaced it, until nobody reads it any more.
+      // Removing it from here is the announcement that it is gone.
+      "tech.rowing.fleet.vehicle-quiet": {
+        data: z.object({ vehicle: z.string(), quietForMinutes: z.number() }),
+        supersededBy: "tech.rowing.fleet.vehicle-went-quiet",
+      },
     },
     // How far back this Worker may republish the same event, which is what a subscriber sizes its
     // deduplication store against. Declared rather than assumed, because `remember forever` is not

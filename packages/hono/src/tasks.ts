@@ -49,7 +49,15 @@ export type OpenTask = {
  * of its own that answers it. A Task with several endings has them as variants of that Action's
  * input — `z.discriminatedUnion` — and an answerer that produces one variant is answering a subtype.
  */
-export type TaskTypes = Record<string, { payload: z.ZodType; answeredBy?: string }>;
+export type TaskTypes = Record<
+  string,
+  {
+    payload: z.ZodType;
+    answeredBy?: string;
+    /** NAME-10. The Task type that replaces this one, by the name `raises` holds it under. */
+    supersededBy?: string;
+  }
+>;
 
 /** What a Worker author implements for `tasks`, beside the declaration itself. */
 export type TaskFacts = {

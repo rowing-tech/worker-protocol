@@ -142,6 +142,24 @@ owner's answering Action takes, in both directions, and answers `compatible`, `i
 requirement has claimed the capability and said nothing about what it needs, which the protocol
 allows, and reporting that as a refusal would be inventing an obligation.
 
+## When a Worker changed under a name it kept
+
+```ts
+import { compare } from "@worker-protocol/client";
+
+for (const change of compare({ before: heldCopy, after: worker.descriptor })) {
+  console.log(change.carried, change.name, change.at, change.verdict, change.why);
+}
+```
+
+A Tower holds a dated copy of every Descriptor it reads, and is the only party holding two moments
+of the same Worker. `compare` reads the two and says, for every Action, Task type and event type
+that kept its name, where the schema now refuses a document the other side accepted — judged in the
+direction the document travels, so a required member added to an Action's input is breaking and the
+same member added to an event's data is not. It reads what a schema can show: a field that kept its
+type and changed its units passes, and an empty answer certifies nothing. A keyword it does not read
+that differs between the two is `unjudged`, rather than passed.
+
 ## Strict about what this protocol fixes, blind to what it does not
 
 Every document the protocol's schemas describe is validated, and a Worker that answers something

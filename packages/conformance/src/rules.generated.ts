@@ -1167,6 +1167,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.1"
     },
     {
+      "id": "NAME-10",
+      "file": "naming.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.4"
+    },
+    {
       "id": "NDG-1",
       "file": "nudges.md",
       "class": "required",
@@ -1319,6 +1326,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "id": "REG-35",
       "file": "registration.md",
       "class": "required",
+      "reach": "P",
+      "introducedIn": "0.4"
+    },
+    {
+      "id": "REG-36",
+      "file": "registration.md",
+      "class": "recommended",
       "reach": "P",
       "introducedIn": "0.4"
     },
@@ -1629,7 +1643,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "idempotency/required": "ENDP-18",
       "input": "ACT-2",
       "readAddress": "ACT-21",
-      "result": "ACT-3"
+      "result": "ACT-3",
+      "supersededBy": "NAME-10"
     },
     "actions-entry": {
       "": "ACT-16",
@@ -1642,6 +1657,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "accepts/*/input": "ACT-2",
       "accepts/*/readAddress": "ACT-21",
       "accepts/*/result": "ACT-3",
+      "accepts/*/supersededBy": "NAME-10",
       "address": "DESC-36",
       "version": "DESC-9"
     },
@@ -1723,7 +1739,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     "event-type-declaration": {
       "": "EVT-12",
       "data": "EVT-12",
-      "destination": "EVT-13"
+      "destination": "EVT-13",
+      "supersededBy": "NAME-7"
     },
     "events-entry": {
       "": "EVT-13",
@@ -1735,6 +1752,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "publishes/*": "EVT-12",
       "publishes/*/data": "EVT-12",
       "publishes/*/destination": "EVT-13",
+      "publishes/*/supersededBy": "NAME-7",
       "republishWindowSeconds": "EVT-8",
       "version": "DESC-9"
     },
@@ -1895,7 +1913,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     "task-type-declaration": {
       "": "TASK-34",
       "answeredBy": "TASK-34",
-      "payload": "TASK-34"
+      "payload": "TASK-34",
+      "supersededBy": "NAME-7"
     },
     "task": {
       "": "TASK-28",
@@ -1911,6 +1930,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "raises/*": "TASK-34",
       "raises/*/answeredBy": "TASK-34",
       "raises/*/payload": "TASK-34",
+      "raises/*/supersededBy": "NAME-7",
       "version": "DESC-9"
     }
   }

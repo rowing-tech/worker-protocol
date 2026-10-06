@@ -17,9 +17,9 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 101 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 102 |
 | **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 37 |
-| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 27 |
+| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 28 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
@@ -34,7 +34,7 @@ with a party has somewhere to be true.
 | Subject | Rules | Where they are checked |
 |---|---|---|
 | A consumer or a caller | DESC-13, DESC-38, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31 | `packages/client`, one test per id, against a Worker made to misbehave |
-| A Control Tower | DESC-19, DESC-20, REG-35, REG-14, REG-16, REG-19, REG-29, REG-30 | `packages/conformance/src/__tests__/tower.test.ts`, a Tower simulated over the example Workers |
+| A Control Tower | DESC-19, DESC-20, REG-35, REG-14, REG-16, REG-19, REG-29, REG-30, REG-36 | `packages/conformance/src/__tests__/tower.test.ts`, a Tower simulated over the example Workers; REG-36's comparison is `compare` in `packages/client` |
 | A verifier | DESC-34, DESC-15, DESC-16, DESC-19, DESC-33 | `packages/conformance` itself, which is the verifier they bind |
 | An issuer, a subscriber, this specification | REG-27, REG-33, EVT-5, EVT-6, EVT-7, NAME-3 | Nowhere, and the subject is the reason: no party here issues a credential or subscribes to a broker |
 
@@ -122,7 +122,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ENDP-35 | H | 0.3 | Needs the same credential and an input-keyed Action safe to perform with a second input: one caller performs, the other posts the other input carrying the same key, and it must be `409` |
 | ENDP-36 | W | 0.4 | The Actions address answers a POST, and does not serve the same operation to a GET |
 
-## registration.md — 17
+## registration.md — 18
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -143,6 +143,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | REG-31 | W | 0.1 | Recommended. A POST to the Actions address with no credential. `actions` gives this rule the state-changing address it was waiting for |
 | REG-32 | H | 0.1 | Recommended. A credential must exist that authenticates and lacks a right, so two refusals can be compared |
 | REG-33 | N | 0.1 | Who issued a credential is not in the credential |
+| REG-36 | P | 0.4 | Recommended. Binds a Tower, and needs two moments of one Worker that no verifier holds |
 
 ## actions.md — 15
 
@@ -230,12 +231,12 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | EVT-8 | W | 0.1 | The republish window, read off the entry |
 | EVT-16 | N | 0.4 | A subscriber sees the topic it was given and not the Worker's other uses of the same cluster. What would be seen, if anything could, is a deduplication store filling with ids for documents that were never events |
 
-## naming.md — 9
+## naming.md — 10
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
 | NAME-1 | W | 0.1 | Any declared name carrying an uppercase letter — a dimension, an Action, a metric — sent back folded and expected not to match. A Worker whose declarations are all lowercase exercises nothing, which is `not exercised` and not a weaker class |
-| NAME-2 | N | 0.1 | The file says it: this protocol has no mechanism that would catch it |
+| NAME-2 | N | 0.1 | A verifier holds one Descriptor and never the one before it. REG-36 has a Tower compare two copies, which is a Tower's rule, and it reaches the structural half of a reuse and not the half that needs a person |
 | NAME-3 | P | 0.1 | Recommended. Binds this specification, not a Worker |
 | NAME-4 | N | 0.1 | A Task whose condition nothing outside the Worker can affect is indistinguishable from one whose condition nobody has met yet. The fence is real and only the implementer can see which side of it they are on |
 | NAME-5 | N | 0.1 | The file says it: part of the test needs a person |
@@ -243,10 +244,11 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | NAME-7 | W | 0.1 | A Task type, a Skill and an event type are all declared now, and all three are matched by a party that did not mint them. The `tasks` and `events` entries carry them under a qualified-name key, so the pattern is asserted where they are declared |
 | NAME-8 | N | 0.1 | The file says it: no verifier can report it |
 | NAME-9 | N | 0.1 | Not checkable against one Worker. Needs a corpus |
+| NAME-10 | W | 0.4 | The Descriptor alone: every `supersededBy` in `accepts`, `raises` and `publishes` names another member of the same map, and following it from any member ends at one that carries none |
 
-**Two rules here are checkable and seven are not**, which is the thinnest showing of any file and is
-a property of the subject: almost everything naming.md decides is about names that are declared and
-then echoed, where no party's correctness turns on the spelling and nothing is left to observe.
+**Three rules here are checkable and seven are not**, which is the thinnest showing of any file and
+is a property of the subject: almost everything naming.md decides is about names that are declared
+and then echoed, where no party's correctness turns on the spelling and nothing is left to observe.
 
 ## health.md — 5
 
@@ -333,20 +335,21 @@ at all.
 
 ## Where this stands
 
-187 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
+189 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.
 
-What no tool reaches is 49 rules, and the two kinds are not the same thing. There are 27 that bind
+What no tool reaches is 50 rules, and the two kinds are not the same thing. There are 28 that bind
 a party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
 specification — and a report calls those *another subject's* because it never contacted whoever
 they oblige. The other 22 have the Worker as their subject and no witness anywhere, and a report
 calls those *unverified*. Counting either as compliance would be vouching for something nobody
 checked, which is the whole reason this file exists.
 
-`naming.md` has two rules a tool can check — NAME-1 by folding a declared name, NAME-7 now that a
-Task type is a name that actually crosses — and had none until `tasks.md` was written.
+`naming.md` has three rules a tool can check — NAME-1 by folding a declared name, NAME-7 now that a
+Task type is a name that actually crosses, NAME-10 by resolving every `supersededBy` — and had none
+until `tasks.md` was written.
 `registration.md` has four. Those two files are the thinnest here, and that is a property of their
 subjects rather than a gap: naming is mostly about names nobody types, and registration pushed
 credential lifecycle out to whatever identity provider a deployment already runs.

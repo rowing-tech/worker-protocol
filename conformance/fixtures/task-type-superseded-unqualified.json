@@ -1,0 +1,17 @@
+{
+  "schema": "task-type-declaration",
+  "valid": false,
+  "rule": "NAME-10",
+  "why": "A replacement named `verify-vehicle-v2`. NAME-10 makes it another member of `raises`, and every key of `raises` is a qualified name under NAME-7, so a name with no namespace cannot be one of them. This half of the rule is a schema's to assert, because it needs nothing but the value.",
+  "document": {
+    "payload": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      }
+    },
+    "supersededBy": "verify-vehicle-v2"
+  }
+}

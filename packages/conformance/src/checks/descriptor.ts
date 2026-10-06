@@ -32,6 +32,9 @@ export const CLAIMS = [
   // that only ANSWERS Tasks declares a Skill and no `tasks` Capability at all, and a verdict
   // reached only through that Capability would have been silent about exactly that Worker.
   "TASK-33",
+  // NAME-10 is about three Capabilities at once and needs nothing but the document, so it is judged
+  // here rather than split across the three checks that would each see a third of it.
+  "NAME-10",
 ] as const;
 
 export type Descriptor = {
@@ -202,6 +205,16 @@ export async function readDescriptor(
     if (!judgedKeys.has(id)) say(id, "passes");
   }
 
+  // NAME-10: every replacement is another member of the same map, and following them ends.
+  const { followed, broken } = supersession(document);
+  if (followed === 0) {
+    say("NAME-10", "notExercised", "no declaration names a replacement");
+  } else if (broken.length > 0) {
+    say("NAME-10", "fails", broken.join("; "));
+  } else {
+    say("NAME-10", "passes");
+  }
+
   // DESC-36: an address is an absolute https URL, or a relative reference resolved against the URL
   // the Descriptor was read from — which is this route, not the base URL.
   const surfaces: { capability: string; url: string }[] = [];
@@ -216,6 +229,47 @@ export async function readDescriptor(
   }
 
   return { results, document, url, surfaces };
+}
+
+/**
+ * NAME-10, over the three maps a declaration may name its replacement in.
+ *
+ * The schema has already said each `supersededBy` is a well-formed name; what it cannot say is
+ * whether the map holds it, because that is a statement about the whole map and not about one
+ * entry. A chain is walked from every declaration that starts one, so a loop is found from inside
+ * it and a name the map lacks is found from wherever it was reached — and each is said once, by the
+ * declaration that carries the reference, which is the one an author has to edit.
+ */
+function supersession(document: Descriptor): { followed: number; broken: string[] } {
+  const maps: [where: string, held: unknown][] = [
+    ["actions.accepts", document.capabilities.actions?.accepts],
+    ["tasks.raises", document.capabilities.tasks?.raises],
+    ["events.publishes", document.capabilities.events?.publishes],
+  ];
+  let followed = 0;
+  const broken: string[] = [];
+  for (const [where, held] of maps) {
+    const map = (held ?? {}) as Record<string, { supersededBy?: string }>;
+    for (const [name, declared] of Object.entries(map)) {
+      const next = declared.supersededBy;
+      if (next === undefined) continue;
+      followed += 1;
+      if (!Object.hasOwn(map, next)) {
+        broken.push(`${where}.${name} names \`${next}\`, which ${where} does not hold`);
+        continue;
+      }
+      // Walk on from the replacement. Only a loop that returns HERE is this declaration's to
+      // report: one that closes further along is reported by the member it closes at.
+      const seen = new Set([name]);
+      let at: string | undefined = next;
+      while (at !== undefined && Object.hasOwn(map, at) && !seen.has(at)) {
+        seen.add(at);
+        at = map[at]?.supersededBy;
+      }
+      if (at === name) broken.push(`${where}.${name} is replaced by a chain that returns to it`);
+    }
+  }
+  return { followed, broken };
 }
 
 /** DESC-35, DESC-36: a host nothing outside the process can reach, so nothing can read a token on. */

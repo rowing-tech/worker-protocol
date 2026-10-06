@@ -13,7 +13,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.3.0"
+  version: "2.4.0"
 ---
 
 # Workers on `@worker-protocol/hono`
@@ -129,7 +129,7 @@ Read `references/members.md` for the signature of each member, and
   `metrics.d.ts` and `logs.d.ts` beside it. Read the one for the Capability being declared.
 - **The consumer half** — `@worker-protocol/client`: `consume()` reads a Worker and takes work from
   it, with no web framework. A Tower, a console, or a Worker that answers another's Tasks is built
-  on it.
+  on it. `canAnswer` and `compare` judge two Descriptors without calling anybody.
 - **Worked examples** — `examples/minimal-worker/src/worker.ts` for all nine Capabilities explained
   line by line, and `examples/fleet-worker` for the same Worker on Cloudflare with a Durable Object,
   an outbox and a Tail Worker. Both at https://github.com/rowing-tech/worker-protocol.

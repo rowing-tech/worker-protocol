@@ -39,6 +39,11 @@ export type Action = {
     | { required: boolean; from: "header"; windowSeconds: number }
     | { required: boolean; from: "input"; members: string[]; windowSeconds: number };
   /**
+   * NAME-10. The Action that replaces this one, by the name `accepts` holds it under. Nothing on a
+   * call changes: this Action is still performed exactly as it is declared.
+   */
+  supersededBy?: string;
+  /**
    * What this Action does. The input has already been validated against `input` above.
    *
    * A `Refusal` of `unprocessable_content` is ACT-17: schema-valid, and refused on the Worker's own

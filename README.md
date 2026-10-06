@@ -151,15 +151,15 @@ about trust. Each still carries a `Still open here` section, which is what `stab
 be empty of. What `draft` means here is what the table above says: shaped and implementable, still
 moving — and moving now costs a withdrawal rather than a silent edit.
 
-What stands behind that: 187 rules, every one classified in
+What stands behind that: 189 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
-is broken, and every one of the 101 a tool can observe against an ordinary Worker checked by
+is broken, and every one of the 102 a tool can observe against an ordinary Worker checked by
 [`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 37 need a
 Worker *arranged* to be observed — a second credential, a boot window, an Action safe to perform, a
 Worker that records something when it is read — and pass when that arrangement is handed to the
 verifier out of band, as the base URL and the credential already are.
 
-The remaining 49 are reported rather than passed, and the two kinds are not the same: 27 bind a
+The remaining 50 are reported rather than passed, and the two kinds are not the same: 28 bind a
 party who is not a Worker, so this tool never contacted whoever they oblige, and 22 have no witness
 anywhere.
 

@@ -175,6 +175,7 @@ export type PerformOptions = {
 
 const rfc3339 = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, "Z");
 
+export { type Carried, type Change, compare } from "./compare.ts";
 export { type Compatibility, canAnswer } from "./skills.ts";
 
 export async function consume(baseUrl: string, options: CallerOptions = {}): Promise<Consumed> {

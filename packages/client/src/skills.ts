@@ -20,37 +20,9 @@
 
 import type { descriptor } from "@worker-protocol/schemas";
 import type * as z from "zod";
+import { type Declared, discriminator, requiredOf, variantsOf } from "./json-schema.ts";
 
 type Descriptor = z.infer<typeof descriptor>;
-
-/** A JSON Schema as it travels in a Descriptor, read only for the members compared below. */
-type Declared = {
-  type?: unknown;
-  const?: unknown;
-  required?: unknown;
-  properties?: Record<string, Declared>;
-  anyOf?: Declared[];
-  oneOf?: Declared[];
-};
-
-/** The variants of a union schema, or the schema itself where it is not one. */
-const variantsOf = (schema: Declared): Declared[] => schema.anyOf ?? schema.oneOf ?? [schema];
-
-/**
- * The member that tells a union's variants apart, where one does — TASK-34's discriminator.
- *
- * It is a member every variant fixes to a different constant, which is what `z.discriminatedUnion`
- * writes and what TASK-34 requires of a Task with several endings.
- */
-function discriminator(variants: Declared[]): string | undefined {
-  if (variants.length < 2) return undefined;
-  const first = variants[0];
-  if (first === undefined) return undefined;
-  return Object.keys(first.properties ?? {}).find((member) => {
-    const fixed = variants.map((one) => one.properties?.[member]?.const);
-    return fixed.every((one) => one !== undefined) && new Set(fixed).size === variants.length;
-  });
-}
 
 /**
  * What was decided, and why — so that a console can say it rather than showing a boolean.
@@ -63,10 +35,6 @@ export type Compatibility = {
   verdict: "compatible" | "incompatible" | "unknown";
   why: string;
 };
-
-/** The names a JSON Schema requires, or none where it names no `required` array. */
-const requiredOf = (schema: Declared): string[] =>
-  Array.isArray(schema.required) ? schema.required.filter((one) => typeof one === "string") : [];
 
 /** The `type` a schema fixes for one member, where it fixes one. */
 const typeOf = (schema: Declared, member: string): unknown => schema.properties?.[member]?.type;

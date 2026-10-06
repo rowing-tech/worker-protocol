@@ -14,7 +14,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.3.0"
+  version: "2.4.0"
 ---
 
 # worker-protocol, in any language
@@ -131,6 +131,13 @@ whose reason is understood is one that survives a refactor.
 - **A schema-valid input refused on its content is `422`; one refused because of current state is
   `409 conflict`** (ACT-17). A Worker that does not finish within the call answers `202`, with its
   declared `result` as the body if it declares one — a job id, say (ACT-18).
+- **A payload that changes breakingly takes a new name; it never changes under the old one**
+  (NAME-2). Judge it the way the document travels (NAME-6): a required member added to an Action's
+  input breaks every caller, the same member added to an event's data breaks nobody. Declare the new
+  name beside the old and keep answering the old one; mark it `supersededBy` the new (NAME-10) —
+  another member of the same map, and a chain that ends. Removing the old name is the announcement.
+  A Tower compares each Descriptor with the one it held and shows the operator a schema that broke
+  under a kept name (REG-36); `compare` in `@worker-protocol/client` is that comparison.
 
 ### The state-bearing surfaces
 

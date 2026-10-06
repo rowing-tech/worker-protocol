@@ -285,6 +285,7 @@ function descriptorOf(worker: Worker, edition: string): string {
         // ACT-21: where the Worker exposes its settings, the reading address is this app's to fix,
         // because this app serves it — written into the declaration so the two cannot disagree.
         ...(name === "configure" && worker.actions.settings ? { readAddress: "../settings" } : {}),
+        ...(action.supersededBy === undefined ? {} : { supersededBy: action.supersededBy }),
       };
     }
     capabilities.actions = { version: 1, address: "../actions", accepts: declared };
@@ -319,6 +320,7 @@ function descriptorOf(worker: Worker, edition: string): string {
       raises: mapValues(worker.tasks.raises, (declared) => ({
         payload: jsonSchema(declared.payload),
         ...(declared.answeredBy === undefined ? {} : { answeredBy: declared.answeredBy }),
+        ...(declared.supersededBy === undefined ? {} : { supersededBy: declared.supersededBy }),
       })),
     };
   }
