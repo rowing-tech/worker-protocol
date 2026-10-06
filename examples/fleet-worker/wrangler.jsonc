@@ -13,6 +13,17 @@
     "bindings": [{ "name": "FLEET", "class_name": "Fleet" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fleet"] }],
+  // SUB-12: every delivery to a subscriber is one message, and `eventHub().deliver` decides whether
+  // to retry it and after how long — never past EVT-8's window. `max_retries` is the ceiling over
+  // that decision, not the decision: the default of 3 would end a delivery the hub still wanted to
+  // make, so it is the platform's maximum. Backing off from 2 seconds within an hour takes about a
+  // dozen; only a sink that keeps asking for a short `Retry-After` reaches the ceiling. There is no
+  // dead-letter queue, because nothing could do anything with what landed there: the event's window
+  // is closing, and redelivering it later is what EVT-8 forbids.
+  "queues": {
+    "producers": [{ "binding": "DELIVERIES", "queue": "fleet-deliveries" }],
+    "consumers": [{ "queue": "fleet-deliveries", "max_retries": 100 }]
+  },
   // The Worker that records what this one cannot record about itself — an uncaught exception, an
   // invocation that ran out of CPU — because by then it has stopped running. `wrangler.tail.jsonc`
   // deploys it and `src/tail.ts` argues what it takes and what it throws away. Resolved by service

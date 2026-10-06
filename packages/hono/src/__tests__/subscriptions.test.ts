@@ -240,6 +240,21 @@ describe("subscriptions, the push", () => {
     });
   });
 
+  it("keeps the id and instant an outbox row already has, so a republish is one event (EVT-8)", async () => {
+    const { call, hub, queue, target } = build();
+    await call("acme", { body: request() });
+    const row = { type: TYPE, data: { vehicle: "ABC-123" }, id: "row-1", time: 0 };
+    await hub.publish(row);
+    await hub.publish(row);
+    await queue.idle();
+
+    const sent = deliveries(target.received).map((one) => one.body as CloudEvent);
+    expect(sent.map((one) => [one.id, one.time])).toEqual([
+      ["row-1", "1970-01-01T00:00:00Z"],
+      ["row-1", "1970-01-01T00:00:00Z"],
+    ]);
+  });
+
   it("delivers only what every filter holds for, extensions included (SUB-13)", async () => {
     const { call, hub, queue, target } = build();
     await call("acme", {

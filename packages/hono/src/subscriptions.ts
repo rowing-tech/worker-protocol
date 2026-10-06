@@ -152,6 +152,15 @@ export type Publishable = {
   data: unknown;
   /** Extension attributes: lowercase letters and digits, as CloudEvents requires. */
   extensions?: Record<string, string>;
+  /**
+   * EVT-1, EVT-8. The id this event already has, for a Worker that publishes from an outbox and may
+   * publish one row twice — a delivery queued and the broker then down, say. Under the same `source`
+   * and `id` a republish is one event to every consumer; under a fresh id it would be two. Absent, a
+   * new one is drawn.
+   */
+  id?: string;
+  /** When the Fact occurred, where that is not the moment of publishing: an outbox row's instant. */
+  time?: number | Date;
 };
 
 // ---- the six dialects ---------------------------------------------------------------------------
@@ -311,10 +320,10 @@ export function eventHub(worker: Publisher) {
   const envelope = (published: Publishable, at: number): CloudEvent => ({
     ...published.extensions,
     specversion: "1.0",
-    id: crypto.randomUUID(),
+    id: published.id ?? crypto.randomUUID(),
     source,
     type: published.type,
-    time: rfc3339(at),
+    time: rfc3339(published.time ?? at),
     datacontenttype: "application/json",
     ...(published.subject === undefined ? {} : { subject: published.subject }),
     data: published.data,

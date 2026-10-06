@@ -1,15 +1,31 @@
 import {
   action,
+  type CloudEvent,
+  type Delivery,
   defineWorker,
+  eventHub,
   LEVELS,
+  LIFECYCLE,
   mount,
   type OpenTask,
   type OutcomeStore,
-  rfc3339,
+  type Publishable,
+  type StoredSubscription,
+  type SubscriptionFacts,
+  type SubscriptionStore,
+  type Worker,
 } from "@worker-protocol/hono";
 import * as z from "zod";
 import type { Env } from "./env.ts";
-import { type Fleet, fleetOf, type LogRow, QUIET_AFTER_MS, type Reading } from "./fleet.ts";
+import {
+  type Fleet,
+  fleetOf,
+  type LogRow,
+  QUIET_AFTER_MS,
+  QUIET_VEHICLE,
+  quietTask,
+  type Reading,
+} from "./fleet.ts";
 
 /**
  * A Worker on Cloudflare whose Facts live in a Durable Object.
@@ -21,11 +37,12 @@ import { type Fleet, fleetOf, type LogRow, QUIET_AFTER_MS, type Reading } from "
  * The domain is a fleet, simplified from a telemetry worker that polls a GPS provider: a cron
  * records what the source last said about each vehicle, a vehicle that has not reported for a while
  * is *quiet*, a quiet vehicle is a Task for whoever can go and look, and each crossing into quiet
- * is an event somebody else may want. The provider is stubbed, because what is being demonstrated
- * is the protocol's side and not SOAP.
+ * is an event somebody else may want — on a broker, and pushed to whoever subscribed. The provider
+ * is stubbed, because what is being demonstrated is the protocol's side and not SOAP.
  */
 
-const QUIET_VEHICLE = "tech.rowing.fleet.inspect-quiet-vehicle";
+/** DESC-6: the Worker's own id, which is not the URL it is served from, and every event's source. */
+const ID = "tech.rowing.fleet.tracker";
 
 /** HLTH-3 and ALRT-2 both turn on this one number, so it is written once. */
 const BACKED_UP = 20;
@@ -46,12 +63,109 @@ const durableOutcomes = (fleet: DurableObjectStub<Fleet>): OutcomeStore => {
   };
 };
 
+/**
+ * SUB-7's store, over the same durable object, on `durableOutcomes`'s terms: each call lands on one
+ * method, and `ensure` is one method because SUB-7 needs the read and the write to be one step.
+ *
+ * Longer than that one only because a subscription crosses the RPC boundary as JSON — its filters
+ * nest, and `fleet.ts` says why that costs a string. The parsing is all that is here.
+ */
+const durableSubscriptions = (fleet: DurableObjectStub<Fleet>): SubscriptionStore => {
+  const read = (record: string | null) =>
+    record === null ? undefined : (JSON.parse(record) as StoredSubscription);
+  const readAll = (records: string[]) =>
+    records.map((one) => JSON.parse(one) as StoredSubscription);
+  return {
+    find: async (key) => read(await fleet.findSubscription(key)),
+    ensure: async (key, candidate) => {
+      const { record, created } = await fleet.ensureSubscription(key, JSON.stringify(candidate));
+      return { subscription: JSON.parse(record) as StoredSubscription, created };
+    },
+    get: async (id) => read(await fleet.getSubscription(id)),
+    list: async (caller) => readAll(await fleet.subscriptionsOf(caller)),
+    forType: async (type) => readAll(await fleet.subscriptionsFor(type)),
+    // `undefined` names a member to clear, and JSON drops it — so the cleared ones go by name.
+    update: (id, patch) =>
+      fleet.updateSubscription(id, {
+        set: JSON.stringify(patch),
+        clear: Object.entries(patch)
+          .filter(([, value]) => value === undefined)
+          .map(([name]) => name),
+      }),
+    remove: (id) => fleet.removeSubscription(id),
+  };
+};
+
+/** A comma-separated variable as a list, with the empty entries a trailing comma leaves dropped. */
+const listed = (value: string | undefined) =>
+  (value ?? "").split(",").filter((one) => one.length > 0);
+
+/** SUB-1. How long a sink may fail without interruption before its subscription ends: a day. */
+const ABANDON_AFTER_SECONDS = 86_400;
+
+/**
+ * What `subscriptions` needs from Cloudflare: the durable object as the store and a Queue as the
+ * carrier. A Queue already retries with a delay, which is the whole of what `DeliveryQueue` asks;
+ * the wrapper is here only because `send` answers a receipt nobody reads.
+ */
+const subscriptionsOf = (env: Env): SubscriptionFacts => ({
+  abandonAfterSeconds: ABANDON_AFTER_SECONDS,
+  store: durableSubscriptions(fleetOf(env)),
+  queue: {
+    send: async (delivery) => {
+      await env.DELIVERIES.send(delivery);
+    },
+  },
+  // Empty in a deployment, which is the point: `env.ts` says where this is set and where it is not.
+  insecureSinkOrigins: listed(env.DEV_SINK_ORIGINS),
+});
+
+/**
+ * EVT-13: the broker, the layout of the envelope, and WHERE on that broker these land. The keys of
+ * `destination` are this Worker's own and nothing in the protocol parses them.
+ *
+ * A module constant rather than a member written inside the builder, because two things read it:
+ * `mount()`, which writes the Descriptor from it, and `eventHub()`, which publishes by it. One
+ * declaration is the only way the two cannot disagree about what this Worker publishes.
+ */
+const EVENTS = {
+  broker: "kafka",
+  protocolBinding: "cloudevents/kafka-1.0",
+  destination: { bootstrapServers: "kafka.rowing.invalid:9092", topic: "fleet.telemetry" },
+  publishes: {
+    "tech.rowing.fleet.vehicle-went-quiet": {
+      data: z.object({ vehicle: z.string(), since: z.string() }),
+    },
+    // EVT-15: the specification's names and shapes, narrowed to the one Task type this Worker
+    // raises — so a subscriber reading the Descriptor knows what `payload` holds.
+    [LIFECYCLE.taskRaised]: {
+      data: z.object({
+        id: z.string(),
+        type: z.literal(QUIET_VEHICLE),
+        payload: z.object({ vehicle: z.string() }),
+        since: z.string(),
+      }),
+    },
+    [LIFECYCLE.taskEnded]: {
+      data: z.object({ id: z.string(), type: z.literal(QUIET_VEHICLE) }),
+    },
+  },
+  // EVT-8: what a consumer sizes its deduplication store against, and what bounds a retry.
+  republishWindowSeconds: 3600,
+} satisfies NonNullable<Worker["events"]>;
+
+/**
+ * The push, built from the declaration `mount()` serves: the id is every event's `source`, and the
+ * `events` entry is what may be published and how long a delivery may be retried.
+ */
+const hubOf = (env: Env) =>
+  eventHub({ id: ID, events: EVENTS, subscriptions: subscriptionsOf(env) });
+
 export const fleetWorker = defineWorker<Env>((env) => {
   const fleet = fleetOf(env);
 
   return {
-    // DESC-6: the Worker's own id, which is not the URL it is served from.
-    id: "tech.rowing.fleet.tracker",
+    id: ID,
 
     // REG-3, REG-34. It may await, and a Worker reading a token from an identity provider would.
     authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
@@ -147,28 +261,14 @@ export const fleetWorker = defineWorker<Env>((env) => {
       },
       // TASK-15: the condition, read from the store rather than derived from a Map in a process.
       current: async (): Promise<OpenTask[]> =>
-        (await fleet.quiet(Date.now(), QUIET_AFTER_MS)).map((one) => ({
-          id: `quiet:${one.vehicle}`,
-          type: QUIET_VEHICLE,
-          payload: { vehicle: one.vehicle },
-          since: new Date(one.since),
-        })),
+        (await fleet.quiet(Date.now(), QUIET_AFTER_MS)).map(quietTask),
     },
 
-    // EVT-13: the broker, the layout of the envelope, and WHERE on that broker these land. The
-    // keys of `destination` are this Worker's own and nothing in the protocol parses them.
-    events: {
-      broker: "kafka",
-      protocolBinding: "cloudevents/kafka-1.0",
-      destination: { bootstrapServers: "kafka.rowing.invalid:9092", topic: "fleet.telemetry" },
-      publishes: {
-        "tech.rowing.fleet.vehicle-went-quiet": {
-          data: z.object({ vehicle: z.string(), since: z.string() }),
-        },
-      },
-      // EVT-8: what a consumer sizes its deduplication store against.
-      republishWindowSeconds: 3600,
-    },
+    events: EVENTS,
+
+    // SUB-1 to SUB-17: who subscribed, kept in the durable object, and a Queue to carry each push.
+    // `mount()` serves the address; `cycle` publishes and `queue` below delivers.
+    subscriptions: subscriptionsOf(env),
 
     // LOG-2: what this Worker recorded while it was working, read from the durable object. A buffer
     // in the isolate would pass every local test and be wrong in production, because a read can
@@ -200,49 +300,61 @@ export const fleetWorker = defineWorker<Env>((env) => {
 });
 
 /**
- * One cycle: read what the source says, record it, and drain what is waiting for the broker.
+ * One cycle: read what the source says, record it, and drain what is waiting to be published.
  *
- * The provider is a stub and the publisher is a stub, which is the honest limit of an example in
- * this repository: EVT-1 is about an envelope on a broker nothing here names, so there is nothing
- * to publish to. What is real is the shape — an outbox that survives a failed publish, because a
- * Fact that was true does not stop being true because a broker was down.
+ * The provider is a stub and the broker is a stub, which is the honest limit of an example in this
+ * repository: EVT-1 is about an envelope on a broker nothing here names, so there is nothing to
+ * publish to. The subscribers are real — each delivery is a message on a Cloudflare Queue. What is
+ * real either way is the shape: an outbox that survives a failed publish, because a Fact that was
+ * true does not stop being true because a broker was down.
  */
 export async function cycle(
   env: Env,
   publish: Publish = reachBroker,
 ): Promise<{ readings: number; published: number }> {
   const fleet = fleetOf(env);
+  const hub = hubOf(env);
   const now = Date.now();
 
-  const vehicles = (env.SOURCE_VEHICLES ?? "").split(",").filter((one) => one.length > 0);
-  const readings: Reading[] = vehicles.map((vehicle) => ({ vehicle, at: now }));
+  const readings: Reading[] = listed(env.SOURCE_VEHICLES).map((vehicle) => ({ vehicle, at: now }));
   const ingested = await fleet.ingest(readings, now, QUIET_AFTER_MS);
 
   const waiting = await fleet.pending();
   const gone: string[] = [];
   /** LOG-2. What this cycle is worth saying, written to the store in one call at the end. */
   const lines: LogRow[] = [];
-  for (const event of waiting) {
-    // EVT-1: a CloudEvents 1.0 event, whose `source` is the Worker's id and whose `id` with it
-    // identifies this event uniquely — which is what lets a consumer deduplicate a republish.
-    const published = await publish({
-      specversion: "1.0",
-      id: event.id,
-      source: "tech.rowing.fleet.tracker",
-      type: event.type,
-      time: rfc3339(event.at),
-      data: event.data,
-    });
-    if (!published) {
+  for (const row of waiting) {
+    const raised = JSON.parse(row.event) as Publishable;
+    // EVT-1: one CloudEvents 1.0 event, built once by the hub under the row's own id and instant.
+    // What the broker is handed is what the subscribers are, and a row published again after a
+    // failure below is the same event to everyone who already has it (EVT-8) — which is why the
+    // subscribers go first: a broker that is down costs them a repeat they discard, never a loss.
+    let event: CloudEvent;
+    try {
+      event = await hub.publish({ ...raised, id: row.id, time: row.at });
+    } catch (error) {
+      lines.push({
+        at: Date.now(),
+        level: "warn",
+        message: "an event could not be handed to its subscribers",
+        fields: {
+          id: row.id,
+          type: raised.type,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      });
+      break; // In order, and no further: the next cycle starts where this stopped.
+    }
+    if (!(await publish(event))) {
       lines.push({
         at: Date.now(),
         level: "warn",
         message: "the broker did not take an event",
-        fields: { id: event.id, type: event.type },
+        fields: { id: row.id, type: raised.type },
       });
-      break; // In order, and no further: the next cycle starts where this stopped.
+      break;
     }
-    gone.push(event.id);
+    gone.push(row.id);
   }
   if (gone.length > 0) await fleet.published(gone);
 
@@ -261,7 +373,7 @@ export async function cycle(
 }
 
 /** One attempt at the broker. `false` is a broker that did not take it, not an event that was bad. */
-export type Publish = (event: Record<string, unknown>) => Promise<boolean>;
+export type Publish = (event: CloudEvent) => Promise<boolean>;
 
 /**
  * Where a real one would reach the broker `events.destination` names.
@@ -287,5 +399,28 @@ export default {
   /** The cron in `wrangler.jsonc`. A Worker finds work on a schedule, which is what makes it one. */
   scheduled: async (_controller: unknown, env: Env) => {
     await cycle(env);
+  },
+  /**
+   * SUB-12: the deliveries, one message each. The hub decides and the Queue carries the decision —
+   * a delay before the next attempt, or done. `attempts` is the Queue's own count, and the one
+   * `deliver` backs off by, so nothing here keeps a second.
+   */
+  queue: async (batch: MessageBatch<Delivery>, env: Env) => {
+    const hub = hubOf(env);
+    await Promise.all(
+      batch.messages.map(async (message) => {
+        try {
+          const outcome = await hub.deliver({ ...message.body, attempt: message.attempts });
+          if ("retryAfterSeconds" in outcome) {
+            message.retry({ delaySeconds: outcome.retryAfterSeconds });
+          } else {
+            message.ack();
+          }
+        } catch {
+          // The durable object could not be reached, so nothing was decided: still owed.
+          message.retry();
+        }
+      }),
+    );
   },
 };

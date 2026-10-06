@@ -38,7 +38,9 @@ import { fleetOf, type LogRow } from "./fleet.ts";
 const MOST_PER_BATCH = 100;
 
 export default {
-  async tail(events: TraceItem[], env: Env): Promise<void> {
+  // Only `FLEET`, because only `FLEET` is what `wrangler.tail.jsonc` binds: this is another Worker,
+  // and the producer's Queue is not in its environment.
+  async tail(events: TraceItem[], env: Pick<Env, "FLEET">): Promise<void> {
     const lines: LogRow[] = [];
 
     for (const event of events) {

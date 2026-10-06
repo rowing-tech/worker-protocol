@@ -43,6 +43,7 @@ describe("what a Tower reads first", () => {
       "health",
       "logs",
       "metrics",
+      "subscriptions",
       "tasks",
     ]);
   });

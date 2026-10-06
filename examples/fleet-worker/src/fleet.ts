@@ -1,5 +1,15 @@
 import { DurableObject } from "cloudflare:workers";
-import { LEVELS, type LogLevel, type Recorded, type Reservation } from "@worker-protocol/hono";
+import {
+  LEVELS,
+  type LogLevel,
+  type OpenTask,
+  type Publishable,
+  type Recorded,
+  type Reservation,
+  type StoredSubscription,
+  taskEnded,
+  taskRaised,
+} from "@worker-protocol/hono";
 import type { Env } from "./env.ts";
 
 /**
@@ -25,6 +35,22 @@ const CYCLE_MS = 60_000;
 /** How long a vehicle may say nothing before it is quiet. The domain's number, not the protocol's. */
 export const QUIET_AFTER_MS = 15 * CYCLE_MS;
 
+/** The one Task type this Worker raises: a quiet vehicle, for whoever can go and look. */
+export const QUIET_VEHICLE = "tech.rowing.fleet.inspect-quiet-vehicle";
+
+/**
+ * A quiet vehicle as the Task it is (TASK-28), written once for the two places that need it: what
+ * `tasks` lists, and the `task-raised` and `task-ended` events this object enqueues at the moment
+ * the condition starts and stops holding. Two spellings of the id would be a Task whose events name
+ * something the list never shows.
+ */
+export const quietTask = (one: Quiet): OpenTask => ({
+  id: `quiet:${one.vehicle}`,
+  type: QUIET_VEHICLE,
+  payload: { vehicle: one.vehicle },
+  since: new Date(one.since),
+});
+
 /**
  * The one object this Worker is authoritative over. It watches one fleet, so there is one.
  *
@@ -34,7 +60,7 @@ export const QUIET_AFTER_MS = 15 * CYCLE_MS;
  * entry` — and refused at DEPLOY time rather than by the compiler, so the tests that import the
  * module rather than deploy it go on passing while `wrangler dev` will not start.
  */
-export const fleetOf = (env: Env) => env.FLEET.get(env.FLEET.idFromName("fleet"));
+export const fleetOf = (env: Pick<Env, "FLEET">) => env.FLEET.get(env.FLEET.idFromName("fleet"));
 
 const READING = "reading:";
 const INSPECTION = "inspection:";
@@ -66,22 +92,28 @@ export type Reading = { vehicle: string; at: number };
 export type Quiet = { vehicle: string; since: number };
 
 /**
- * What an event's `data` may be here: one flat record of scalars.
+ * What a record's `fields` may be here: one flat record of scalars.
  *
  * It is spelled out rather than left as `unknown` because a durable object's methods are RPC, and
  * an RPC type carries only what structured clone carries — a method whose return type is not
  * serializable is not a method the stub has, which the compiler reports as `never` rather than as
  * anything mentioning serialization. It is flat rather than a recursive `Json` for the sequel to
  * that: the serializable check is itself a conditional type, and recursion through it exceeds the
- * compiler's instantiation depth. A real Worker with nested payloads keeps the envelope as a string
- * and parses it at publish. This one has two string fields and does not need to.
+ * compiler's instantiation depth.
+ *
+ * **What is nested crosses as a string**, and is parsed on the far side: an outbox event, whose
+ * `task-raised` data carries the Task's payload, and a subscription, whose filters nest by
+ * definition (SUB-13). Typing either one exactly is the recursion above.
  */
 export type Json = Record<string, string | number | boolean>;
 
-/** One event waiting to reach the broker, as it is stored: its id is the key it is held under. */
-type Row = { type: string; at: number; data: Json };
+/**
+ * One event waiting to be published, as it is stored: its id is the key it is held under, and the
+ * event is a `Publishable` as JSON, for the reason `Json` gives.
+ */
+type Row = { at: number; event: string };
 
-/** One event waiting to reach the broker, in the order it was raised, with its id read off the key. */
+/** One event waiting to be published, in the order it was raised, with its id read off the key. */
 export type Pending = Row & { id: string };
 
 /** A reservation is a row with no answer yet; both carry the instant they expire. */
@@ -89,13 +121,14 @@ type Outcome = { until: number; answer?: Recorded };
 
 export class Fleet extends DurableObject<Env> {
   /**
-   * The one table this object keeps, created once when the object is instantiated rather than on
-   * every call that touches it. `sql.exec` is synchronous against local storage, so this needs no
-   * `blockConcurrencyWhile`: the statement has run before any method can be reached.
+   * The two tables this object keeps, created once when the object is instantiated rather than on
+   * every call that touches them. `sql.exec` is synchronous against local storage, so this needs no
+   * `blockConcurrencyWhile`: the statements have run before any method can be reached.
    */
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS log (
+    const sql = ctx.storage.sql;
+    sql.exec(`CREATE TABLE IF NOT EXISTS log (
       seq INTEGER PRIMARY KEY AUTOINCREMENT,
       at INTEGER NOT NULL,
       level TEXT NOT NULL,
@@ -103,15 +136,27 @@ export class Fleet extends DurableObject<Env> {
       message TEXT NOT NULL,
       fields TEXT
     )`);
+    // The subscription itself is `record`, as JSON. `key`, `caller` and `ended` are copied out of
+    // it only because a query filters on them; nothing reads them back.
+    sql.exec(`CREATE TABLE IF NOT EXISTS subscription (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL,
+      caller TEXT,
+      ended INTEGER NOT NULL,
+      record TEXT NOT NULL
+    )`);
+    sql.exec("CREATE INDEX IF NOT EXISTS subscription_key ON subscription (key)");
   }
 
   /**
-   * One cycle's readings. Records what the source said, counts it, and raises an event for each
-   * vehicle that crossed into quiet on this cycle and not before.
+   * One cycle's readings. Records what the source said, counts it, and raises events for each
+   * vehicle that crossed into quiet on this cycle and not before, and for each that left it.
    *
    * The crossing is what makes an event rather than the state: `vehicle.went-quiet` is a Fact about
    * a moment, and publishing it on every cycle a vehicle stayed quiet would be publishing a state
-   * under a name that says *changed*.
+   * under a name that says *changed*. The same crossing is when the Task is born, so `task-raised`
+   * (EVT-15) is enqueued beside it — this is the moment only the Worker knows, and the reason the
+   * SDK builds lifecycle events rather than detecting them.
    */
   async ingest(readings: Reading[], now: number, quietAfterMs: number): Promise<number> {
     // Who was already quiet one cycle ago. The window is a rewind rather than `now` on purpose: a
@@ -136,17 +181,23 @@ export class Fleet extends DurableObject<Env> {
     // The crossings, derived once. Counting them as `nowQuiet.length - before.length` would have
     // been a second derivation of the same number, and the two disagree on any cycle where one
     // vehicle crossed into quiet while another reported its way out of it.
-    const crossed = (await this.quiet(now, quietAfterMs)).filter(
-      (one) => !wasQuiet.has(one.vehicle),
-    );
+    const after = await this.quiet(now, quietAfterMs);
+    const isQuiet = new Set(after.map((one) => one.vehicle));
+    const crossed = after.filter((one) => !wasQuiet.has(one.vehicle));
+    // The other direction: quiet a cycle ago and not now, because a reading arrived. Its Task ends
+    // for that reason, and EVT-15's `task-ended` says only that it ended — nobody closed it.
+    const recovered = before.filter((one) => !isQuiet.has(one.vehicle));
     await this.bump("vehicles-quiet", now, crossed.length);
-    await this.enqueue(
-      now,
-      crossed.map((one) => ({
-        type: "tech.rowing.fleet.vehicle-went-quiet",
-        data: { vehicle: one.vehicle, since: new Date(one.since).toISOString() },
-      })),
-    );
+    await this.enqueue(now, [
+      ...crossed.flatMap((one) => [
+        {
+          type: "tech.rowing.fleet.vehicle-went-quiet",
+          data: { vehicle: one.vehicle, since: new Date(one.since).toISOString() },
+        },
+        taskRaised(quietTask(one)),
+      ]),
+      ...recovered.map((one) => taskEnded(quietTask(one))),
+    ]);
     return readings.length;
   }
 
@@ -166,9 +217,15 @@ export class Fleet extends DurableObject<Env> {
     return held.sort((a, b) => a.vehicle.localeCompare(b.vehicle));
   }
 
-  /** What `record-inspection` does: somebody looked, so the condition stops holding. */
+  /**
+   * What `record-inspection` does: somebody looked, so the condition stops holding — and the Task
+   * with it, which is the other moment only this Worker knows. An inspection of a vehicle that was
+   * not quiet ends nothing, so it raises nothing.
+   */
   async inspect(vehicle: string, at: number): Promise<void> {
+    const ending = (await this.quiet(at, QUIET_AFTER_MS)).find((one) => one.vehicle === vehicle);
     await this.ctx.storage.put(`${INSPECTION}${vehicle}`, at);
+    if (ending !== undefined) await this.enqueue(at, [taskEnded(quietTask(ending))]);
   }
 
   // ---- metrics -----------------------------------------------------------------------------
@@ -207,21 +264,25 @@ export class Fleet extends DurableObject<Env> {
   // ---- the outbox --------------------------------------------------------------------------
 
   /**
-   * An event raised and not yet published.
+   * An event raised and not yet published, to the broker or to the subscribers.
    *
    * It is a queue because publishing can fail and a Fact that was true does not stop being true
    * because a broker was down. EVT-8's republish window is what makes retrying safe: `source` and
-   * `id` do not change between attempts, so a consumer that remembers them sees one event.
+   * `id` do not change between attempts, so a consumer that remembers them sees one event. The row
+   * is written in the same operation as the change it reports, which is what makes it an outbox:
+   * there is no moment at which the Fact changed and the event was not yet owed.
    */
-  private async enqueue(at: number, events: { type: string; data: Json }[]): Promise<void> {
+  private async enqueue(at: number, events: Publishable[]): Promise<void> {
     if (events.length === 0) return;
     // The id is the key and is not repeated in the value: two copies of one fact are two things to
-    // keep in step, and `pending` reads it back off the key it already has.
+    // keep in step, and `pending` reads it back off the key it already has. The position keeps one
+    // call's events in the order they were written — a crossing before the Task it raised — where
+    // the random part alone would shuffle everything raised in the same instant.
     await this.ctx.storage.put(
       Object.fromEntries(
-        events.map((one) => [
-          `${OUTBOX}${at}-${crypto.randomUUID()}`,
-          { ...one, at } satisfies Row,
+        events.map((one, i) => [
+          `${OUTBOX}${at}-${String(i).padStart(4, "0")}-${crypto.randomUUID()}`,
+          { at, event: JSON.stringify(one) } satisfies Row,
         ]),
       ),
     );
@@ -288,7 +349,8 @@ export class Fleet extends DurableObject<Env> {
    * prefixes and nothing more. This is where that stops being true, and the reason is worth the
    * exception: a read here filters by a level floor and by a half-open interval (LOG-7, LOG-8),
    * and a store that cannot filter would have to hand every row to the Worker so it could throw
-   * most of them away. The other nine methods are unchanged, and the mixture is deliberate.
+   * most of them away. The subscriptions below are SQL for the same reason. The key-value methods
+   * above are unchanged, and the mixture is deliberate.
    *
    * `seq` is what makes ENDP-33 free. It only ever grows, a cursor names one, and a page asks for
    * what is below it — so a record written since the last page cannot appear in the next. Under an
@@ -357,5 +419,92 @@ export class Fleet extends DurableObject<Env> {
     // the query found one — ENDP-20: absent at the end, absent rather than null.
     const last = found.length > limit ? page.at(-1) : undefined;
     return last === undefined ? { rows } : { rows, nextCursor: String(last.seq) };
+  }
+
+  // ---- subscriptions -----------------------------------------------------------------------
+
+  /**
+   * `SubscriptionStore`, the other half of what `subscriptions` needs from a platform.
+   *
+   * SQL rather than keys, for `logs`'s reason: every publish asks for the live subscriptions naming
+   * one type (SUB-13) and every list for one caller's (SUB-8), and both are filters. Each method is
+   * synchronous between its first statement and its last, so nothing interleaves inside one — which
+   * is what `ensure` needs, as `beginOutcome` does: SUB-7 has two requests for the same thing find
+   * one subscription, and a read followed by a write in two calls would let both through.
+   *
+   * Everything crosses as JSON, for the reason `Json` gives: a subscription's filters nest.
+   */
+  findSubscription(key: string): string | null {
+    const row = this.ctx.storage.sql
+      .exec<{ record: string }>(
+        "SELECT record FROM subscription WHERE key = ? AND ended = 0 LIMIT 1",
+        key,
+      )
+      .toArray()[0];
+    return row?.record ?? null;
+  }
+
+  /** SUB-7, SUB-15: the live one under `key`, or the candidate. An ended one stays, as a tombstone. */
+  ensureSubscription(key: string, candidate: string): { record: string; created: boolean } {
+    const held = this.findSubscription(key);
+    if (held !== null) return { record: held, created: false };
+    const one = JSON.parse(candidate) as StoredSubscription;
+    this.ctx.storage.sql.exec(
+      "INSERT INTO subscription (id, key, caller, ended, record) VALUES (?, ?, ?, 0, ?)",
+      one.id,
+      key,
+      one.caller,
+      candidate,
+    );
+    return { record: candidate, created: true };
+  }
+
+  getSubscription(id: string): string | null {
+    const row = this.ctx.storage.sql
+      .exec<{ record: string }>("SELECT record FROM subscription WHERE id = ?", id)
+      .toArray()[0];
+    return row?.record ?? null;
+  }
+
+  /** SUB-8: one caller's, ended ones included. `IS` because a caller may be `null`. */
+  subscriptionsOf(caller: string | null): string[] {
+    return this.ctx.storage.sql
+      .exec<{ record: string }>("SELECT record FROM subscription WHERE caller IS ?", caller)
+      .toArray()
+      .map((row) => row.record);
+  }
+
+  /** SUB-13: the live ones naming this type. The filters are the hub's to apply, not the store's. */
+  subscriptionsFor(type: string): string[] {
+    return this.ctx.storage.sql
+      .exec<{ record: string }>(
+        `SELECT record FROM subscription
+          WHERE ended = 0
+            AND EXISTS (SELECT 1 FROM json_each(record, '$.types') WHERE value = ?)`,
+        type,
+      )
+      .toArray()
+      .map((row) => row.record);
+  }
+
+  /**
+   * A patch, as two lists because JSON cannot say *cleared*: `JSON.stringify` drops a member whose
+   * value is `undefined`, which is exactly how `SubscriptionStore.update` names one to clear.
+   */
+  updateSubscription(id: string, change: { set: string; clear: string[] }): void {
+    const held = this.getSubscription(id);
+    if (held === null) return;
+    const next: Record<string, unknown> = { ...JSON.parse(held), ...JSON.parse(change.set) };
+    for (const name of change.clear) delete next[name];
+    this.ctx.storage.sql.exec(
+      "UPDATE subscription SET ended = ?, record = ? WHERE id = ?",
+      next.endedAt === undefined ? 0 : 1,
+      JSON.stringify(next),
+      id,
+    );
+  }
+
+  removeSubscription(id: string): void {
+    this.ctx.storage.sql.exec("DELETE FROM subscription WHERE id = ?", id);
   }
 }

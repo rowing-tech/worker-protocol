@@ -129,6 +129,15 @@ which `^0.5.0` does not take.
   one Descriptor, beside `canAnswer` and for the same reason. Each `Change` names the schema, the
   declaration, the member and why, and is `breaking` or `unjudged` — the second for a keyword it
   does not read, said rather than passed.
+- **`@worker-protocol/hono`**: `publish()` takes an `id` and a `time`, for a Worker that publishes
+  from an outbox: a row published again after a broker refused it is the same event to every
+  subscriber that already has it, and its `time` is when the Fact changed rather than when the row
+  drained.
+- **`examples/fleet-worker` serves `subscriptions` on Cloudflare.** The subscriptions live in its
+  Durable Object, in SQL, behind a `SubscriptionStore` whose `ensure` is one method; each delivery
+  is a message on a Cloudflare Queue, and the Worker's `queue` handler runs `deliver()` and hands
+  its decision back as `retry({ delaySeconds })` or `ack()`. It publishes `task-raised` and
+  `task-ended` from the moment the Task is born and ends, through the outbox it already had.
 
 ### Changed
 

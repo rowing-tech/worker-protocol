@@ -6,14 +6,15 @@ A conformant Worker on Cloudflare, whose Facts live in a Durable Object.
 memory, written out and explained. This one exists for the question that file cannot answer, which
 is **where a Worker keeps what a rule needs between two requests**.
 
-Four things here have to outlive a request: the condition a Task is derived from (TASK-15), the
-counters a metric is read from (MET-21), the outcome ENDP-16 promised to replay, and an outbox of
-events that have not reached the broker. Every example in this repository kept all four in a `Map`
-in a process, which is correct in one long-lived process and silently wrong across isolates — a
-repeat under an idempotency key reaches a process that recorded nothing, the Action runs a second
-time *while the caller believes it is protected*, and both calls answer `200` so nobody sees two.
+Five things here have to outlive a request: the condition a Task is derived from (TASK-15), the
+counters a metric is read from (MET-21), the outcome ENDP-16 promised to replay, an outbox of events
+not yet published, and who subscribed to them (SUB-7). Every example in this repository kept them in
+a `Map` in a process, which is correct in one long-lived process and silently wrong across isolates
+— a repeat under an idempotency key reaches a process that recorded nothing, the Action runs a
+second time *while the caller believes it is protected*, and both calls answer `200` so nobody sees
+two.
 
-[src/fleet.ts](src/fleet.ts) is the Durable Object all four live in. [src/worker.ts](src/worker.ts)
+[src/fleet.ts](src/fleet.ts) is the Durable Object all five live in. [src/worker.ts](src/worker.ts)
 is the Worker over it, and is the file to read beside `minimal-worker` to see what changed: the
 declarations are identical and the Facts come from somewhere else.
 
@@ -28,10 +29,13 @@ A fleet, simplified from a telemetry worker that polls a GPS provider.
   the Task is gone the next time anybody reads — TASK-15, with nothing closing anything.
 - Each *crossing* into quiet is an event. The crossing and not the state: republishing on every
   cycle a vehicle stayed quiet would be publishing a state under a name that says *changed*.
+- The crossing is also when the Task is born, and a reading or an inspection is when it ends, so
+  `task-raised` and `task-ended` (EVT-15) are written into the outbox at those moments — by the
+  Worker, which is the only party that knows them.
 
-The GPS provider and the broker are both stubs. What is real is the shape: an outbox that survives a
-publish that failed, because a Fact that was true does not stop being true because a broker was
-down.
+The GPS provider and the broker are both stubs. The subscribers are not: each delivery is a message
+on a Cloudflare Queue. What is real either way is the shape: an outbox that survives a publish that
+failed, because a Fact that was true does not stop being true because a broker was down.
 
 ## Running it
 
@@ -58,6 +62,16 @@ curl 'localhost:8787/cdn-cgi/handler/scheduled'
 `CREDENTIAL` is a secret and is not in `wrangler.jsonc`. Set one with `wrangler secret put
 CREDENTIAL` for a deployment, or pass `--var CREDENTIAL:f-token` to `wrangler dev`.
 
+To push to a backend running on your own machine — a local Convex deployment, say — name its
+origin in `.dev.vars`, which `wrangler dev` reads and a deployment never does:
+
+```
+DEV_SINK_ORIGINS=http://127.0.0.1:3211
+```
+
+That origin is then held to neither SUB-5 nor SUB-6. Every other sink still has to be `https` and
+public.
+
 ## Testing it
 
 Two suites, and they answer different questions.
@@ -72,6 +86,8 @@ object directly — the quiet condition, the outbox, the counters, the reservati
 [test/protocol.test.ts](test/protocol.test.ts) goes through `SELF.fetch`, so the Facts it reads were
 written from a *different isolate*, which is the claim the Durable Object is here to make and which
 no test sharing a process with its Worker can make.
+[test/subscriptions.test.ts](test/subscriptions.test.ts) subscribes, runs a cycle and drives the
+Worker's `queue` handler with a batch, against a sink the test answers.
 
 ```
 pnpm --filter @worker-protocol/conformance test
@@ -79,10 +95,9 @@ pnpm --filter @worker-protocol/conformance test
 
 Runs the verifier. [that package's fleet-worker suite][verify] starts this Worker on workerd over a
 real socket with `wrangler`'s `unstable_dev`, and points `verify()` at the port with nothing changed
-— the same tool, the same rule universe, and the same 144 verdicts it produces against the two
-Workers that run on Node. It fails one rule, DESC-35, because a loopback address serves `http` and
-DESC-35 fixes `https`; that is the harness and not the Worker, and it is asserted rather than
-excluded so that a second failure says which.
+— the same tool and the same rule universe it judges the two Workers on Node by. It fails nothing:
+DESC-35 requires `https` only where a network is crossed, and a dev server on a loopback address
+crosses none.
 
 [verify]: ../../packages/conformance/src/__tests__/fleet-worker.test.ts
 
@@ -189,3 +204,41 @@ wrangler deploy                                # then the producer that names it
 tail invocation that throws is retried or dropped. Cloudflare does not document it, and a tail that
 is dropped silently means `/logs` can miss a crash — which is the same honesty the window already
 owes: what it holds, and no claim about what it did not.
+
+## `subscriptions`, on a Durable Object and a Queue
+
+`@worker-protocol/hono` leaves two things to the platform, and this is what they are on Cloudflare.
+
+**The store is the Durable Object**, for the reason ENDP-16's is: SUB-7 makes subscribing
+idempotent, so two requests for the same thing must find one subscription, and `ensure` — find the
+live one or store the candidate — is one method on a single-threaded object rather than a read and a
+write that two isolates could interleave. The subscriptions are in SQL, beside the records, because
+every publish asks for the ones naming a type and every list for one caller's, and both are filters.
+A subscription crosses the RPC boundary as JSON: its filters nest, and the stub's types do not
+survive a recursive one.
+
+**The carrier is a Queue.** `publish()` sends one message per matching subscription; the Worker's
+`queue` handler runs `deliver()` on each and hands its decision back — `retry({ delaySeconds })`
+with the hub's backoff, or `ack()`. The hub decides and bounds every retry by EVT-8's window, so the
+Queue's `max_retries` is set to the platform's maximum: its default of 3 would cut short a delivery
+the hub still wanted to make.
+
+**The outbox publishes to the subscribers first, under the row's own id.** A cycle hands each row to
+`publish()` with the id and instant the row already has, and only then to the broker. A broker that
+is down leaves the row for the next cycle, which delivers it again under the same `source` and `id`
+— a repeat a sink discards, where a fresh id would have been a second event.
+
+The typical subscriber is a backend that wants to hear when a Task of one type is raised:
+
+```
+curl -X POST -H 'authorization: Bearer f-token' -H 'content-type: application/json' \
+  localhost:8787/subscriptions -d '{
+    "types": ["tech.rowing.worker-protocol.task-raised"],
+    "filters": [{ "exact": { "tasktype": "tech.rowing.fleet.inspect-quiet-vehicle" } }],
+    "sink": "http://127.0.0.1:3211/events",
+    "sinkCredential": "a-secret-the-sink-checks"
+  }'
+```
+
+The sink answers the handshake before anything is stored; `sink()` in `@worker-protocol/client` is
+that end, and its README has it as a Convex HTTP action.

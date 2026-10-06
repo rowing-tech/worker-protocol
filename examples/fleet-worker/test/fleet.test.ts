@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { LIFECYCLE, type Publishable } from "@worker-protocol/hono";
 import { describe, expect, it } from "vitest";
 import { fleetOf, QUIET_AFTER_MS } from "../src/fleet.ts";
 import { cycle } from "../src/worker.ts";
@@ -48,22 +49,58 @@ describe("the condition a Task is derived from", () => {
   });
 });
 
+/** What is waiting in the outbox, as the events it holds. */
+const waiting = async (fleet: ReturnType<typeof fresh>) =>
+  (await fleet.pending()).map((row) => JSON.parse(row.event) as Publishable);
+
 describe("the outbox", () => {
-  it("raises one event on the crossing and not on every cycle after it", async () => {
+  it("raises the crossing and its Task once, and not on every cycle after it", async () => {
     const fleet = fresh();
     const now = Date.now();
 
     await fleet.ingest([{ vehicle: "ABC-123", at: now - 20 * MINUTE }], now, QUIET_AFTER_MS);
-    expect((await fleet.outbox()).depth).toBe(1);
+    expect((await fleet.outbox()).depth).toBe(2);
 
     // The same vehicle, still quiet, on the next cycle. `vehicle-went-quiet` is a Fact about a
     // moment: publishing it again would be publishing a state under a name that says CHANGED.
     await fleet.ingest([], now + MINUTE, QUIET_AFTER_MS);
-    expect((await fleet.outbox()).depth).toBe(1);
+    expect((await fleet.outbox()).depth).toBe(2);
 
-    const [event] = await fleet.pending();
-    expect(event?.type).toBe("tech.rowing.fleet.vehicle-went-quiet");
-    expect(event?.data).toMatchObject({ vehicle: "ABC-123" });
+    const events = await waiting(fleet);
+    const quiet = events.find((one) => one.type === "tech.rowing.fleet.vehicle-went-quiet");
+    expect(quiet?.data).toMatchObject({ vehicle: "ABC-123" });
+    // EVT-15: the Task born at the same moment, under the id `tasks` lists it by.
+    const raised = events.find((one) => one.type === LIFECYCLE.taskRaised);
+    expect(raised).toMatchObject({
+      subject: "quiet:ABC-123",
+      extensions: { tasktype: "tech.rowing.fleet.inspect-quiet-vehicle" },
+    });
+  });
+
+  it("ends the Task when a reading arrives, and when somebody inspects (EVT-15)", async () => {
+    const fleet = fresh();
+    const now = Date.now();
+    await fleet.ingest(
+      [
+        { vehicle: "ABC-123", at: now - 20 * MINUTE },
+        { vehicle: "DEF-456", at: now - 20 * MINUTE },
+      ],
+      now,
+      QUIET_AFTER_MS,
+    );
+    await fleet.published((await fleet.pending()).map((row) => row.id));
+
+    // One reports, and one is looked at: two Tasks end, for two reasons nobody is told.
+    await fleet.ingest([{ vehicle: "ABC-123", at: now + MINUTE }], now + MINUTE, QUIET_AFTER_MS);
+    await fleet.inspect("DEF-456", now + MINUTE);
+    // An inspection of a vehicle that was not quiet ends nothing, so it raises nothing.
+    await fleet.inspect("ABC-123", now + MINUTE);
+
+    const ended = (await waiting(fleet)).map((one) => [one.type, one.subject]);
+    expect(ended.sort()).toEqual([
+      [LIFECYCLE.taskEnded, "quiet:ABC-123"],
+      [LIFECYCLE.taskEnded, "quiet:DEF-456"],
+    ]);
   });
 
   it("keeps what the broker did not take, and stops at the refusal rather than past it", async () => {
@@ -79,11 +116,12 @@ describe("the outbox", () => {
       QUIET_AFTER_MS,
     );
     const raised = (await fleet.pending()).map((one) => one.id);
-    expect(raised).toHaveLength(2);
+    // Each vehicle's crossing and the Task it raised (EVT-15): two events apiece.
+    expect(raised).toHaveLength(4);
 
     // A broker that is down. A Fact that was true does not stop being true because nobody took it.
     expect((await cycle(env, async () => false)).published).toBe(0);
-    expect((await fleet.outbox()).depth).toBe(2);
+    expect((await fleet.outbox()).depth).toBe(4);
 
     // A broker that takes one and then refuses. Draining stops there rather than skipping past it:
     // a consumer reading these in order would otherwise see the second before the first arrived.
@@ -91,7 +129,7 @@ describe("the outbox", () => {
     expect((await cycle(env, async () => ++seen <= 1)).published).toBe(1);
     expect((await fleet.pending()).map((one) => one.id)).toEqual(raised.slice(1));
 
-    expect((await cycle(env, async () => true)).published).toBe(1);
+    expect((await cycle(env, async () => true)).published).toBe(3);
     expect((await fleet.outbox()).depth).toBe(0);
   });
 });

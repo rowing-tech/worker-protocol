@@ -70,10 +70,11 @@ publishes through a broker, through its subscriptions, or both.
 **Built:** `spec/subscriptions.md` and the changes to `events`, `descriptor` and `tasks`; the
 schemas; `mount()`, `eventHub()` and the lifecycle builders in `@worker-protocol/hono`; the
 reference Worker; the verifier's checks, run against it; and both halves in
-`@worker-protocol/client` — subscribing from `consume()`, and `sink()` for the receiving end. Their
-reasoning now sits in those files. **Still to build:** the Cloudflare implementation in
-`examples/fleet-worker`, and a sink in the conformance CLI — which also needs the CLI to take an
-arrangement at all, since it takes none today. The entry leaves this list when those are in.
+`@worker-protocol/client` — subscribing from `consume()`, and `sink()` for the receiving end; and
+the Cloudflare implementation in `examples/fleet-worker`, over its Durable Object and a Queue.
+Their reasoning now sits in those files. **Still to build:** a sink in the conformance CLI — which
+also needs the CLI to take an arrangement at all, since it takes none today. The entry leaves this
+list when that is in.
 
 **Why the transport refusal does not reach it.** `spec/events.md` names no broker and fixes no
 binding because doing so would mean a registry of transports. HTTP is not one of those: it is the
@@ -184,8 +185,8 @@ what a broker is.
   per subscription, and a `deliver()` holding the retry decisions. What depends on the platform is
   behind a `SubscriptionStore`, which has to be consistent for subscribing to stay idempotent, and
   a `DeliveryQueue`. On Cloudflare, subscriptions live in a Durable Object and deliveries on Queues,
-  which already retry with a delay and keep a dead-letter queue. The first implementation goes in
-  `examples/fleet-worker`, and moves to `@worker-protocol/cloudflare` once it has run.
+  which already retry with a delay. The first implementation goes in `examples/fleet-worker`, and
+  moves to `@worker-protocol/cloudflare` once it has run.
 - **`@worker-protocol/client` gains both halves**: subscribing, listing and unsubscribing, and a
   sink helper — the handshake, the bearer check, deduplication by `source` and `id` — which is what
   a Convex HTTP action needs to receive.
