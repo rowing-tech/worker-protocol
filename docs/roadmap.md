@@ -59,3 +59,117 @@ no subject anywhere. Each language's repository owes the same two halves.
 
 **Lands in:** a repository per language, each pinned to an edition and each running the verifier
 against its own reference Worker in CI.
+
+## Subscriptions: a Worker that pushes its own events
+
+**Decided 2026-10-06.** A consumer subscribes to a Worker over the Worker API, and the Worker keeps
+the subscription and pushes each matching event to the consumer's sink. It is a tenth Capability,
+`subscriptions`, beside `events` and not instead of it: a Worker publishes through a broker,
+through its subscriptions, or both.
+
+**Why the transport refusal does not reach it.** `spec/events.md` names no broker and fixes no
+binding because doing so would mean a registry of transports. HTTP is not one of those: it is the
+Worker API's own, with the credential REG-3 already fixes and the agreement a Contract already is
+(EVT-5). And the consumers this network actually has — Convex apps, Control Towers, automations —
+hold no consumer group, so EVT-6's relay is a component each of them would have to build. What it
+costs is what `spec/tasks.md` says a nudge avoids, a delivery guarantee and something the receiver
+holds, and that is specified rather than avoided, because unlike a Task an event cannot be derived
+again by reading. *The owner knows nobody* still holds where it matters: the Worker's domain logic
+publishes facts and names no subscriber, and the list belongs to the delivery machinery, which is
+what a broker is.
+
+**What was decided:**
+
+- **The surface.** The entry declares an address and `abandonAfterSeconds`. `POST /subscriptions`
+  takes `types`, optional `filters`, a `sink` and a `sinkCredential`; `GET` lists the caller's own
+  in the page envelope; `DELETE /subscriptions/{id}` removes one.
+- **Types against two lists.** Each type is one the `events` entry publishes (otherwise `400
+  invalid_parameter`) and one the caller's Contract allows (otherwise `403 forbidden`).
+- **Subscribing is idempotent.** The same caller with the same sink, types and filters gets the
+  subscription that exists, answered `200`, so an orchestrator ensures its subscription on every
+  deploy without keeping ids.
+- **A subscription is its caller's**, with the identity ENDP-34 uses: only that caller lists or
+  deletes it.
+- **Delivery is the CloudEvents webhook specification.** Before a sink is accepted, the Worker runs
+  its abuse-protection handshake (`OPTIONS` with `WebHook-Request-Origin`, answered with
+  `WebHook-Allowed-Origin`), which is what stops a credentialed caller pointing the Worker at
+  somebody else's URL. Each delivery is a CloudEvent in the HTTP binding, carrying `Authorization:
+  Bearer <sinkCredential>` — REG-3 in the other direction, a credential the sink chose.
+- **At least once, within EVT-8's window.** A `2xx` is delivered. A network failure, a `5xx`, a
+  `408` or a `429` is retried with backoff, honouring `Retry-After`, only within the window EVT-8
+  already declares: every retry is a republication the consumer's deduplication covers, so no
+  second window is invented. Any other `4xx` is final for that event. No order is promised.
+- **No renewal.** A subscription ends when its subscriber deletes it, when its sink has failed
+  continuously for `abandonAfterSeconds`, or when the Worker no longer accepts its caller; in the
+  last two cases the Worker makes one best-effort delivery of a `subscription-ended` event. Each
+  listed subscription carries `lastDeliveredAt`, and `failingSince` while it fails. None of the
+  three endings is silent, which a lease an automation forgot to renew would have been.
+- **Filters are the six dialects the CloudEvents Subscriptions API requires** — `exact`, `prefix`,
+  `suffix`, `all`, `any`, `not` — with its JSON shape, over context attributes, all of the list
+  holding. Their semantics are written out in our own text rather than cited, because that API is
+  `0.1-wip`. `sql` is left out; it can arrive in a MINOR. No JavaScript library implements the
+  dialects, and the six are a few dozen lines.
+- **The broker becomes optional.** EVT-11 is withdrawn and reissued with the broker, the
+  `protocolBinding` and the destination declared together or not at all, and a new rule has a
+  Worker that declares `events` declare a broker, `subscriptions`, or both.
+- **The specification names the lifecycle events of Tasks and Alerts**, which answers the second
+  entry of *Still open here* in `spec/events.md`. The typical subscription is *a Task of type X was
+  raised*, filters reach only context attributes, so the name and the attribute have to agree on
+  every Worker. Publishing them is not required; a Worker that does uses these types:
+  `tech.rowing.worker-protocol.task-raised` and `task-resolved`, with the Task type in `subject`,
+  and `alert-raised` and `alert-cleared`. *Resolved* and *cleared*, because nobody closes a Task
+  (TASK-15).
+- **An incompatible change inside 0.x, made by rule rather than by exception.** An `events` entry
+  without a broker is not something a 0.3 reader may ignore, so DESC-24 would ask for a MAJOR. The
+  protocol is published and not yet in use, and 1.0 is not worth spending on this. DESC-24 and
+  DESC-25 are withdrawn and reissued with SemVer's convention for `0.x`, which `packages/README.md`
+  already applies to package versions: while the MAJOR is 0, a MINOR may change what a reader
+  cannot ignore, and a verifier that does not hold the declared MINOR verifies nothing and says it
+  is the one behind. This is edition 0.4.
+- **The split of the implementation follows `OutcomeStore`.** `mount()` serves `/subscriptions` —
+  validation, idempotence, types against `publishes` and the Contract, the caller scope, the
+  handshake — and hands the Worker a `publish(event)` that matches filters and queues one delivery
+  per subscription, and a `deliver()` holding the retry decisions. What depends on the platform is
+  behind a `SubscriptionStore`, which has to be consistent for subscribing to stay idempotent, and
+  a `DeliveryQueue`. On Cloudflare, subscriptions live in a Durable Object and deliveries on Queues,
+  which already retry with a delay and keep a dead-letter queue. The first implementation goes in
+  `examples/fleet-worker`, and moves to `@worker-protocol/cloudflare` once it has run.
+- **`@worker-protocol/client` gains both halves**: subscribing, listing and unsubscribing, and a
+  sink helper — the handshake, the bearer check, deduplication by `source` and `id` — which is what
+  a Convex HTTP action needs to receive.
+
+**Rejected, and why:**
+
+- *An SDK feature with no specification.* Each Worker would manage subscriptions its own way, and
+  neither the client nor a Tower could subscribe to an arbitrary Worker.
+- *The CloudEvents Subscriptions API by reference.* It is `0.1-wip`, and its shape — protocols,
+  per-protocol configuration, SQL — is broader than this network needs. Its required filter
+  dialects are adopted, written out.
+- *The Worker declared as its own broker, keeping EVT-11.* Compatible with 0.3 readers, at the cost
+  of declaring the address twice. The `0.x` rule makes the clean form possible without 1.0.
+- *Releasing it as 1.0.* Spends the MAJOR on a change nobody in practice is exposed to.
+- *HMAC signatures* (Standard Webhooks). A secret to generate, return and rotate per subscription,
+  and they do not stop flooding without the handshake as well.
+- *A renewable lease.* A subscription would end silently when an automation forgot to renew it.
+- *Best-effort delivery, like a nudge.* A lost event cannot be read back.
+- *Filtering by type only.* It cannot say *a Task of type X*. And *`sql` now*: no JavaScript
+  implementation, and nothing needs it yet.
+- *Retries in a Durable Object with alarms.* One alarm per object means keeping a retry queue by
+  hand, and every delivery through one single-threaded object.
+
+**Settled while writing it down, and open to change before it is built:**
+
+- Structured mode (`application/cloudevents+json`) for deliveries, the simplest for a Convex HTTP
+  action to receive.
+- The handshake runs when the subscription is created; a sink that refuses it is `422
+  unprocessable_content`, and nothing is stored.
+- Another caller's subscription is `404`, so nobody learns that it exists.
+- An Alert event carries the Alert id in `subject`; `task-resolved` carries `{ id, type }` and
+  `alert-cleared` carries `{ id }`; the final event is
+  `tech.rowing.worker-protocol.subscription-ended`, with the reason.
+- Revocation is an optional hook in which the Worker says whether it still accepts a caller;
+  without it, a subscription ends only by deletion or abandonment.
+
+**Lands in:** `spec/subscriptions.md`, a new file with a prefix of its own; `spec/events.md`,
+`spec/descriptor.md`, `spec/tasks.md` and `docs/architecture.md`; `schemas/`; `packages/hono`,
+`packages/client` and `packages/conformance`; `examples/fleet-worker`. Edition 0.4, packages 0.6.0.
