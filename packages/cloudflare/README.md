@@ -3,16 +3,28 @@
 The protocol's stores in Durable Objects, and the two Queues between an outbox and a sink: one
 mixin per piece, for Workers on Cloudflare.
 
-**Not published yet.** It is `private: true` until `examples/fleet-worker`, which is built on it,
-has run on a real Cloudflare account — its Queues, its dead-letter queue, an alarm and a real sink
-— rather than only on workerd in tests. `docs/roadmap.md` holds that decision and the reasoning
-behind the shape below.
-
 **worker-protocol is an open specification for Workers that can be seen, operated and given work by
 people who did not build them.** `@worker-protocol/hono` carries everything the protocol fixes and
 leaves to the platform what depends on it: where ENDP-16's outcomes, SUB-7's subscriptions and
 LOG-2's records live, and what carries a delivery. On Cloudflare that is a Durable Object and a
 Queue, and this package is the one way of writing both.
+
+## Install
+
+```
+npm i @worker-protocol/cloudflare @worker-protocol/hono hono zod
+```
+
+`hono` (`^4.13.7`) and `zod` (`^4.5.4`) are peer dependencies, shared with `@worker-protocol/hono`.
+The declarations name the Workers runtime's own types — `DurableObjectState`, `Queue`,
+`MessageBatch` — so a Worker type-checks against them with what `wrangler types` writes.
+
+**What has run, and what has not yet.** Every piece runs on workerd in this package's suite, and
+`examples/fleet-worker`, built on it, delivers to a subscriber's sink across Miniflare's Queues in
+the conformance suite. What no local run shows is a real Cloudflare account: what reaches the
+dead-letter queue after the platform's last retry, the platform's limits on batches and alarms,
+and how much writing a delivery's outcome costs the one object at scale. Those are the first things
+to watch in a first deployment.
 
 ## One mixin per piece
 
@@ -25,8 +37,10 @@ Queue, and this package is the one way of writing both.
 
 Mixins rather than one base class, because a Worker in production keeps one object per vehicle and
 one for the fleet: the subscriptions belong in the one, an outbox in every other, and a class that
-carried everything would put subscription tables in thousands of objects. A Worker with a single
-object composes all four in it:
+carried everything would put subscription tables in thousands of objects. Plain functions over
+`SqlStorage` would compose with any base class as well, at the price of a dozen one-line RPC
+wrappers per Worker per piece — the boilerplate this package exists to remove. A Worker with a
+single object composes all four in it:
 
 ```ts
 import { DurableObject } from "cloudflare:workers";
@@ -101,7 +115,9 @@ A Worker that wants Drizzle or Kysely for its domain uses it, beside these table
 
 `enqueue(at, events)` writes each event with its id in the same transaction as the calling method's
 own writes, so there is no moment at which a Fact changed and its event was not yet owed. The row
-holds the whole event, so the domain's retention need not wait for what is pending. An id still
+holds the whole event, so the domain's retention need not wait for what is pending — an outbox of
+ids, rendered into events only when they are sent, would duplicate nothing and make every Worker
+coordinate its retention with it by hand. An id still
 waiting is not enqueued twice; once sent, the same id enqueued again is a republication under the
 same `source` and `id`, which a consumer remembering them discards (EVT-8).
 

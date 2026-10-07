@@ -105,6 +105,14 @@ real socket with `wrangler`'s `unstable_dev`, and points `verify()` at the port 
 DESC-35 requires `https` only where a network is crossed, and a dev server on a loopback address
 crosses none.
 
+It also subscribes, which is the one place `subscriptions` runs end to end on the runtime it is
+built for. The suite serves a sink on a local port, exempts its origin with `DEV_SINK_ORIGINS`, and
+starts the Worker with `QUIET_AFTER_MINUTES` at zero, so the `run-cycle` the verifier performs makes
+every vehicle quiet at once. Each Task it raises leaves the outbox for `fleet-events`, is fanned out
+to `fleet-deliveries` by the Worker's own consumer — the Queues Miniflare runs, not fakes — and
+arrives at the sink, where the handshake, the credential, the filter and the lifecycle event are
+judged.
+
 [verify]: ../../packages/conformance/src/__tests__/fleet-worker.test.ts
 
 ## Type-checking it
@@ -210,9 +218,9 @@ wrangler deploy --config wrangler.tail.jsonc   # fleet-tail first
 wrangler deploy                                # then the producer that names it
 ```
 
-**This is the deployment `@worker-protocol/cloudflare` waits on before it is published**:
-`docs/roadmap.md` has the package published once this Worker has run on a real account — the two
-Queues and the dead-letter queue, an alarm retrying an outbox, and a real sink.
+A first deployment is also where `@worker-protocol/cloudflare` meets what no local run shows: what
+reaches the dead-letter queue after the platform's last retry, the platform's limits, and what a
+delivery's outcome costs the one object. Its README lists them.
 
 **What is not established**, and is the first thing to check against a real deployment: whether a
 tail invocation that throws is retried or dropped. Cloudflare does not document it, and a tail that

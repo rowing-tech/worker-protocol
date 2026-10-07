@@ -49,7 +49,13 @@ type Manifest = {
 };
 
 function git(...args: string[]): string {
-  return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
+  // stderr is captured rather than inherited: `git show` on a path a tag never had is how a new
+  // package is recognised, and its `fatal:` is an answer here, not something to print.
+  return execFileSync("git", args, {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 }
 
 /** Reads a manifest as of a tag, or null when the package did not exist there. */
@@ -155,16 +161,26 @@ const required = zeroMajor ? "MINOR" : "MAJOR";
 const bigEnough = zeroMajor ? minor !== prevMinor : major !== prevMajor;
 
 const offenders: string[] = [];
+const added: string[] = [];
 
 for (const { path, manifest } of await publishable()) {
   const before = manifestAt(previous, path);
-  if (!before) continue; // the package is new in this release
+  if (!before) {
+    // New in this release: it encodes an edition for the first time, which changes nothing.
+    added.push(`${manifest.name ?? path}: edition ${manifest.workerProtocolEdition ?? "(none)"}`);
+    continue;
+  }
 
   const was = before.workerProtocolEdition;
   const now = manifest.workerProtocolEdition;
   if (was === now) continue;
 
   offenders.push(`${manifest.name ?? path}: edition ${was ?? "(none)"} -> ${now ?? "(none)"}`);
+}
+
+if (added.length > 0) {
+  console.log(`New in v${version}, with nothing before it to compare:`);
+  for (const one of added) console.log(`  ${one}`);
 }
 
 if (offenders.length > 0 && !bigEnough) {

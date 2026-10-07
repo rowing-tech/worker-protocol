@@ -1,6 +1,6 @@
 # Changelog
 
-Every release of the four packages this repository publishes, newest first. The format follows
+Every release of the packages this repository publishes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), with one addition this repository needs.
 
 **Each entry names the edition it encodes as well as its version, because the two are independent
@@ -17,15 +17,17 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
-The packages encode **edition 0.4**, which breaks what a 0.3 reader assumed — an `events` entry may
-now declare no broker — and is a MINOR anyway, under the rule this edition adopts: until 1.0, a
+## [0.6.0] - 2026-10-07 — edition 0.4
+
+All five packages encode **edition 0.4**, which breaks what a 0.3 reader assumed — an `events` entry
+may now declare no broker — and is a MINOR anyway, under the rule this edition adopts: until 1.0, a
 MINOR may break as a MAJOR does (DESC-32). A verifier on 0.3 meeting a 0.4 Worker now says it is
 behind rather than judging it (DESC-33). The release that carries it is a MINOR of the packages,
 which `^0.5.0` does not take.
 
 ### Edition 0.4
 
-- **`subscriptions`, a tenth Capability** (`spec/subscriptions.md`, SUB-1 to SUB-16). A consumer
+- **`subscriptions`, a tenth Capability** (`spec/subscriptions.md`, SUB-1 to SUB-17). A consumer
   subscribes to a Worker over the Worker API and the Worker pushes every matching event to the
   consumer's sink: validated first by the CloudEvents webhook handshake, delivered as a structured
   CloudEvent with the sink's own bearer, at least once within EVT-8's window. Subscribing is
@@ -140,7 +142,7 @@ which `^0.5.0` does not take.
   the batch it arrived in. `deliver()` says when it gives up while the
   subscription still wanted the event: `{ done: true, gaveUp: { reason, status } }`, with `refused`,
   `expired` or `abandoned`, so whatever carries a delivery can keep it for somebody to inspect.
-- **`@worker-protocol/cloudflare`, built and not yet published.** One Durable Object mixin per
+- **`@worker-protocol/cloudflare`, a fifth package, first published.** One Durable Object mixin per
   piece — `withOutcomes` (ENDP-16), `withSubscriptions` (SUB-7), `withOutbox` and `withLogs`
   (LOG-2) — so a Worker that keeps an object per vehicle puts the outbox in each and the
   subscriptions in the one it has for the fleet. The outbox is written in the caller's transaction,
@@ -148,8 +150,9 @@ which `^0.5.0` does not take.
   `wakeAt()` and `wake()`. `consumeQueues()` consumes an events Queue — fanning each batch out to
   the subscriptions — and a deliveries Queue, and sends what is given up, tagged by kind, to a
   dead-letter queue and to a record in `/logs`. Every piece's tables are versioned and migrated
-  object by object by `migrate()`, which a domain may use for its own tables. It is `private: true`
-  until `examples/fleet-worker` has run on a real Cloudflare account.
+  object by object by `migrate()`, which a domain may use for its own tables. It has run on workerd
+  and across Miniflare's Queues, and not yet on a real Cloudflare account; its README says what to
+  watch in a first deployment.
 - **The conformance CLI takes an arrangement, and brings a sink.** `--arrangement <file>` reads
   `verify()`'s `arrangement` from JSON, strictly, so a misspelt key stops the run instead of
   reporting its rules `notExercised`. `--sink-port` serves a sink on `127.0.0.1` for the
@@ -158,7 +161,8 @@ which `^0.5.0` does not take.
   `@worker-protocol/cloudflare`. Its one Durable Object composes all four mixins; its events leave
   through the outbox to `fleet-events`, are fanned out to `fleet-deliveries`, and what is given up
   goes to `fleet-dead` and to `/logs`. It publishes `task-raised` and `task-ended` from the moment
-  the Task is born and ends.
+  the Task is born and ends. The conformance suite subscribes to it at a sink of its own, so every
+  delivery rule is judged across Miniflare's Queues; `QUIET_AFTER_MINUTES` sets the domain's window.
 
 ### Changed
 
@@ -574,7 +578,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.0...v0.3.1

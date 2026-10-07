@@ -1,7 +1,6 @@
 {
   "name": "@worker-protocol/cloudflare",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.6.0",
   "workerProtocolEdition": "0.4",
   "description": "The protocol's stores in Durable Objects, and the Queues between an outbox and a sink: mixins for ENDP-16, SUB-7, LOG-2 and an outbox, for Workers on Cloudflare",
   "keywords": [
@@ -20,6 +19,11 @@
     "url": "git+https://github.com/rowing-tech/worker-protocol.git",
     "directory": "packages/cloudflare"
   },
+  "homepage": "https://github.com/rowing-tech/worker-protocol/tree/main/packages/cloudflare#readme",
+  "bugs": "https://github.com/rowing-tech/worker-protocol/issues",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -37,14 +41,20 @@
   "scripts": {
     "typecheck": "wrangler types && tsc -p tsconfig.json",
     "build": "wrangler types --include-env=false runtime.d.ts && tsc -p tsconfig.build.json",
+    "prepack": "pnpm build && node ../../scripts/pack-legal.ts",
     "test": "vitest run"
   },
   "dependencies": {
     "@worker-protocol/hono": "workspace:*"
   },
+  "peerDependencies": {
+    "hono": "^4.13.7",
+    "zod": "^4.5.4"
+  },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.22.0",
     "@types/node": "26.5.1",
+    "hono": "4.13.7",
     "typescript": "7.0.2",
     "vitest": "4.1.11",
     "wrangler": "4.131.1",

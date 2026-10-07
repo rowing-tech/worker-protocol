@@ -9,7 +9,7 @@ complying, and proving that you comply.
 | `hono` | `@worker-protocol/hono` — the surface as Hono routes, which generate `openapi/`; and `mount()`, which a Worker on Hono mounts to get every address, header and refusal the protocol fixes |
 | `client` | `@worker-protocol/client` — `consume()`: read a Worker, and take work from it. The consumer half, and what a Tower or a teams app is built on |
 | `conformance` | `@worker-protocol/conformance` — point it at a worker's base URL, get a report of what it complies with; `verify()` from TypeScript, or `npx @worker-protocol/conformance <url>` from anywhere |
-| `cloudflare` | `@worker-protocol/cloudflare` — the stores `mount()` leaves to the platform, as Durable Object mixins, and the two Queues between an outbox and a sink. **Not published yet**: `private: true` until `examples/fleet-worker`, built on it, has run on a real Cloudflare account |
+| `cloudflare` | `@worker-protocol/cloudflare` — the stores `mount()` leaves to the platform on Cloudflare, as Durable Object mixins with migrations of their own, and the two Queues between an outbox and a sink |
 
 `client` is its own package and not a second export of `hono`, because a consumer is not a server:
 a Tower, a teams app or a Convex Worker that answers another Worker's Tasks runs no web
@@ -225,7 +225,7 @@ lower one: a range claiming Zod 4.0 works would be a claim nothing here has ever
 Three commands, and the middle one is not a command:
 
 ```
-pnpm bump <patch|minor|major|x.y.z>   set the root and the four packages to one version
+pnpm bump <patch|minor|major|x.y.z>   set the root and every package to one version
 <commit the manifests>
 pnpm release                          tag that commit v<version> and push the tag
 ```
@@ -233,8 +233,8 @@ pnpm release                          tag that commit v<version> and push the ta
 `pnpm bump --dry-run` prints what would change and writes nothing. `pnpm release --dry-run` prints
 the git commands and runs none of them.
 
-**The four packages carry one version, and it is the root's.** They are built together, tested
-together and released together; three of them exist only so the fourth is not re-derived by every
+**The packages carry one version, and it is the root's.** They are built together, tested together
+and released together, and each exists so that what another carries is not re-derived by every
 consumer. A reader who found `client` at 0.4.0 beside `schemas` at 0.2.7 would learn nothing from
 the difference except that they now have to work out which pairs were ever released together.
 `workspace:*` does the rest — pnpm rewrites each internal dependency to the version being published
@@ -290,13 +290,15 @@ for the reason it does not take `latest`.
 **What reaches npm is `packages/*` and nothing else.** The examples and
 `conformance/reference-worker` are workspace members, so the filter excludes them by path and their
 own `private: true` excludes them again. Each tarball carries a copy of the repository's `LICENSE`
-and `NOTICE`, written at pack time by `scripts/pack-legal.ts` rather than committed four times over
+and `NOTICE`, written at pack time by `scripts/pack-legal.ts` rather than committed once per package
 — npm ships only what sits inside a package directory, and the `NOTICE` is where the reservation
 lives that "worker-protocol" and any conformance claim made in its name are *not* granted by
 Apache-2.0.
 
 Publishing needs one secret, `NPM_TOKEN`: a granular access token for the `@worker-protocol` npm
-organization, with read and write on those four packages and nothing else.
+organization, with read and write on the `@worker-protocol` scope and nothing else — the scope
+rather than a list of packages, so that a package published for the first time goes out with the
+rest instead of failing halfway through a release.
 
 **Every tarball carries a provenance attestation**, which for a repository whose product is a
 specification is not a formality: `spec/` can be read by anyone, and provenance is what says the

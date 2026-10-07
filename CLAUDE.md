@@ -69,7 +69,7 @@ pnpm release                          tags the commit and pushes the tag
 ```
 
 Neither is ever run unprompted. `pnpm bump` edits files somebody has to read before committing, and
-`pnpm release` pushes a tag that starts `.github/workflows/publish.yml`, which publishes four
+`pnpm release` pushes a tag that starts `.github/workflows/publish.yml`, which publishes five
 packages to the public npm registry — where a version cannot be replaced, only superseded. That is
 the most irreversible thing this repository can do, and it is the user's to do. `--dry-run` on
 either is safe and is how to show what a release would be.

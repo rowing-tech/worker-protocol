@@ -4,9 +4,9 @@ import { join } from "node:path";
 /**
  * Sets the version of the root manifest and of every publishable workspace member, in one move.
  *
- * One number for four packages is a deliberate simplification, not an oversight. They are released
- * together, they are tested together, and three of the four exist only because the fourth would
- * otherwise have to be re-derived by every consumer; a reader who finds `@worker-protocol/client`
+ * One number for every package is a deliberate simplification, not an oversight. They are released
+ * together and tested together, and each exists so that what another carries is not re-derived by
+ * every consumer; a reader who finds `@worker-protocol/client`
  * at 0.4.0 and `@worker-protocol/schemas` at 0.2.7 learns nothing from the difference except that
  * they have to go and check which pairs were ever released together. The tag this produces names
  * the whole repository, which is what `scripts/release.ts` pushes.
