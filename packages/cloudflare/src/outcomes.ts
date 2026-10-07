@@ -1,5 +1,6 @@
 import type { OutcomeStore, Recorded, Reservation } from "@worker-protocol/hono";
-import { type DurableObjectClass, ensure, first, type Mixed, type Rpc } from "./durable.ts";
+import { type DurableObjectClass, first, type Mixed, type Rpc } from "./durable.ts";
+import { migrate, type Schema } from "./schema.ts";
 
 /**
  * ENDP-16's store, in whichever Durable Object a Worker keeps its outcomes in.
@@ -10,14 +11,21 @@ import { type DurableObjectClass, ensure, first, type Mixed, type Rpc } from "./
  * reservation, and only one of them performs.
  */
 
-const TABLES = [
-  `CREATE TABLE IF NOT EXISTS wp_outcome (
-    key TEXT PRIMARY KEY,
-    until INTEGER NOT NULL,
-    answer TEXT
-  )`,
-  "CREATE INDEX IF NOT EXISTS wp_outcome_until ON wp_outcome (until)",
-];
+/** `migrate` applies these; a new step goes at the end, and a published one is never edited. */
+const SCHEMA: Schema = {
+  piece: "worker-protocol.outcomes",
+  steps: [
+    // 1. The tables as first released, `IF NOT EXISTS` so an object that already has them adopts them.
+    [
+      `CREATE TABLE IF NOT EXISTS wp_outcome (
+        key TEXT PRIMARY KEY,
+        until INTEGER NOT NULL,
+        answer TEXT
+      )`,
+      "CREATE INDEX IF NOT EXISTS wp_outcome_until ON wp_outcome (until)",
+    ],
+  ],
+};
 
 /** What `withOutcomes` adds to a Durable Object. */
 export interface OutcomeMethods {
@@ -33,7 +41,7 @@ export function withOutcomes<B extends DurableObjectClass>(Base: B): Mixed<B, Ou
      * and the mapping once accepted a shape `OutcomeStore` does not take when it was spelled out.
      */
     beginOutcome(key: string, until: number): Reservation {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       const now = Date.now();
       // What has expired is nobody's any more, so it goes as soon as anybody asks: a window rather
       // than an archive, without a schedule of its own.
@@ -48,7 +56,7 @@ export function withOutcomes<B extends DurableObjectClass>(Base: B): Mixed<B, Ou
     }
 
     completeOutcome(key: string, answer: Recorded): void {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       sql.exec(
         "INSERT OR REPLACE INTO wp_outcome (key, until, answer) VALUES (?, ?, ?)",
         key,
@@ -58,7 +66,7 @@ export function withOutcomes<B extends DurableObjectClass>(Base: B): Mixed<B, Ou
     }
 
     releaseOutcome(key: string): void {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       sql.exec("DELETE FROM wp_outcome WHERE key = ?", key);
     }
   }

@@ -122,6 +122,12 @@ them in exactly one.
   retention would still have to wait on what is pending, and the API would carry one more piece.
 - *Publishing a prerelease for Soriana to adopt first*, or installing it from git: both put an
   untried shape where a deploy depends on it, when deploying `fleet-worker` costs nothing.
+- *An ORM in the package — Drizzle or Kysely — for its tables and their migrations.* A version
+  every Worker installing it has to agree with, for a few plain queries over JSON records, and a
+  migration journal a Worker using the same tool for its domain would share with it. The package
+  has a runner of its own instead: `migrate()`, one journal row per piece, every step versioned
+  and applied object by object, because a Worker with an object per vehicle has thousands of
+  copies of each table to bring forward and `CREATE TABLE IF NOT EXISTS` reaches none of them.
 
 **Lands in:** `packages/cloudflare`; `examples/fleet-worker`, rebuilt on it; `DeliveryOutcome` in
 `packages/hono`; `publish.yml` and `packages/README.md` when it is published.

@@ -36,6 +36,7 @@ export {
   type GivenUp,
   type QueuesConfig,
 } from "./queues.ts";
+export { migrate, type Schema } from "./schema.ts";
 export {
   durableSubscriptions,
   type SubscriptionMethods,

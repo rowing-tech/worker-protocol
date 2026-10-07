@@ -147,8 +147,9 @@ which `^0.5.0` does not take.
   drained when the call ends and retried by the one alarm, which the domain shares through
   `wakeAt()` and `wake()`. `consumeQueues()` consumes an events Queue — fanning each batch out to
   the subscriptions — and a deliveries Queue, and sends what is given up, tagged by kind, to a
-  dead-letter queue and to a record in `/logs`. It is `private: true` until
-  `examples/fleet-worker` has run on a real Cloudflare account.
+  dead-letter queue and to a record in `/logs`. Every piece's tables are versioned and migrated
+  object by object by `migrate()`, which a domain may use for its own tables. It is `private: true`
+  until `examples/fleet-worker` has run on a real Cloudflare account.
 - **The conformance CLI takes an arrangement, and brings a sink.** `--arrangement <file>` reads
   `verify()`'s `arrangement` from JSON, strictly, so a misspelt key stops the run instead of
   reporting its rules `notExercised`. `--sink-port` serves a sink on `127.0.0.1` for the

@@ -58,9 +58,44 @@ export class Asset extends withOutbox(DurableObject<Env>, { events: (env) => env
 }
 ```
 
-Each piece keeps its tables under a `wp_` prefix, so none meets a table of the domain's, and
-creates them on every call rather than once: an object that empties itself with `deleteAll()` keeps
-running in the same instance.
+Each piece keeps its tables under a `wp_` prefix, so none meets a table of the domain's.
+
+## Migrations, object by object
+
+A Worker with an object per vehicle has thousands of copies of each piece's tables, and a column
+or an index added in a later release has to reach every one of them — each on its own, the first
+time it is reached after a deploy. `CREATE TABLE IF NOT EXISTS` reaches only the objects created
+after the change, so each piece instead declares a `Schema`: its name, and every step its tables
+have ever taken, oldest first. `migrate(storage, schema)` runs at the start of every method,
+applies the steps an object still lacks in one transaction with the version it records in
+`wp_schema`, and costs one read of that table when there is nothing to do.
+
+A published step is never edited, and a change is a new step at the end. An object written by a
+later release than the one running is refused rather than read, because older code over a newer
+shape is a rollback and not a migration.
+
+`migrate` is exported for a domain's own tables too, under a piece name of its own, so one object
+keeps one record of what shape it is in:
+
+```ts
+import { migrate, type Schema } from "@worker-protocol/cloudflare";
+
+const VEHICLES: Schema = {
+  piece: "fleet.vehicles",
+  steps: [
+    ["CREATE TABLE IF NOT EXISTS vehicle (plate TEXT PRIMARY KEY)"],
+    ["ALTER TABLE vehicle ADD COLUMN kind TEXT NOT NULL DEFAULT 'unknown'"],
+  ],
+};
+
+const sql = migrate(this.ctx.storage, VEHICLES);
+```
+
+**There is no ORM here, on purpose.** The tables are few, the queries plain, and most of what they
+hold is a JSON record in one column. A query builder carried by a library would be a version every
+Worker installing it has to agree with — and Drizzle's migrations keep one journal per database,
+which a Worker using Drizzle for its own tables in the same object would share with this package's.
+A Worker that wants Drizzle or Kysely for its domain uses it, beside these tables.
 
 ## The outbox, and the one alarm
 

@@ -4,10 +4,10 @@ import {
   BATCH,
   type DurableObjectClass,
   type EnvOf,
-  ensure,
   first,
   type Mixed,
 } from "./durable.ts";
+import { migrate, type Schema } from "./schema.ts";
 
 /**
  * An outbox, in every Durable Object whose changes raise events.
@@ -37,20 +37,27 @@ export type OutboxEvent = Publishable & { id: string; time: number };
 /** What a `flush()` did: how many events left, and how many are still waiting. */
 export type Flushed = { sent: number; pending: number };
 
-const TABLES = [
-  `CREATE TABLE IF NOT EXISTS wp_outbox (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    id TEXT NOT NULL UNIQUE,
-    at INTEGER NOT NULL,
-    event TEXT NOT NULL
-  )`,
-  // The instants the one alarm is shared between: `wake` is the domain's, `retry` the outbox's.
-  `CREATE TABLE IF NOT EXISTS wp_alarm (
-    name TEXT PRIMARY KEY,
-    at INTEGER NOT NULL,
-    attempts INTEGER NOT NULL
-  )`,
-];
+/** `migrate` applies these; a new step goes at the end, and a published one is never edited. */
+const SCHEMA: Schema = {
+  piece: "worker-protocol.outbox",
+  steps: [
+    // 1. The tables as first released, `IF NOT EXISTS` so an object that already has them adopts them.
+    [
+      `CREATE TABLE IF NOT EXISTS wp_outbox (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT NOT NULL UNIQUE,
+        at INTEGER NOT NULL,
+        event TEXT NOT NULL
+      )`,
+      // The instants the one alarm is shared between: `wake` is the domain's, `retry` the outbox's.
+      `CREATE TABLE IF NOT EXISTS wp_alarm (
+        name TEXT PRIMARY KEY,
+        at INTEGER NOT NULL,
+        attempts INTEGER NOT NULL
+      )`,
+    ],
+  ],
+};
 
 /** The first retry of an outbox that could not be sent, and the longest wait between two. */
 const RETRY_FIRST_MS = 5_000;
@@ -168,7 +175,7 @@ export function withOutbox<B extends DurableObjectClass>(
      * emit a mixin's protected members; over RPC it would lose the transaction that is its point.
      */
     enqueue(at: number, events: Publishable[]): void {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       for (const one of events) {
         const { id, time, ...rest } = one;
         const when = time === undefined ? at : typeof time === "number" ? time : time.getTime();
@@ -183,7 +190,7 @@ export function withOutbox<B extends DurableObjectClass>(
 
     /** How deep the outbox is and when its oldest event was raised, which `health` may report. */
     outbox(): { depth: number; oldestAt: number | null } {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       const row = sql
         .exec<{ n: number; oldest: number | null }>(
           "SELECT COUNT(*) AS n, MIN(at) AS oldest FROM wp_outbox",
@@ -199,7 +206,7 @@ export function withOutbox<B extends DurableObjectClass>(
      */
     flush(): Promise<Flushed> {
       const storage = this.ctx.storage;
-      ensure(storage.sql, TABLES);
+      migrate(storage, SCHEMA);
       const running =
         inFlight.get(storage) ??
         drain({ storage, queue: options.events(this.env as EnvOf<B>) }).finally(() =>
@@ -212,7 +219,7 @@ export function withOutbox<B extends DurableObjectClass>(
     /** The domain's own alarm, sharing the one this object has. `null` withdraws it. */
     async wakeAt(at: number | null): Promise<void> {
       const storage = this.ctx.storage;
-      ensure(storage.sql, TABLES);
+      migrate(storage, SCHEMA);
       if (at === null) storage.sql.exec("DELETE FROM wp_alarm WHERE name = 'wake'");
       else {
         storage.sql.exec(

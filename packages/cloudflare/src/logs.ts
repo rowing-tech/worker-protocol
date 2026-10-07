@@ -1,5 +1,6 @@
 import { LEVELS, type LogFacts, type LogLevel } from "@worker-protocol/hono";
-import { type DurableObjectClass, ensure, type Mixed, type Rpc } from "./durable.ts";
+import type { DurableObjectClass, Mixed, Rpc } from "./durable.ts";
+import { migrate, type Schema } from "./schema.ts";
 
 /**
  * LOG-2's window, in the Durable Object a Worker writes its records to.
@@ -24,16 +25,23 @@ export type LogRow = {
   fields?: Record<string, string | number | boolean>;
 };
 
-const TABLES = [
-  `CREATE TABLE IF NOT EXISTS wp_log (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    at INTEGER NOT NULL,
-    level TEXT NOT NULL,
-    rank INTEGER NOT NULL,
-    message TEXT NOT NULL,
-    fields TEXT
-  )`,
-];
+/** `migrate` applies these; a new step goes at the end, and a published one is never edited. */
+const SCHEMA: Schema = {
+  piece: "worker-protocol.logs",
+  steps: [
+    // 1. The tables as first released, `IF NOT EXISTS` so an object that already has them adopts them.
+    [
+      `CREATE TABLE IF NOT EXISTS wp_log (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        at INTEGER NOT NULL,
+        level TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        message TEXT NOT NULL,
+        fields TEXT
+      )`,
+    ],
+  ],
+};
 
 /** One page as the object answers it, before `durableLogs` turns instants into `Date`s. */
 export type LogRows = { rows: LogRow[]; nextCursor?: string };
@@ -65,7 +73,7 @@ export function withLogs<B extends DurableObjectClass>(
   abstract class WithLogs extends Base implements LogMethods {
     /** One write per call, whatever the line count — per line it would be a write per record. */
     record(rows: LogRow[]): void {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       for (const row of rows) {
         sql.exec(
           "INSERT INTO wp_log (at, level, rank, message, fields) VALUES (?, ?, ?, ?, ?)",
@@ -84,7 +92,7 @@ export function withLogs<B extends DurableObjectClass>(
 
     /** LOG-3, LOG-7, LOG-8, ENDP-33 — one page, most recent first, in one query. */
     logs(query: LogsQuery): LogRows {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       const found = sql
         .exec<{
           seq: number;

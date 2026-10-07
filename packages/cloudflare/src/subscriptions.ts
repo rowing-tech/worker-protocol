@@ -1,5 +1,6 @@
 import type { StoredSubscription, SubscriptionStore } from "@worker-protocol/hono";
-import { type DurableObjectClass, ensure, first, type Mixed, type Rpc } from "./durable.ts";
+import { type DurableObjectClass, first, type Mixed, type Rpc } from "./durable.ts";
+import { migrate, type Schema } from "./schema.ts";
 
 /**
  * SUB-7's store, in the one Durable Object that holds a Worker's subscriptions.
@@ -19,18 +20,25 @@ import { type DurableObjectClass, ensure, first, type Mixed, type Rpc } from "./
  * type. `durableSubscriptions` does the parsing, so a Worker never sees the strings.
  */
 
-const TABLES = [
-  // The subscription itself is `record`. `key`, `caller` and `ended` are copied out of it only
-  // because a query filters on them; nothing reads them back.
-  `CREATE TABLE IF NOT EXISTS wp_subscription (
-    id TEXT PRIMARY KEY,
-    key TEXT NOT NULL,
-    caller TEXT,
-    ended INTEGER NOT NULL,
-    record TEXT NOT NULL
-  )`,
-  "CREATE INDEX IF NOT EXISTS wp_subscription_key ON wp_subscription (key)",
-];
+/** `migrate` applies these; a new step goes at the end, and a published one is never edited. */
+const SCHEMA: Schema = {
+  piece: "worker-protocol.subscriptions",
+  steps: [
+    // 1. The tables as first released, `IF NOT EXISTS` so an object that already has them adopts them.
+    [
+      // The subscription itself is `record`. `key`, `caller` and `ended` are copied out of it only
+      // because a query filters on them; nothing reads them back.
+      `CREATE TABLE IF NOT EXISTS wp_subscription (
+        id TEXT PRIMARY KEY,
+        key TEXT NOT NULL,
+        caller TEXT,
+        ended INTEGER NOT NULL,
+        record TEXT NOT NULL
+      )`,
+      "CREATE INDEX IF NOT EXISTS wp_subscription_key ON wp_subscription (key)",
+    ],
+  ],
+};
 
 /** What `withSubscriptions` adds to a Durable Object. Every subscription crosses as JSON. */
 export interface SubscriptionMethods {
@@ -48,7 +56,7 @@ export function withSubscriptions<B extends DurableObjectClass>(
 ): Mixed<B, SubscriptionMethods> {
   abstract class WithSubscriptions extends Base implements SubscriptionMethods {
     findSubscription(key: string): string | null {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       const row = first(
         sql.exec<{ record: string }>(
           "SELECT record FROM wp_subscription WHERE key = ? AND ended = 0 LIMIT 1",
@@ -63,7 +71,7 @@ export function withSubscriptions<B extends DurableObjectClass>(
       const held = this.findSubscription(key);
       if (held !== null) return { record: held, created: false };
       const one = JSON.parse(candidate) as StoredSubscription;
-      ensure(this.ctx.storage.sql, TABLES).exec(
+      migrate(this.ctx.storage, SCHEMA).exec(
         "INSERT INTO wp_subscription (id, key, caller, ended, record) VALUES (?, ?, ?, 0, ?)",
         one.id,
         key,
@@ -74,7 +82,7 @@ export function withSubscriptions<B extends DurableObjectClass>(
     }
 
     getSubscription(id: string): string | null {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       const row = first(
         sql.exec<{ record: string }>("SELECT record FROM wp_subscription WHERE id = ?", id),
       );
@@ -83,7 +91,7 @@ export function withSubscriptions<B extends DurableObjectClass>(
 
     /** SUB-8: one caller's, ended ones included. `IS` because a caller may be `null`. */
     subscriptionsOf(caller: string | null): string[] {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       return sql
         .exec<{ record: string }>("SELECT record FROM wp_subscription WHERE caller IS ?", caller)
         .toArray()
@@ -92,7 +100,7 @@ export function withSubscriptions<B extends DurableObjectClass>(
 
     /** SUB-13: the live ones naming this type. The filters are the hub's to apply. */
     subscriptionsFor(type: string): string[] {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       return sql
         .exec<{ record: string }>(
           `SELECT record FROM wp_subscription
@@ -114,7 +122,7 @@ export function withSubscriptions<B extends DurableObjectClass>(
       if (held === null) return;
       const next: Record<string, unknown> = { ...JSON.parse(held), ...JSON.parse(change.set) };
       for (const name of change.clear) delete next[name];
-      ensure(this.ctx.storage.sql, TABLES).exec(
+      migrate(this.ctx.storage, SCHEMA).exec(
         "UPDATE wp_subscription SET ended = ?, record = ? WHERE id = ?",
         next.endedAt === undefined ? 0 : 1,
         JSON.stringify(next),
@@ -123,7 +131,7 @@ export function withSubscriptions<B extends DurableObjectClass>(
     }
 
     removeSubscription(id: string): void {
-      const sql = ensure(this.ctx.storage.sql, TABLES);
+      const sql = migrate(this.ctx.storage, SCHEMA);
       sql.exec("DELETE FROM wp_subscription WHERE id = ?", id);
     }
   }

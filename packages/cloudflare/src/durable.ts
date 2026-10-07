@@ -25,21 +25,6 @@ export type Mixed<B extends DurableObjectClass, M> = B & (abstract new (...args:
 export type EnvOf<B extends DurableObjectClass> =
   InstanceType<B> extends DurableObject<infer E> ? E : never;
 
-/**
- * Runs each statement, which is how every piece creates its tables, and answers the `sql` it ran
- * them on — so a method opens with `const sql = ensure(this.ctx.storage.sql, TABLES)`.
- *
- * Called at the start of every method rather than once in a constructor, because a Durable Object
- * that empties itself with `deleteAll()` — Soriana's does, once an asset has not been listed for
- * long enough — keeps running in the same instance, and a table created only at construction would
- * be missing on the next call. `CREATE TABLE IF NOT EXISTS` against local SQLite costs nothing a
- * caller could measure.
- */
-export const ensure = (sql: SqlStorage, statements: string[]): SqlStorage => {
-  for (const statement of statements) sql.exec(statement);
-  return sql;
-};
-
 /** The one row a query answers, or `undefined`. */
 export const first = <T extends Record<string, SqlStorageValue>>(
   cursor: SqlStorageCursor<T>,
