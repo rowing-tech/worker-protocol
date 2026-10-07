@@ -17,7 +17,7 @@ import {
 } from "@worker-protocol/hono";
 import * as z from "zod";
 import type { Env } from "./env.ts";
-import { fleetOf, QUIET_AFTER_MS, QUIET_VEHICLE, quietTask, type Reading } from "./fleet.ts";
+import { fleetOf, QUIET_VEHICLE, quietAfterMs, quietTask, type Reading } from "./fleet.ts";
 
 /**
  * A Worker on Cloudflare whose Facts live in a Durable Object.
@@ -199,7 +199,7 @@ export const fleetWorker = defineWorker<Env>((env) => {
       },
       // TASK-15: the condition, read from the store rather than derived from a Map in a process.
       current: async (): Promise<OpenTask[]> =>
-        (await fleet.quiet(Date.now(), QUIET_AFTER_MS)).map(quietTask),
+        (await fleet.quiet(Date.now(), quietAfterMs(env))).map(quietTask),
     },
 
     events: EVENTS,
@@ -228,7 +228,7 @@ export async function cycle(env: Env): Promise<{ readings: number; published: nu
   const fleet = fleetOf(env);
   const now = Date.now();
   const readings: Reading[] = listed(env.SOURCE_VEHICLES).map((vehicle) => ({ vehicle, at: now }));
-  const published = await fleet.ingest(readings, now, QUIET_AFTER_MS);
+  const published = await fleet.ingest(readings, now, quietAfterMs(env));
 
   // LOG-2: the record, written on purpose and in one call. This is the whole of what a Worker does
   // for this Capability — it decides what is worth a line and where that line is kept. There is no

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { unstable_dev } from "wrangler";
 import { type Report, type Result, universe, verify } from "../index.ts";
+import { type ListeningSink, listenAsSink } from "../sink.ts";
 
 /**
  * The verifier against a Worker deployed the way this protocol's architecture assumes.
@@ -28,35 +29,49 @@ const FLEET = join(import.meta.dirname, "..", "..", "..", "..", "examples", "fle
 const CREDENTIAL = "f-token";
 
 /**
- * What this Worker's operators would tell a verifier, which is one Action that is safe to perform.
+ * What this Worker's operators would tell a verifier: an Action that is safe to perform, and the
+ * Action that makes it publish, delivered to a sink of the verifier's own.
  *
- * `record-inspection` records that somebody looked at a vehicle. It is safe in the sense the
- * arrangement means: performing it changes this Worker's own Facts and reaches nothing else.
+ * `record-inspection` records that somebody looked at a vehicle, and changes nothing but this
+ * Worker's Facts. `run-cycle` reads the stub provider, and with `QUIET_AFTER_MINUTES` at zero every
+ * vehicle it hears from goes quiet at once — so the cycle raises a Task per vehicle, and each
+ * `task-raised` crosses the outbox, the events Queue and the deliveries Queue to reach the sink:
+ * the whole of `subscriptions` on the runtime it is built for, over the Queues Miniflare runs.
  */
-const ARRANGEMENT = {
+const arrangementWith = (sink: ListeningSink) => ({
   safeAction: { name: "record-inspection", input: { vehicle: "ABC-123", reachable: true } },
-};
+  sink: { url: sink.url, received: sink.received },
+  publishingAction: {
+    name: "run-cycle",
+    input: {},
+    publishes: "tech.rowing.worker-protocol.task-raised",
+  },
+});
 
 describe("a Worker on workerd, verified over HTTP", () => {
   let report: Report;
   let worker: Awaited<ReturnType<typeof unstable_dev>>;
+  let sink: ListeningSink;
 
   beforeAll(async () => {
+    sink = await listenAsSink({ port: 0 });
     worker = await unstable_dev(join(FLEET, "src", "worker.ts"), {
       config: join(FLEET, "wrangler.jsonc"),
       experimental: { disableExperimentalWarning: true },
-      vars: { CREDENTIAL },
+      // The sink's origin exempted from SUB-5 and SUB-6, as a local backend is in development.
+      vars: { CREDENTIAL, DEV_SINK_ORIGINS: sink.origin, QUIET_AFTER_MINUTES: "0" },
     });
     report = await verify({
       baseUrl: `http://127.0.0.1:${worker.port}`,
       credential: CREDENTIAL,
       mayPerform: true,
-      arrangement: ARRANGEMENT,
+      arrangement: arrangementWith(sink),
     });
   }, 60_000);
 
   afterAll(async () => {
     await worker.stop();
+    await sink.close();
   });
 
   const result = (id: string): Result | undefined =>
@@ -88,6 +103,27 @@ describe("a Worker on workerd, verified over HTTP", () => {
     // DESC-33 did not stop the run, so what follows is a verdict rather than a version complaint.
     expect(report.older).toBeUndefined();
     expect(report.edition).toBe(report.verifierEdition);
+  });
+
+  it("delivers what it publishes to a subscriber's sink, across both of its Queues", () => {
+    // Each of these is observed at the sink: the handshake before anything was stored (SUB-10), a
+    // delivery with the sink's own credential (SUB-11), nothing for the subscription whose filter
+    // no event satisfies (SUB-13), the delivery on record in the list (SUB-16), and a lifecycle
+    // event carrying its Task in `subject` and `tasktype` (EVT-15).
+    for (const id of ["SUB-2", "SUB-7", "SUB-10", "SUB-11", "SUB-13", "SUB-16", "EVT-15"]) {
+      expect(result(id)?.verdict, id).toBe("passes");
+    }
+    // What reached the sink were the cycle's Tasks. Not necessarily all three: the verifier ends its
+    // subscriptions once the first delivery has had a moment's company, and a delivery the Queue
+    // carries after that finds no subscription to make it for.
+    const delivered = sink
+      .received()
+      .filter((one) => one.method === "POST")
+      .map((one) => (JSON.parse(one.body) as { subject?: string }).subject);
+    expect(delivered.length).toBeGreaterThan(0);
+    for (const subject of delivered) {
+      expect(["quiet:ABC-123", "quiet:DEF-456", "quiet:GHI-789"]).toContain(subject);
+    }
   });
 
   it("declares its Capabilities under the names this edition fixed", () => {

@@ -22,6 +22,10 @@
   // window, so `max_retries` is the ceiling over that decision and not the decision: the default
   // of 3 would end a delivery the hub still wanted to make, so it is the platform's maximum.
   //
+  // `max_batch_timeout` is a second rather than the default five: an event crosses both Queues on
+  // its way to a sink, so the wait is paid twice, and a subscriber is a backend that wants to know
+  // soon. A batch fills less, and costs an invocation more per second at worst.
+  //
   // `fleet-dead` holds what is given up — a delivery refused for good or out of its window, sent
   // there by the consumer with the reason, and a message the platform drops after its last retry,
   // sent there because each consumer names it. It has no consumer: it is for somebody to inspect,
@@ -33,8 +37,18 @@
       { "binding": "DEAD", "queue": "fleet-dead" }
     ],
     "consumers": [
-      { "queue": "fleet-events", "max_retries": 100, "dead_letter_queue": "fleet-dead" },
-      { "queue": "fleet-deliveries", "max_retries": 100, "dead_letter_queue": "fleet-dead" }
+      {
+        "queue": "fleet-events",
+        "max_batch_timeout": 1,
+        "max_retries": 100,
+        "dead_letter_queue": "fleet-dead"
+      },
+      {
+        "queue": "fleet-deliveries",
+        "max_batch_timeout": 1,
+        "max_retries": 100,
+        "dead_letter_queue": "fleet-dead"
+      }
     ]
   },
   // The Worker that records what this one cannot record about itself — an uncaught exception, an
@@ -46,6 +60,7 @@
   // than load-bearing: losing one costs latency, and the cron is what makes it never cost work.
   "triggers": { "crons": ["* * * * *"] },
   "vars": {
-    "SOURCE_VEHICLES": "ABC-123,DEF-456,GHI-789"
+    "SOURCE_VEHICLES": "ABC-123,DEF-456,GHI-789",
+    "QUIET_AFTER_MINUTES": "15"
   }
 }

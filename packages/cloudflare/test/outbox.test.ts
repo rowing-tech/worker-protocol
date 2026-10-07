@@ -1,5 +1,5 @@
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { outbound, shard, TYPE, whole } from "./outbound.ts";
 
 /**
@@ -49,6 +49,22 @@ describe("withOutbox", () => {
     // Nothing more is owed and the domain asked for nothing, so the alarm is cleared.
     expect(await alarmOf(stub)).toBeNull();
   });
+
+  it("retries on its own when the alarm comes, with nobody forcing it", async () => {
+    const stub = whole();
+    outbound.state.failing = true;
+    await stub.change("a", 1_000);
+    outbound.state.failing = false;
+    // The first retry is five seconds out, and the platform fires it: no `runDurableObjectAlarm`.
+    await vi.waitFor(
+      () => expect(outbound.state.sent.map((one) => one.id)).toEqual(["changed:a"]),
+      {
+        timeout: 10_000,
+        interval: 250,
+      },
+    );
+    expect((await stub.outbox()).depth).toBe(0);
+  }, 15_000);
 
   it("wakes the domain at its own instant, and not at the outbox's", async () => {
     const stub = whole();

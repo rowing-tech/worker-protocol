@@ -31,6 +31,20 @@ const CYCLE_MS = 60_000;
 /** How long a vehicle may say nothing before it is quiet. The domain's number, not the protocol's. */
 export const QUIET_AFTER_MS = 15 * CYCLE_MS;
 
+/**
+ * The window a deployment runs with: `QUIET_AFTER_MINUTES` where it is set, the default otherwise.
+ *
+ * A variable rather than only a constant because it is calibration, as a sensor's threshold is, and
+ * because a Worker under test needs a vehicle to go quiet now rather than in fifteen minutes: the
+ * conformance suite runs it at zero, so the cycle it performs raises a Task the verifier can watch
+ * arrive at its sink.
+ */
+export const quietAfterMs = (env: Pick<Env, "QUIET_AFTER_MINUTES">): number => {
+  const minutes =
+    env.QUIET_AFTER_MINUTES === undefined ? Number.NaN : Number(env.QUIET_AFTER_MINUTES);
+  return Number.isFinite(minutes) && minutes >= 0 ? minutes * 60_000 : QUIET_AFTER_MS;
+};
+
 /** The one Task type this Worker raises: a quiet vehicle, for whoever can go and look. */
 export const QUIET_VEHICLE = "tech.rowing.fleet.inspect-quiet-vehicle";
 
@@ -154,7 +168,9 @@ export class Fleet extends withLogs(
    * not quiet ends nothing, so it raises nothing.
    */
   async inspect(vehicle: string, at: number): Promise<void> {
-    const ending = (await this.quiet(at, QUIET_AFTER_MS)).find((one) => one.vehicle === vehicle);
+    const ending = (await this.quiet(at, quietAfterMs(this.env))).find(
+      (one) => one.vehicle === vehicle,
+    );
     await this.ctx.storage.put(`${INSPECTION}${vehicle}`, at);
     if (ending === undefined) return;
     this.enqueue(at, [taskEnded(quietTask(ending))]);

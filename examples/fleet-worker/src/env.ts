@@ -13,6 +13,8 @@ export type Env = {
   CREDENTIAL?: string;
   /** The stub standing in for a GPS provider: the plate numbers this cycle heard from. */
   SOURCE_VEHICLES?: string;
+  /** How long a vehicle may say nothing before it is quiet, in minutes. `fleet.ts` has the default. */
+  QUIET_AFTER_MINUTES?: string;
   /** The Queue every event leaves the outbox on, whose consumer fans it out to the subscriptions. */
   EVENTS: Queue<import("@worker-protocol/cloudflare").OutboxEvent>;
   /**
