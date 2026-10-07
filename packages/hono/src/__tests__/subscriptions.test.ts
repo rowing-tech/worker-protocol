@@ -338,7 +338,13 @@ describe("publishing a batch", () => {
     const batches: number[] = [];
     const store = memorySubscriptions();
     const { call, subscriptions } = build({
-      store: { ...store, forType: (type) => (asked.push(type), store.forType(type)) },
+      store: {
+        ...store,
+        forType: (type) => {
+          asked.push(type);
+          return store.forType(type);
+        },
+      },
     });
     await call("acme", { body: request() });
     const hub = eventHub({

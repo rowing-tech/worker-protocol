@@ -235,7 +235,10 @@ export function withOutbox<B extends DurableObjectClass>(
     async alarm(): Promise<void> {
       const storage = this.ctx.storage;
       const sql = storage.sql;
-      ensure(sql, TABLES);
+      // Asked, never created. Every alarm this mixin sets is written in `wp_alarm` first, so without
+      // the table there is nothing it owes: the object emptied itself, and an alarm delivered again
+      // — at least once is the platform's promise — must not bring its tables back.
+      if (!exists(sql, "wp_alarm")) return;
       const now = Date.now();
       if (depthOf(sql) > 0) await this.flush();
       const wake = first(sql.exec<{ at: number }>("SELECT at FROM wp_alarm WHERE name = 'wake'"));

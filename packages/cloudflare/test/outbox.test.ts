@@ -71,6 +71,9 @@ describe("withOutbox", () => {
     await stub.change("v-1", 1_000);
     await stub.wakeAt(Date.now() - 1);
     await runDurableObjectAlarm(stub);
+    // An alarm is delivered at least once, and one set in the past may also fire on its own: a
+    // second run after the object emptied itself must find nothing to do and create nothing.
+    await runInDurableObject(stub, (instance) => instance.alarm());
 
     const left = await runInDurableObject(stub, (_, state) =>
       state.storage.sql
