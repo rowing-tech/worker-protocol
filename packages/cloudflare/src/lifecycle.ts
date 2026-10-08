@@ -125,6 +125,39 @@ export function lifecycleEventsBetween(given: {
   ];
 }
 
+/**
+ * Owes each event not owed before, in the transaction the caller is in, and answers how many were
+ * new. The outbox holds an id back only while it waits; this remembers it after.
+ *
+ * **A function of the module and not a method of the mixin, and that is the rule for every mixin
+ * here.** `private` is TypeScript's alone: at run time it is a method on the prototype like any
+ * other, and `Mixed` does not carry it, so a Worker whose class declares a method of the same name
+ * replaces it without a word from the compiler or the runtime. Only what a mixin publishes as its
+ * interface is a method; what it does internally is reached by no subclass.
+ */
+function owe(given: {
+  storage: DurableObjectStorage;
+  enqueue: OutboxMethods["enqueue"];
+  now: number;
+  events: OutboxEvent[];
+}): number {
+  const { storage, enqueue, now, events } = given;
+  const sql = migrate(storage, SCHEMA);
+  // `RETURNING` answers a row only for an id this inserted, and nothing for one already there.
+  const fresh = events.filter(
+    (event) =>
+      sql
+        .exec(
+          "INSERT INTO wp_lifecycle_owed (id, at) VALUES (?, ?) ON CONFLICT DO NOTHING RETURNING id",
+          event.id,
+          now,
+        )
+        .toArray().length > 0,
+  );
+  enqueue(now, fresh);
+  return fresh.length;
+}
+
 export function withLifecycle<B extends Mixed<DurableObjectClass, OutboxMethods>>(
   Base: B,
   options: {
@@ -145,27 +178,6 @@ export function withLifecycle<B extends Mixed<DurableObjectClass, OutboxMethods>
     abstract nextChange(after: number): number;
 
     /**
-     * Owes each event not owed before, in the transaction the calling method is in, and answers how
-     * many were new. The outbox holds an id back only while it waits; this remembers it after.
-     */
-    private owe(now: number, events: OutboxEvent[]): number {
-      const sql = migrate(this.ctx.storage, SCHEMA);
-      // `RETURNING` answers a row only for an id this inserted, and nothing for one already there.
-      const fresh = events.filter(
-        (event) =>
-          sql
-            .exec(
-              "INSERT INTO wp_lifecycle_owed (id, at) VALUES (?, ?) ON CONFLICT DO NOTHING RETURNING id",
-              event.id,
-              now,
-            )
-            .toArray().length > 0,
-      );
-      this.enqueue(now, fresh);
-      return fresh.length;
-    }
-
-    /**
      * Performs `write` and owes what it changed: the Tasks and Alerts at `now` before it and after
      * it, compared in the same transaction as the write. `write` is synchronous, because the
      * comparison is only true of the write if nothing interleaves between the three.
@@ -173,10 +185,12 @@ export function withLifecycle<B extends Mixed<DurableObjectClass, OutboxMethods>
     changing<T>(now: number, write: () => T): T {
       const before = this.snapshot(now);
       const done = write();
-      this.owe(
+      owe({
+        storage: this.ctx.storage,
+        enqueue: (at, events) => this.enqueue(at, events),
         now,
-        lifecycleEventsBetween({ previous: before, current: this.snapshot(now), at: now }),
-      );
+        events: lifecycleEventsBetween({ previous: before, current: this.snapshot(now), at: now }),
+      });
       return done;
     }
 
@@ -212,7 +226,12 @@ export function withLifecycle<B extends Mixed<DurableObjectClass, OutboxMethods>
           at = next;
         }
       }
-      const fresh = this.owe(now, owed);
+      const fresh = owe({
+        storage: this.ctx.storage,
+        enqueue: (at, events) => this.enqueue(at, events),
+        now,
+        events: owed,
+      });
       sql.exec(
         "INSERT OR REPLACE INTO wp_lifecycle_mark (one, at) VALUES (1, ?)",
         Math.max(to, from),

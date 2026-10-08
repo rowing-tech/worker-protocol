@@ -67,7 +67,9 @@ and the rule each one cites.
   `insecureSinkOrigins` a development allowlist, `attemptTimeoutMs` how long one attempt at a sink
   may take (ten seconds). `events` may then declare no broker (EVT-13). The hub also offers
   `end(id, reason)` to end a subscription yourself — `withdrawn` or `revoked`, announced and kept
-  (SUB-15) — `wanted(events)` to leave out of an outbox what no live subscription would receive,
+  (SUB-15) — `wanted(events)` to leave out of an outbox what no live subscription would receive
+  (`wantedBy` does the same synchronously with no hub, and `withSubscriptions` answers
+  `wantedHere` inside the Durable Object that holds them),
   and `route`, `deliverAll` and `later` for a carrier that makes the first attempt itself, as
   `consumeQueues` does.
 - `logs: { read({ levels, from, to, cursor, limit }), pageSize? }` — answer

@@ -52,6 +52,7 @@ export {
   type DeliveryOutcome,
   type DeliveryQueue,
   type EndReason,
+  envelopeOf,
   eventHub,
   type GaveUp,
   holds,
@@ -69,6 +70,7 @@ export {
   type SubscriptionStore,
   taskEnded,
   taskRaised,
+  wantedBy,
 } from "./subscriptions.ts";
 export {
   endSubscription,

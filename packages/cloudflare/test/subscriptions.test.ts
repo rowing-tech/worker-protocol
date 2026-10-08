@@ -1,3 +1,4 @@
+import { runInDurableObject } from "cloudflare:test";
 import type { StoredSubscription } from "@worker-protocol/hono";
 import { describe, expect, it } from "vitest";
 import { durableSubscriptions } from "../src/index.ts";
@@ -52,5 +53,26 @@ describe("withSubscriptions", () => {
 
     await subscriptions.remove(subscription.id);
     expect(await subscriptions.get(subscription.id)).toBeUndefined();
+  });
+});
+
+describe("withSubscriptions, asked what a live subscription would receive", () => {
+  it("answers synchronously, inside the object, with the hub's own envelope", async () => {
+    const stub = whole();
+    await durableSubscriptions(stub).ensure("key", candidate());
+    // Inside the object and with no await between: what a write in `changing()` can call.
+    const answer = await runInDurableObject(stub, (object) =>
+      object.wantedHere("tech.rowing.fleet.tracker", [
+        {
+          type: "tech.rowing.worker-protocol.task-raised",
+          subject: "t-1",
+          data: {},
+          extensions: { tasktype: "a" },
+        },
+        { type: "tech.rowing.worker-protocol.task-raised", subject: "x-1", data: {} },
+        { type: "tech.rowing.fleet.nobody-subscribed", data: {} },
+      ]),
+    );
+    expect(answer).toEqual([true, false, false]);
   });
 });

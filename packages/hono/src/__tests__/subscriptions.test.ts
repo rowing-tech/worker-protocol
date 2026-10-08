@@ -13,6 +13,7 @@ import {
   SUBSCRIPTION_ENDED,
   type SubscriptionFacts,
   taskRaised,
+  wantedBy,
 } from "../subscriptions.ts";
 import type { Worker } from "../worker.ts";
 
@@ -550,5 +551,49 @@ describe("the hub, for a Worker that carries its own deliveries", () => {
         { type: LIFECYCLE.taskRaised, data: {}, extensions: { tasktype: "x" } },
       ]),
     ).toEqual([true, false, false]);
+  });
+});
+
+describe("wantedBy, without a hub", () => {
+  it("answers synchronously from the subscriptions it is handed, asking once per type", () => {
+    const asked: string[] = [];
+    const live = {
+      id: "s-1",
+      caller: "acme",
+      types: [TYPE],
+      sink: "https://sink.example.com/in",
+      sinkCredential: "x",
+      createdAt: 0,
+      filters: [{ exact: { depot: "north" } }],
+    };
+    const answer = wantedBy({
+      source: ID,
+      subscribed: (type) => {
+        asked.push(type);
+        return type === TYPE ? [live] : [];
+      },
+      events: [
+        { type: TYPE, data: {}, extensions: { depot: "north" } },
+        { type: TYPE, data: {}, extensions: { depot: "south" } },
+        { type: LIFECYCLE.taskRaised, data: {} },
+      ],
+    });
+    expect(answer).toEqual([true, false, false]);
+    expect(asked).toEqual([TYPE, LIFECYCLE.taskRaised]);
+  });
+
+  it("reads `source` as the hub sends it, so a filter on it agrees", () => {
+    const onSource = {
+      id: "s-1",
+      caller: null,
+      types: [TYPE],
+      sink: "https://sink.example.com/in",
+      sinkCredential: "x",
+      createdAt: 0,
+      filters: [{ exact: { source: ID } }],
+    };
+    expect(
+      wantedBy({ source: ID, subscribed: () => [onSource], events: [{ type: TYPE, data: {} }] }),
+    ).toEqual([true]);
   });
 });

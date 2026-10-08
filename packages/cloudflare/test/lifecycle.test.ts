@@ -55,6 +55,16 @@ describe("withLifecycle", () => {
     expect((await stub.advance(T0 + 5 * MINUTE)).owed).toBe(0);
   });
 
+  it("is not changed by a Worker method named like something it does internally", async () => {
+    // A Worker on 0.8.0 declared its own `owe` and silently replaced the mixin's. Its internals
+    // are functions of the module now, which no subclass can replace.
+    const stub = clock();
+    expect(await stub.owe()).toBe("the domain's own");
+    await stub.start(T0);
+    await stub.hold("t-1", T0 + 30_000);
+    expect((await stub.advance(T0 + MINUTE)).owed).toBe(1);
+  });
+
   it("gives up what it fell too far behind on, and says which instants", async () => {
     const stub = clock();
     await stub.start(T0);

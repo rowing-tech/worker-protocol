@@ -353,6 +353,68 @@ const retryAfter = (header: string | null, now: number): number | undefined => {
 };
 
 /**
+ * EVT-1: the CloudEvent a published event becomes, in structured mode, as the hub sends it — the
+ * Worker's id as `source`, a fresh id where the event has none, and its extensions beside the
+ * context attributes, which EVT-19 keeps from colliding with them.
+ */
+export const envelopeOf = (given: {
+  source: string;
+  published: Publishable;
+  /** The instant of publishing, which is the event's `time` where it carries none of its own. */
+  at: number;
+}): CloudEvent => {
+  const { source, published, at } = given;
+  return {
+    ...published.extensions,
+    specversion: "1.0",
+    id: published.id ?? crypto.randomUUID(),
+    source,
+    type: published.type,
+    time: rfc3339(published.time ?? at),
+    datacontenttype: "application/json",
+    ...(published.subject === undefined ? {} : { subject: published.subject }),
+    data: published.data,
+  };
+};
+
+/**
+ * Which of these events at least one of the given live subscriptions would receive: one that names
+ * its type and whose filters hold (SUB-13), read off the envelope the hub would send, so a filter
+ * sees the same attributes here as at publishing. Synchronous and with no hub, for the place that
+ * holds the subscriptions and decides what enters an outbox — a Durable Object with
+ * `withSubscriptions`, inside the transaction of the write that raised the events.
+ *
+ * `subscribed` answers the live subscriptions naming one type, and is asked once per type. It
+ * answers for subscriptions and nothing else: a Worker that also publishes to a broker (EVT-13)
+ * still owes the broker every event.
+ */
+export const wantedBy = (given: {
+  /** The Worker's id, which is every event's `source` (EVT-1). */
+  source: string;
+  subscribed: (type: string) => StoredSubscription[];
+  events: Publishable[];
+}): boolean[] => {
+  const { source, subscribed, events } = given;
+  const at = Date.now();
+  const byType = new Map<string, StoredSubscription[]>();
+  const live = (type: string) => {
+    let held = byType.get(type);
+    if (held === undefined) {
+      held = subscribed(type);
+      byType.set(type, held);
+    }
+    return held;
+  };
+  return events.map((published) => {
+    const subscriptions = live(published.type);
+    if (subscriptions.length === 0) return false;
+    // An id is only drawn for an event that has none, and a filter on `id` is meaningless then.
+    const event = envelopeOf({ source, published: { ...published, id: published.id ?? "" }, at });
+    return subscriptions.some((one) => matches(one.filters, event));
+  });
+};
+
+/**
  * The part of a Worker's declaration the push reads: who publishes, what, and to whom.
  *
  * The same objects the Worker hands `mount()`, and not values copied out of them, because a copy is
@@ -430,17 +492,8 @@ export function eventHub(worker: Publisher) {
     }
   };
 
-  const envelope = (published: Publishable, at: number): CloudEvent => ({
-    ...published.extensions,
-    specversion: "1.0",
-    id: published.id ?? crypto.randomUUID(),
-    source,
-    type: published.type,
-    time: rfc3339(published.time ?? at),
-    datacontenttype: "application/json",
-    ...(published.subject === undefined ? {} : { subject: published.subject }),
-    data: published.data,
-  });
+  const envelope = (published: Publishable, at: number): CloudEvent =>
+    envelopeOf({ source, published, at });
 
   /** SUB-15: the subscription ends, one attempt at telling its sink, and it stays listed. */
   const end = async (subscription: StoredSubscription, reason: EndReason) => {
@@ -656,12 +709,8 @@ export function eventHub(worker: Publisher) {
      * the publish does not see what was left out.
      */
     wanted: async (batch: Publishable[]): Promise<boolean[]> => {
-      const at = Date.now();
-      const events = batch.map((one) => envelope({ ...one, id: one.id ?? "" }, at));
-      const subscribed = await subscribedTo(events.map((event) => event.type));
-      return events.map((event) =>
-        (subscribed.get(event.type) ?? []).some((one) => matches(one.filters, event)),
-      );
+      const subscribed = await subscribedTo(batch.map((one) => one.type));
+      return wantedBy({ source, subscribed: (type) => subscribed.get(type) ?? [], events: batch });
     },
   };
 }

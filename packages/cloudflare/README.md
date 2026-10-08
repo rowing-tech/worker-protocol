@@ -202,6 +202,15 @@ Every id is derived from the transition, the resource and its `since`, and the i
 brings its birth with it. `heartbeat()` compares up to now and points the shared alarm at the next
 instant; a cron that calls it starts the chain and restarts it if an alarm is lost.
 
+**What a mixin does internally is a function of its module, never a method.** `private` is
+TypeScript's alone: at run time it is a method on the prototype, and a Worker whose class declares
+one of the same name replaces it silently. Only the methods each mixin's interface lists are on the
+object.
+
+`withSubscriptions` also answers `wantedHere(source, events)`: which events a live subscription it
+holds would receive, synchronously, so an object that keeps an outbox and the subscriptions leaves
+the rest out inside the transaction of the write that raised them.
+
 ## Also exported
 
 `durableOutcomes`, `durableSubscriptions` and `durableLogs` turn a stub into the store `mount()`

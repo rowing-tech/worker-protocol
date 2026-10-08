@@ -1,4 +1,9 @@
-import type { StoredSubscription, SubscriptionStore } from "@worker-protocol/hono";
+import {
+  type Publishable,
+  type StoredSubscription,
+  type SubscriptionStore,
+  wantedBy,
+} from "@worker-protocol/hono";
 import { type DurableObjectClass, first, type Mixed, type Rpc } from "./durable.ts";
 import { migrate, type Schema } from "./schema.ts";
 
@@ -50,6 +55,7 @@ export interface SubscriptionMethods {
   subscriptionsFor(type: string): string[];
   updateSubscription(id: string, change: { set: string; clear: string[] }): void;
   removeSubscription(id: string): void;
+  wantedHere(source: string, events: Publishable[]): boolean[];
 }
 
 export function withSubscriptions<B extends DurableObjectClass>(
@@ -147,6 +153,20 @@ export function withSubscriptions<B extends DurableObjectClass>(
     removeSubscription(id: string): void {
       const sql = migrate(this.ctx.storage, SCHEMA);
       sql.exec("DELETE FROM wp_subscription WHERE id = ?", id);
+    }
+
+    /**
+     * Which of these events a live subscription held here would receive (SUB-13), answered
+     * synchronously — so a Worker can leave the rest out of its outbox inside the very transaction
+     * of the write that raised them, as `changing()` needs. `source` is the Worker's id, which every
+     * event carries (EVT-1); the envelope is the hub's own, so the filters read the same attributes.
+     */
+    wantedHere(source: string, events: Publishable[]): boolean[] {
+      return wantedBy({
+        source,
+        subscribed: (type) => this.subscriptionsFor(type).map(parse),
+        events,
+      });
     }
   }
   return WithSubscriptions;

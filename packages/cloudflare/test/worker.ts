@@ -103,6 +103,15 @@ export class Clock extends withLifecycle(
     await this.flush();
   }
 
+  /**
+   * The Worker's own method under the name the mixin once used internally. It must change nothing
+   * about what the mixin owes: a mixin's internals are functions of its module, which no subclass
+   * reaches.
+   */
+  owe(): string {
+    return "the domain's own";
+  }
+
   /** Sets the mark, as a first run would, at `at`. */
   async start(at: number): Promise<void> {
     await this.advance(at);

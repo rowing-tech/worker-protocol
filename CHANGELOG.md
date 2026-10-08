@@ -17,6 +17,27 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-08 — edition 0.6
+
+All five packages still encode **edition 0.6**. From the document-intake Worker moving to 0.8.0.
+
+### Fixed
+
+- cloudflare: `withLifecycle` kept a private method, `owe`, that a Worker's own method of the same
+  name replaced without a word — `private` is TypeScript's alone and `Mixed` does not carry it — so
+  the mixin wrote into the Worker's table and `advance()` answered `owed: undefined`. It is a
+  function of the module now, and so is anything a mixin does internally from here on: only what a
+  mixin publishes as its interface is a method.
+
+### Added
+
+- hono: `wantedBy({ source, subscribed, events })` answers synchronously, with no hub, which events
+  a live subscription would receive, read off the envelope the hub sends (`envelopeOf`, now
+  exported). `hub.wanted` uses it.
+- cloudflare: `wantedHere(source, events)` on `withSubscriptions`, the same question asked of the
+  subscriptions the object itself holds, synchronously — so a Worker leaves out of its outbox what
+  nobody would receive inside the transaction of the write that raised it, as `changing()` needs.
+
 ## [0.8.0] - 2026-10-08 — edition 0.6
 
 All five packages encode **edition 0.6**. A verifier on 0.5 meeting a 0.6 Worker says it is behind
@@ -669,7 +690,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.5.0...v0.6.0
