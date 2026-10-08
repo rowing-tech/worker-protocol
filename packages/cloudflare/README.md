@@ -34,6 +34,7 @@ to watch in a first deployment.
 | `withSubscriptions` | SUB-7's subscriptions, found and ensured in one step | **one** object, never one per shard |
 | `withOutbox` | an outbox, drained when a call ends and retried by the alarm | every object whose changes raise events |
 | `withLogs` | LOG-2's window, filtered and paged in SQL | the object `/logs` reads, and a Tail Worker writes |
+| `withLifecycle` | EVT-15's births and endings of Tasks and Alerts, found by comparing snapshots | over `withOutbox`, in the object whose Facts the Tasks and Alerts derive from |
 
 Mixins rather than one base class, because a Worker in production keeps one object per vehicle and
 one for the fleet: the subscriptions belong in the one, an outbox in every other, and a class that
@@ -155,12 +156,17 @@ export default {
 };
 ```
 
-The consumer of the events Queue publishes each batch through the hub — the subscriptions are read
-once per type for the whole batch — and leaves one delivery per matching subscription on the
-deliveries Queue, then hands each event to the broker. An event of a type the Worker does not
-declare is set aside rather than retried, since no retry would mend it, and a failure to reach the
-store retries the batch whole, once. The consumer of the deliveries Queue runs `deliver()` and hands
-its decision back: `retry({ delaySeconds })`, or `ack()`.
+The consumer of the events Queue routes each batch through the hub — the subscriptions are read once
+per type for the whole batch — and **makes the first attempt at every delivery itself**, reading
+each subscription once, then hands each event to the broker. Only what the hub asks to retry goes to
+the deliveries Queue, with the delay it asked for: each Queue costs a batch wait, and an event that
+crossed both before its first attempt arrived seconds after the Fact that caused it. A sink slower
+than the hub's `attemptTimeoutMs` (ten seconds by default) holds the batch that long and is retried
+like any failure. An event the Worker's own declaration refuses — an undeclared type (EVT-12) or
+an undeclared extension (EVT-18) — is set aside rather than retried, since no retry would mend it,
+and a failure to reach the store retries the batch whole, once. The consumer of the deliveries
+Queue runs the later attempts and hands each decision back: `retry({ delaySeconds })`, or `ack()`,
+backing off from the larger of the attempt the delivery carries and the one the Queue counted.
 
 What is given up goes to the dead-letter queue as a `GivenUp`, tagged by its `kind` — a delivery
 refused for good, outside EVT-8's window or abandoned with its subscription, with the reason; or an
@@ -168,6 +174,33 @@ event of an undeclared type — to be inspected and never redriven, and to a rec
 through `/logs`. Name the same queue as each consumer's `dead_letter_queue` in
 `wrangler.jsonc`, so it also receives what the platform drops after `max_retries`, and set
 `max_retries` well above what the hub asks for: its default of 3 cuts a delivery short.
+
+## The lifecycle of Tasks and Alerts
+
+```ts
+export class Intake extends withLifecycle(withOutbox(DurableObject<Env>, { events: (env) => env.EVENTS })) {
+  snapshot(at: number) {
+    return { tasks: openTasks(at, this.facts()), alerts: alerts(at, this.facts()) };
+  }
+  nextChange(after: number) {
+    return nextMinute(after); // or the next deadline, the end of an incident
+  }
+  async pause(source: string, now: number) {
+    this.changing(now, () => this.write(source, now)); // owes what the write changed
+    await this.flush();
+  }
+}
+```
+
+A Worker that derives its Tasks and Alerts from Facts supplies the two methods above, and
+`withLifecycle` owes their births and endings (EVT-15). It compares at every instant `nextChange`
+names since the last one compared — the mark survives the object, so a missed run leaves no gap, and
+one further behind than `catchUpMs` gives the rest up and calls `lifecycleSkipped` — and an Action's
+`changing(now, write)` compares the instant before its write and after it, in the same transaction.
+Every id is derived from the transition, the resource and its `since`, and the ids owed are kept for
+`keepAnnouncedMs`, so a change seen twice is owed once; an ending whose birth was never announced
+brings its birth with it. `heartbeat()` compares up to now and points the shared alarm at the next
+instant; a cron that calls it starts the chain and restarts it if an alarm is lost.
 
 ## Also exported
 

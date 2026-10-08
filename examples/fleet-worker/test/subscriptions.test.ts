@@ -10,8 +10,8 @@ import { captureEvents, fakeQueue } from "./outbound.ts";
 
 /**
  * `subscriptions` on Cloudflare, end to end: the subscription in the durable object, the event
- * leaving its outbox for the events Queue, the Worker's consumer fanning it out to the deliveries
- * Queue, and the same consumer making the attempt.
+ * leaving its outbox for the events Queue, the Worker's consumer making the first attempt itself,
+ * and the deliveries Queue carrying what the hub asked to retry.
  *
  * Three things about the platform are stood in for, and nothing else. The sink is a `fetch` this
  * test answers, because there is nobody at its address. The Queues are fakes that keep what they
@@ -53,7 +53,12 @@ const queued = () => {
   const deliveries = fakeQueue<Delivery>();
   const dead = fakeQueue<GivenUp>();
   const bindings: Env = { ...env, DELIVERIES: deliveries.queue, DEAD: dead.queue };
-  return { deliveries: deliveries.state.sent, dead: dead.state.sent, env: bindings };
+  return {
+    deliveries: deliveries.state.sent,
+    delays: deliveries.state.delays,
+    dead: dead.state.sent,
+    env: bindings,
+  };
 };
 
 const call = (
@@ -137,24 +142,17 @@ describe("subscribing, kept in the durable object", () => {
   });
 });
 
-describe("the push, over two Queues", () => {
-  it("fans the Task the cycle raised out to the subscription its filter matches (EVT-15, SUB-13)", async () => {
+describe("the push, first attempt from the events Queue", () => {
+  it("delivers the Task the cycle raised to the subscription its filter matches (EVT-15, SUB-13)", async () => {
     const received = sinkAnswering();
     const { env: bindings, deliveries } = queued();
     await call(bindings, { body: raisedTasks });
 
     const fanned = await quietVehicle("ZZZ-999", bindings);
     // Two events left the outbox — the crossing and its Task — and both were taken; the filter
-    // wants one of them, so one delivery is owed.
+    // wants one of them, and its first attempt was made right there, so nothing was queued.
     expect(fanned.explicitAcks.sort()).toEqual(["m-0", "m-1"]);
-    expect(deliveries.map((one) => one.event.type)).toEqual([LIFECYCLE.taskRaised]);
-
-    const delivered = await consume({
-      queue: "fleet-deliveries",
-      bodies: deliveries,
-      env: bindings,
-    });
-    expect(delivered.explicitAcks).toEqual(["m-0"]);
+    expect(deliveries).toEqual([]);
     expect(received).toHaveLength(1);
     expect(received[0]?.authorization).toBe("Bearer sink-secret");
     expect(received[0]?.event).toMatchObject({
@@ -168,28 +166,31 @@ describe("the push, over two Queues", () => {
     expect((await listed(bindings))[0]).toHaveProperty("lastDeliveredAt");
   });
 
-  it("hands a failing delivery back to the Queue with the hub's delay (SUB-12)", async () => {
-    sinkAnswering([503]);
-    const { env: bindings, deliveries } = queued();
+  it("queues a failed first attempt with the hub's delay, and the deliveries Queue retries it (SUB-12)", async () => {
+    const received = sinkAnswering([503]);
+    const { env: bindings, deliveries, delays } = queued();
     await call(bindings, { body: raisedTasks });
     await quietVehicle("YYY-888", bindings);
 
-    const result = await consume({ queue: "fleet-deliveries", bodies: deliveries, env: bindings });
-    expect(result.explicitAcks).toEqual([]);
-    expect(result.retryMessages).toMatchObject([{ msgId: "m-0" }]);
     // SUB-12: backoff from two seconds, decided by the hub and carried by the Queue.
-    expect(result.delays).toEqual([{ delaySeconds: 2 }]);
+    expect(deliveries).toMatchObject([{ attempt: 2, event: { subject: "quiet:YYY-888" } }]);
+    expect(delays).toEqual([2]);
     expect((await listed(bindings))[0]).toHaveProperty("failingSince");
+
+    const retried = await consume({ queue: "fleet-deliveries", bodies: deliveries, env: bindings });
+    expect(retried.explicitAcks).toEqual(["m-0"]);
+    expect(received).toHaveLength(2);
+    expect((await listed(bindings))[0]).not.toHaveProperty("failingSince");
   });
 
-  it("keeps a delivery refused for good in the dead-letter queue, and says so in /logs", async () => {
+  it("keeps a first attempt refused for good in the dead-letter queue, and says so in /logs", async () => {
     sinkAnswering([410]);
     const { env: bindings, deliveries, dead } = queued();
     await call(bindings, { body: raisedTasks });
-    await quietVehicle("XXX-777", bindings);
+    const fanned = await quietVehicle("XXX-777", bindings);
 
-    const result = await consume({ queue: "fleet-deliveries", bodies: deliveries, env: bindings });
-    expect(result.explicitAcks).toEqual(["m-0"]);
+    expect(fanned.explicitAcks.sort()).toEqual(["m-0", "m-1"]);
+    expect(deliveries).toEqual([]);
     expect(dead).toMatchObject([
       {
         kind: "delivery",

@@ -195,6 +195,11 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         // sends a key it made up; a repeat under that key replays the first answer instead of
         // doing the work again. `mount()` keeps that promise, against the store named above.
         idempotency: { required: true, from: "header", windowSeconds: 3600 },
+        // What this Worker's state does not allow, written once. A call it refuses answers `409`
+        // with the reason, and an open Task this operation answers leaves it out of the answers
+        // it offers right now — so a console never shows a button the call would refuse.
+        refuses: ({ vehicle }) =>
+          vehicle !== undefined && !silent.has(vehicle) ? "not quiet" : undefined,
         // `vehicle` is a string here because the schema above says so, and the editor knows it.
         run: ({ vehicle }) => check(vehicle),
       }),
@@ -202,6 +207,8 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         input: z.object({ vehicle: z.string().min(1), lastSeen: z.string() }),
         result: z.object({ recordedAt: z.string() }),
         idempotency: { required: true, from: "header", windowSeconds: 3600 },
+        refuses: ({ vehicle }) =>
+          vehicle !== undefined && !silent.has(vehicle) ? "not quiet" : undefined,
         run: ({ vehicle }) => check(vehicle),
       }),
       // `configure` is the one operation name this protocol reserves, so that an operator looking
@@ -352,6 +359,9 @@ export const fleetWorker = defineWorker<Env>((env) => ({
     publishes: {
       "tech.rowing.fleet.vehicle-went-quiet": {
         data: z.object({ vehicle: z.string(), since: z.string() }),
+        // What a subscriber can filter on without opening the data: which depot the vehicle
+        // belongs to. Declared, so a console offers it as a filter before anybody subscribes.
+        extensions: { depot: z.enum(["north", "south"]) },
       },
       // What this event was before it carried an instant. A subscriber built on it would break on
       // the shape above, so that shape took a new name rather than this one — and this one stays

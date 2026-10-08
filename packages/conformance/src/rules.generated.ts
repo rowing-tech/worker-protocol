@@ -858,6 +858,27 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.4"
     },
     {
+      "id": "EVT-17",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.6"
+    },
+    {
+      "id": "EVT-18",
+      "file": "events.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.6"
+    },
+    {
+      "id": "EVT-19",
+      "file": "events.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.6"
+    },
+    {
       "id": "HLTH-1",
       "file": "health.md",
       "class": "required",
@@ -1778,6 +1799,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "": "EVT-12",
       "data": "EVT-12",
       "destination": "EVT-13",
+      "extensions": "EVT-17",
       "supersededBy": "NAME-7"
     },
     "events-entry": {
@@ -1790,6 +1812,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "publishes/*": "EVT-12",
       "publishes/*/data": "EVT-12",
       "publishes/*/destination": "EVT-13",
+      "publishes/*/extensions": "EVT-17",
       "publishes/*/supersededBy": "NAME-7",
       "republishWindowSeconds": "EVT-8",
       "version": "DESC-9"

@@ -13,17 +13,24 @@ export const TYPE = "tech.rowing.fleet.thing-changed";
 /** An object of each shape, of the calling test's own. */
 export const whole = () => env.WHOLE.get(env.WHOLE.newUniqueId());
 export const shard = () => env.SHARD.get(env.SHARD.newUniqueId());
+export const clock = () => env.CLOCK.get(env.CLOCK.newUniqueId());
 
 /** A Queue that keeps what it is sent, and refuses everything while `failing`. */
 export const fakeQueue = <T>() => {
-  const state = { sent: [] as T[], failing: false };
+  const state = {
+    sent: [] as T[],
+    /** The delay each `send` asked for, in the order sent; `undefined` where it asked none. */
+    delays: [] as (number | undefined)[],
+    failing: false,
+  };
   const refuse = () => {
     if (state.failing) throw new Error("The Queue is down.");
   };
   const queue = {
-    send: async (body: T) => {
+    send: async (body: T, options?: { delaySeconds?: number }) => {
       refuse();
       state.sent.push(body);
+      state.delays.push(options?.delaySeconds);
     },
     sendBatch: async (messages: Iterable<{ body: T }>) => {
       refuse();

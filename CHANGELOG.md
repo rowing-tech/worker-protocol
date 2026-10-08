@@ -17,6 +17,55 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-08 — edition 0.6
+
+All five packages encode **edition 0.6**. A verifier on 0.5 meeting a 0.6 Worker says it is behind
+rather than judging it (DESC-33). The release that carries it is a MINOR of the packages, which
+`^0.7.0` does not take. What it carries came from a Worker built on 0.7.0 for document intake, run
+against a Control Tower.
+
+### Edition 0.6
+
+- **An event type declares its extension attributes** (EVT-17): `extensions`, a JSON Schema per
+  name. They are what a subscriber filters on (SUB-13), so a Tower or a console can offer them
+  before anybody subscribes. An event carries no other, with values its schema accepts (EVT-18).
+- **An extension's name is CloudEvents' own form and not one of its context attributes** (EVT-19):
+  lower-case letters and digits, never `source`, `id`, `type`, `subject`, `time` or `data`. In
+  structured mode such an extension overwrote the real attribute without a word.
+- schemas: `extensions` on `eventTypeDeclaration`, keyed by `extensionName`; three fixtures.
+- hono: `extensions` on each type in `events.publishes`, as Zod; `eventHub` refuses an undeclared
+  extension or a refused value (EVT-18) and a reserved name at construction (EVT-19), and offers
+  `fault()` to ask first. `lifecycleEvents({ tasks, alerts })` declares the four EVT-15 types with
+  their data and extensions. `taskRaised` carries a Task's `inputs` and `available`.
+- hono: `hub.end(id, reason)` ends a subscription the Worker withdraws or revokes, announced and
+  kept (SUB-15). `hub.wanted(events)` says which events a live subscription would receive, for a
+  Worker that leaves the rest out of its outbox. `route`, `deliverAll` and `later` for a carrier
+  that makes the first attempt itself; `deliverAll` reads each subscription once per batch, through
+  `SubscriptionStore.getMany` where the store has it. `attemptTimeoutMs` bounds one attempt at a
+  sink (ten seconds). `DeliveryQueue.send` takes `delaySeconds`.
+- hono: `action({ refuses })` writes the condition that refuses a call once: `mount()` answers
+  `409 conflict` with it after a repeat is replayed, and leaves the refused answers out of each open
+  Task's `available`, asked with the Task's `inputs`.
+- hono: `rfc3339` keeps milliseconds where there are any, so an event's `time`, a record's `at` and
+  a condition's `since` keep their order within a second. Bucket edges are unchanged.
+- cloudflare: `consumeQueues` makes the first attempt at every delivery from the events Queue's
+  consumer and queues only retries, with the hub's delay: an event no longer pays two batch waits
+  before its first attempt. A later attempt backs off from the larger of the attempt the delivery
+  carries and the one the Queue counted; it used to restart. An event with an undeclared extension
+  is set aside with its reason.
+- cloudflare: `withLifecycle`, over `withOutbox`, owes the births and endings of Tasks and Alerts
+  from `snapshot(at)` and `nextChange(after)`: the mark of the last instant compared, derived ids
+  kept for a window, a catch-up limit per run, `changing()` for an Action's write, no ending
+  without its birth, and a heartbeat on the shared alarm.
+- cloudflare: `durableSubscriptions` reads several subscriptions in one RPC (`getMany`).
+- conformance: EVT-17 and EVT-19 judged off the entry; EVT-18 on the event a sink received. The
+  arrangement takes `before` and `after`, Actions performed around every check. A sink that takes
+  `respond()` lets the verifier make it fail: SUB-12 and the failing half of SUB-16 are checked,
+  and SUB-14 and SUB-15 with `abandonment: true`. The CLI's sink can be told to fail. TASK-37 and
+  ALRT-9 also read `pattern`, string lengths and numeric bounds.
+- minimal-worker: both answers declare `refuses`, and its event declares an extension.
+- skills move to 2.6.0.
+
 ## [0.7.0] - 2026-10-08 — edition 0.5
 
 All five packages encode **edition 0.5**, which breaks what a 0.4 reader assumed about how a Task is
@@ -620,7 +669,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.4.0...v0.5.0

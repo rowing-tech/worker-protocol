@@ -13,7 +13,9 @@ import type { Activity } from "@worker-protocol/hono";
  */
 
 const HOUR = 3_600_000;
-const ago = (hours: number) => new Date(Date.now() - hours * HOUR);
+/** When this module was loaded: each item entered its state once, not on every read (ACTV-6). */
+const LOADED = Date.now();
+const ago = (hours: number) => new Date(LOADED - hours * HOUR);
 
 export function activity(): Activity[] {
   return [

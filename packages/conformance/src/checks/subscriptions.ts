@@ -3,6 +3,7 @@ import { type Attribution, ruleFor } from "../attribution.ts";
 import type { Arrangement } from "../index.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
 import { type Transcript, withParams } from "../transcript.ts";
+import { agrees, type Declared } from "./inputs.ts";
 
 /**
  * The `subscriptions` Capability, and the half of `events` a verifier can finally see.
@@ -32,6 +33,10 @@ const ARRANGED = [
   "SUB-16",
   "SUB-17",
   "EVT-15",
+  "EVT-18",
+  "SUB-12",
+  "SUB-14",
+  "SUB-15",
 ] as const;
 
 export const CLAIMS = [...OBSERVED, ...ARRANGED] as const;
@@ -54,12 +59,36 @@ const LIFECYCLE: Record<string, string> = {
 /** How long a delivery may take to reach the sink before the verifier stops waiting for it. */
 const PATIENCE_MS = 5000;
 
+/** How long a retry may take after the sink recovers: the backoff, then a Queue's own wait. */
+const RETRY_PATIENCE_MS = 30_000;
+
+/** How often an event is provoked while the verifier waits for a subscription to be abandoned. */
+const ABANDONMENT_NUDGE_MS = 30_000;
+
+/** The attributes CloudEvents 1.0 defines, and `data`: everything else on an event is an extension. */
+const CONTEXT = new Set([
+  "specversion",
+  "id",
+  "source",
+  "type",
+  "datacontenttype",
+  "dataschema",
+  "subject",
+  "time",
+  "data",
+  "data_base64",
+]);
+
+const SUBSCRIPTION_ENDED = "tech.rowing.worker-protocol.subscription-ended";
+
 export async function checkSubscriptions(given: {
   entry: Record<string, unknown> | undefined;
   url: string | null;
   workerId: string | null;
   /** EVT-12: what the `events` entry publishes, which is all a caller may subscribe to. */
   publishes: string[];
+  /** EVT-17: the extensions each type declares, by type, for EVT-18 to judge a delivery against. */
+  extensions: Record<string, Record<string, unknown>>;
   actionsUrl: string | null;
   mayPerform: boolean;
   arrangement: Arrangement;
@@ -160,6 +189,28 @@ export async function checkSubscriptions(given: {
   }
 
   const credential = `conformance-${Date.now()}`;
+  /** The Action that publishes, performed once more under a key of its own. */
+  const provoke = (why: string) =>
+    transcript.send(
+      withParams(actionsUrl, { action: trigger.name }),
+      `\`${trigger.name}\`, which publishes ${trigger.publishes}${why}`,
+      {
+        method: "POST",
+        body: JSON.stringify(trigger.input),
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": `conformance-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        },
+      },
+    );
+  /** This verifier's subscription as the caller's list shows it now. */
+  const listedNow = async (intent: string) => {
+    const page = subscriptionPage.safeParse((await transcript.send(url, intent)).json);
+    return page.success ? page.data.items.find((one) => one.id === id) : undefined;
+  };
+  /** What reached the sink under this verifier's own credential. */
+  const mine = (one: SinkExchange) =>
+    one.method === "POST" && header(one, "authorization") === `Bearer ${credential}`;
   const subscription = { types: [trigger.publishes], sink: sink.url, sinkCredential: credential };
   const created = await post(subscription, "a subscription to the arranged sink");
   const id = idOf(created);
@@ -223,42 +274,61 @@ export async function checkSubscriptions(given: {
 
     // SUB-11, EVT-15, SUB-13: perform the Action that publishes, and read the sink. EVT-1 is
     // judged in `arranged.ts`, from the event the arrangement hands over, and not twice.
-    const performed = await transcript.send(
-      withParams(actionsUrl, { action: trigger.name }),
-      `\`${trigger.name}\`, which publishes ${trigger.publishes}`,
-      {
-        method: "POST",
-        body: JSON.stringify(trigger.input),
-        headers: {
-          "content-type": "application/json",
-          "idempotency-key": `conformance-${Date.now()}`,
-        },
-      },
-    );
-    const performedOk = performed.status >= 200 && performed.status <= 299;
-    const delivered = performedOk
-      ? await arrival(
+    //
+    // Where the sink can be made to fail, it fails from the first attempt: `503` with a
+    // `Retry-After` of one second, so SUB-12 and SUB-16 watch a retry of the one event the Action
+    // publishes — an Action that answers a Task publishes the moment it ends it, and only once.
+    // The sink then answers again, and the retry is the delivery the other rules are judged on.
+    const failing = sink.respond !== undefined;
+    const ofType = (one: SinkExchange) =>
+      one.method === "POST" && event(one)?.type === trigger.publishes;
+    let failingShown = false;
+    let delivered: SinkExchange[] = [];
+    let performed: Awaited<ReturnType<typeof provoke>>;
+    try {
+      if (failing) sink.respond?.({ status: 503, retryAfter: "1" });
+      performed = await provoke("");
+      const performedNow = performed.status >= 200 && performed.status <= 299;
+      if (performedNow && failing) {
+        const refused = await arrival(sink, (one) => ofType(one) && mine(one));
+        const refusedId = refused[0] === undefined ? undefined : event(refused[0])?.id;
+        if (refusedId !== undefined) {
+          failingShown =
+            (await listedNow("this caller's subscriptions, while its sink fails"))?.failingSince !==
+            undefined;
+        }
+        sink.respond?.(undefined);
+        delivered = await arrival(
           sink,
-          (one) => one.method === "POST" && event(one)?.type === trigger.publishes,
-        )
-      : [];
+          (one) => ofType(one) && (!mine(one) || event(one)?.id === refusedId),
+          RETRY_PATIENCE_MS,
+          2,
+        );
+      } else if (performedNow) {
+        delivered = await arrival(sink, ofType);
+      }
+    } finally {
+      if (failing) sink.respond?.(undefined);
+    }
+    const performedOk = performed.status >= 200 && performed.status <= 299;
 
-    const mine = delivered.filter((one) => header(one, "authorization") === `Bearer ${credential}`);
+    const ours = delivered.filter((one) => header(one, "authorization") === `Bearer ${credential}`);
+    const later = ["SUB-12", "SUB-14", "SUB-15", "EVT-18"];
     if (!performedOk) {
-      for (const rule of ["SUB-11", "SUB-13", "SUB-16", "EVT-15"]) {
+      for (const rule of ["SUB-11", "SUB-13", "SUB-16", "EVT-15", ...later]) {
         say(rule, "notExercised", `\`${trigger.name}\` answered ${performed.status}`);
       }
-    } else if (mine.length === 0) {
+    } else if (ours.length === 0) {
       say(
         "SUB-11",
         "fails",
         `nothing of type ${trigger.publishes} reached the sink with its credential`,
       );
-      for (const rule of ["SUB-13", "SUB-16", "EVT-15"]) {
+      for (const rule of ["SUB-13", "SUB-16", "EVT-15", ...later]) {
         say(rule, "notExercised", "no delivery reached the sink");
       }
     } else {
-      const [first] = mine;
+      const [first] = ours;
       const sent = first === undefined ? undefined : event(first);
       const structured =
         first !== undefined &&
@@ -301,13 +371,112 @@ export async function checkSubscriptions(given: {
         say("SUB-13", "fails", "an event reached a subscription whose filter it does not satisfy");
       }
 
-      // SUB-16: the delivery shows in the caller's list.
-      const after = subscriptionPage.safeParse(
-        (await transcript.send(url, "this caller's subscriptions, after a delivery")).json,
+      // EVT-18: every attribute the event carries beyond CloudEvents' own is an extension its type
+      // declares, with a value that extension's schema accepts — as far as one value's schema says.
+      const declaredHere = given.extensions[trigger.publishes] ?? {};
+      const carried = Object.keys(sent ?? {}).filter((name) => !CONTEXT.has(name));
+      const strays = carried.filter((name) => !(name in declaredHere));
+      const refusedValues = carried.filter(
+        (name) =>
+          name in declaredHere &&
+          !agrees(declaredHere[name] as Declared, (sent as Record<string, unknown>)[name]),
       );
-      const state = after.success ? after.data.items.find((one) => one.id === id) : undefined;
-      if (state?.lastDeliveredAt !== undefined) say("SUB-16", "passes");
-      else say("SUB-16", "fails", "the subscription does not show when a delivery last succeeded");
+      if (strays.length === 0 && refusedValues.length === 0) say("EVT-18", "passes");
+      else
+        say(
+          "EVT-18",
+          "fails",
+          [
+            ...strays.map((name) => `\`${name}\` is not declared`),
+            ...refusedValues.map((name) => `\`${name}\` carries a value its schema refuses`),
+          ].join("; "),
+        );
+
+      // SUB-16, the half every Worker shows: the delivery is on record in the caller's list.
+      const lastDelivered = (await listedNow("this caller's subscriptions, after a delivery"))
+        ?.lastDeliveredAt;
+
+      // SUB-12 and SUB-16's other half, where the sink could be made to fail: the event it refused
+      // arrived again once it answered, the list showed the failure while it lasted, and shows it
+      // no longer.
+      const retried = ours.length >= 2;
+      const cleared =
+        (await listedNow("this caller's subscriptions, after the sink recovered"))?.failingSince ===
+        undefined;
+      if (!failing) say("SUB-12", "notExercised", "the arranged sink cannot be told to fail");
+      else if (retried) say("SUB-12", "passes");
+      else
+        say(
+          "SUB-12",
+          "fails",
+          `an event the sink answered 503 to was not delivered again within ${RETRY_PATIENCE_MS / 1000} s`,
+        );
+      if (lastDelivered === undefined) {
+        say("SUB-16", "fails", "the subscription does not show when a delivery last succeeded");
+      } else if (failing && !failingShown) {
+        say("SUB-16", "fails", "the subscription does not show since when its sink has failed");
+      } else if (failing && !cleared) {
+        say("SUB-16", "fails", "the subscription still shows its sink failing after it recovered");
+      } else {
+        say("SUB-16", "passes");
+      }
+
+      // SUB-14 and SUB-15, only where the operators accepted the wait: the sink fails without
+      // interruption for the declared window, an event is provoked every so often so that an
+      // attempt falls after it, and the Worker has to end the subscription and say so.
+      const window = declared.data.abandonAfterSeconds * 1000;
+      if (arrangement.abandonment !== true || sink.respond === undefined) {
+        const why =
+          arrangement.abandonment !== true
+            ? "the arrangement does not wait `abandonAfterSeconds` for an abandonment"
+            : "the arranged sink cannot be told to fail";
+        say("SUB-14", "notExercised", why);
+        say("SUB-15", "notExercised", why);
+      } else {
+        sink.respond({ status: 503 });
+        let ended: Record<string, unknown> | undefined;
+        try {
+          const deadline = Date.now() + window + 60_000;
+          while (ended === undefined && Date.now() < deadline) {
+            await provoke(", while the sink keeps failing");
+            const found = await arrival(
+              sink,
+              (one) =>
+                mine(one) && event(one)?.type === SUBSCRIPTION_ENDED && event(one)?.subject === id,
+              Math.min(ABANDONMENT_NUDGE_MS, Math.max(deadline - Date.now(), 0)),
+            );
+            ended =
+              found[0] === undefined ? undefined : (event(found[0]) as Record<string, unknown>);
+          }
+        } finally {
+          sink.respond(undefined);
+        }
+        const kept = await listedNow("this caller's subscriptions, after an abandonment");
+        const data = ended?.data as { reason?: string; since?: string } | undefined;
+        if (ended === undefined) {
+          say(
+            "SUB-14",
+            "fails",
+            `the subscription was not abandoned within ${window / 1000} s and a minute`,
+          );
+          say("SUB-15", "notExercised", "no subscription ended");
+        } else {
+          say("SUB-14", "passes");
+          if (
+            data?.reason === "abandoned" &&
+            typeof data.since === "string" &&
+            kept?.endedAt !== undefined &&
+            kept.reason === "abandoned"
+          )
+            say("SUB-15", "passes");
+          else
+            say(
+              "SUB-15",
+              "fails",
+              "the ending was not announced with its reason and instant, or not kept listed",
+            );
+        }
+      }
     }
 
     // SUB-9: another caller cannot end it, and its owner can.
@@ -361,16 +530,21 @@ const event = (exchange: SinkExchange): Record<string, string | undefined> | und
   }
 };
 
-/** Waits for what the predicate picks out to reach the sink, up to `PATIENCE_MS`, and answers it. */
+/**
+ * Waits for `count` exchanges the predicate picks out to reach the sink, up to `patience`
+ * milliseconds, and answers them.
+ */
 const arrival = async (
   sink: NonNullable<Arrangement["sink"]>,
   wanted: (exchange: SinkExchange) => boolean,
+  patience = PATIENCE_MS,
+  count = 1,
 ): Promise<SinkExchange[]> => {
-  const until = Date.now() + PATIENCE_MS;
+  const until = Date.now() + patience;
   for (;;) {
     const found = (await sink.received()).filter(wanted);
     if (Date.now() > until) return found;
-    if (found.length > 0) {
+    if (found.length >= count) {
       // A moment more, so that a delivery that should not have arrived has had the time to.
       await new Promise((settle) => setTimeout(settle, 200));
       return (await sink.received()).filter(wanted);

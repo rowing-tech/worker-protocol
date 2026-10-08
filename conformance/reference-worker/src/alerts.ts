@@ -11,7 +11,13 @@ import type { Alert } from "@worker-protocol/hono";
  * ALRT-8 ends an Alert when its condition stops, and a snooze belongs to whoever is looking.
  */
 
-const began = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000);
+/**
+ * When this module was loaded, which every condition is dated from. A condition began once: an
+ * instant computed on each read would move with the clock, and two reads a millisecond apart would
+ * disagree about when the same Alert began — which is the difference ALRT-6 compares.
+ */
+const LOADED = Date.now();
+const began = (hoursAgo: number) => new Date(LOADED - hoursAgo * 3_600_000);
 
 export function alerts(): Alert[] {
   return [

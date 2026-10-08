@@ -129,6 +129,43 @@ Worker's other uses of the same cluster — which puts it in the class
 [spec/README.md](README.md) admits. What would be seen, if anything could see it,
 is a consumer's deduplication store filling with ids for documents that were never events.
 
+## What an event carries besides its data
+
+**EVT-17 (required). An event type declares under `extensions` every extension attribute its events
+carry, keyed by name, each with the JSON Schema of its value. Absent, its events carry none.**
+
+**EVT-18 (required). An event carries no extension attribute its type does not declare, and the
+value of each it carries is one that extension's schema accepts.**
+
+**EVT-19 (required). An extension's name consists of lower-case ASCII letters and digits, and is
+none of the context attributes CloudEvents 1.0 defines — `specversion`, `id`, `source`, `type`,
+`datacontenttype`, `dataschema`, `subject`, `time` — nor `data` or `data_base64`.**
+
+**An extension is what a subscriber filters on, so it is part of what an event type promises.**
+Every filter dialect in [subscriptions](subscriptions.md) reaches the context attributes,
+extensions included (SUB-13), and a Worker that publishes `document-exported` with a `channel` and
+an `amount` has told every subscriber they can ask for *exports over a thousand from the portal* —
+except that, undeclared, nobody can find that out without reading the Worker's own documentation. A
+filter on an attribute an event never carries matches nothing and says nothing, which is the
+quietest failure a subscription can have. Declared, a Tower or a console offers the attributes as
+filters, with their values where the schema enumerates them, before anybody subscribes.
+
+**A JSON Schema per value, and not a vocabulary of this protocol's own.** CloudEvents gives an
+extension a type — a string, an integer, a boolean, a URI, a timestamp — and a schema says that,
+says which values are possible, and carries a description, in the language every other declaration
+here already uses. A smaller shape would be one more format for a reader to learn and the first
+thing to grow.
+
+**The name rule is CloudEvents' own, and the collision rule is what makes it safe.** CloudEvents
+already confines attribute names to lower-case letters and digits. What it leaves to the producer
+is not reusing a name it defines, and in structured mode an extension named `source` is the same
+JSON member as the context attribute: one of the two is lost, which one depends on the serializer,
+and nothing says so. EVT-19 turns that into a refusal at the declaration, where the author is still
+looking.
+
+The lifecycle events below are declared like any other, so their `tasktype` and `alertseverity` are
+declared under `extensions` too, with the schemas the table implies.
+
 ## Reaching the broker
 
 **EVT-5 (required). A Contract names which event types a consumer may consume. No credential for a

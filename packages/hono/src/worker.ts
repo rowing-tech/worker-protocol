@@ -128,14 +128,12 @@ export type Worker = {
   /**
    * `events`: the entry and nothing else, because there is no address to serve (EVT-13).
    *
-   * Each event type's `data` is a Zod object, as an Action's input and a Task's payload are.
-   * `mount()` writes the JSON Schema the Descriptor carries, so a Worker declares one shape.
+   * Each event type's `data` is a Zod object, as an Action's input and a Task's payload are, and so
+   * is each extension it carries (EVT-17). `mount()` writes the JSON Schema the Descriptor carries,
+   * and `eventHub()` refuses an event whose extensions its type does not declare (EVT-18).
    */
   events?: Omit<z.infer<typeof eventsEntry>, "version" | "address" | "publishes"> & {
-    publishes: Record<
-      string,
-      Omit<z.infer<typeof eventTypeDeclaration>, "data"> & { data: z.ZodType }
-    >;
+    publishes: Record<string, EventTypeDeclaration>;
   };
   /**
    * `subscriptions`: consumers subscribing to this Worker's events, and the push to their sinks.
@@ -185,6 +183,19 @@ export type SkillDeclaration = {
    * perform — the name whoever defined the Task type gave that answer, matched inside the type.
    */
   produces?: Record<string, z.ZodType>;
+};
+
+/**
+ * EVT-12, EVT-17. One event type a Worker publishes, with Zod objects where the Descriptor carries
+ * JSON Schema: its `data`, and the value of each extension attribute its events carry.
+ */
+export type EventTypeDeclaration = Omit<
+  z.infer<typeof eventTypeDeclaration>,
+  "data" | "extensions"
+> & {
+  data: z.ZodType;
+  /** EVT-17, EVT-19. Keyed by name — lower-case letters and digits, no CloudEvents attribute. */
+  extensions?: Record<string, z.ZodType>;
 };
 
 /** What a Worker says about a condition an operator should see: the domain, and no more (ALRT-3). */

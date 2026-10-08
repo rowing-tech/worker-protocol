@@ -150,9 +150,14 @@ export function bucketsIn(
  * An RFC 3339 instant carrying an offset, which is what MET-13, TASK-28, ALRT-3 and ACTV-3 travel
  * as. It takes whichever of the two a caller already holds, so that reaching it never costs a
  * `new Date` or a `.getTime()` at the call site.
+ *
+ * Milliseconds are kept where there are any and dropped where they are zero. A bucket edge is a
+ * whole second and reads as one; an event's `time`, a record's `at` and a condition's `since` keep
+ * the order of two things that happened inside the same second, and an event's `time` matches the
+ * `at` of the record that explains it.
  */
 export const rfc3339 = (at: number | Date): string =>
-  (at instanceof Date ? at : new Date(at)).toISOString().replace(/\.\d{3}Z$/, "Z");
+  (at instanceof Date ? at : new Date(at)).toISOString().replace(/\.000Z$/, "Z");
 
 /**
  * MET-11, LOG-8 — the half-open interval a read narrows to, read off the query.

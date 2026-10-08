@@ -1,0 +1,28 @@
+{
+  "schema": "event-type-declaration",
+  "valid": true,
+  "rule": "EVT-17",
+  "why": "An event type that declares the extension attributes its events carry, each with the JSON Schema of its value: a channel with three possible values, a supplier's tax id, and an amount in cents. A Tower reads these and offers them as filters (SUB-13) before anybody subscribes.",
+  "document": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string"
+        }
+      }
+    },
+    "extensions": {
+      "channel": {
+        "type": "string",
+        "enum": ["email", "portal", "sftp"]
+      },
+      "supplier": {
+        "type": "string"
+      },
+      "amount": {
+        "type": "integer"
+      }
+    }
+  }
+}

@@ -13,7 +13,8 @@ import type { SinkExchange } from "./checks/subscriptions.ts";
  *
  * It records every request it receives, oldest first, which is what the checks read. It allows
  * whatever origin the handshake names (SUB-10), because it lives for one run and has one visitor,
- * and it answers every delivery `200`.
+ * and it answers every delivery `200` — unless the verifier has told it to fail, which is how it
+ * watches a retry (SUB-12), a failing sink on record (SUB-16) and an abandonment (SUB-14).
  */
 export type ListeningSink = {
   /** Where the Worker is told to deliver: `publicUrl` where one was given, the socket otherwise. */
@@ -21,6 +22,8 @@ export type ListeningSink = {
   /** The socket's own origin, which a Worker in development exempts from SUB-5 and SUB-6. */
   origin: string;
   received: () => SinkExchange[];
+  /** How deliveries are answered from now on; `undefined` puts the sink back to `200`. */
+  respond: (answer: { status: number; retryAfter?: string } | undefined) => void;
   close: () => Promise<void>;
 };
 
@@ -36,6 +39,7 @@ export function listenAsSink(options: {
 }): Promise<ListeningSink> {
   return new Promise((resolve, reject) => {
     const received: SinkExchange[] = [];
+    let failing: { status: number; retryAfter?: string } | undefined;
     const server = createServer((request, response) => {
       let body = "";
       request.on("data", (chunk) => {
@@ -50,6 +54,11 @@ export function listenAsSink(options: {
           response.writeHead(200, {
             "webhook-allowed-origin": String(request.headers["webhook-request-origin"] ?? "*"),
           });
+        } else if (failing !== undefined) {
+          response.writeHead(
+            failing.status,
+            failing.retryAfter === undefined ? {} : { "retry-after": failing.retryAfter },
+          );
         } else {
           response.writeHead(200);
         }
@@ -64,6 +73,9 @@ export function listenAsSink(options: {
         url: options.publicUrl ?? `${origin}/events`,
         origin,
         received: () => [...received],
+        respond: (answer) => {
+          failing = answer;
+        },
         close: () => new Promise<void>((done) => server.close(() => done())),
       });
     });

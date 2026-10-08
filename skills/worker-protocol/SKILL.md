@@ -14,7 +14,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.5.0"
+  version: "2.6.0"
 ---
 
 # worker-protocol, in any language
@@ -163,6 +163,11 @@ whose reason is understood is one that survives a refactor.
 - **`events` has no address** (EVT-13) — it declares the event types, and either a broker with its
   binding and destination, or none of the three and `subscriptions` beside it (EVT-14). Nothing
   crosses the broker but events.
+- **Declare every extension attribute an event type carries** under `extensions`, a JSON Schema per
+  name (EVT-17), and publish no other (EVT-18). That is what a subscriber can filter on without
+  reading your docs. Names are lower-case letters and digits, and never a CloudEvents context
+  attribute such as `source`, `id`, `type`, `subject` or `time` (EVT-19): in structured mode an
+  extension named `source` overwrites the real one.
 - **`subscriptions` pushes events with no broker** (SUB-1 to SUB-16). One address: `GET` lists the
   caller's own, `POST` subscribes with `{ types, filters?, sink, sinkCredential }`, and
   `DELETE ?subscription=<id>` ends one (ENDP-36 lets the protocol fix that verb; an id is never a
@@ -170,16 +175,22 @@ whose reason is understood is one that survives a refactor.
   (`OPTIONS`, `WebHook-Request-Origin`, expect `WebHook-Allowed-Origin`) before storing; `422` if
   refused. Deliver structured CloudEvents with `Authorization: Bearer <sinkCredential>`, retrying
   only within EVT-8's window. Subscribing is idempotent by content and nothing is renewed: end a
-  subscription only when its subscriber does, its sink fails for `abandonAfterSeconds`, or its
-  caller is revoked, and announce and keep the last two. On the receiving side, answer the
-  handshake, check the bearer, and deduplicate by `source` and `id` within EVT-8's window —
+  subscription only when its subscriber does, its sink fails for `abandonAfterSeconds`, its caller
+  is revoked, or you withdraw it, and announce and keep every ending but the subscriber's. On the
+  receiving side, answer the handshake, check the bearer, and deduplicate by `source` and `id`
+  within EVT-8's window —
   `sink()` in `@worker-protocol/client` does all three. Back its `SeenStore` with something that
   outlives a request — on Convex, a table claimed in a mutation, never `memorySeen()`, which forgets
   between invocations and handles a repeated delivery twice.
 - **The lifecycle of Tasks and Alerts has fixed names** (EVT-15): `task-raised`, `task-ended`,
   `alert-raised`, `alert-ended` under `tech.rowing.worker-protocol`, with the id in `subject` and
-  `tasktype` or `alertseverity` as an extension. Publish them where your code knows the moment — a
-  Task is derived on read, so no read sees one born.
+  `tasktype` or `alertseverity` as an extension, declared under `extensions` like any other.
+  Publish them where your code knows the moment — a Task is derived on read, so no read sees one
+  born. Derive each event's id from the transition, the resource and its `since`, so a change seen
+  twice is published once, and never publish an ending without its birth.
+- **Write the condition that refuses an answer once** (ACT-17, TASK-38): a call the current state
+  does not allow is `409 conflict`, and a Task leaves that answer out of `available`. Ask the same
+  predicate in both places, with the Task's `inputs` standing in for the call's input.
 
 ### logs
 

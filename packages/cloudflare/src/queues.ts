@@ -1,4 +1,11 @@
-import type { CloudEvent, Delivery, DeliveryQueue, eventHub, GaveUp } from "@worker-protocol/hono";
+import type {
+  CloudEvent,
+  Delivery,
+  DeliveryOutcome,
+  DeliveryQueue,
+  eventHub,
+  GaveUp,
+} from "@worker-protocol/hono";
 import { asJson, BATCH } from "./durable.ts";
 import type { LogRow } from "./logs.ts";
 import type { OutboxEvent } from "./outbox.ts";
@@ -6,12 +13,20 @@ import type { OutboxEvent } from "./outbox.ts";
 /**
  * The two Queues between an outbox and a sink, and the one handler that consumes both.
  *
- * **Events, then deliveries.** Every object's `flush()` sends its events to the events Queue. Its
- * consumer publishes each batch through the hub — the subscriptions are read once per type for the
- * whole batch, from the one object that holds them — and leaves one delivery per matching
- * subscription on the deliveries Queue, whose consumer makes the attempt. Fanning out from each
- * object instead would make a run that touches thousands of them thousands of calls to that one
- * object, and an outage of it would leave every outbox retrying; here the events wait in a Queue.
+ * **Events, then the first attempt, then deliveries.** Every object's `flush()` sends its events to
+ * the events Queue. Its consumer routes each batch through the hub — the subscriptions are read once
+ * per type for the whole batch, from the one object that holds them — and makes the first attempt
+ * at every delivery itself, reading each subscription once. Only what the hub asks to retry goes to
+ * the deliveries Queue, with the delay it asked for, and that Queue's consumer makes the later
+ * attempts. Fanning out from each object instead would make a run that touches thousands of them
+ * thousands of calls to that one object, and an outage of it would leave every outbox retrying.
+ *
+ * **The first attempt is made here because each Queue costs a batch wait.** An event that crossed
+ * both Queues before its first attempt paid the wait twice, which put it seconds behind the Fact
+ * that caused it. A sink slower than the hub's `attemptTimeoutMs` holds the batch that long and no
+ * longer, and is retried from the deliveries Queue like any other failure. If the first attempts
+ * cannot be made at all — the subscriptions object is unreachable — the deliveries are queued as
+ * they were and nothing is lost.
  *
  * **What is given up stays visible.** A delivery `deliver()` gives up on, and an event of a type the
  * Worker does not declare, go to the dead-letter queue with the reason, to be inspected and never
@@ -31,8 +46,11 @@ const backoff = (attempts: number): number => Math.min(10 * 2 ** Math.max(attemp
  * hub has several. The chunks are independent — the Queue promises no order — so they go together.
  */
 export const deliveryQueue = (queue: Queue<Delivery>): DeliveryQueue => ({
-  send: async (delivery) => {
-    await queue.send(delivery, { contentType: "json" });
+  send: async (delivery, options) => {
+    await queue.send(delivery, {
+      contentType: "json",
+      ...(options?.delaySeconds === undefined ? {} : { delaySeconds: options.delaySeconds }),
+    });
   },
   sendBatch: async (deliveries) => {
     const chunks: Delivery[][] = [];
@@ -45,12 +63,13 @@ export const deliveryQueue = (queue: Queue<Delivery>): DeliveryQueue => ({
 
 /**
  * What the consumer sets aside in the dead-letter queue, tagged by what it is: a delivery given up,
- * with why, or an event of a type the Worker does not declare (EVT-12) — a mistake in the Worker's
- * own code, which no retry would mend.
+ * with why, or an event the Worker's own declaration refuses — a type it does not declare (EVT-12),
+ * or an extension its type does not (EVT-18). Both are mistakes in the Worker's own code, which no
+ * retry would mend; `detail` says which.
  */
 export type GivenUp =
   | { kind: "delivery"; delivery: Delivery; gaveUp: GaveUp }
-  | { kind: "event"; event: OutboxEvent; reason: "undeclared" };
+  | { kind: "event"; event: OutboxEvent; reason: "undeclared"; detail: string };
 
 export type QueuesConfig<E> = {
   /** The Queue names, as `wrangler.jsonc` gives them: how the handler tells the two batches apart. */
@@ -98,40 +117,75 @@ export function consumeQueues<E>(config: QueuesConfig<E>) {
     }
   };
 
+  /** A delivery given up, set aside with why, and a record of it where the Worker keeps logs. */
+  const giveUp = (given: {
+    message: Message<unknown>;
+    delivery: Delivery;
+    gaveUp: GaveUp;
+    deadLetter: Queue<GivenUp>;
+    rows: LogRow[];
+  }) => {
+    const { delivery, gaveUp } = given;
+    return setAside({
+      message: given.message,
+      kept: { kind: "delivery", delivery, gaveUp },
+      deadLetter: given.deadLetter,
+      rows: given.rows,
+      row: {
+        at: Date.now(),
+        level: "warn",
+        message: "a delivery was given up",
+        fields: {
+          subscription: delivery.subscription,
+          event: delivery.event.id,
+          type: delivery.event.type,
+          reason: gaveUp.reason,
+          ...(gaveUp.status === null ? {} : { status: gaveUp.status }),
+        },
+      },
+    });
+  };
+
   async function events(batch: MessageBatch<OutboxEvent>, env: E): Promise<void> {
     const hub = config.hub(env);
     const deadLetter = config.deadLetter(env);
     const rows: LogRow[] = [];
 
-    // EVT-12, asked first: an event the Worker does not declare can never be published, so it is
-    // set aside at once rather than failing the batch beside it a hundred times over.
-    const declared = batch.messages.filter((message) => hub.declares(message.body.type));
-    const undeclared = batch.messages.filter((message) => !hub.declares(message.body.type));
+    // EVT-12, EVT-18, asked first: an event the Worker's own declaration refuses can never be
+    // published, so it is set aside at once rather than failing the batch beside it a hundred
+    // times over.
+    const declared = batch.messages.filter((message) => hub.fault(message.body) === undefined);
+    const refused = batch.messages.filter((message) => hub.fault(message.body) !== undefined);
     await Promise.all(
-      undeclared.map((message) =>
-        setAside({
+      refused.map((message) => {
+        const detail = hub.fault(message.body) as string;
+        return setAside({
           message,
-          kept: { kind: "event", event: message.body, reason: "undeclared" },
+          kept: { kind: "event", event: message.body, reason: "undeclared", detail },
           deadLetter,
           rows,
           row: {
             at: Date.now(),
             level: "error",
-            message: "an event of a type this Worker does not declare was set aside",
-            fields: { event: message.body.id, type: message.body.type },
+            message: "an event this Worker's declaration refuses was set aside",
+            fields: { event: message.body.id, type: message.body.type, detail },
           },
-        }),
-      ),
+        });
+      }),
     );
 
     let published: CloudEvent[] | undefined;
     try {
-      published =
-        declared.length === 0 ? [] : await hub.publishAll(declared.map((message) => message.body));
+      const routed =
+        declared.length === 0
+          ? { events: [], deliveries: [] }
+          : await hub.route(declared.map((message) => message.body));
+      await attemptFirst({ hub, deliveries: routed.deliveries, deadLetter, rows });
+      published = routed.events;
     } catch {
       // The store or the deliveries Queue could not be reached. The batch is retried whole, once,
       // rather than event by event against the object that is already struggling; a delivery the
-      // first attempt did queue is queued again under the same id, which a sink discards.
+      // first attempt did make is made again under the same id, which a sink discards.
       for (const message of declared) message.retry({ delaySeconds: backoff(message.attempts) });
     }
     if (published !== undefined) {
@@ -152,46 +206,87 @@ export function consumeQueues<E>(config: QueuesConfig<E>) {
     await record(rows, env);
   }
 
+  /**
+   * The first attempt at every delivery, made here rather than after a second Queue. What the hub
+   * asks to retry goes to the deliveries Queue with the delay it asked for and the attempt counted;
+   * what it gives up is set aside. Where the attempts cannot be made at all, every delivery is
+   * queued as it is, so the later path makes the first attempt instead.
+   */
+  async function attemptFirst(given: {
+    hub: Hub;
+    deliveries: Delivery[];
+    deadLetter: Queue<GivenUp>;
+    rows: LogRow[];
+  }): Promise<void> {
+    const { hub, deliveries, deadLetter, rows } = given;
+    if (deliveries.length === 0) return;
+    let outcomes: DeliveryOutcome[];
+    try {
+      outcomes = await hub.deliverAll(deliveries);
+    } catch {
+      await Promise.all(deliveries.map((delivery) => hub.later(delivery)));
+      return;
+    }
+    await Promise.all(
+      deliveries.map(async (delivery, at) => {
+        const outcome = outcomes[at] as DeliveryOutcome;
+        if ("retryAfterSeconds" in outcome) {
+          await hub.later(
+            { ...delivery, attempt: delivery.attempt + 1 },
+            outcome.retryAfterSeconds,
+          );
+          return;
+        }
+        if (outcome.gaveUp === undefined) return;
+        // No message of its own to settle: the event it belongs to is acked by the caller.
+        const kept: GivenUp = { kind: "delivery", delivery, gaveUp: outcome.gaveUp };
+        await deadLetter.send(kept, { contentType: "json" });
+        rows.push({
+          at: Date.now(),
+          level: "warn",
+          message: "a delivery was given up",
+          fields: {
+            subscription: delivery.subscription,
+            event: delivery.event.id,
+            type: delivery.event.type,
+            reason: outcome.gaveUp.reason,
+            ...(outcome.gaveUp.status === null ? {} : { status: outcome.gaveUp.status }),
+          },
+        });
+      }),
+    );
+  }
+
   async function deliveries(batch: MessageBatch<Delivery>, env: E): Promise<void> {
     const hub = config.hub(env);
     const deadLetter = config.deadLetter(env);
     const rows: LogRow[] = [];
+    // `attempt` is the larger of what the body carries and what the Queue counted: a delivery queued
+    // after a first attempt made elsewhere already carries 2, and the Queue starts its own count at
+    // 1. Either alone would restart the backoff.
+    const attempted = batch.messages.map((message) => ({
+      message,
+      delivery: { ...message.body, attempt: Math.max(message.body.attempt, message.attempts) },
+    }));
+    let outcomes: DeliveryOutcome[];
+    try {
+      outcomes = await hub.deliverAll(attempted.map((one) => one.delivery));
+    } catch {
+      // The store could not be reached: nothing was settled.
+      for (const { message } of attempted) {
+        message.retry({ delaySeconds: backoff(message.attempts) });
+      }
+      return;
+    }
     await Promise.all(
-      batch.messages.map(async (message) => {
-        const delivery = message.body;
-        try {
-          // `attempts` is the Queue's own count, and the one `deliver` backs off by.
-          const outcome = await hub.deliver({ ...delivery, attempt: message.attempts });
-          if ("retryAfterSeconds" in outcome) {
-            message.retry({ delaySeconds: outcome.retryAfterSeconds });
-            return;
-          }
-          if (outcome.gaveUp === undefined) {
-            message.ack();
-            return;
-          }
-          const { reason, status } = outcome.gaveUp;
-          await setAside({
-            message,
-            kept: { kind: "delivery", delivery, gaveUp: outcome.gaveUp },
-            deadLetter,
-            rows,
-            row: {
-              at: Date.now(),
-              level: "warn",
-              message: "a delivery was given up",
-              fields: {
-                subscription: delivery.subscription,
-                event: delivery.event.id,
-                type: delivery.event.type,
-                reason,
-                ...(status === null ? {} : { status }),
-              },
-            },
-          });
-        } catch {
-          // The store could not be reached: nothing was settled.
-          message.retry({ delaySeconds: backoff(message.attempts) });
+      attempted.map(async ({ message, delivery }, at) => {
+        const outcome = outcomes[at] as DeliveryOutcome;
+        if ("retryAfterSeconds" in outcome) {
+          message.retry({ delaySeconds: outcome.retryAfterSeconds });
+        } else if (outcome.gaveUp === undefined) {
+          message.ack();
+        } else {
+          await giveUp({ message, delivery, gaveUp: outcome.gaveUp, deadLetter, rows });
         }
       }),
     );

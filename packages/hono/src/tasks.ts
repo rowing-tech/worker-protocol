@@ -14,6 +14,7 @@
 
 import type { qualifiedName } from "@worker-protocol/schemas";
 import type * as z from "zod";
+import type { ActionCall, ActionDeclarations } from "./actions.ts";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { collection, type Page } from "./collection.ts";
@@ -112,7 +113,35 @@ export type TaskSurface = {
   ) => Promise<Refusal | Page>;
 };
 
-export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
+/**
+ * TASK-38, from ACT-17's condition: the answers that apply to this Task now, where the Worker left
+ * that to the SDK. A Task that says `available` itself keeps what it said; one whose answers
+ * declare no `refuses` has nothing to narrow and carries no `available`, which means all of them.
+ */
+async function availableFor(
+  task: OpenTask,
+  given: { names: string[]; accepts: ActionDeclarations; call: Omit<ActionCall, "name"> },
+): Promise<string[] | undefined> {
+  if (task.available !== undefined) return task.available;
+  const { names, accepts, call } = given;
+  if (!names.some((name) => accepts[name]?.refuses !== undefined)) return undefined;
+  const applies = await Promise.all(
+    names.map(async (name) => {
+      const refuses = accepts[name]?.refuses;
+      if (refuses === undefined) return true;
+      return (await refuses((task.inputs?.[name] ?? {}) as never, { ...call, name })) === undefined;
+    }),
+  );
+  return names.filter((_, at) => applies[at]);
+}
+
+export function tasks(declared: {
+  raises: TaskTypes;
+  facts: TaskFacts;
+  /** The `actions` entry's own map, for the `refuses` TASK-38 is derived from. */
+  accepts: ActionDeclarations;
+}): TaskSurface {
+  const { raises, facts, accepts } = declared;
   const cap = facts.pageSize ?? 50;
 
   return {
@@ -126,9 +155,19 @@ export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
 
       // TASK-6: only what this credential covers. Absent, it covers everything.
       const covers = await facts.covers?.(token, principal);
-      const matching = (await facts.current())
+      const held = (await facts.current())
         .filter((task) => covers === undefined || covers.includes(task.id))
         .filter((task) => type === null || task.type === type);
+      const matching = await Promise.all(
+        held.map(async (task) => {
+          const available = await availableFor(task, {
+            names: raises[task.type]?.answeredBy ?? [],
+            accepts,
+            call: { token, principal },
+          });
+          return available === undefined ? task : { ...task, available };
+        }),
+      );
 
       // ENDP-19's cap, ENDP-20's envelope, ENDP-21's cursor and ENDP-23's order are the same for
       // every collection in this protocol, and `collection.ts` carries them. What is left here is

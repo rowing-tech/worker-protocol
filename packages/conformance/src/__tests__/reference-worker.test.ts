@@ -119,13 +119,33 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.5");
+    expect(report.edition).toBe("0.6");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
     expect(rules.size).toBe(report.results.length);
     expect(report.results.length).toBeGreaterThan(100);
   });
+
+  it("watches a delivery fail, be retried and clear, where the sink can be made to fail (SUB-12, SUB-16)", async () => {
+    // Its own test, because the retry is waited for: a sink answering `503` with `Retry-After: 1`,
+    // then answering again, and the same event arriving a second time.
+    const report = await verify({
+      baseUrl: worker.url,
+      credential: "a-token",
+      mayPerform: true,
+      arrangement: {
+        ...ARRANGEMENT,
+        sink: { url: sinkServer.url, received: sinkServer.received, respond: sinkServer.respond },
+      },
+    });
+    const of = (id: string) => report.results.find((r) => r.rule.id === id);
+    expect(of("SUB-12")?.verdict).toBe("passes");
+    expect(of("SUB-16")?.verdict).toBe("passes");
+    expect(of("EVT-18")?.verdict).toBe("passes");
+    // Not arranged: the wait for an abandonment is the operators' to accept.
+    expect(of("SUB-14")?.verdict).toBe("notExercised");
+  }, 40_000);
 
   it("passes every rule it judges", async () => {
     const report = await verify({
@@ -239,10 +259,10 @@ describe("the reference worker, verified", () => {
     const arranged = report.results.filter(
       (r) => r.rule.reach === "H" && (r.verdict === "passes" || r.verdict === "fails"),
     );
-    expect(arranged.length).toBe(31);
+    expect(arranged.length).toBe(32);
 
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(136);
+    expect(counts.passes).toBe(139);
     expect(counts.fails).toBe(0);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -382,9 +402,9 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.5");
+      expect(report.verifierEdition).toBe("0.6");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.5");
+      expect(report.results[0]?.detail).toContain("holds edition 0.6");
     } finally {
       await ahead.close();
     }
@@ -392,9 +412,9 @@ describe("the reference worker, verified", () => {
 
   it("verifies nothing against a later MINOR while the MAJOR is 0", async () => {
     // DESC-32 lets a MINOR break before 1.0, so DESC-33 has a verifier behind on MINOR treat it as
-    // it treats a later MAJOR: judging a 0.6 Worker by 0.5's rules could fail it for what 0.6
+    // it treats a later MAJOR: judging a 0.7 Worker by 0.6's rules could fail it for what 0.7
     // changed, and the honest sentence is that the verifier is the one behind.
-    const ahead = await start({ edition: "0.6" });
+    const ahead = await start({ edition: "0.7" });
     try {
       const report = await verify({ baseUrl: ahead.url });
       expect(report.older).toBe(true);

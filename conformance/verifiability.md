@@ -17,8 +17,8 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 105 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 37 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 107 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 38 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 28 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
@@ -178,7 +178,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | TASK-8 | W | 0.1 | A type the entry does not declare is `400` + `invalid_parameter` |
 | TASK-15 | N | 0.1 | A Task that disappears may have had its condition stop holding at that moment for reasons of its own. Nothing outside can tell — which is exactly why the rule matters |
 | TASK-19 | N | 0.1 | Recommended. What a nudge IS has no witness: an owner notifying by some other means is indistinguishable from one that does not notify at all |
-| TASK-37 | W | 0.5 | Each Task read that carries `inputs` fills in only Actions its type names, members their inputs declare, and values those members accept. A page where no Task carries it is `not exercised`. The value is judged against what the member's schema fixes — `type`, `const`, `enum` — and no further, as TASK-28's payload is not validated against its declared schema either |
+| TASK-37 | W | 0.5 | Each Task read that carries `inputs` fills in only Actions its type names, members their inputs declare, and values those members accept. A page where no Task carries it is `not exercised`. The value is judged against what the member's schema fixes about one value — `type`, `const`, `enum`, `pattern`, string lengths and numeric bounds — and no further, as TASK-28's payload is not validated against its declared schema either |
 | TASK-38 | W | 0.5 | Each Task read that carries `available` names only Actions its type names. Whether the Worker then accepts them is a statement about the moment of the read, and a later `409` does not contradict it |
 | TASK-28 | W | 0.1 | Each Task carries its id, type, payload and the instant its condition began |
 
@@ -197,7 +197,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | ALRT-8 | N | 0.4 | An Alert that disappears may have had its condition stop holding, or may have been dismissed by somebody the verifier never saw. Nothing outside can tell — which is the same shape as TASK-15 and the same reason it matters |
 | ALRT-6 | H | 0.1 | Two credentials must exist before two lists can be compared |
 | ALRT-7 | W | 0.1 | Every Action an Alert offers is one the Worker's own `actions` entry accepts. An agreement between two entries, which no schema reaches |
-| ALRT-9 | W | 0.5 | Each Alert read that carries `inputs` fills in only Actions it offers, members their inputs declare, and values those members accept. The value is judged against what the member's schema fixes — `type`, `const`, `enum` — and no further, as TASK-28's payload is not validated against its declared schema either |
+| ALRT-9 | W | 0.5 | Each Alert read that carries `inputs` fills in only Actions it offers, members their inputs declare, and values those members accept. The value is judged against what the member's schema fixes about one value — `type`, `const`, `enum`, `pattern`, string lengths and numeric bounds — and no further, as TASK-28's payload is not validated against its declared schema either |
 
 ## activity.md — 6
 
@@ -218,7 +218,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | NDG-2 | H | 0.1 | A nudge that is accepted sends the Worker to read somebody's Tasks, so it needs a Worker arranged to be told — the same position ACT-5 is in, and the same permission |
 | NDG-3 | W | 0.1 | A nudge for a type the Worker declares no Skill for is `404` + `not_found`, and nothing happened. The same shape as ACT-6, and W for the same reason: the witness is a refusal |
 
-## events.md — 11
+## events.md — 14
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -233,6 +233,9 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | EVT-7 | P | 0.1 | Binds a subscriber — a party this protocol does not otherwise name, sitting between two that both did everything right |
 | EVT-8 | W | 0.1 | The republish window, read off the entry |
 | EVT-16 | N | 0.4 | A subscriber sees the topic it was given and not the Worker's other uses of the same cluster. What would be seen, if anything could, is a deduplication store filling with ids for documents that were never events |
+| EVT-17 | W | 0.6 | Each event type's `extensions`, read off the entry: a JSON Schema per name. That the events carry no other is EVT-18's |
+| EVT-18 | H | 0.6 | Observed at an arranged sink, on the event the publishing Action caused: every attribute beyond CloudEvents' own is declared for its type, and its value agrees with what that schema fixes about one value |
+| EVT-19 | W | 0.6 | Every declared extension name is lower-case letters and digits and none of CloudEvents' context attributes nor `data`. A Worker that declares none is `not exercised` |
 
 ## naming.md — 10
 
@@ -329,16 +332,16 @@ at all.
 | SUB-9 | H | 0.4 | Another caller ending it is `404`, and its owner ending it is `204` |
 | SUB-10 | H | 0.4 | The arranged sink saw the webhook handshake naming the Worker's id before the subscription was answered |
 | SUB-11 | H | 0.4 | A delivery reached the arranged sink in structured mode, with the sink's own credential, after the Action that publishes was performed |
-| SUB-12 | H | 0.4 | Needs a sink that fails and then answers, and a window long enough to watch a retry. No check yet |
+| SUB-12 | H | 0.4 | Needs a sink the verifier can make fail: it answers `503` with `Retry-After: 1`, and once it answers again the same event must arrive again within thirty seconds |
 | SUB-13 | H | 0.4 | A subscription whose filter nothing satisfies receives nothing, while one beside it does |
-| SUB-14 | H | 0.4 | Needs a sink that fails for the whole of `abandonAfterSeconds`, or a caller the Worker stops accepting. No check yet |
-| SUB-15 | H | 0.4 | Needs a subscription that ended without its subscriber ending it, which SUB-14's arrangement would provoke. No check yet |
-| SUB-16 | H | 0.4 | After a delivery, the caller's list shows when it last succeeded |
+| SUB-14 | H | 0.4 | Needs a sink the verifier can make fail, and operators who arranged `abandonment`: the sink fails for `abandonAfterSeconds` while an event is provoked every thirty seconds, and the subscription must end. A caller the Worker stops accepting has no check |
+| SUB-15 | H | 0.4 | The abandonment SUB-14's arrangement provokes: `subscription-ended` reaches the sink naming the subscription, with its reason and instant, and the caller's list keeps it ended |
+| SUB-16 | H | 0.4 | After a delivery, the caller's list shows when it last succeeded; where the sink can be made fail, it shows since when while failing and clears it once the sink recovers |
 | SUB-17 | H | 0.4 | Recommended. Another caller ending a subscription it does not own is `404`, the same as one that does not exist |
 
 ## Where this stands
 
-192 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
+195 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.

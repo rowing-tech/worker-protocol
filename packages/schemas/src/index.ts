@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.5";
+export const EDITION = "0.6";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -1173,7 +1173,27 @@ export const eventDestination = z.looseObject({}).meta({
     "to anything.",
 });
 
-/** EVT-12, EVT-13 — one event type a Worker publishes. */
+/**
+ * EVT-19 — the name of an extension attribute: CloudEvents' own form, lower-case ASCII letters and
+ * digits, and none of the names CloudEvents 1.0 gives its context attributes or its data. One
+ * pattern rather than a pattern and a list, so the JSON Schema carries the whole rule as
+ * `propertyNames` and a reader in any language refuses the same names.
+ */
+export const extensionName = z
+  .string()
+  .regex(
+    /^(?!(?:specversion|id|source|type|datacontenttype|dataschema|subject|time|data)$)[a-z0-9]+$/,
+  )
+  .meta({
+    title: "Extension name",
+    description:
+      "EVT-19. Lower-case ASCII letters and digits, as CloudEvents requires of every attribute " +
+      "name, and not one of the context attributes CloudEvents 1.0 defines nor `data`. In " +
+      "structured mode an extension named `source` is the same JSON member as the context " +
+      "attribute, and one of the two is lost.",
+  });
+
+/** EVT-12, EVT-13, EVT-17 — one event type a Worker publishes. */
 export const eventTypeDeclaration = z
   .strictObject({
     data: z.looseObject({}).meta({
@@ -1186,6 +1206,17 @@ export const eventTypeDeclaration = z
         "EVT-13. Where THIS type lands on the broker, for a Worker that divides its events by " +
         "subject. Absent, it lands at the entry's destination, which is the ordinary case.",
     }),
+    extensions: z
+      .record(extensionName, z.looseObject({}))
+      .optional()
+      .meta({
+        description:
+          "EVT-17. Every extension attribute this type's events carry, keyed by name, each the " +
+          "JSON Schema of its value. Absent, they carry none. It is what a subscriber can filter " +
+          "on (SUB-13), so declaring it is what lets a Tower or a console offer those filters " +
+          "before anybody subscribes; a filter on an attribute no event carries matches nothing " +
+          "and says nothing.",
+      }),
     supersededBy: qualifiedName.optional().meta({
       description:
         "NAME-10. The event type that replaces this one, by the name `publishes` holds it under. " +

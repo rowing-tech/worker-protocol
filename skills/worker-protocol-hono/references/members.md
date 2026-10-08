@@ -25,7 +25,11 @@ and the rule each one cites.
 - `metrics: { timeZone, publishes, read({ metric, granularity, buckets, fixed, by }) }` — answer
   `{ start, value }` per bucket there is a number for, omitting the rest (MET-15).
 - `actions: { accepts, settings?, outcomes? }` — each entry of `accepts` is
-  `action({ input, result?, idempotency?, completesWithinCall?, supersededBy?, run })`.
+  `action({ input, result?, idempotency?, completesWithinCall?, supersededBy?, refuses?, run })`.
+  `refuses(input, call)` answers why the current state does not allow it, or `undefined`:
+  `mount()` asks it after a repeat is replayed and before `run`, answering `409 conflict`, and asks
+  it of every open Task the Action answers with that Task's `inputs`, leaving refused answers out
+  of `available` (ACT-17, TASK-38). The input it gets may be partial.
   `run(input, call)` is told `call.name`, `call.token`, `call.idempotencyKey` — the key as the
   caller sent it — `call.principal` and `call.caller`. A Worker forwarding to another derives its
   downstream key from the key and the caller together. `idempotency` is `{ from: "header" }` or
@@ -48,14 +52,24 @@ and the rule each one cites.
   (TASK-35); `current()` derives the open Tasks on every read, because nobody closes one
   (TASK-15). Each may carry `inputs` — per answering Action and member, what the Task already
   knows (TASK-37) — and `available`, the answers that apply now (TASK-38).
-- `events: { broker, protocolBinding, destination, publishes: { [type]: { data, supersededBy? } },
-  republishWindowSeconds? }` — a declaration only. No address is served (EVT-13). A Task type's or
-  an event type's `supersededBy` names its replacement in the same map, as an Action's does.
-- `subscriptions: { abandonAfterSeconds, store, queue, allows?, accepts?, insecureSinkOrigins? }` —
-  `store` a consistent `SubscriptionStore` (a Durable Object, or `memorySubscriptions()` in one
-  process), `queue` a `DeliveryQueue` whose consumer calls `eventHub(...).deliver`. `allows` is the
-  Contract (SUB-4), `accepts` revocation (SUB-14), `insecureSinkOrigins` a development allowlist.
-  `events` may then declare no broker (EVT-13).
+- `events: { broker, protocolBinding, destination, publishes: { [type]: { data, extensions?,
+  supersededBy? } }, republishWindowSeconds? }` — a declaration only. No address is served
+  (EVT-13). `extensions` is a Zod schema per extension attribute its events carry (EVT-17); the hub
+  refuses an event carrying any other, and refuses at construction a name that is not lower-case
+  letters and digits or is a CloudEvents context attribute (EVT-18, EVT-19). Spread
+  `lifecycleEvents({ tasks, alerts })` into `publishes` for the four EVT-15 types with their data
+  and extensions. A Task type's or an event type's `supersededBy` names its replacement in the same
+  map, as an Action's does.
+- `subscriptions: { abandonAfterSeconds, store, queue, allows?, accepts?, insecureSinkOrigins?,
+  attemptTimeoutMs? }` — `store` a consistent `SubscriptionStore` (a Durable Object, or
+  `memorySubscriptions()` in one process), `queue` a `DeliveryQueue` whose consumer calls
+  `eventHub(...).deliver`. `allows` is the Contract (SUB-4), `accepts` revocation (SUB-14),
+  `insecureSinkOrigins` a development allowlist, `attemptTimeoutMs` how long one attempt at a sink
+  may take (ten seconds). `events` may then declare no broker (EVT-13). The hub also offers
+  `end(id, reason)` to end a subscription yourself — `withdrawn` or `revoked`, announced and kept
+  (SUB-15) — `wanted(events)` to leave out of an outbox what no live subscription would receive,
+  and `route`, `deliverAll` and `later` for a carrier that makes the first attempt itself, as
+  `consumeQueues` does.
 - `logs: { read({ levels, from, to, cursor, limit }), pageSize? }` — answer
   `{ records: [{ at, level, message, fields? }], nextCursor? }`, most recent first. `levels` arrives
   expanded and in order, lowest first, so the ladder never needs re-deriving.

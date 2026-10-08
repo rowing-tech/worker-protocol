@@ -14,16 +14,21 @@
  */
 
 import {
+  alert as alertSchema,
+  alertSeverity,
+  extensionName,
+  qualifiedName,
   type SubscriptionFilter,
   type subscriptionEndReason,
   subscriptionRequest,
+  task as taskSchema,
 } from "@worker-protocol/schemas";
 import * as z from "zod";
 import { readJson, schemaMismatch } from "./actions.ts";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import type { OpenTask } from "./tasks.ts";
-import type { Alert, Answer, Refusal, Worker } from "./worker.ts";
+import type { Alert, Answer, EventTypeDeclaration, Refusal, Worker } from "./worker.ts";
 
 /** SUB-15: why a subscription ended without its subscriber ending it. */
 export type EndReason = z.infer<typeof subscriptionEndReason>;
@@ -72,6 +77,12 @@ export type SubscriptionStore = {
   list: (caller: string | null) => Promise<StoredSubscription[]> | StoredSubscription[];
   /** The live subscriptions naming this event type. */
   forType: (type: string) => Promise<StoredSubscription[]> | StoredSubscription[];
+  /**
+   * Several by id in one read, ended ones included, missing ones left out. Optional: where a store
+   * has it, a batch of deliveries reads each subscription once in one call rather than one call
+   * per delivery.
+   */
+  getMany?: (ids: string[]) => Promise<StoredSubscription[]> | StoredSubscription[];
   /** Sets every member the patch names; one named with `undefined` is cleared. */
   update: (id: string, patch: Partial<StoredSubscription>) => Promise<void> | void;
   remove: (id: string) => Promise<void> | void;
@@ -103,7 +114,8 @@ export type DeliveryOutcome = { done: true; gaveUp?: GaveUp } | { retryAfterSeco
 
 /** Carries a delivery to whatever runs `deliver()` on it, and retries it when told to. */
 export type DeliveryQueue = {
-  send: (delivery: Delivery) => Promise<void> | void;
+  /** One delivery, after `delaySeconds` where it says — a retry the hub asked to be made later. */
+  send: (delivery: Delivery, options?: { delaySeconds?: number }) => Promise<void> | void;
   /** Many at once, where the carrier can: a Cloudflare Queue takes a hundred in one call. */
   sendBatch?: (deliveries: Delivery[]) => Promise<void> | void;
 };
@@ -141,6 +153,12 @@ export type SubscriptionFacts = {
    * origins on purpose, as a test over loopback breaks DESC-35. Every other sink is held to them.
    */
   insecureSinkOrigins?: string[];
+  /**
+   * How long one attempt at a sink may take before it counts as failed, in milliseconds. A sink
+   * that answers slower than this is retried as one that did not answer, which bounds how long it
+   * holds a batch beside other subscribers' events. Defaults to ten seconds.
+   */
+  attemptTimeoutMs?: number;
   /** For tests and for a runtime that needs its own agent. Defaults to the global `fetch`. */
   fetch?: typeof globalThis.fetch;
 };
@@ -163,8 +181,11 @@ export type Publishable = {
   type: string;
   subject?: string;
   data: unknown;
-  /** Extension attributes: lowercase letters and digits, as CloudEvents requires. */
-  extensions?: Record<string, string>;
+  /**
+   * Extension attributes, each one its type declares (EVT-17, EVT-18): lower-case letters and
+   * digits, no CloudEvents context attribute (EVT-19), and a value its schema accepts.
+   */
+  extensions?: Record<string, string | number | boolean>;
   /**
    * EVT-1, EVT-8. The id this event already has, for a Worker that publishes from an outbox and may
    * publish one row twice — a delivery queued and the broker then down, say. Under the same `source`
@@ -224,7 +245,14 @@ export const taskRaised = (task: OpenTask): Publishable => ({
   type: LIFECYCLE.taskRaised,
   subject: task.id,
   extensions: { tasktype: task.type },
-  data: { id: task.id, type: task.type, payload: task.payload, since: rfc3339(task.since) },
+  data: {
+    id: task.id,
+    type: task.type,
+    payload: task.payload,
+    since: rfc3339(task.since),
+    ...(task.inputs === undefined ? {} : { inputs: task.inputs }),
+    ...(task.available === undefined ? {} : { available: task.available }),
+  },
 });
 
 /** EVT-15: a Task ended — for whatever reason, and nobody closed it. */
@@ -249,6 +277,40 @@ export const alertEnded = (alert: Pick<Alert, "id" | "severity">): Publishable =
   subject: alert.id,
   extensions: { alertseverity: alert.severity },
   data: { id: alert.id, severity: alert.severity },
+});
+
+/**
+ * EVT-15, EVT-17: the declarations of the lifecycle types, for `events.publishes`.
+ *
+ * Each with the `data` EVT-15's table gives and the one extension a subscriber filters it by, so a
+ * Worker that publishes them declares what it sends without writing either again. Spread them
+ * beside the Worker's own types; one that carries more `data` than the table declares its own.
+ */
+export const lifecycleEvents = (which: {
+  tasks?: boolean;
+  alerts?: boolean;
+}): Record<string, EventTypeDeclaration> => ({
+  ...(which.tasks
+    ? {
+        [LIFECYCLE.taskRaised]: { data: taskSchema, extensions: { tasktype: qualifiedName } },
+        [LIFECYCLE.taskEnded]: {
+          data: z.object({ id: z.string(), type: qualifiedName }),
+          extensions: { tasktype: qualifiedName },
+        },
+      }
+    : {}),
+  ...(which.alerts
+    ? {
+        [LIFECYCLE.alertRaised]: {
+          data: alertSchema,
+          extensions: { alertseverity: alertSeverity },
+        },
+        [LIFECYCLE.alertEnded]: {
+          data: z.object({ id: z.string(), severity: alertSeverity }),
+          extensions: { alertseverity: alertSeverity },
+        },
+      }
+    : {}),
 });
 
 /**
@@ -312,9 +374,46 @@ export function eventHub(worker: Publisher) {
   const { id: source, events, subscriptions: facts } = worker;
   const { republishWindowSeconds } = events;
   const declared = new Set(Object.keys(events.publishes));
-  const send = facts.fetch ?? globalThis.fetch;
 
-  /** SUB-11: one event to one sink, structured mode, the sink's own credential. */
+  // EVT-19, refused where the author is still looking: a name CloudEvents reserves would be lost
+  // in the envelope below without a word, and nothing later could tell which value went.
+  for (const [type, declaration] of Object.entries(events.publishes)) {
+    for (const name of Object.keys(declaration.extensions ?? {})) {
+      if (!extensionName.safeParse(name).success) {
+        throw new Error(
+          `EVT-19: ${type} declares the extension \`${name}\`, which is not lower-case letters ` +
+            "and digits or is a CloudEvents context attribute.",
+        );
+      }
+    }
+  }
+
+  /**
+   * EVT-12, EVT-18: why one event cannot be published as declared, or `undefined` where it can. A
+   * type the entry does not declare, an extension its type does not declare, or a value that
+   * extension's schema refuses — each a mistake in the Worker's own code, which no retry mends.
+   */
+  const fault = (one: Publishable): string | undefined => {
+    const declaration = events.publishes[one.type];
+    if (declaration === undefined) {
+      return `EVT-12: ${one.type} is not declared under \`events.publishes\`.`;
+    }
+    for (const [name, value] of Object.entries(one.extensions ?? {})) {
+      const schema = declaration.extensions?.[name];
+      if (schema === undefined) return `EVT-18: ${one.type} declares no extension \`${name}\`.`;
+      if (!schema.safeParse(value).success) {
+        return `EVT-18: \`${name}\` on ${one.type} carries a value its schema refuses.`;
+      }
+    }
+    return undefined;
+  };
+  const send = facts.fetch ?? globalThis.fetch;
+  const timeoutMs = facts.attemptTimeoutMs ?? 10_000;
+
+  /**
+   * SUB-11: one event to one sink, structured mode, the sink's own credential. `null` is no answer
+   * — a network failure, or a sink slower than the attempt may take.
+   */
   const post = async (sink: StoredSubscription, event: CloudEvent) => {
     try {
       return await send(sink.sink, {
@@ -324,6 +423,7 @@ export function eventHub(worker: Publisher) {
           authorization: `Bearer ${sink.sinkCredential}`,
         },
         body: JSON.stringify(event),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
       return null;
@@ -359,80 +459,101 @@ export function eventHub(worker: Publisher) {
     );
   };
 
+  /** The live subscriptions naming each type, read once per type rather than once per event. */
+  const subscribedTo = async (types: string[]) =>
+    new Map(
+      await Promise.all(
+        [...new Set(types)].map(async (type) => [type, await facts.store.forType(type)] as const),
+      ),
+    );
+
   /**
-   * Publishes every event to every live subscription that names its type and whose filters hold
-   * (SUB-13), and answers the events as they were sent. A type the `events` entry does not declare
-   * is refused before anything is sent: publishing it would break EVT-12, and the mistake is in
-   * the Worker's own code, where a throw is what reaches whoever wrote it.
+   * The events as they will be sent, and one delivery per live subscription that names each type
+   * and whose filters hold (SUB-13) — computed, and nothing sent. A type the `events` entry does
+   * not declare, or an extension its type does not, is refused first: publishing it would break
+   * EVT-12 or EVT-18, and the mistake is in the Worker's own code, where a throw is what reaches
+   * whoever wrote it.
    */
-  const publishAll = async (batch: Publishable[]): Promise<CloudEvent[]> => {
-    const undeclared = batch.find((one) => !declared.has(one.type));
-    if (undeclared !== undefined) {
-      throw new Error(`EVT-12: ${undeclared.type} is not declared under \`events.publishes\`.`);
+  const route = async (
+    batch: Publishable[],
+  ): Promise<{ events: CloudEvent[]; deliveries: Delivery[] }> => {
+    for (const one of batch) {
+      const refused = fault(one);
+      if (refused !== undefined) throw new Error(refused);
     }
     const at = Date.now();
     const events = batch.map((one) => envelope(one, at));
-    // The store is asked once per type rather than once per event: a batch of a hundred events of
-    // three types is three reads, which is the point of publishing a batch at all. `forType`
-    // answers live subscriptions only.
-    const types = [...new Set(events.map((event) => event.type))];
-    const subscribed = new Map(
-      await Promise.all(
-        types.map(async (type) => [type, await facts.store.forType(type)] as const),
-      ),
-    );
+    const subscribed = await subscribedTo(events.map((event) => event.type));
     const deliveries = events.flatMap((event) =>
       (subscribed.get(event.type) ?? [])
         .filter((one) => matches(one.filters, event))
         .map((one) => ({ subscription: one.id, event, publishedAt: at, attempt: 1 })),
     );
-    // The deliveries are independent of each other — the queue promises no order between them —
-    // so they are handed over together.
-    if (deliveries.length === 0) return events;
+    return { events, deliveries };
+  };
+
+  /** Hands deliveries to the queue, together where it can: the queue promises no order. */
+  const enqueue = async (deliveries: Delivery[]) => {
+    if (deliveries.length === 0) return;
     if (facts.queue.sendBatch !== undefined) await facts.queue.sendBatch(deliveries);
     else await Promise.all(deliveries.map((one) => facts.queue.send(one)));
+  };
+
+  /** Publishes every event to every subscription it reaches, through the queue. */
+  const publishAll = async (batch: Publishable[]): Promise<CloudEvent[]> => {
+    const { events, deliveries } = await route(batch);
+    await enqueue(deliveries);
     return events;
   };
 
-  return {
-    publishAll,
+  /**
+   * One attempt at each delivery, and what to do next with each, in the order given (SUB-12,
+   * SUB-14). Each subscription is read once however many of its deliveries the batch carries, and
+   * written once at the end with what the attempts left it with; an ending is written at once,
+   * because it is announced to the sink at once.
+   */
+  const deliverAll = async (deliveries: Delivery[]): Promise<DeliveryOutcome[]> => {
+    const done = { done: true } as const;
+    const ids = [...new Set(deliveries.map((one) => one.subscription))];
+    const read =
+      facts.store.getMany !== undefined
+        ? await facts.store.getMany(ids)
+        : (await Promise.all(ids.map((id) => facts.store.get(id)))).filter(
+            (one): one is StoredSubscription => one !== undefined,
+          );
+    const held = new Map(read.map((one) => [one.id, { ...one }]));
+    const patches = new Map<string, Partial<StoredSubscription>>();
+    const accepted = new Map<string | null, Promise<boolean>>();
+    const patch = (id: string, change: Partial<StoredSubscription>) =>
+      patches.set(id, { ...patches.get(id), ...change });
 
-    /**
-     * EVT-12: whether the `events` entry declares this type — what `publishAll` refuses a batch
-     * over. A carrier asks first, so one undeclared event is set aside rather than failing the
-     * events beside it.
-     */
-    declares: (type: string): boolean => declared.has(type),
-
-    /** `publishAll` for one event, which is how a Worker publishing as Facts change calls it. */
-    async publish(published: Publishable): Promise<CloudEvent> {
-      const [event] = await publishAll([published]);
-      return event as CloudEvent;
-    },
-
-    /** One delivery attempt, and what to do next (SUB-12, SUB-14). */
-    async deliver(delivery: Delivery): Promise<DeliveryOutcome> {
-      const done = { done: true } as const;
-      const subscription = await facts.store.get(delivery.subscription);
+    const attempt = async (delivery: Delivery): Promise<DeliveryOutcome> => {
+      const subscription = held.get(delivery.subscription);
       if (subscription === undefined || subscription.endedAt !== undefined) return done;
 
       // SUB-14: a caller the Worker no longer accepts has no subscription, whatever its sink says.
-      if (facts.accepts !== undefined && !(await facts.accepts(subscription.caller))) {
-        await end(subscription, "revoked");
-        return done;
+      if (facts.accepts !== undefined) {
+        const asked = accepted.get(subscription.caller) ?? facts.accepts(subscription.caller);
+        accepted.set(subscription.caller, Promise.resolve(asked));
+        if (!(await asked)) {
+          if (subscription.endedAt === undefined) {
+            subscription.endedAt = Date.now();
+            await end(subscription, "revoked");
+          }
+          return done;
+        }
       }
 
       const now = Date.now();
       const closes = delivery.publishedAt + republishWindowSeconds * 1000;
       const expired = now >= closes;
-      // `null` is a network failure; `undefined`, an event whose window closed before an attempt.
+      // `null` is no answer; `undefined`, an event whose window closed before an attempt.
       const answer = expired ? undefined : await post(subscription, delivery.event);
 
       if (answer?.ok) {
-        await facts.store.update(subscription.id, {
-          lastDeliveredAt: now,
-          failingSince: undefined,
-        });
+        subscription.lastDeliveredAt = now;
+        subscription.failingSince = undefined;
+        patch(subscription.id, { lastDeliveredAt: now, failingSince: undefined });
         return done;
       }
 
@@ -440,7 +561,8 @@ export function eventHub(worker: Publisher) {
       // sink is not receiving, and SUB-14 counts how long that has gone on without interruption.
       const failingSince = subscription.failingSince ?? now;
       if (subscription.failingSince === undefined) {
-        await facts.store.update(subscription.id, { failingSince });
+        subscription.failingSince = failingSince;
+        patch(subscription.id, { failingSince });
       }
       const status = answer?.status ?? null;
       const giveUp = (reason: GaveUp["reason"]): DeliveryOutcome => ({
@@ -448,7 +570,10 @@ export function eventHub(worker: Publisher) {
         gaveUp: { reason, status },
       });
       if (now - failingSince >= facts.abandonAfterSeconds * 1000) {
-        await end(subscription, "abandoned");
+        if (subscription.endedAt === undefined) {
+          subscription.endedAt = now;
+          await end(subscription, "abandoned");
+        }
         return giveUp("abandoned");
       }
       if (expired) return giveUp("expired");
@@ -458,6 +583,85 @@ export function eventHub(worker: Publisher) {
       const asked = retryAfter(answer?.headers.get("retry-after") ?? null, now);
       const wait = asked ?? Math.min(2 ** delivery.attempt, 3600);
       return now + wait * 1000 < closes ? { retryAfterSeconds: wait } : giveUp("expired");
+    };
+
+    const outcomes = await Promise.all(deliveries.map(attempt));
+    await Promise.all(
+      [...patches].map(([id, change]) =>
+        // An ending was written as it happened; what is left is the delivery bookkeeping.
+        facts.store.update(id, change),
+      ),
+    );
+    return outcomes;
+  };
+
+  return {
+    publishAll,
+    route,
+    deliverAll,
+
+    /**
+     * EVT-12: whether the `events` entry declares this type — what `publishAll` refuses a batch
+     * over. A carrier asks first, so one undeclared event is set aside rather than failing the
+     * events beside it.
+     */
+    declares: (type: string): boolean => declared.has(type),
+
+    /**
+     * EVT-12, EVT-18: why this event cannot be published as declared, or `undefined`. A carrier
+     * asks it of each event, so one the Worker got wrong is set aside with the reason rather than
+     * failing the batch beside it.
+     */
+    fault,
+
+    /** `publishAll` for one event, which is how a Worker publishing as Facts change calls it. */
+    async publish(published: Publishable): Promise<CloudEvent> {
+      const [event] = await publishAll([published]);
+      return event as CloudEvent;
+    },
+
+    /** One delivery attempt, and what to do next (SUB-12, SUB-14). */
+    async deliver(delivery: Delivery): Promise<DeliveryOutcome> {
+      const [outcome] = await deliverAll([delivery]);
+      return outcome as DeliveryOutcome;
+    },
+
+    /**
+     * A delivery handed back to the queue for a later attempt, after `delaySeconds` — what a
+     * carrier that made the attempt itself does with an outcome that asks for a retry.
+     */
+    later: async (delivery: Delivery, delaySeconds?: number): Promise<void> => {
+      await facts.queue.send(delivery, delaySeconds === undefined ? undefined : { delaySeconds });
+    },
+
+    /**
+     * SUB-14, SUB-15: the Worker ends a subscription itself — `withdrawn` when it stops publishing
+     * what was subscribed to, `revoked` when it stops accepting the caller. It stays listed, and
+     * its sink is told once. A subscription already ended, or none under that id, is left alone;
+     * the answer says whether this call ended it.
+     */
+    end: async (id: string, reason: EndReason): Promise<boolean> => {
+      const subscription = await facts.store.get(id);
+      if (subscription === undefined || subscription.endedAt !== undefined) return false;
+      await end(subscription, reason);
+      return true;
+    },
+
+    /**
+     * Which of these events at least one live subscription would receive now, in order: one that
+     * names its type and whose filters hold (SUB-13). For a Worker that keeps an outbox and wants
+     * to leave out what nobody is subscribed to before it is ever stored. It answers for
+     * subscriptions and nothing else — a Worker that also publishes to a broker (EVT-13) still
+     * owes the broker every event — and for now, so a subscription made between this answer and
+     * the publish does not see what was left out.
+     */
+    wanted: async (batch: Publishable[]): Promise<boolean[]> => {
+      const at = Date.now();
+      const events = batch.map((one) => envelope({ ...one, id: one.id ?? "" }, at));
+      const subscribed = await subscribedTo(events.map((event) => event.type));
+      return events.map((event) =>
+        (subscribed.get(event.type) ?? []).some((one) => matches(one.filters, event)),
+      );
     },
   };
 }
@@ -537,7 +741,7 @@ export const memoryDeliveries = () => {
     consume: (handler: (delivery: Delivery) => Promise<DeliveryOutcome>) => void;
     idle: () => Promise<void>;
   } = {
-    send: (delivery) => attempt(delivery, 0),
+    send: (delivery, options) => attempt(delivery, (options?.delaySeconds ?? 0) * 1000),
     consume: (handler) => {
       deliver = handler;
     },

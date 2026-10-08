@@ -75,7 +75,8 @@ const EVENTS = {
       data: z.object({ vehicle: z.string(), since: z.string() }),
     },
     // EVT-15: the specification's names and shapes, narrowed to the one Task type this Worker
-    // raises — so a subscriber reading the Descriptor knows what `payload` holds.
+    // raises — so a subscriber reading the Descriptor knows what `payload` holds. EVT-17: the
+    // `tasktype` a subscriber filters them by, which can only ever be that one type.
     [LIFECYCLE.taskRaised]: {
       data: z.object({
         id: z.string(),
@@ -83,9 +84,11 @@ const EVENTS = {
         payload: z.object({ vehicle: z.string() }),
         since: z.string(),
       }),
+      extensions: { tasktype: z.literal(QUIET_VEHICLE) },
     },
     [LIFECYCLE.taskEnded]: {
       data: z.object({ id: z.string(), type: z.literal(QUIET_VEHICLE) }),
+      extensions: { tasktype: z.literal(QUIET_VEHICLE) },
     },
   },
   // EVT-8: what a consumer sizes its deduplication store against, and what bounds a retry.

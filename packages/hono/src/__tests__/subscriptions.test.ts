@@ -6,6 +6,7 @@ import {
   eventHub,
   LIFECYCLE,
   lifecycleChanges,
+  lifecycleEvents,
   matches,
   memoryDeliveries,
   memorySubscriptions,
@@ -85,8 +86,11 @@ const build = (overrides: Partial<SubscriptionFacts> = {}) => {
 /** One declaration, handed to `mount()` and to the hub alike. */
 const EVENTS = {
   publishes: {
-    [TYPE]: { data: z.object({ vehicle: z.string() }) },
-    [LIFECYCLE.taskRaised]: { data: z.object({}) },
+    [TYPE]: {
+      data: z.object({ vehicle: z.string() }),
+      extensions: { depot: z.enum(["north", "south"]) },
+    },
+    ...lifecycleEvents({ tasks: true }),
   },
   republishWindowSeconds: 3600,
 };
@@ -403,5 +407,148 @@ describe("the lifecycle, built and never detected", () => {
     expect(matches([{ exact: { tasktype: "x" } }], event)).toBe(false);
     expect(matches([{ not: { exact: { tasktype: "x" } } }], event)).toBe(true);
     expect(matches(undefined, event)).toBe(true);
+  });
+});
+
+/** What reached a sink as a delivery, leaving the handshake out. */
+const posted = (received: Received[]) => received.filter((one) => one.method === "POST");
+
+describe("extension attributes (EVT-17, EVT-18, EVT-19)", () => {
+  it("writes each declared extension's JSON Schema into the Descriptor", async () => {
+    const { app } = build();
+    const answer = await app.fetch(
+      new Request("http://worker.invalid/.well-known/worker-protocol", {
+        headers: { authorization: "Bearer acme" },
+      }),
+    );
+    const document = (await answer.json()) as {
+      capabilities: { events: { publishes: Record<string, { extensions?: unknown }> } };
+    };
+    expect(document.capabilities.events.publishes[TYPE]?.extensions).toMatchObject({
+      depot: { enum: ["north", "south"] },
+    });
+    expect(document.capabilities.events.publishes[LIFECYCLE.taskRaised]?.extensions).toHaveProperty(
+      "tasktype",
+    );
+  });
+
+  it("refuses an extension the type does not declare, or a value its schema refuses", async () => {
+    const { hub } = build();
+    const undeclared = { type: TYPE, data: { vehicle: "A" }, extensions: { region: "eu" } };
+    const wrong = { type: TYPE, data: { vehicle: "A" }, extensions: { depot: "east" } };
+    await expect(hub.publish(undeclared)).rejects.toThrow(/EVT-18/);
+    await expect(hub.publish(wrong)).rejects.toThrow(/EVT-18/);
+    // What a carrier asks of each event, to set one aside with the reason.
+    expect(hub.fault(undeclared)).toMatch(/region/);
+    expect(hub.fault({ type: TYPE, data: {}, extensions: { depot: "north" } })).toBeUndefined();
+  });
+
+  it("refuses at construction an extension named like a CloudEvents attribute", () => {
+    const { subscriptions } = build();
+    const colliding = {
+      publishes: { [TYPE]: { data: z.object({}), extensions: { source: z.string() } } },
+      republishWindowSeconds: 3600,
+    };
+    expect(() => eventHub({ id: ID, events: colliding, subscriptions })).toThrow(/EVT-19/);
+  });
+});
+
+describe("the hub, for a Worker that carries its own deliveries", () => {
+  const stored = async (subscriptions: SubscriptionFacts, id: string, filters?: unknown) => {
+    await subscriptions.store.ensure(id, {
+      id,
+      caller: "acme",
+      types: [TYPE],
+      sink: "https://sink.example.com/in",
+      sinkCredential: "x",
+      createdAt: Date.now(),
+      ...(filters === undefined ? {} : { filters: filters as never }),
+    });
+  };
+
+  it("routes without sending, and attempts a batch reading each subscription once", async () => {
+    const reads: string[][] = [];
+    const store = memorySubscriptions();
+    const { subscriptions, target } = build({
+      store: {
+        ...store,
+        getMany: async (ids) => {
+          reads.push(ids);
+          const all = await Promise.all(ids.map((id) => store.get(id)));
+          return all.filter((one) => one !== undefined);
+        },
+      },
+    });
+    await stored(subscriptions, "s-1");
+    const hub = eventHub({ id: ID, events: EVENTS, subscriptions });
+    const { events, deliveries: routed } = await hub.route([
+      { type: TYPE, data: { vehicle: "A" } },
+      { type: TYPE, data: { vehicle: "B" } },
+    ]);
+    expect(events).toHaveLength(2);
+    expect(routed.map((one) => one.subscription)).toEqual(["s-1", "s-1"]);
+    expect(posted(target.received)).toHaveLength(0);
+
+    expect(await hub.deliverAll(routed)).toEqual([{ done: true }, { done: true }]);
+    expect(reads).toEqual([["s-1"]]);
+    expect((await subscriptions.store.get("s-1"))?.lastDeliveredAt).toBeTypeOf("number");
+  });
+
+  it("counts a sink slower than the attempt may take as one that did not answer", async () => {
+    const slow = (async (_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      })) as unknown as typeof globalThis.fetch;
+    const { subscriptions } = build();
+    await stored(subscriptions, "s-1");
+    const hub = eventHub({
+      id: ID,
+      events: EVENTS,
+      subscriptions: { ...subscriptions, fetch: slow, attemptTimeoutMs: 20 },
+    });
+    const { deliveries: routed } = await hub.route([{ type: TYPE, data: { vehicle: "A" } }]);
+    expect(await hub.deliverAll(routed)).toEqual([{ retryAfterSeconds: 2 }]);
+  });
+
+  it("queues a retry with the delay the hub asked for", async () => {
+    const sent: { delaySeconds?: number }[] = [];
+    const { subscriptions } = build();
+    const hub = eventHub({
+      id: ID,
+      events: EVENTS,
+      subscriptions: {
+        ...subscriptions,
+        queue: { send: (_delivery, options) => void sent.push(options ?? {}) },
+      },
+    });
+    const event = (await hub.route([{ type: TYPE, data: {} }])).events[0] as CloudEvent;
+    await hub.later({ subscription: "s-1", event, publishedAt: Date.now(), attempt: 2 }, 4);
+    expect(sent).toEqual([{ delaySeconds: 4 }]);
+  });
+
+  it("ends a subscription the Worker withdraws, tells its sink once, and keeps it (SUB-15)", async () => {
+    const { subscriptions, target } = build();
+    await stored(subscriptions, "s-1");
+    const hub = eventHub({ id: ID, events: EVENTS, subscriptions });
+    expect(await hub.end("s-1", "withdrawn")).toBe(true);
+    expect(await hub.end("s-1", "withdrawn")).toBe(false);
+    const told = posted(target.received).map((one) => one.body as CloudEvent);
+    expect(told.map((one) => [one.type, (one.data as { reason: string }).reason])).toEqual([
+      [SUBSCRIPTION_ENDED, "withdrawn"],
+    ]);
+    expect((await subscriptions.store.get("s-1"))?.reason).toBe("withdrawn");
+  });
+
+  it("says which events some live subscription would receive", async () => {
+    const { subscriptions } = build();
+    await stored(subscriptions, "s-1", [{ exact: { depot: "north" } }]);
+    const hub = eventHub({ id: ID, events: EVENTS, subscriptions });
+    expect(
+      await hub.wanted([
+        { type: TYPE, data: {}, extensions: { depot: "north" } },
+        { type: TYPE, data: {}, extensions: { depot: "south" } },
+        { type: LIFECYCLE.taskRaised, data: {}, extensions: { tasktype: "x" } },
+      ]),
+    ).toEqual([true, false, false]);
   });
 });

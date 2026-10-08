@@ -15,16 +15,18 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Fleet"] }],
   // Two Queues between the outbox and a sink, and where what is given up is kept. Every event an
   // object flushes goes onto `fleet-events`; its consumer reads the subscriptions once per batch and
-  // leaves one delivery per matching subscription on `fleet-deliveries`, whose consumer makes the
-  // attempt (`consumeQueues` in `@worker-protocol/cloudflare`).
+  // makes the first attempt at every delivery itself, and only what the hub asks to retry goes onto
+  // `fleet-deliveries`, whose consumer makes the later attempts (`consumeQueues` in
+  // `@worker-protocol/cloudflare`).
   //
   // `eventHub().deliver` decides whether to retry a delivery and after how long, never past EVT-8's
   // window, so `max_retries` is the ceiling over that decision and not the decision: the default
   // of 3 would end a delivery the hub still wanted to make, so it is the platform's maximum.
   //
-  // `max_batch_timeout` is a second rather than the default five: an event crosses both Queues on
-  // its way to a sink, so the wait is paid twice, and a subscriber is a backend that wants to know
-  // soon. A batch fills less, and costs an invocation more per second at worst.
+  // `max_batch_timeout` is a second rather than the default five: the first attempt at a delivery
+  // is made from the events Queue's consumer, so an event waits for that one batch, and a retry
+  // waits for the deliveries Queue's on top of the hub's delay. A subscriber is a backend that wants
+  // to know soon; a batch fills less, and costs an invocation more per second at worst.
   //
   // `fleet-dead` holds what is given up — a delivery refused for good or out of its window, sent
   // there by the consumer with the reason, and a message the platform drops after its last retry,

@@ -14,7 +14,7 @@ import { type Result, type Rule, verdicts } from "../report.ts";
  *
  * It takes no transcript for the same reason. A check that sent nothing is the honest shape here.
  */
-export const CLAIMS = ["EVT-13", "EVT-14", "EVT-12", "EVT-4", "EVT-8"] as const;
+export const CLAIMS = ["EVT-13", "EVT-14", "EVT-12", "EVT-4", "EVT-8", "EVT-17", "EVT-19"] as const;
 
 export function checkEvents({
   entry,
@@ -39,7 +39,10 @@ export function checkEvents({
   if (!declared.success) {
     const blamed = new Set<string>();
     for (const issue of declared.error.issues) {
-      const id = ruleFor(attribution, "events-entry", issue.path) ?? "EVT-13";
+      // EVT-19 is a rule about the KEY of an extension, which no description sits on: a name that
+      // is not CloudEvents' form, or is one of its context attributes.
+      const named = issue.code === "invalid_key" && issue.path.includes("extensions");
+      const id = named ? "EVT-19" : (ruleFor(attribution, "events-entry", issue.path) ?? "EVT-13");
       if (blamed.has(id)) continue;
       blamed.add(id);
       say(id, "fails", `${issue.path.join(".") || "(root)"}: ${issue.message}`);
@@ -51,7 +54,7 @@ export function checkEvents({
   }
 
   const { publishes, broker } = declared.data as unknown as {
-    publishes: Record<string, unknown>;
+    publishes: Record<string, { extensions?: Record<string, unknown> }>;
     broker?: string;
   };
 
@@ -81,6 +84,17 @@ export function checkEvents({
     say("EVT-12", "passes");
     say("EVT-4", "passes");
   }
+
+  // EVT-17 and EVT-19: what validation established about the extensions each type declares, a
+  // JSON Schema per value under a name CloudEvents allows and does not reserve. Whether the events
+  // carry only those is EVT-18's, judged where a sink sees one. A Worker that declares none has
+  // named nothing for EVT-19 to judge.
+  say("EVT-17", "passes");
+  const named = Object.values(publishes).some(
+    (one) => Object.keys(one.extensions ?? {}).length > 0,
+  );
+  if (named) say("EVT-19", "passes");
+  else say("EVT-19", "notExercised", "no event type declares an extension");
 
   return results;
 }

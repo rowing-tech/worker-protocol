@@ -127,7 +127,7 @@ which of the three artifacts above is normative and what each is for, the surfac
 when no SDK exists for your language — both headers, the error envelope and its eighteen codes, the
 page envelope and its cursor, version negotiation, the idempotency window — the gotchas that hold
 whatever it is written in, and the verification loop. For C#, Python or Go that is the whole of what
-exists at edition 0.5, and it says so rather than implying otherwise.
+exists at edition 0.6, and it says so rather than implying otherwise.
 
 **[`worker-protocol-hono`](skills/worker-protocol-hono)** is the TypeScript layer on top:
 `defineWorker`, `action()`, the outcome store, what `mount()` carries against what a Worker still
@@ -139,10 +139,10 @@ each publishes its own second skill and refers back to the first rather than res
 
 ## Status
 
-**Edition 0.5**, which lets a Task type name every Action that answers it rather than one — an
-answer is whatever changes the facts a condition is derived from, and a Worker already has those
-Actions. It follows 0.4, which let a consumer subscribe to a Worker directly, with no broker on
-either side, and adopted SemVer's rule for `0.x`: until 1.0, a MINOR may break. Every rule
+**Edition 0.6**, which has an event type declare the extension attributes a subscriber filters on.
+It follows 0.5, which let a Task type name every Action that answers it, and 0.4, which let a
+consumer subscribe to a Worker directly with no broker on either side and adopted SemVer's rule for
+`0.x`: until 1.0, a MINOR may break. Every rule
 carries an id, and from the edition that publishes it that id is fixed: a rewrite that could change
 a verdict takes a new one and withdraws the old, so a conformance report stays true however long
 after it was produced somebody reads it.
@@ -152,10 +152,10 @@ about trust. Each still carries a `Still open here` section, which is what `stab
 be empty of. What `draft` means here is what the table above says: shaped and implementable, still
 moving — and moving now costs a withdrawal rather than a silent edit.
 
-What stands behind that: 192 rules, every one classified in
+What stands behind that: 195 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
-is broken, and every one of the 105 a tool can observe against an ordinary Worker checked by
-[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 37 need a
+is broken, and every one of the 107 a tool can observe against an ordinary Worker checked by
+[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 38 need a
 Worker *arranged* to be observed — a second credential, a boot window, an Action safe to perform, a
 Worker that records something when it is read — and pass when that arrangement is handed to the
 verifier out of band, as the base URL and the credential already are.

@@ -45,6 +45,7 @@ export interface SubscriptionMethods {
   findSubscription(key: string): string | null;
   ensureSubscription(key: string, candidate: string): { record: string; created: boolean };
   getSubscription(id: string): string | null;
+  subscriptionsById(ids: string[]): string[];
   subscriptionsOf(caller: string | null): string[];
   subscriptionsFor(type: string): string[];
   updateSubscription(id: string, change: { set: string; clear: string[] }): void;
@@ -87,6 +88,19 @@ export function withSubscriptions<B extends DurableObjectClass>(
         sql.exec<{ record: string }>("SELECT record FROM wp_subscription WHERE id = ?", id),
       );
       return row?.record ?? null;
+    }
+
+    /** Several by id in one call, so a batch of deliveries crosses the RPC boundary once. */
+    subscriptionsById(ids: string[]): string[] {
+      if (ids.length === 0) return [];
+      const sql = migrate(this.ctx.storage, SCHEMA);
+      return sql
+        .exec<{ record: string }>(
+          "SELECT record FROM wp_subscription WHERE id IN (SELECT value FROM json_each(?))",
+          JSON.stringify(ids),
+        )
+        .toArray()
+        .map((row) => row.record);
     }
 
     /** SUB-8: one caller's, ended ones included. `IS` because a caller may be `null`. */
@@ -153,6 +167,7 @@ export const durableSubscriptions = (stub: SubscriptionsRpc): SubscriptionStore 
       return { subscription: parse(record), created };
     },
     get: async (id) => read(await stub.getSubscription(id)),
+    getMany: async (ids) => (await stub.subscriptionsById(ids)).map(parse),
     list: async (caller) => (await stub.subscriptionsOf(caller)).map(parse),
     forType: async (type) => (await stub.subscriptionsFor(type)).map(parse),
     // `undefined` names a member to clear, and JSON drops it — so the cleared ones go by name.

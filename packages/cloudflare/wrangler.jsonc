@@ -11,8 +11,12 @@
   "durable_objects": {
     "bindings": [
       { "name": "WHOLE", "class_name": "Whole" },
-      { "name": "SHARD", "class_name": "Shard" }
+      { "name": "SHARD", "class_name": "Shard" },
+      { "name": "CLOCK", "class_name": "Clock" }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Whole", "Shard"] }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Whole", "Shard"] },
+    { "tag": "v2", "new_sqlite_classes": ["Clock"] }
+  ]
 }

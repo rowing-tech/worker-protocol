@@ -44,6 +44,17 @@ export type Action = {
    */
   supersededBy?: string;
   /**
+   * ACT-17, TASK-38. Why the Worker's current state does not allow this Action for this input, or
+   * `undefined` where it does — the condition written once, for two uses.
+   *
+   * `mount()` asks it before `run`, after a repeat under an idempotency key has been answered from
+   * the recorded outcome, and answers `409 conflict` with the reason. It also asks it of each open
+   * Task this Action answers, with what the Task fills in for it (TASK-37), and leaves out of
+   * `available` every answer it refuses — so a console never offers what the call would refuse.
+   * The input may therefore be partial: it holds what the caller sent, or what the Task knew.
+   */
+  refuses?: (input: never, call: ActionCall) => string | undefined | Promise<string | undefined>;
+  /**
    * What this Action does. The input has already been validated against `input` above.
    *
    * A `Refusal` of `unprocessable_content` is ACT-17: schema-valid, and refused on the Worker's own
@@ -109,11 +120,15 @@ export type ActionDeclarations = Record<string, Action>;
  * because the alternative is every Worker author writing every input type twice.
  */
 export const action = <I extends z.ZodType>(
-  declaration: Omit<Action, "input" | "run"> & {
+  declaration: Omit<Action, "input" | "run" | "refuses"> & {
     input: I;
+    refuses?: (
+      input: Partial<z.infer<I>>,
+      call: ActionCall,
+    ) => string | undefined | Promise<string | undefined>;
     run: (input: z.infer<I>, call: ActionCall) => unknown | Promise<unknown>;
   },
-): Action => declaration;
+): Action => declaration as Action;
 
 export type ActionFacts = {
   /** ACT-16. Every Action this Worker accepts, keyed by name. */
@@ -370,15 +385,16 @@ export function actions(facts: ActionFacts) {
       }
     }
 
+    const call = { name, token, idempotencyKey: recordedKey, principal, caller };
     let produced: unknown;
     try {
-      produced = await declaration.run(input.data as never, {
-        name,
-        token,
-        idempotencyKey: recordedKey,
-        principal,
-        caller,
-      });
+      // ACT-17: the current state does not allow it. Asked here, after a repeat was answered from
+      // its recorded outcome, so a performance that already happened is replayed and not refused.
+      const refused = await declaration.refuses?.(input.data as never, call);
+      produced =
+        refused === undefined
+          ? await declaration.run(input.data as never, call)
+          : refuse("conflict", refused);
     } catch (thrown) {
       // The key is given back before the failure travels: a reservation held by a request that
       // threw would lock the Action out for the whole window over something that never happened.

@@ -1,0 +1,21 @@
+{
+  "schema": "event-type-declaration",
+  "valid": false,
+  "rule": "EVT-19",
+  "why": "An extension named `source`, which is a CloudEvents context attribute. In structured mode it is the same JSON member as the event's `source`, and one of the two values would be lost without a word.",
+  "document": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string"
+        }
+      }
+    },
+    "extensions": {
+      "source": {
+        "type": "string"
+      }
+    }
+  }
+}

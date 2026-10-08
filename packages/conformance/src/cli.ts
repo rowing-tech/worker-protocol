@@ -119,6 +119,9 @@ const arrangementFile = z.strictObject({
   recordsEveryRequest: z.boolean().optional(),
   publishedEvent: z.json().optional(),
   publishingAction: action.extend({ publishes: z.string().min(1) }).optional(),
+  before: z.array(action).optional(),
+  after: z.array(action).optional(),
+  abandonment: z.boolean().optional(),
 }) satisfies z.ZodType<Omit<Arrangement, "sink" | "healthUrl" | "actionsUrl">>;
 
 async function readArrangement(path: string): Promise<Arrangement> {
@@ -218,7 +221,10 @@ try {
     arrangement:
       sink === undefined
         ? arrangement
-        : { ...arrangement, sink: { url: sink.url, received: sink.received } },
+        : {
+            ...arrangement,
+            sink: { url: sink.url, received: sink.received, respond: sink.respond },
+          },
   });
 } catch (thrown) {
   // A backstop, and it should stay empty. `verify` turns an unreachable Worker, an unresolvable

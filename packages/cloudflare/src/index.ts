@@ -9,10 +9,19 @@
  *
  * **One mixin per piece**, because a Worker in production keeps one object per vehicle and one for
  * the fleet, and each object should carry only what it holds: the subscriptions in the one, an
- * outbox in every other. A Worker with a single object composes all four in it.
+ * outbox in every other. A Worker with a single object composes all of them in it; one that
+ * publishes the lifecycle of its Tasks and Alerts from snapshots adds `withLifecycle` over its
+ * outbox.
  */
 
 export type { DurableObjectClass, EnvOf, Mixed } from "./durable.ts";
+export {
+  type Advanced,
+  type LifecycleMethods,
+  type LifecycleSnapshot,
+  lifecycleEventsBetween,
+  withLifecycle,
+} from "./lifecycle.ts";
 export {
   durableLogs,
   type LogMethods,

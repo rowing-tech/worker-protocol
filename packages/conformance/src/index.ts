@@ -16,7 +16,7 @@ import { callSurfaces } from "./checks/surfaces.ts";
 import { checkTasks } from "./checks/tasks.ts";
 import { type Report, type Result, type Rule, unclaimed } from "./report.ts";
 import { UNIVERSE } from "./rules.generated.ts";
-import { transcript } from "./transcript.ts";
+import { transcript, withParams } from "./transcript.ts";
 
 export type { Attribution } from "./attribution.ts";
 export type { Report, Result, Rule, Verdict } from "./report.ts";
@@ -136,7 +136,16 @@ export type Arrangement = {
    * the deliveries alike — oldest first. The sink allows the Worker's origin in the webhook
    * handshake and answers deliveries `2xx`.
    */
-  sink?: { url: string; received: () => Promise<SinkExchange[]> | SinkExchange[] };
+  sink?: {
+    url: string;
+    received: () => Promise<SinkExchange[]> | SinkExchange[];
+    /**
+     * How the sink answers deliveries from now on: a status and, where it says, a `Retry-After`;
+     * `undefined` puts it back to `2xx`. Optional: a sink that cannot be told to fail leaves SUB-12,
+     * the failing half of SUB-16, SUB-14 and SUB-15 to report that it could not.
+     */
+    respond?: (answer: { status: number; retryAfter?: string } | undefined) => void;
+  };
   /**
    * An Action safe to perform that publishes one named event type (SUB-11, SUB-13, EVT-15).
    *
@@ -144,6 +153,25 @@ export type Arrangement = {
    * has subscribed to `publishes` at the arranged sink, and what reaches the sink is judged.
    */
   publishingAction?: { name: string; input: unknown; publishes: string };
+  /**
+   * Actions the verifier performs before any check, in order — a source paused so that an Alert is
+   * open, a Task raised so that the Task rules have one to read. It needs `mayPerform`, and a step
+   * the Worker refuses stops the run: the verdicts would describe a Worker in a state it was never
+   * put in.
+   */
+  before?: Step[];
+  /**
+   * Actions the verifier performs after every check, whatever they found — what puts a deployed
+   * Worker back as it was found: the source resumed, the Task answered.
+   */
+  after?: Step[];
+  /**
+   * That the operators will wait `abandonAfterSeconds` for SUB-14 and SUB-15: the verifier makes the
+   * sink fail without interruption until the Worker abandons the subscription and says so. Off by
+   * default, because the wait is the Worker's declared window, which may be an hour or a day. Needs
+   * a sink that can be told to fail (`sink.respond`).
+   */
+  abandonment?: boolean;
   /** Resolved by `verify` and not by a caller: the addresses the arranged checks need. */
   healthUrl?: string;
   actionsUrl?: string;
@@ -209,6 +237,53 @@ const outside = (rule: Rule, edition: string): Result => {
   return unclaimed(rule);
 };
 
+/** One Action the arrangement asks the verifier to perform before the checks or after them. */
+export type Step = { name: string; input: unknown };
+
+/**
+ * Performs the arrangement's `before` or `after` steps, in order, each under a key of its own.
+ *
+ * They need `mayPerform`, because each is a write the operators asked for. A step the Worker does
+ * not perform is an arrangement that does not hold, and the run stops there rather than reporting
+ * verdicts about a Worker that was not put in the state they assume — `after` steps still run.
+ */
+async function prepare(given: {
+  steps: Step[] | undefined;
+  when: "before" | "after";
+  actionsUrl: string | null;
+  mayPerform: boolean;
+  tape: ReturnType<typeof transcript>;
+}): Promise<void> {
+  const { steps, when, actionsUrl, mayPerform, tape } = given;
+  if (steps === undefined || steps.length === 0) return;
+  if (!mayPerform || actionsUrl === null) {
+    throw new Error(
+      `The arrangement names steps to perform ${when} the checks, which needs \`mayPerform\` ` +
+        "and a Worker that declares `actions`.",
+    );
+  }
+  for (const [at, step] of steps.entries()) {
+    const answer = await tape.send(
+      withParams(actionsUrl, { action: step.name }),
+      `the arrangement's step ${at + 1} ${when} the checks, \`${step.name}\``,
+      {
+        method: "POST",
+        body: JSON.stringify(step.input),
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": `conformance-${when}-${at}-${Date.now()}`,
+        },
+      },
+    );
+    if (answer.status < 200 || answer.status > 299) {
+      throw new Error(
+        `The arrangement's step ${at + 1} ${when} the checks, \`${step.name}\`, answered ` +
+          `${answer.status}.`,
+      );
+    }
+  }
+}
+
 export async function verify(options: VerifyOptions): Promise<Report> {
   const { rules: all, codes, attribution } = await universe();
   const tape = transcript(options.fetch ?? globalThis.fetch, options.credential);
@@ -269,184 +344,216 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   const surface = (name: string) =>
     descriptor.surfaces.find((one) => one.capability === name)?.url ?? null;
 
-  if (descriptor.document !== null && descriptor.url !== null) {
-    results.push(
-      ...(await callSurfaces(
-        descriptor.surfaces,
-        descriptor.url,
-        // ENDP-6 is probed on every write this protocol has, and being wrong on a write is what
-        // the rule is for: a Worker that refuses an unanswerable version on a read and performs
-        // one here has done the thing it exists to prevent.
-        [surface("actions"), surface("nudges")].filter((url): url is string => url !== null),
-        byId,
-        tape,
-        options.credential,
-        options.mayPerform === true,
-      )),
-    );
-    // TASK-35 is an agreement between two entries rather than a shape inside one, so the tasks
-    // check is handed the `actions` entry itself: every name a Task type points at must be one it
-    // accepts, and that is not reachable from inside `tasks`.
-    const accepts =
-      (
-        descriptor.document.capabilities.actions as
-          | { accepts?: Record<string, { input?: unknown }> }
-          | undefined
-      )?.accepts ?? {};
-    // Tasks before Actions, and the order is not a preference: an Action that answers a Task
-    // resolves its condition (TASK-15), so a Worker whose Tasks are read after its Actions are
-    // performed may have none left to read. Every check here is a GET and changes nothing.
-    const listed = await checkTasks(
-      descriptor.document.capabilities.tasks,
-      surface("tasks"),
-      Object.keys(descriptor.document.skills ?? {}),
-      accepts,
-      byId,
-      attribution,
+  // The arrangement's own steps, around every check: what the Worker has to be put in so that its
+  // rules can be exercised now rather than at the minute that happens to have them, and what puts
+  // it back afterwards whatever the checks found.
+  const actionsUrl = surface("actions");
+  const steps = options.arrangement ?? {};
+  if (descriptor.document !== null) {
+    await prepare({
+      steps: steps.before,
+      when: "before",
+      actionsUrl,
+      mayPerform: options.mayPerform === true,
       tape,
-    );
-    results.push(...listed.results);
-    nested.push(...listed.addresses);
-    const performed = await checkActions(
-      descriptor.document.capabilities.actions,
-      surface("actions"),
-      descriptor.url,
-      byId,
-      attribution,
-      tape,
-      options.mayPerform === true,
-      options.arrangement ?? {},
-    );
-    results.push(...performed.results);
-    nested.push(...performed.addresses);
-    results.push(
-      ...(await checkMetrics(
-        descriptor.document.capabilities.metrics,
-        surface("metrics"),
-        byId,
-        attribution,
-        tape,
-      )),
-    );
-    // `events` has no address by design (DESC-22), so this check sends nothing and takes no
-    // transcript. It is the only Capability a verifier judges entirely from the Descriptor.
-    results.push(
-      ...checkEvents({
-        entry: descriptor.document.capabilities.events,
-        subscriptions: descriptor.document.capabilities.subscriptions,
-        rules: byId,
-        attribution,
-      }),
-    );
-    results.push(
-      ...(await checkAlerts(
-        descriptor.document.capabilities.alerts,
-        surface("alerts"),
+    });
+  }
+  try {
+    if (descriptor.document !== null && descriptor.url !== null) {
+      results.push(
+        ...(await callSurfaces(
+          descriptor.surfaces,
+          descriptor.url,
+          // ENDP-6 is probed on every write this protocol has, and being wrong on a write is what
+          // the rule is for: a Worker that refuses an unanswerable version on a read and performs
+          // one here has done the thing it exists to prevent.
+          [surface("actions"), surface("nudges")].filter((url): url is string => url !== null),
+          byId,
+          tape,
+          options.credential,
+          options.mayPerform === true,
+        )),
+      );
+      // TASK-35 is an agreement between two entries rather than a shape inside one, so the tasks
+      // check is handed the `actions` entry itself: every name a Task type points at must be one it
+      // accepts, and that is not reachable from inside `tasks`.
+      const accepts =
+        (
+          descriptor.document.capabilities.actions as
+            | { accepts?: Record<string, { input?: unknown }> }
+            | undefined
+        )?.accepts ?? {};
+      // Tasks before Actions, and the order is not a preference: an Action that answers a Task
+      // resolves its condition (TASK-15), so a Worker whose Tasks are read after its Actions are
+      // performed may have none left to read. Every check here is a GET and changes nothing.
+      const listed = await checkTasks(
+        descriptor.document.capabilities.tasks,
+        surface("tasks"),
+        Object.keys(descriptor.document.skills ?? {}),
         accepts,
         byId,
         attribution,
         tape,
-      )),
-    );
-    results.push(
-      ...(await checkActivity(
-        descriptor.document.capabilities.activity,
-        surface("activity"),
-        byId,
-        attribution,
-        tape,
-      )),
-    );
-    results.push(
-      ...(await checkLogs(
-        descriptor.document.capabilities.logs,
-        surface("logs"),
-        byId,
-        attribution,
-        tape,
-      )),
-    );
-    results.push(
-      ...(await checkHealth(
-        descriptor.document.capabilities.health,
-        surface("health"),
-        byId,
-        attribution,
-        tape,
-      )),
-    );
-    // Last of the Capability checks, because it is the only one that sends the Worker somewhere: a
-    // nudge it accepts has it read a Task list. Everything above it is a read.
-    results.push(
-      ...(await checkNudges(
-        descriptor.document.capabilities.nudges,
-        surface("nudges"),
-        Object.keys(descriptor.document.skills ?? {}),
+      );
+      results.push(...listed.results);
+      nested.push(...listed.addresses);
+      const performed = await checkActions(
+        descriptor.document.capabilities.actions,
+        surface("actions"),
+        descriptor.url,
         byId,
         attribution,
         tape,
         options.mayPerform === true,
-      )),
-    );
-  }
+        options.arrangement ?? {},
+      );
+      results.push(...performed.results);
+      nested.push(...performed.addresses);
+      results.push(
+        ...(await checkMetrics(
+          descriptor.document.capabilities.metrics,
+          surface("metrics"),
+          byId,
+          attribution,
+          tape,
+        )),
+      );
+      // `events` has no address by design (DESC-22), so this check sends nothing and takes no
+      // transcript. It is the only Capability a verifier judges entirely from the Descriptor.
+      results.push(
+        ...checkEvents({
+          entry: descriptor.document.capabilities.events,
+          subscriptions: descriptor.document.capabilities.subscriptions,
+          rules: byId,
+          attribution,
+        }),
+      );
+      results.push(
+        ...(await checkAlerts(
+          descriptor.document.capabilities.alerts,
+          surface("alerts"),
+          accepts,
+          byId,
+          attribution,
+          tape,
+        )),
+      );
+      results.push(
+        ...(await checkActivity(
+          descriptor.document.capabilities.activity,
+          surface("activity"),
+          byId,
+          attribution,
+          tape,
+        )),
+      );
+      results.push(
+        ...(await checkLogs(
+          descriptor.document.capabilities.logs,
+          surface("logs"),
+          byId,
+          attribution,
+          tape,
+        )),
+      );
+      results.push(
+        ...(await checkHealth(
+          descriptor.document.capabilities.health,
+          surface("health"),
+          byId,
+          attribution,
+          tape,
+        )),
+      );
+      // Last of the Capability checks, because it is the only one that sends the Worker somewhere: a
+      // nudge it accepts has it read a Task list. Everything above it is a read.
+      results.push(
+        ...(await checkNudges(
+          descriptor.document.capabilities.nudges,
+          surface("nudges"),
+          Object.keys(descriptor.document.skills ?? {}),
+          byId,
+          attribution,
+          tape,
+          options.mayPerform === true,
+        )),
+      );
+    }
 
-  if (descriptor.document !== null) {
-    const configure = (
-      descriptor.document.capabilities.actions as
-        | { accepts?: Record<string, { readAddress?: string }> }
-        | undefined
-    )?.accepts?.configure?.readAddress;
+    if (descriptor.document !== null) {
+      const configure = (
+        descriptor.document.capabilities.actions as
+          | { accepts?: Record<string, { readAddress?: string }> }
+          | undefined
+      )?.accepts?.configure?.readAddress;
 
-    results.push(
-      ...(await checkArranged(
-        {
-          descriptorUrl: descriptor.url,
-          alertsUrl: surface("alerts"),
-          activityUrl: surface("activity"),
-          logsUrl: surface("logs"),
-          tasksUrl: surface("tasks"),
-          settingsUrl:
-            configure === undefined || descriptor.url === null
-              ? null
-              : new URL(configure, descriptor.url).toString(),
+      results.push(
+        ...(await checkArranged(
+          {
+            descriptorUrl: descriptor.url,
+            alertsUrl: surface("alerts"),
+            activityUrl: surface("activity"),
+            logsUrl: surface("logs"),
+            tasksUrl: surface("tasks"),
+            settingsUrl:
+              configure === undefined || descriptor.url === null
+                ? null
+                : new URL(configure, descriptor.url).toString(),
+            workerId: descriptor.document.id,
+            eventTypes: Object.keys(
+              (descriptor.document.capabilities.events as { publishes?: Record<string, unknown> })
+                ?.publishes ?? {},
+            ),
+          },
+          {
+            ...(options.arrangement ?? {}),
+            healthUrl: surface("health") ?? undefined,
+            actionsUrl: surface("actions") ?? undefined,
+          },
+          options.mayPerform === true,
+          byId,
+          tape,
+        )),
+      );
+    }
+
+    // SUB-1 to SUB-16, and EVT-1 and EVT-15 at last: what the Worker pushes. After every other
+    // check, because the Action that publishes changes the Worker's Facts like any performance.
+    if (descriptor.document !== null) {
+      const events = descriptor.document.capabilities.events as
+        | { publishes?: Record<string, { extensions?: Record<string, unknown> }> }
+        | undefined;
+      results.push(
+        ...(await checkSubscriptions({
+          entry: descriptor.document.capabilities.subscriptions,
+          url: surface("subscriptions"),
           workerId: descriptor.document.id,
-          eventTypes: Object.keys(
-            (descriptor.document.capabilities.events as { publishes?: Record<string, unknown> })
-              ?.publishes ?? {},
+          publishes: Object.keys(events?.publishes ?? {}),
+          extensions: Object.fromEntries(
+            Object.entries(events?.publishes ?? {}).map(([type, one]) => [
+              type,
+              one.extensions ?? {},
+            ]),
           ),
-        },
-        {
-          ...(options.arrangement ?? {}),
-          healthUrl: surface("health") ?? undefined,
-          actionsUrl: surface("actions") ?? undefined,
-        },
-        options.mayPerform === true,
-        byId,
-        tape,
-      )),
-    );
-  }
-
-  // SUB-1 to SUB-16, and EVT-1 and EVT-15 at last: what the Worker pushes. After every other
-  // check, because the Action that publishes changes the Worker's Facts like any performance.
-  if (descriptor.document !== null) {
-    const events = descriptor.document.capabilities.events as
-      | { publishes?: Record<string, unknown> }
-      | undefined;
-    results.push(
-      ...(await checkSubscriptions({
-        entry: descriptor.document.capabilities.subscriptions,
-        url: surface("subscriptions"),
-        workerId: descriptor.document.id,
-        publishes: Object.keys(events?.publishes ?? {}),
-        actionsUrl: surface("actions"),
+          actionsUrl: surface("actions"),
+          mayPerform: options.mayPerform === true,
+          arrangement: options.arrangement ?? {},
+          rules: byId,
+          attribution,
+          transcript: tape,
+        })),
+      );
+    }
+  } finally {
+    if (descriptor.document !== null) {
+      await prepare({
+        steps: steps.after,
+        when: "after",
+        actionsUrl,
         mayPerform: options.mayPerform === true,
-        arrangement: options.arrangement ?? {},
-        rules: byId,
-        attribution,
-        transcript: tape,
-      })),
-    );
+        tape,
+      });
+    }
   }
 
   // Last, and over everything the run provoked. ENDP-26 is a statement about a set of responses

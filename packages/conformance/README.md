@@ -109,12 +109,23 @@ it — so it arrives the way the base URL and the credential do: out of band, fr
 
 `arrangement` takes `safeAction`, `secondSafeAction`, `refusedInput`, `asyncAction`,
 `secondCredential`, `otherCallerCredential`, `consumerCredential`, `unprivilegedCredential`,
-`justStarted`, `replaceableSettings`, `publishedEvent`, `sink` and `publishingAction`. Anything not
-arranged reports `notExercised` naming what was missing.
+`justStarted`, `replaceableSettings`, `publishedEvent`, `sink`, `publishingAction`, `before`,
+`after` and `abandonment`. Anything not arranged reports `notExercised` naming what was missing.
+
+`before` and `after` are Actions the verifier performs around every check, in order and with
+`mayPerform`: what puts the Worker in a state where its rules can be exercised now — a source
+paused so an Alert is open, a Task raised — and what puts it back however the checks went. A
+`before` step the Worker refuses stops the run, since the verdicts would describe a state it was
+never put in.
 
 `subscriptions` is judged at a sink: `sink` is a URL the Worker can reach and a function answering
 what arrived there, and `publishingAction` an Action safe to perform that publishes a named event
-type. `verify()` starts no server, so the sink is yours to run.
+type. `verify()` starts no server, so the sink is yours to run. A sink that also takes
+`respond({ status, retryAfter })` lets the verifier make it fail: it answers the first attempt `503`
+with `Retry-After: 1`, watches the failure on record (SUB-16) and the same event arrive again
+(SUB-12). With `abandonment: true` it keeps failing for the Worker's `abandonAfterSeconds` and waits
+for the subscription to end and say so (SUB-14, SUB-15) — off by default, because that wait is the
+Worker's declared window. The CLI's sink can be told to fail.
 
 From the command line, the arrangement is a file, and the sink is the CLI's own:
 

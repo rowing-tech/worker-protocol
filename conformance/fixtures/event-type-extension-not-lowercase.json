@@ -1,0 +1,21 @@
+{
+  "schema": "event-type-declaration",
+  "valid": false,
+  "rule": "EVT-19",
+  "why": "An extension named `supplierId`. CloudEvents confines attribute names to lower-case ASCII letters and digits, so a broker or SDK that follows it would refuse or rename it.",
+  "document": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string"
+        }
+      }
+    },
+    "extensions": {
+      "supplierId": {
+        "type": "string"
+      }
+    }
+  }
+}

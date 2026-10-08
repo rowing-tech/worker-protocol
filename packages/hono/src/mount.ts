@@ -192,7 +192,13 @@ type Resolved = { worker: Worker; principal: unknown; caller: string | undefined
  */
 function surfacesOf(worker: Worker) {
   return {
-    tasks: worker.tasks ? taskSurface(worker.tasks.raises, worker.tasks) : undefined,
+    tasks: worker.tasks
+      ? taskSurface({
+          raises: worker.tasks.raises,
+          facts: worker.tasks,
+          accepts: worker.actions?.accepts ?? {},
+        })
+      : undefined,
     actions: worker.actions ? actionsSurface(worker.actions) : undefined,
     metrics: worker.metrics ? metricsSurface(worker.metrics) : undefined,
     logs: worker.logs ? logsSurface(worker.logs) : undefined,
@@ -300,6 +306,9 @@ function descriptorOf(worker: Worker, edition: string): string {
       publishes: mapValues(worker.events.publishes, (declared) => ({
         ...declared,
         data: jsonSchema(declared.data),
+        ...(declared.extensions === undefined
+          ? {}
+          : { extensions: mapValues(declared.extensions, jsonSchema) }),
       })),
     };
   }

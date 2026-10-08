@@ -13,7 +13,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.5.0"
+  version: "2.6.0"
 ---
 
 # Workers on `@worker-protocol/hono`

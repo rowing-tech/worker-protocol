@@ -5,18 +5,32 @@
  * offers, each member is one that Action's input declares, and each value is one that member's
  * schema accepts. So both checks call this, and say the verdict under their own id.
  *
- * **The value is judged against what the member's schema fixes, and no further.** A verifier that
- * ran full JSON Schema validation would need a validator this package does not carry, and TASK-28's
- * payload is not validated against its declared schema either. What is read is `type`, `const` and
- * `enum`, which is what tells a vehicle id from a number and one ending from another — the register
- * in `conformance/verifiability.md` says so, rather than letting a pass claim more than it saw.
+ * **The value is judged against what the member's schema fixes about one value, and no further.**
+ * A verifier that ran full JSON Schema validation would need a validator this package does not
+ * carry, and TASK-28's payload is not validated against its declared schema either. What is read is
+ * `type`, `const`, `enum`, `pattern`, the lengths of a string and the bounds of a number — what
+ * tells a vehicle id from a number, a well-formed supplier id from a malformed one, and one ending
+ * from another. The register in `conformance/verifiability.md` says so, rather than letting a pass
+ * claim more than it saw.
+ *
+ * **What is filled in may be partial, and that is judged too.** TASK-37 and ALRT-9 fill in values
+ * for members, not every member the Action requires: an Alert about a paused source fills in the
+ * source and leaves the request id to the operator. So a required member that is absent is not a
+ * fault here.
  */
 
 /** A declared input, read only for the members and the keywords judged here. */
-type Declared = {
+export type Declared = {
   type?: unknown;
   const?: unknown;
   enum?: unknown[];
+  pattern?: string;
+  minLength?: number;
+  maxLength?: number;
+  minimum?: number;
+  maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
   properties?: Record<string, Declared>;
   anyOf?: Declared[];
   oneOf?: Declared[];
@@ -46,12 +60,42 @@ const isOf = (value: unknown, type: unknown): boolean => {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** Whether a member's schema accepts a value, as far as `type`, `const` and `enum` say. */
-const agrees = (schema: Declared, value: unknown): boolean => {
+/** Whether a pattern matches, read as JSON Schema reads it: unanchored, ECMA-262. */
+const matching = (pattern: string, value: string): boolean => {
+  try {
+    return new RegExp(pattern, "u").test(value);
+  } catch {
+    // A pattern this runtime cannot compile is not the value's fault, and is not judged.
+    return true;
+  }
+};
+
+/**
+ * Whether one value's schema accepts it, as far as `type`, `const`, `enum`, `pattern`, the lengths
+ * of a string and the bounds of a number say — and nothing about members, items or composition.
+ * Shared by TASK-37 and ALRT-9, and by EVT-18 for the value of an extension attribute.
+ */
+export const agrees = (schema: Declared, value: unknown): boolean => {
   if (schema.const !== undefined) return same(schema.const, value);
   if (Array.isArray(schema.enum)) return schema.enum.some((one) => same(one, value));
-  if (Array.isArray(schema.type)) return schema.type.some((one) => isOf(value, one));
-  return isOf(value, schema.type);
+  const typed = Array.isArray(schema.type)
+    ? schema.type.some((one) => isOf(value, one))
+    : isOf(value, schema.type);
+  if (!typed) return false;
+  if (typeof value === "string") {
+    // Length in code points, as JSON Schema counts it.
+    const length = [...value].length;
+    if (schema.pattern !== undefined && !matching(schema.pattern, value)) return false;
+    if (schema.minLength !== undefined && length < schema.minLength) return false;
+    if (schema.maxLength !== undefined && length > schema.maxLength) return false;
+  }
+  if (typeof value === "number") {
+    if (schema.minimum !== undefined && value < schema.minimum) return false;
+    if (schema.maximum !== undefined && value > schema.maximum) return false;
+    if (schema.exclusiveMinimum !== undefined && value <= schema.exclusiveMinimum) return false;
+    if (schema.exclusiveMaximum !== undefined && value >= schema.exclusiveMaximum) return false;
+  }
+  return true;
 };
 
 /**

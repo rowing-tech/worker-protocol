@@ -1,7 +1,13 @@
 import { EDITION } from "@worker-protocol/schemas";
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
-import { type ActionCall, memoryOutcomes, type OutcomeStore, type Recorded } from "../actions.ts";
+import {
+  type ActionCall,
+  action,
+  memoryOutcomes,
+  type OutcomeStore,
+  type Recorded,
+} from "../actions.ts";
 import { mount } from "../mount.ts";
 import type { Worker } from "../worker.ts";
 
@@ -844,5 +850,76 @@ describe("mount(), after the audit of 0.4", () => {
     const nowhere = await app.fetch(new Request("http://worker.invalid/nowhere"));
     expect(nowhere.status).toBe(404);
     expect(nowhere.headers.has("worker-protocol-capability-version")).toBe(false);
+  });
+});
+
+/**
+ * ACT-17 and TASK-38 from one condition: an Action's `refuses` answers `409` on the call and narrows
+ * `available` on every open Task it answers, so the console never offers what the call refuses.
+ */
+describe("mount(), an Action that the current state may refuse", () => {
+  const TYPE = "tech.rowing.test.review";
+  const exported = new Set<string>(["DOC-2"]);
+  const app = mount({
+    id: "tech.rowing.worker-protocol.test",
+    actions: {
+      outcomes: memoryOutcomes(),
+      accepts: {
+        retry: action({
+          input: z.object({ document: z.string() }),
+          idempotency: { required: true, from: "header", windowSeconds: 60 },
+          refuses: ({ document }) =>
+            document !== undefined && exported.has(document) ? "already exported" : undefined,
+          run: ({ document }) => {
+            exported.add(document);
+            return { exported: document };
+          },
+          result: z.object({ exported: z.string() }),
+        }),
+        discard: action({ input: z.object({ document: z.string() }), run: () => undefined }),
+      },
+    },
+    tasks: {
+      raises: { [TYPE]: { payload: z.object({}), answeredBy: ["retry", "discard"] } },
+      current: () =>
+        ["DOC-1", "DOC-2"].map((document) => ({
+          id: document,
+          type: TYPE,
+          payload: {},
+          since: new Date(0),
+          inputs: { retry: { document }, discard: { document } },
+        })),
+    },
+  });
+
+  const perform = (document: string, key: string) =>
+    app.fetch(
+      new Request("http://worker.invalid/actions?action=retry", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": key },
+        body: JSON.stringify({ document }),
+      }),
+    );
+
+  it("leaves out of `available` the answers its state refuses", async () => {
+    const page = (await (await app.fetch(new Request("http://worker.invalid/tasks"))).json()) as {
+      items: { id: string; available?: string[] }[];
+    };
+    expect(page.items.map((one) => [one.id, one.available])).toEqual([
+      ["DOC-1", ["retry", "discard"]],
+      ["DOC-2", ["discard"]],
+    ]);
+  });
+
+  it("refuses with 409 what the state does not allow, and replays a repeat rather than refusing it", async () => {
+    const first = await perform("DOC-3", "k-3");
+    expect(first.status).toBe(200);
+    // The same key again: the recorded outcome, although DOC-3 is now exported.
+    const repeat = await perform("DOC-3", "k-3");
+    expect(repeat.status).toBe(200);
+    // A new key: a new performance, and the state no longer allows it.
+    const refused = await perform("DOC-3", "k-4");
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: "conflict", message: "already exported" });
   });
 });

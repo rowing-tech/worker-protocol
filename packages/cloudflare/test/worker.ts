@@ -1,6 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
+import type { OpenTask } from "@worker-protocol/hono";
 import {
   type Flushed,
+  type LifecycleSnapshot,
+  withLifecycle,
   withLogs,
   withOutbox,
   withOutcomes,
@@ -19,6 +22,7 @@ import { outbound, TYPE } from "./outbound.ts";
 export type TestEnv = {
   WHOLE: DurableObjectNamespace<Whole>;
   SHARD: DurableObjectNamespace<Shard>;
+  CLOCK: DurableObjectNamespace<Clock>;
 };
 
 export class Whole extends withLogs(
@@ -59,6 +63,73 @@ export class Shard extends withOutbox(DurableObject<TestEnv>, { events: () => ou
   /** What Soriana's per-asset objects do once an asset is gone for long enough: empty themselves. */
   override async wake(): Promise<void> {
     await this.ctx.storage.deleteAll();
+  }
+}
+
+/** The Task type `Clock` raises. */
+export const CHECK = "tech.rowing.fleet.check";
+
+/**
+ * A domain whose Tasks are rows with an instant they begin and, maybe, one they end — so that what
+ * holds at any instant is known and `withLifecycle` can be watched comparing it.
+ */
+export class Clock extends withLifecycle(
+  withOutbox(DurableObject<TestEnv>, { events: () => outbound.queue }),
+  { catchUpMs: 60 * 60_000 },
+) {
+  private rows() {
+    const sql = this.ctx.storage.sql;
+    sql.exec(
+      "CREATE TABLE IF NOT EXISTS condition (id TEXT PRIMARY KEY, since INTEGER NOT NULL, until INTEGER)",
+    );
+    return sql;
+  }
+
+  /** A condition that holds from `since` until `until`, written without anybody announcing it. */
+  hold(id: string, since: number, until?: number): void {
+    this.rows().exec(
+      "INSERT OR REPLACE INTO condition (id, since, until) VALUES (?, ?, ?)",
+      id,
+      since,
+      until ?? null,
+    );
+  }
+
+  /** An Action: ends a condition now, and owes what that changed in the same call. */
+  async resolve(id: string, now: number): Promise<void> {
+    this.changing(now, () =>
+      this.rows().exec("UPDATE condition SET until = ? WHERE id = ?", now, id),
+    );
+    await this.flush();
+  }
+
+  /** Sets the mark, as a first run would, at `at`. */
+  async start(at: number): Promise<void> {
+    await this.advance(at);
+  }
+
+  snapshot(at: number): LifecycleSnapshot {
+    const tasks: OpenTask[] = this.rows()
+      .exec<{ id: string; since: number }>(
+        "SELECT id, since FROM condition WHERE since <= ? AND (until IS NULL OR until > ?)",
+        at,
+        at,
+      )
+      .toArray()
+      .map((row) => ({ id: row.id, type: CHECK, payload: {}, since: new Date(row.since) }));
+    return { tasks, alerts: [] };
+  }
+
+  nextChange(after: number): number {
+    const edges = this.rows()
+      .exec<{ at: number }>(
+        "SELECT since AS at FROM condition WHERE since > ? UNION SELECT until FROM condition WHERE until > ?",
+        after,
+        after,
+      )
+      .toArray()
+      .map((row) => row.at);
+    return Math.min(after + 60_000, ...edges);
   }
 }
 
