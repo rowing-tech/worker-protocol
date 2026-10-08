@@ -92,6 +92,15 @@ const record = (level: LogLevel, message: string, fields?: LogRecord["fields"]):
   if (recorded.length > KEEP) recorded.splice(0, recorded.length - KEEP);
 };
 
+/** What either answer to a silent vehicle changes: it has been looked at, found or not. */
+const check = (vehicle: string) => {
+  checked.add(vehicle);
+  // One line for a person, and a flat map of scalars beside it for a console to render as key and
+  // value rather than as a sentence somebody has to parse back out.
+  record("info", "check recorded", { vehicle, outstanding: silent.size - checked.size });
+  return { recordedAt: new Date().toISOString() };
+};
+
 export const fleetWorker = defineWorker<Env>((env) => ({
   // The Worker's own id: a name it is deployed with, never the URL it is served from and never
   // anything read off the address at boot. Moving it to another host must not make it another
@@ -109,13 +118,17 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   //
   // Both halves of the exchange are declared here, from this Worker's own side, naming nobody:
   // `payload` is what it needs to be handed in order to answer one — the plate — and `produces` is
-  // what it hands back, a position. Whoever is deciding whether to give this Worker their work
-  // compares the first against what they send and the second against what their answering operation
-  // takes, and knows before any work changes hands whether the two fit.
+  // what it hands back, a position, under the name of the operation that takes it. That name is the
+  // one whoever defined `locate-vehicle` gave its answers, and it needs no prefix of its own because
+  // it only ever means something inside that type. Whoever is deciding whether to give this Worker
+  // their work compares the first against what they send and each of the rest against the operation
+  // of that name they accept, and knows before any work changes hands which answers fit.
   skills: {
     [LOCATE_VEHICLE]: {
       payload: z.object({ vehicle: z.string() }),
-      produces: z.object({ vehicle: z.string(), lat: z.number(), lng: z.number() }),
+      produces: {
+        "record-position": z.object({ vehicle: z.string(), lat: z.number(), lng: z.number() }),
+      },
     },
   },
 
@@ -170,37 +183,26 @@ export const fleetWorker = defineWorker<Env>((env) => ({
     // by anyone who can read this address, so what goes in is a reference to a vault.
     settings: () => configuration,
     accepts: {
-      // The ONE operation that answers `check-silent-vehicle`. The Task can end two ways, so both
-      // endings are variants of this one input, told apart by `outcome`. That is what lets somebody
-      // who can only ever report `found` answer it anyway: what they produce is a narrower case of
-      // what this accepts, so the fit can be decided by reading two declarations rather than by
-      // agreeing a mapping with every party in advance.
-      "answer-check": action({
-        input: z.discriminatedUnion("outcome", [
-          z.object({
-            outcome: z.literal("found"),
-            vehicle: z.string().min(1),
-            reachable: z.boolean(),
-          }),
-          z.object({
-            outcome: z.literal("missing"),
-            vehicle: z.string().min(1),
-            lastSeen: z.string(),
-          }),
-        ]),
+      // The two operations that answer `check-silent-vehicle`: somebody went and looked, or went
+      // and found nothing. Each is an ordinary operation with an input of its own, and the Task
+      // names both. Somebody who can only ever report a vehicle found declares that one and is
+      // still a fit, which is decided by reading two declarations rather than by agreeing a mapping
+      // with every party in advance.
+      "record-check": action({
+        input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
         result: z.object({ recordedAt: z.string() }),
         // Performed once however many times it is posted, within the declared window. The caller
         // sends a key it made up; a repeat under that key replays the first answer instead of
         // doing the work again. `mount()` keeps that promise, against the store named above.
         idempotency: { required: true, from: "header", windowSeconds: 3600 },
         // `vehicle` is a string here because the schema above says so, and the editor knows it.
-        run: ({ vehicle }) => {
-          checked.add(vehicle);
-          // One line for a person, and a flat map of scalars beside it for a console to render as
-          // key and value rather than as a sentence somebody has to parse back out.
-          record("info", "check recorded", { vehicle, outstanding: silent.size - checked.size });
-          return { recordedAt: new Date().toISOString() };
-        },
+        run: ({ vehicle }) => check(vehicle),
+      }),
+      "report-missing": action({
+        input: z.object({ vehicle: z.string().min(1), lastSeen: z.string() }),
+        result: z.object({ recordedAt: z.string() }),
+        idempotency: { required: true, from: "header", windowSeconds: 3600 },
+        run: ({ vehicle }) => check(vehicle),
       }),
       // `configure` is the one operation name this protocol reserves, so that an operator looking
       // at a Worker they have never seen knows which one changes its settings. It takes the WHOLE
@@ -303,7 +305,7 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   },
 
   tasks: {
-    // Every Task type this Worker raises, each with the one operation of its own that answers it.
+    // Every Task type this Worker raises, each with the operations of its own that answer it.
     // Whoever does the work never has to be told where to send the answer: they read it here.
     raises: {
       [SILENT_VEHICLE]: {
@@ -311,13 +313,14 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         // `mount()` writes the JSON Schema the Descriptor carries, so the shape whoever takes the
         // work reads and the shape this Worker means are the same line.
         payload: z.object({ vehicle: z.string() }),
-        // ONE operation, and the two ways this Task can end are variants of its input above.
-        answeredBy: "answer-check",
+        // The operations of its own that answer it. Either one changes what this Worker knows about
+        // the vehicle, and the Task is gone at the next read because the condition no longer holds.
+        answeredBy: ["record-check", "report-missing"],
       },
     },
     // The condition, and the whole of what this Worker owes. A Task exists while its vehicle is
     // quiet and unchecked, and it stops existing when that stops being true. Nobody closes one and
-    // nobody is asked to — which is why `answer-check` above needs to know nothing about Tasks at
+    // nobody is asked to — which is why `record-check` above needs to know nothing about Tasks at
     // all, and why nothing here can be left open by a consumer that crashed.
     //
     // `since` is the instant the condition BEGAN, not the instant somebody asked. It is what lets a
@@ -330,6 +333,10 @@ export const fleetWorker = defineWorker<Env>((env) => ({
           type: SILENT_VEHICLE,
           payload: { vehicle },
           since,
+          // What this Worker already knows for each answer: which vehicle. A console opens either
+          // form with it filled in, and whoever answers never has to guess that the payload's
+          // `vehicle` is the input's `vehicle`. It binds nothing — what arrives is judged as usual.
+          inputs: { "record-check": { vehicle }, "report-missing": { vehicle } },
         })),
   },
 

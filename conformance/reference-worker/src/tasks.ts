@@ -19,19 +19,20 @@ export const PRICE_A_QUOTE = `${NAMESPACE}.price-a-quote`;
 export const RAISES: TaskTypes = {
   [VERIFY_VEHICLE]: {
     payload: z.strictObject({ vehicle: z.string().min(1) }),
-    // TASK-34: the closed list is a list of the OWNER's own Actions, by the names its `actions`
+    // TASK-35: the closed list is a list of the OWNER's own Actions, by the names its `actions`
     // entry holds them under. A name that entry does not hold is a Descriptor disagreeing with
     // itself, which is the fault DESC-18 describes one level up.
-    answeredBy: "record-verification",
+    answeredBy: ["record-verification"],
   },
   [PRICE_A_QUOTE]: {
     payload: z.strictObject({ amount: z.number() }),
-    answeredBy: "price-quote",
+    answeredBy: ["price-quote"],
   },
 };
 
 /**
- * TASK-33: the Task types this Worker answers, each with the payload it needs to receive.
+ * TASK-36: the Task types this Worker answers, each with the payload it needs to receive and what
+ * it produces for each answering Action it can perform.
  *
  * It answers the type it also raises, which `examples/minimal-worker` deliberately does not — a
  * Worker that needs somebody to go and look at a vehicle cannot be that somebody, and the template
@@ -42,20 +43,27 @@ export const RAISES: TaskTypes = {
 export const SKILLS: Record<string, SkillDeclaration> = {
   [VERIFY_VEHICLE]: {
     payload: z.strictObject({ vehicle: z.string().min(1) }),
-    // What `record-verification` takes, which is what lets this Worker answer its own Task type.
-    produces: z.strictObject({ vehicle: z.string().min(1), verified: z.boolean() }),
+    // What `record-verification` takes, keyed by that name, which is what lets this Worker answer
+    // its own Task type.
+    produces: {
+      "record-verification": z.strictObject({ vehicle: z.string().min(1), verified: z.boolean() }),
+    },
   },
 };
 
 const HOUR = 3_600_000;
 
 const RAISED: (OpenTask & { vehicle?: string })[] = [
+  // TASK-37 and TASK-38: what this Task already knows for the Action that answers it, and that
+  // the Action applies now — so both rules have a Task that exercises them.
   {
     id: "task-1",
     type: VERIFY_VEHICLE,
     payload: { vehicle: "ABC-123" },
     vehicle: "ABC-123",
     since: new Date(Date.now() - HOUR),
+    inputs: { "record-verification": { vehicle: "ABC-123" } },
+    available: ["record-verification"],
   },
   {
     id: "task-2",
@@ -75,7 +83,14 @@ const RAISED: (OpenTask & { vehicle?: string })[] = [
 ];
 
 /** A raised Task as the protocol sees it, without the Fact this double keys its condition on. */
-const open = ({ id, type, payload, since }: OpenTask): OpenTask => ({ id, type, payload, since });
+const open = ({ id, type, payload, since, inputs, available }: OpenTask): OpenTask => ({
+  id,
+  type,
+  payload,
+  since,
+  ...(inputs === undefined ? {} : { inputs }),
+  ...(available === undefined ? {} : { available }),
+});
 
 export function createTasks() {
   /** A Fact of this Worker's: the vehicles with a verification on record. */

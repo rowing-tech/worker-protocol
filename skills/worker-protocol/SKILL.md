@@ -14,7 +14,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.4.0"
+  version: "2.5.0"
 ---
 
 # worker-protocol, in any language
@@ -113,12 +113,20 @@ whose reason is understood is one that survives a refactor.
 - **Nobody closes a Task.** It exists while its condition holds over the Worker's own facts and is
   gone when that stops being true (TASK-15). Derive the open ones on every read; there is no "done"
   call and nothing can be left open by a consumer that crashed.
-- **One Task type names one Action.** A Task with several endings makes them variants of that
-  Action's input, told apart by a discriminator (TASK-34). One Action per ending leaves nobody able
-  to say which ending they are reporting without a mapping agreed out of band.
-- **Skills sit at the Descriptor's root, not inside the `tasks` entry** (TASK-33). `skills` is what
+- **A Task type names every Action of the Worker's own that answers it** (TASK-35): approve and
+  reject, resolve and escalate, postpone. An answer is whatever changes the facts the condition is
+  derived from, so one that leaves the Task open is still an answer. Reuse the Actions the Worker
+  already has; do not mint one umbrella Action per Task type.
+- **Fill in what the Task or Alert already knows, per Action** (TASK-37, ALRT-9). `inputs` is keyed
+  by Action name and then by member of its input: `{ "resume-source": { source: "portal" } }`.
+  Never rely on a consumer copying payload fields of the same name. It binds nothing; the Action
+  judges what arrives as always.
+- **Say which answers apply now** (TASK-38) with `available` on the Task, derived on the same read.
+  Absent means all of them. Still refuse what the state does not allow with `409` (ACT-17).
+- **Skills sit at the Descriptor's root, not inside the `tasks` entry** (TASK-36). `skills` is what
   this Worker does for others; `tasks` is what it needs done. A Worker that only answers others'
-  Tasks declares `skills` and no `tasks` at all.
+  Tasks declares `skills` and no `tasks` at all. What it `produces` is keyed by the owner's
+  answering Action name, one schema per answer it can give.
 - **A header idempotency key is the caller's; an input key is the Action's** (ENDP-34, ENDP-35).
   Record a header key under whoever your authentication decided is calling — not under the token,
   which changes on rotation, and not globally, which hands one caller another's outcome or a `409`

@@ -16,8 +16,8 @@ const CREDENTIAL = "w-token";
 /** The same arrangement `minimal-worker.test.ts` makes, for the same Worker. */
 const ARRANGEMENT = {
   safeAction: {
-    name: "answer-check",
-    input: { outcome: "found", vehicle: "ABC-123", reachable: true },
+    name: "record-check",
+    input: { vehicle: "ABC-123", reachable: true },
   },
 };
 

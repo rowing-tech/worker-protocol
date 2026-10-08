@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.4";
+export const EDITION = "0.5";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -270,12 +270,11 @@ export const healthEntry = capabilityEntry.extend({ address }).meta({
  * consumer and a Python one would otherwise reach opposite verdicts on one Descriptor.
  */
 /**
- * TASK-33 — what a Worker declares about one Skill, which today is nothing.
+ * TASK-36 — what a Worker declares about one Skill.
  *
- * Empty and strict on purpose. A Skill carries no declaration yet, and the shape for *nothing yet*
- * is the one an optional member can join without invalidating a document already written — which
- * NAME-5 calls compatible. A list of names could only have grown by becoming this, and becoming
- * this later would have cost every Worker that declared a Skill a rewrite.
+ * Strict, and every member optional. A Skill that states nothing is a claim of capability and no
+ * more, and the shape for *nothing yet* is the one an optional member can join without
+ * invalidating a document already written — which NAME-5 calls compatible.
  */
 export const skillDeclaration = z
   .strictObject({
@@ -284,7 +283,7 @@ export const skillDeclaration = z
       .optional()
       .meta({
         description:
-          "TASK-33. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task " +
+          "TASK-36. The JSON Schema of the payload this Worker REQUIRES in order to answer a Task " +
           "of this type — its own requirement, and not a copy of what any owner sends. NAME-6 " +
           "judges the two in the direction the document travels: a Tower validates the Tasks an " +
           "owner actually raises against this, and knows before any work is handed over whether " +
@@ -294,22 +293,24 @@ export const skillDeclaration = z
           "protocol stood before the field existed. What it costs is the check.",
       }),
     produces: z
-      .looseObject({})
+      .record(z.string().min(1), z.looseObject({}))
       .optional()
       .meta({
         description:
-          "TASK-33. The JSON Schema of what this Worker PRODUCES in answer to a Task of this type " +
-          "— its own capability, and not a copy of any owner's Action. NAME-6 judges it against " +
-          "the input of the Action that answers the type at each owner: a Tower knows before any " +
-          "work is handed over whether this Worker can produce what that owner takes, and two " +
-          "owners asking for the same fact under different names are, correctly, two different " +
-          "answers. OPTIONAL, on the same terms as `payload`.",
+          "TASK-36. What this Worker PRODUCES in answer to a Task of this type, keyed by the name " +
+          "of the owner's answering Action it can perform, each the JSON Schema of the input it " +
+          "produces for that Action — its own capability, and not a copy of any owner's. NAME-6 " +
+          "judges each against the input of the Action of that name at each owner: a Tower knows " +
+          "before any work is handed over which answers this Worker can give, and two owners " +
+          "calling one answer by different names are, correctly, two different answers. The name " +
+          "needs no namespace because it is only ever matched inside one qualified Task type. " +
+          "OPTIONAL, on the same terms as `payload`.",
       }),
   })
   .meta({
     title: "Skill declaration",
     description:
-      "TASK-33. What this Worker declares about one Task type it answers. The owner's `raises` " +
+      "TASK-36. What this Worker declares about one Task type it answers. The owner's `raises` " +
       "says what is sent and its `actions` what is taken back; this says what the answerer " +
       "requires and what it produces, where it says anything at all, and each pair is what a " +
       "Tower compares.",
@@ -348,7 +349,7 @@ export const descriptor = z
       .optional()
       .meta({
         description:
-          "TASK-33. The Task types this Worker answers, which IS its Skill — the unit of " +
+          "TASK-36. The Task types this Worker answers, which IS its Skill — the unit of " +
           "discovery the Tower catalogs by. It is at the root rather than in the `tasks` entry " +
           "because a Skill is served at no address and answered by no surface: it is what a " +
           "Worker IS, like its id, and a Capability is what a Worker SERVES. Omitted by a Worker " +
@@ -843,7 +844,7 @@ export const actionsEntry = capabilityEntry
   });
 
 /**
- * TASK-34 — one Task type a Worker raises.
+ * TASK-35 — one Task type a Worker raises.
  *
  * The Actions named here are the OWNER's own, declared in its `actions` entry: a Response is an
  * Action posted into the owner, so the closed list is a list of names that entry holds.
@@ -852,21 +853,21 @@ export const taskTypeDeclaration = z
   .strictObject({
     payload: z.looseObject({}).meta({
       description:
-        "TASK-34. The JSON Schema of this Task type's payload. The Worker's own — this protocol " +
+        "TASK-35. The JSON Schema of this Task type's payload. The Worker's own — this protocol " +
         "has no data model — and what a consumer renders or validates against.",
     }),
     answeredBy: z
-      .string()
-      .min(1)
+      .array(z.string().min(1))
       .optional()
       .meta({
         description:
-          "TASK-34. The one Action of this Worker's own that answers a Task of this type, by the " +
-          "name its `actions` entry holds it under. One and not a list: where a Task can end " +
-          "several ways, the endings are variants of that Action's input, told apart by a " +
-          "discriminator. A name and not an instruction: the owner says what would answer, never " +
-          "who. Absent for a type no Action answers — work done elsewhere, whose condition " +
-          "clears when a Fact the Worker observes changes.",
+          "TASK-35. The Actions of this Worker's own that answer a Task of this type, by the " +
+          "names its `actions` entry holds them under. Several and not one, because an answer is " +
+          "whatever changes the Facts the condition is derived from — approving, escalating, " +
+          "postponing, adding to it — and whether the Task then closes is a consequence of those " +
+          "Facts (TASK-15). Names and not instructions: the owner says what would answer, never " +
+          "who. Absent or empty for a type no Action answers — work done elsewhere, whose " +
+          "condition clears when a Fact the Worker observes changes.",
       }),
     supersededBy: qualifiedName.optional().meta({
       description:
@@ -879,27 +880,27 @@ export const taskTypeDeclaration = z
   .meta({
     title: "Task type declaration",
     description:
-      "TASK-34. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched " +
+      "TASK-35. One Task type, held under a qualified name (TASK-4, NAME-7) because it is matched " +
       "by a party that did not mint it.",
   });
 
 /**
- * TASK-27, TASK-34 — the `tasks` Capability entry.
+ * TASK-27, TASK-35 — the `tasks` Capability entry.
  *
  * One address, and a read. The entry carried a second one a claim was posted to until the Claim
  * lifecycle was withdrawn; `spec/tasks.md` holds the argument, and the short of it is that a lease
  * over a unit of work is orchestration, which this specification names a non-goal.
  *
- * It carried a third thing until TASK-33 moved it: what the Worker ANSWERS, which is served at no
- * address and is now `skills` on the Descriptor's root. What is left here is what the declared
- * address actually answers instances of.
+ * It carried a third thing until it moved: what the Worker ANSWERS, which is served at no address
+ * and is now `skills` on the Descriptor's root. What is left here is what the declared address
+ * actually answers instances of.
  */
 export const tasksEntry = capabilityEntry
   .extend({
     address,
     raises: z.record(qualifiedName, taskTypeDeclaration).meta({
       description:
-        "TASK-34. Every Task type this Worker raises. A Worker that raises none declares an empty " +
+        "TASK-35. Every Task type this Worker raises. A Worker that raises none declares an empty " +
         "map rather than omitting it, so that every reader parses one shape.",
     }),
   })
@@ -907,7 +908,7 @@ export const tasksEntry = capabilityEntry
     title: "Tasks capability entry",
     description:
       "TASK-27. The shared Capability entry with the reading address required, and the Task " +
-      "types this Worker raises. What it ANSWERS is TASK-33's `skills`, on the Descriptor root.",
+      "types this Worker raises. What it ANSWERS is TASK-36's `skills`, on the Descriptor root.",
   });
 
 /**
@@ -935,6 +936,28 @@ export const task = z
         "read the same way. It replaced counts of Claims that had failed and lapsed, and says " +
         "less: how long a condition has held, and nothing about what anybody did about it.",
     ),
+    inputs: z
+      .record(z.string().min(1), z.looseObject({}))
+      .optional()
+      .meta({
+        description:
+          "TASK-37. Values the owner already knows for the input of the Actions that answer this " +
+          "Task, keyed by Action name — one of those TASK-35 names for its type — and then by " +
+          "member of that Action's input. Values and not schemas: each is checked against the " +
+          "schema the `actions` entry already declares for that member. It binds nothing on the " +
+          "call; a console shows the values filled in and editable, and the Worker judges what " +
+          "it receives (ACT-5).",
+      }),
+    available: z
+      .array(z.string().min(1))
+      .optional()
+      .meta({
+        description:
+          "TASK-38. Which of the Actions TASK-35 names for this Task's type may answer it now, " +
+          "derived from the Worker's Facts on the same read as the Task. Absent, every one may; " +
+          "empty, none may yet and the Task is still open. A statement about now and not a " +
+          "promise: what the current state does not allow is still refused with `409` (ACT-17).",
+      }),
   })
   .meta({
     title: "Task",
@@ -998,6 +1021,17 @@ export const alert = z
         "entry holds them under. May be empty. Names and not schemas, because the schema is " +
         "already in that entry and a second copy is a second thing to keep in step.",
     }),
+    inputs: z
+      .record(z.string().min(1), z.looseObject({}))
+      .optional()
+      .meta({
+        description:
+          "ALRT-9. Values the Worker already knows for the input of the Actions this Alert " +
+          "offers, keyed by Action name — one of `actions` — and then by member of that Action's " +
+          "input. Values and not schemas, so ALRT-7's reason for names still holds: each value is " +
+          "checked against the schema the `actions` entry declares for its member. It binds " +
+          "nothing on the call.",
+      }),
   })
   .meta({
     title: "Alert",

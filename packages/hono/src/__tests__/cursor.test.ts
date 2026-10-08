@@ -76,7 +76,7 @@ describe("paging a collection that changes underneath", () => {
     const paging = mount({
       id: "tech.rowing.test.growing",
       tasks: {
-        raises: { "tech.rowing.test.thing": { payload: z.object({}), answeredBy: "do-it" } },
+        raises: { "tech.rowing.test.thing": { payload: z.object({}), answeredBy: ["do-it"] } },
         pageSize: 2,
         current: () =>
           held.map((id) => ({

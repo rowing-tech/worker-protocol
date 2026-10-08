@@ -98,7 +98,7 @@ function tower() {
     },
 
     /**
-     * TASK-33: the unit of discovery. An owner names a Task type and never an actor, and this is
+     * TASK-36: the unit of discovery. An owner names a Task type and never an actor, and this is
      * the question it asks — *who answers this* — over what each Worker declared about itself.
      */
     bySkill(type: string): string[] {
@@ -113,7 +113,7 @@ function tower() {
     },
 
     /**
-     * TASK-33, NAME-6: can this Worker take that one's Tasks of this type?
+     * TASK-36, NAME-6: can this Worker take that one's Tasks of this type?
      *
      * `bySkill` says who declared the name. This says whether the work can be READ, and it is the
      * question an operator asks at enrollment — so it is answered from the two dated Descriptors
@@ -293,7 +293,7 @@ describe("a Control Tower, over Workers that answer", () => {
   it("answers at ENROLLMENT whether a Worker can read another's Tasks", async () => {
     // The question an operator asks when pasting a URL: can this Worker take that one's work?
     // Answered from the two Descriptors, so it arrives before any Task exists — which is the whole
-    // reason TASK-33 has the answerer declare what it requires instead of everyone finding out
+    // reason TASK-36 has the answerer declare what it requires instead of everyone finding out
     // when work is handed over.
     const registry = tower();
     registry.enroll(worker.url, "a-token");
@@ -303,10 +303,12 @@ describe("a Control Tower, over Workers that answer", () => {
     const PRICE_A_QUOTE = "tech.rowing.worker-protocol.price-a-quote";
 
     // It raises `verify-vehicle` sending `{ vehicle }`, declares it needs `{ vehicle }`, produces
-    // `{ vehicle, verified }`, and its `record-verification` takes exactly that: both halves hold.
+    // `{ vehicle, verified }` for `record-verification`, and that Action takes exactly that: both
+    // halves hold, and `through` names the answer it can give.
     expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
       verdict: "compatible",
       why: "it can read what the owner sends and produce what it takes",
+      through: ["record-verification"],
     });
 
     // A type it declared no Skill for is not a shape that disagrees: it is no claim at all.
@@ -322,7 +324,7 @@ describe("a Control Tower, over Workers that answer", () => {
     };
     const { skills } = held;
 
-    // TASK-33's third answer: the Skill is claimed and nothing is said about either half. Not a
+    // TASK-36's third answer: the Skill is claimed and nothing is said about either half. Not a
     // refusal — reporting one would invent an obligation the rule does not carry.
     skills[VERIFY_VEHICLE] = {};
     expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
@@ -340,14 +342,16 @@ describe("a Control Tower, over Workers that answer", () => {
         required: ["vehicle"],
       },
       produces: {
-        type: "object",
-        properties: { vehicle: { type: "string" } },
-        required: ["vehicle"],
+        "record-verification": {
+          type: "object",
+          properties: { vehicle: { type: "string" } },
+          required: ["vehicle"],
+        },
       },
     };
     expect(registry.canAnswer(worker.url, self, VERIFY_VEHICLE)).toEqual({
       verdict: "incompatible",
-      why: "the owner's Action requires what it does not produce: verified",
+      why: "`record-verification` requires what it does not produce: verified",
     });
 
     // And the case the field exists for: asking for MORE than the owner sends.

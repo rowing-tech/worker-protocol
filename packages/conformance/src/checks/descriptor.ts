@@ -28,10 +28,10 @@ export const CLAIMS = [
   "DESC-14",
   "DESC-22",
   "DESC-23",
-  // TASK-33 lives here rather than in the tasks check because `skills` is on the ROOT: a Worker
+  // TASK-36 lives here rather than in the tasks check because `skills` is on the ROOT: a Worker
   // that only ANSWERS Tasks declares a Skill and no `tasks` Capability at all, and a verdict
   // reached only through that Capability would have been silent about exactly that Worker.
-  "TASK-33",
+  "TASK-36",
   // NAME-10 is about three Capabilities at once and needs nothing but the document, so it is judged
   // here rather than split across the three checks that would each see a third of it.
   "NAME-10",
@@ -40,7 +40,7 @@ export const CLAIMS = [
 export type Descriptor = {
   id: string;
   edition: string;
-  /** TASK-33. Absent for a Worker with no Skill, which DESC-34 admits of anything it does not do. */
+  /** TASK-36. Absent for a Worker with no Skill, which DESC-34 admits of anything it does not do. */
   skills?: Record<string, unknown>;
   capabilities: Record<string, Record<string, unknown>>;
 };
@@ -181,13 +181,13 @@ export async function readDescriptor(
 
   const document = validation.data as Descriptor;
   say("DESC-1", "passes");
-  // TASK-33: what this Worker answers, which is what a Tower catalogs it by. Absent is conformant
+  // TASK-36: what this Worker answers, which is what a Tower catalogs it by. Absent is conformant
   // and is not a pass — a Worker with no Skill exercised nothing, and saying so is the difference
   // between a report that was checked and one that had nothing to check.
   if (document.skills === undefined) {
-    say("TASK-33", "notExercised", "the Worker declares no Skill");
+    say("TASK-36", "notExercised", "the Worker declares no Skill");
   } else {
-    say("TASK-33", "passes");
+    say("TASK-36", "passes");
   }
 
   // DESC-6: the id is not the URL it is served from. DESC-27 and DESC-28 carry the clauses nothing

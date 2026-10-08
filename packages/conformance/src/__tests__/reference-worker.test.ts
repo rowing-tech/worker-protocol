@@ -119,7 +119,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.4");
+    expect(report.edition).toBe("0.5");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -145,13 +145,13 @@ describe("the reference worker, verified", () => {
     // exception is the specification's own, read off its argument, and not the verifier's.
     expect(failing).toEqual([]);
 
-    // TASK-33's positive witness. This is the only Worker here that HAS a Skill, so it is the only
+    // TASK-36's positive witness. This is the only Worker here that HAS a Skill, so it is the only
     // place the rule can be seen passing — the other two suites assert its absence, and a pair of
     // tests that only ever saw a field missing would prove nothing about the field.
-    expect(report.results.find((r) => r.rule.id === "TASK-33")?.verdict).toBe("passes");
+    expect(report.results.find((r) => r.rule.id === "TASK-36")?.verdict).toBe("passes");
   });
 
-  it("declares its Skill on the Descriptor root, where TASK-33 puts it", async () => {
+  it("declares its Skill on the Descriptor root, where TASK-36 puts it", async () => {
     const descriptor = await fetch(new URL("/.well-known/worker-protocol", worker.url), {
       headers: { authorization: "Bearer a-token" },
     });
@@ -166,7 +166,7 @@ describe("the reference worker, verified", () => {
     expect(document.skills).toEqual({
       "tech.rowing.worker-protocol.verify-vehicle": {
         payload: expect.any(Object),
-        produces: expect.any(Object),
+        produces: { "record-verification": expect.any(Object) },
       },
     });
     expect(document.capabilities.tasks).not.toHaveProperty("skills");
@@ -242,7 +242,7 @@ describe("the reference worker, verified", () => {
     expect(arranged.length).toBe(31);
 
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(133);
+    expect(counts.passes).toBe(136);
     expect(counts.fails).toBe(0);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -382,9 +382,9 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.4");
+      expect(report.verifierEdition).toBe("0.5");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.4");
+      expect(report.results[0]?.detail).toContain("holds edition 0.5");
     } finally {
       await ahead.close();
     }
@@ -392,9 +392,9 @@ describe("the reference worker, verified", () => {
 
   it("verifies nothing against a later MINOR while the MAJOR is 0", async () => {
     // DESC-32 lets a MINOR break before 1.0, so DESC-33 has a verifier behind on MINOR treat it as
-    // it treats a later MAJOR: judging a 0.5 Worker by 0.4's rules could fail it for what 0.5
+    // it treats a later MAJOR: judging a 0.6 Worker by 0.5's rules could fail it for what 0.6
     // changed, and the honest sentence is that the verifier is the one behind.
-    const ahead = await start({ edition: "0.5" });
+    const ahead = await start({ edition: "0.6" });
     try {
       const report = await verify({ baseUrl: ahead.url });
       expect(report.older).toBe(true);
@@ -570,45 +570,39 @@ describe("the reference worker, verified", () => {
 });
 
 /**
- * TASK-34's second obligation, which had no check until now.
+ * TASK-35 against Descriptors the reference worker is not, served from a canned fetch.
  *
- * The rule has two halves. The first is the NAME: the Action a Task type is answered by is one of
- * the owner's own, so a name its `actions` entry does not accept is a Descriptor disagreeing with
- * itself. The second is that Action's INPUT: where a Task can end more than one way the endings are
- * variants of it, told apart by a discriminator.
- *
- * The second half is what makes the first one worth anything. TASK-34 replaced a list of one Action
- * per ending precisely so that nobody has to agree a mapping out of band — but a union whose
- * variants cannot be told apart puts that conversation straight back: a consumer holding a schema
- * it can satisfy still cannot say WHICH ending it is reporting. A Worker in that state passed every
- * check this tool ran, which is the silence a register full of ids exists to prevent.
+ * The rule names the owner's own Actions — none, one or several — so the one thing it can be
+ * caught breaking from outside is a name its `actions` entry does not accept: a Descriptor
+ * disagreeing with itself. What it no longer asks is a discriminator. Edition 0.4 required one because
+ * the endings of a Task were variants of one Action's input and nothing else said which was which;
+ * with several Actions the name says it, and a union inside one Action is the owner's business.
  */
-describe("a Descriptor whose answering Action cannot say which ending it carries", () => {
-  const SILENT = "tech.rowing.fleet.check-silent-vehicle";
+describe("a Descriptor whose Task types name their answering Actions", () => {
+  const CHECK = "tech.rowing.fleet.check-vehicle";
 
-  const canned = (input: unknown): typeof globalThis.fetch =>
+  const canned = (
+    answeredBy: string[],
+    accepts: Record<string, unknown>,
+  ): typeof globalThis.fetch =>
     (async () =>
       new Response(
         JSON.stringify({
           id: "tech.rowing.fleet.watcher",
-          edition: "0.4",
+          edition: "0.5",
           capabilities: {
             tasks: {
               version: 1,
               address: "../tasks",
-              raises: { [SILENT]: { payload: { type: "object" }, answeredBy: "answer-check" } },
+              raises: { [CHECK]: { payload: { type: "object" }, answeredBy } },
             },
-            actions: {
-              version: 1,
-              address: "../actions",
-              accepts: { "answer-check": { input, completesWithinCall: true } },
-            },
+            actions: { version: 1, address: "../actions", accepts },
           },
         }),
         {
           headers: {
             "content-type": "application/json",
-            "worker-protocol-edition": "0.4",
+            "worker-protocol-edition": "0.5",
             "worker-protocol-capability-version": "1",
           },
         },
@@ -620,46 +614,164 @@ describe("a Descriptor whose answering Action cannot say which ending it carries
     required,
   });
 
-  const verdict = async (input: unknown) => {
-    const report = await verify({ baseUrl: "https://worker.example.com", fetch: canned(input) });
-    return report.results.find((r) => r.rule.id === "TASK-34");
+  const action = (input: unknown) => ({ input, completesWithinCall: true });
+
+  const verdict = async (answeredBy: string[], accepts: Record<string, unknown>) => {
+    const report = await verify({
+      baseUrl: "https://worker.example.com",
+      fetch: canned(answeredBy, accepts),
+    });
+    return report.results.find((r) => r.rule.id === "TASK-35");
   };
 
-  it("fails TASK-34 where the two endings share no member fixed to a constant", async () => {
-    const result = await verdict({
-      anyOf: [
-        variant({ vehicle: { type: "string" }, reachable: { type: "boolean" } }, ["vehicle"]),
-        variant({ vehicle: { type: "string" }, lastSeen: { type: "string" } }, ["vehicle"]),
-      ],
+  it("passes a type answered by several Actions the entry accepts", async () => {
+    const result = await verdict(["record-inspection", "report-missing"], {
+      "record-inspection": action(variant({ vehicle: { type: "string" } }, ["vehicle"])),
+      "report-missing": action(variant({ vehicle: { type: "string" } }, ["vehicle"])),
     });
-    expect(result?.verdict).toBe("fails");
-    expect(result?.detail).toContain("union of 2");
+    expect(result?.verdict).toBe("passes");
   });
 
-  it("fails it where a member is in both variants and fixed in neither", async () => {
-    // The near miss, and why the check compares constants rather than names: `outcome` is in both
-    // and says nothing, so a reader still cannot tell which ending it is holding.
-    const result = await verdict({
-      anyOf: [
-        variant({ outcome: { type: "string" }, reachable: { type: "boolean" } }, ["outcome"]),
-        variant({ outcome: { type: "string" }, lastSeen: { type: "string" } }, ["outcome"]),
-      ],
+  it("fails a type that names an Action the entry does not accept", async () => {
+    const result = await verdict(["record-inspection", "report-missing"], {
+      "record-inspection": action(variant({ vehicle: { type: "string" } }, ["vehicle"])),
     });
     expect(result?.verdict).toBe("fails");
+    expect(result?.detail).toContain("report-missing");
   });
 
-  it("passes where the variants are told apart, and where the input is not a union at all", async () => {
-    const discriminated = await verdict({
-      anyOf: [
-        variant({ outcome: { const: "found" }, reachable: { type: "boolean" } }, ["outcome"]),
-        variant({ outcome: { const: "missing" }, lastSeen: { type: "string" } }, ["outcome"]),
-      ],
+  it("passes an Action whose input is a union nothing tells apart", async () => {
+    // Edition 0.4 failed this. The Action's name already says which answer it is, so requiring a
+    // constant inside its input would be this tool asking for what the rule no longer does.
+    const result = await verdict(["answer-check"], {
+      "answer-check": action({
+        anyOf: [
+          variant({ vehicle: { type: "string" }, reachable: { type: "boolean" } }, ["vehicle"]),
+          variant({ vehicle: { type: "string" }, lastSeen: { type: "string" } }, ["vehicle"]),
+        ],
+      }),
     });
-    expect(discriminated?.verdict).toBe("passes");
+    expect(result?.verdict).toBe("passes");
+  });
 
-    // A Task that ends one way has nothing to tell apart, and failing it would be this tool
-    // requiring a union the specification never asked for.
-    const single = await verdict(variant({ vehicle: { type: "string" } }, ["vehicle"]));
-    expect(single?.verdict).toBe("passes");
+  it("passes a type no Action answers", async () => {
+    const result = await verdict([], {});
+    expect(result?.verdict).toBe("passes");
+  });
+});
+
+/**
+ * TASK-37, TASK-38 and ALRT-9 against a Worker that is not the reference one: a canned fetch that
+ * serves a Descriptor, one page of Tasks and one of Alerts, so each fault can be shown on its own.
+ *
+ * The reference Worker exercises all three and passes them. What this shows is that each can fail:
+ * a value filled in for an Action the Task does not offer, a member its input does not declare, a
+ * value its schema fixes otherwise, and an Action said to apply that the type does not name.
+ */
+describe("what a Task or an Alert fills in, and what it says applies now", () => {
+  const CHECK = "tech.rowing.fleet.check-vehicle";
+  const HEADERS = {
+    "content-type": "application/json",
+    "worker-protocol-edition": "0.5",
+    "worker-protocol-capability-version": "1",
+  };
+
+  const record = {
+    input: {
+      type: "object",
+      properties: { vehicle: { type: "string" }, reachable: { type: "boolean" } },
+      required: ["vehicle", "reachable"],
+    },
+    completesWithinCall: true,
+  };
+
+  const served = (task: Record<string, unknown>, alert: Record<string, unknown>) =>
+    (async (url: string) => {
+      const path = new URL(url).pathname;
+      const body = path.endsWith("/tasks")
+        ? {
+            items: [
+              { id: "t-1", type: CHECK, payload: {}, since: "2026-10-08T09:00:00Z", ...task },
+            ],
+          }
+        : path.endsWith("/alerts")
+          ? {
+              items: [
+                {
+                  id: "a-1",
+                  severity: "warning",
+                  since: "2026-10-08T09:00:00Z",
+                  summary: "A source paused.",
+                  actions: ["record-check"],
+                  ...alert,
+                },
+              ],
+            }
+          : {
+              id: "tech.rowing.fleet.watcher",
+              edition: "0.5",
+              capabilities: {
+                tasks: {
+                  version: 1,
+                  address: "../tasks",
+                  raises: {
+                    [CHECK]: { payload: { type: "object" }, answeredBy: ["record-check"] },
+                  },
+                },
+                alerts: { version: 1, address: "../alerts" },
+                actions: { version: 1, address: "../actions", accepts: { "record-check": record } },
+              },
+            };
+      return new Response(JSON.stringify(body), { headers: HEADERS });
+    }) as unknown as typeof globalThis.fetch;
+
+  const verdicts = async (task: Record<string, unknown>, alert: Record<string, unknown> = {}) => {
+    const report = await verify({
+      baseUrl: "https://worker.example.com",
+      fetch: served(task, alert),
+    });
+    const of = (id: string) => report.results.find((r) => r.rule.id === id);
+    return { inputs: of("TASK-37"), available: of("TASK-38"), alert: of("ALRT-9") };
+  };
+
+  it("passes values for members the Action declares, of the type its schema fixes", async () => {
+    const judged = await verdicts(
+      { inputs: { "record-check": { vehicle: "ABC-123" } }, available: ["record-check"] },
+      { inputs: { "record-check": { vehicle: "ABC-123", reachable: true } } },
+    );
+    expect(judged.inputs?.verdict).toBe("passes");
+    expect(judged.available?.verdict).toBe("passes");
+    expect(judged.alert?.verdict).toBe("passes");
+  });
+
+  it("says nothing was exercised where nothing was filled in", async () => {
+    const judged = await verdicts({});
+    expect(judged.inputs?.verdict).toBe("notExercised");
+    expect(judged.available?.verdict).toBe("notExercised");
+    expect(judged.alert?.verdict).toBe("notExercised");
+  });
+
+  it("fails a value for an Action the Task does not offer", async () => {
+    const { inputs } = await verdicts({ inputs: { "report-missing": { vehicle: "ABC-123" } } });
+    expect(inputs?.verdict).toBe("fails");
+    expect(inputs?.detail).toContain("which it does not offer");
+  });
+
+  it("fails a member the Action's input does not declare", async () => {
+    const { inputs } = await verdicts({ inputs: { "record-check": { plate: "ABC-123" } } });
+    expect(inputs?.verdict).toBe("fails");
+    expect(inputs?.detail).toContain("no such member");
+  });
+
+  it("fails a value the member's schema fixes to another type", async () => {
+    const { alert } = await verdicts({}, { inputs: { "record-check": { reachable: "yes" } } });
+    expect(alert?.verdict).toBe("fails");
+    expect(alert?.detail).toContain("its schema refuses");
+  });
+
+  it("fails an Action said to apply now that the type does not name", async () => {
+    const { available } = await verdicts({ available: ["record-check", "escalate"] });
+    expect(available?.verdict).toBe("fails");
+    expect(available?.detail).toContain("escalate");
   });
 });

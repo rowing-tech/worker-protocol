@@ -26,10 +26,11 @@ export const variantsOf = (schema: Declared): Declared[] =>
   schema.anyOf ?? schema.oneOf ?? [schema];
 
 /**
- * The member that tells a union's variants apart, where one does — TASK-34's discriminator.
+ * The member that tells a union's variants apart, where one does.
  *
  * It is a member every variant fixes to a different constant, which is what `z.discriminatedUnion`
- * writes and what TASK-34 requires of a Task with several endings.
+ * writes. Nothing requires one (TASK-35 withdrew that), but where an Action's input has one it is
+ * the owner's own word for each variant, and it is how a reader picks the variant meant.
  */
 export function discriminator(variants: Declared[]): string | undefined {
   if (variants.length < 2) return undefined;

@@ -134,9 +134,9 @@ describe("a Worker on workerd, verified over HTTP", () => {
       expect(result(id)?.verdict, id).toBe("passes");
     }
 
-    // TASK-33 moved OUT of a Capability entry and onto the Descriptor root. This Worker raises
+    // TASK-36 moved OUT of a Capability entry and onto the Descriptor root. This Worker raises
     // Tasks and answers none, so it declares no Skill at all — which under the old shape it could
     // not have said without also declaring a `tasks` entry it had nothing to put in.
-    expect(result("TASK-33")?.verdict).toBe("notExercised");
+    expect(result("TASK-36")?.verdict).toBe("notExercised");
   });
 });

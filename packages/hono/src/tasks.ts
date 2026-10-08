@@ -35,25 +35,34 @@ export type OpenTask = {
    * that answers `new Date()` is answering *now* and telling an operator nothing.
    */
   since: Date;
+  /**
+   * TASK-37. What this Worker already knows for the input of the Actions that answer this Task,
+   * keyed by Action name and then by member — the vehicle it is about, the source that paused. A
+   * console fills its form with them and an answerer need not guess which payload member goes
+   * where. They bind nothing: whatever arrives is judged as any input is.
+   */
+  inputs?: Record<string, Record<string, unknown>>;
+  /**
+   * TASK-38. Which of the type's answering Actions apply to this Task now, derived from the same
+   * Facts as the Task itself. Left out, every one does; empty, none does yet. An Action the current
+   * state does not allow is still refused with `409`, whatever a read said.
+   */
+  available?: string[];
 };
 
 /**
- * TASK-34. What a Worker declares about one Task type it raises.
+ * TASK-35. What a Worker declares about one Task type it raises: what it sends, and the Actions of
+ * its own that answer it — none, one or several, by the names its `actions` entry holds.
  *
  * `payload` is a Zod object and not a JSON Schema written by hand, for the reason ACT-2's input is
  * one: the Descriptor carries the JSON Schema a console renders a form from, `mount()` generates it
  * from this, and there is one declaration rather than two that can drift.
  */
-/**
- * TASK-34. What a Worker declares about one Task type it raises: what it sends, and the ONE Action
- * of its own that answers it. A Task with several endings has them as variants of that Action's
- * input — `z.discriminatedUnion` — and an answerer that produces one variant is answering a subtype.
- */
 export type TaskTypes = Record<
   string,
   {
     payload: z.ZodType;
-    answeredBy?: string;
+    answeredBy?: string[];
     /** NAME-10. The Task type that replaces this one, by the name `raises` holds it under. */
     supersededBy?: string;
   }
@@ -132,6 +141,8 @@ export function tasks(raises: TaskTypes, facts: TaskFacts): TaskSurface {
           type: task.type,
           payload: task.payload,
           since: rfc3339(task.since),
+          ...(task.inputs === undefined ? {} : { inputs: task.inputs }),
+          ...(task.available === undefined ? {} : { available: task.available }),
         }),
         cap,
         READ_PARAMETERS,

@@ -284,9 +284,9 @@ export async function verify(options: VerifyOptions): Promise<Report> {
         options.mayPerform === true,
       )),
     );
-    // TASK-34 is an agreement between two entries rather than a shape inside one, so the tasks
-    // check is handed the `actions` entry itself: it judges the name an entry points at AND the
-    // input that Action declares, and neither is reachable from inside `tasks`.
+    // TASK-35 is an agreement between two entries rather than a shape inside one, so the tasks
+    // check is handed the `actions` entry itself: every name a Task type points at must be one it
+    // accepts, and that is not reachable from inside `tasks`.
     const accepts =
       (
         descriptor.document.capabilities.actions as
@@ -342,7 +342,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
       ...(await checkAlerts(
         descriptor.document.capabilities.alerts,
         surface("alerts"),
-        Object.keys(accepts),
+        accepts,
         byId,
         attribution,
         tape,

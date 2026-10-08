@@ -70,7 +70,7 @@ const recorder = mount({
   alerts: () => ALERTS,
   activity: () => [],
   tasks: {
-    raises: { [THING]: { payload: z.object({}), answeredBy: "count" } },
+    raises: { [THING]: { payload: z.object({}), answeredBy: ["count"] } },
     pageSize: 1,
     current: () => [
       { id: "t-1", type: THING, payload: {}, since: new Date(0) },

@@ -17,7 +17,7 @@ every poller in order to reach one operator. Fold Alerts into health and a Worke
 misreport its own state or never mention the thing a person has three days to fix.
 
 Against [tasks](tasks.md): a Task is delegation, and an Alert delegates nothing. A Task requires a
-Skill and is discovered by it — TASK-33 makes the Task types a Worker answers the unit a Tower
+Skill and is discovered by it — TASK-36 makes the Task types a Worker answers the unit a Tower
 catalogs by — and an Alert has no Skill, because its audience is whoever operates this Worker and
 that is a relationship of enrollment rather than of Contract. TASK-6 follows from the same place: a
 Task is shown only to the consumer whose Contract covers it, where ALRT-6 answers the same Alerts
@@ -64,10 +64,24 @@ honest spelling. Here there is no such gap: the only decision an operator takes 
 whether to look now or look later, and a third value would be a place for a Worker to hedge rather
 than a state it needed to express. A protocol that offers a middle value gets middle values.
 
-ALRT-7 is TASK-34's agreement in the other Capability, and it is checked the same way: an Alert that
+ALRT-7 is TASK-35's agreement in the other Capability, and it is checked the same way: an Alert that
 offered an Action its own `actions` entry does not accept would be a Descriptor disagreeing with
 itself, which is DESC-18 one level down. It carries names and not schemas because the schema is
 already in the `actions` entry, and a second copy is a second thing to keep in step.
+
+**ALRT-9 (required). An Alert may carry under `inputs`, keyed by one of the Actions it offers,
+values for members of that Action's input — each member one that input declares, and each value one
+that member's schema accepts.**
+
+ALRT-9 is TASK-37 in the other Capability, and the need is plainer here. An Alert whose source has
+paused offers the Action that resumes a source, and the Alert knows which source; without the value,
+the operator who presses the button is handed an empty form and has to read the summary to fill it
+in. It does not reopen ALRT-7's reason for carrying names and not schemas: what travels is values,
+and the schema they are checked against is the one already in the `actions` entry. As there, a
+console shows them filled in and editable, and the Worker judges what it receives (ACT-5).
+
+An Alert needs no counterpart to TASK-38. Its Actions are already listed per Alert (ALRT-3), so
+offering one is saying it applies now, which is what a Task type's list cannot say on its own.
 
 ## How an Alert ends
 

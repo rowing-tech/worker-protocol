@@ -41,7 +41,7 @@ export type Worker = {
   /** The edition this Worker speaks (DESC-23). Defaults to the one `@worker-protocol/schemas` encodes. */
   edition?: string;
   /**
-   * TASK-33. The Task types this Worker answers, which IS its Skill, keyed by type.
+   * TASK-36. The Task types this Worker answers, which IS its Skill, keyed by type.
    *
    * Beside the id rather than inside `tasks`, because a Skill is served at no address: it is what
    * this Worker is, and a Capability is what it serves. A Worker that only ANSWERS Tasks declares
@@ -167,11 +167,12 @@ export type Verdict =
   | { verdict: "accepted"; principal?: unknown; caller?: string };
 
 /**
- * TASK-33. What a Worker declares about one Skill: the payload it needs to receive to answer one.
+ * TASK-36. What a Worker declares about one Skill: the payload it needs to receive to answer one,
+ * and what it produces for each of the owner's answering Actions it can perform.
  *
- * A Zod object, as an Action's input and a Task's payload are, and `mount()` writes the JSON Schema
- * the Descriptor carries. It is this Worker's own requirement — NAME-6 judges it against what an
- * owner sends, and a Tower holding both knows at enrollment whether the work can be read.
+ * Zod objects, as an Action's input and a Task's payload are, and `mount()` writes the JSON Schema
+ * the Descriptor carries. They are this Worker's own — NAME-6 judges each against the owner's half,
+ * and a Tower holding both knows at enrollment which answers this Worker can give.
  *
  * Optional: `{}` claims the type and says nothing about what it needs, which is what a Worker that
  * takes whatever arrives should say. It costs the check, and nothing else.
@@ -179,8 +180,11 @@ export type Verdict =
 export type SkillDeclaration = {
   /** What this Worker needs to RECEIVE in order to answer one. */
   payload?: z.ZodType;
-  /** What this Worker PRODUCES in answer, judged against the owner's answering Action. */
-  produces?: z.ZodType;
+  /**
+   * What this Worker PRODUCES in answer, keyed by the name of the owner's answering Action it can
+   * perform — the name whoever defined the Task type gave that answer, matched inside the type.
+   */
+  produces?: Record<string, z.ZodType>;
 };
 
 /** What a Worker says about a condition an operator should see: the domain, and no more (ALRT-3). */
@@ -198,6 +202,12 @@ export type Alert = {
   summary: string;
   /** ALRT-3, ALRT-7. The Actions this Alert offers, by the names the `actions` entry holds. */
   actions: string[];
+  /**
+   * ALRT-9. What this Worker already knows for the input of the Actions this Alert offers, keyed by
+   * Action name and then by member — so the operator who presses `resume-source` finds the source
+   * already filled in. Values, checked against the schemas the `actions` entry already declares.
+   */
+  inputs?: Record<string, Record<string, unknown>>;
 };
 
 /** What a Worker says about one thing it holds: the domain, and the whole of it (ACTV-3). */

@@ -23,41 +23,63 @@ than buried in the list, because a reader who remembers them is owed it.
 
 **TASK-27 (required). A `tasks` entry declares one address, which a read answers Tasks from.**
 
-**TASK-34 (required). The entry declares every Task type the Worker raises, keyed by name, each with
-the schema of its payload and, where one of its own Actions answers it, that one Action. Where a
-Task can end more than one way, the ways are variants of that Action's input, told apart by a
-discriminator.** A type no Action answers is work done elsewhere — a vehicle inspected on site — and
-its condition clears when a Fact the Worker observes changes, which TASK-15 already admits.
+**TASK-35 (required). The entry declares every Task type the Worker raises, keyed by name, each with
+the schema of its payload and the Actions of its own that answer it — none, one or several — each
+named as its `actions` entry holds it.** A type no Action answers is work done elsewhere — a vehicle
+inspected on site — and its condition clears when a Fact the Worker observes changes, which TASK-15
+already admits.
 
-**TASK-33 (required). The Descriptor declares under `skills`, at its root and not inside a
+**TASK-36 (required). The Descriptor declares under `skills`, at its root and not inside a
 Capability, the Task types the Worker answers — which is its Skill. It is a map keyed by Task type,
-as `raises` is, and each entry may declare two JSON Schemas: the payload that Worker requires in
-order to answer one, and what it produces in answer. A Worker with no Skill omits `skills` or
+as `raises` is, and each entry may declare the payload that Worker requires in order to answer one,
+as a JSON Schema, and what it produces in answer, as a map from the name of an answering Action to
+the JSON Schema of what it produces for that Action. A Worker with no Skill omits `skills` or
 declares it empty; a Skill that states neither is a claim of capability and nothing more.**
 
 **TASK-4 (required). A Task type is a qualified name under NAME-7.**
 
-TASK-34 names *one of the owner's own Actions*: answering a Task is performing it, so it is
+TASK-35 names *the owner's own Actions*: answering a Task is performing one of them, so each is
 declared in that same Worker's `actions` entry and named here by its name. A Task type that names an
 Action the Worker does not accept is a Descriptor disagreeing with itself, which is the fault
 DESC-18 already describes one level up.
 
-**One Action and not a list, and the outcomes go inside it.** A Task that can end several ways — the
-vehicle was found and checked, the vehicle was not where it should be — used to name one Action per
-ending, and that put the mapping between *what a consumer produces* and *which Action takes it*
-nowhere anybody could declare it: the answerer does not know the owner's Action names, and the type
-has no registry to fix them in. With one Action, there is nothing to map. The endings are variants
-of its input, a discriminated union whose discriminator is the ending's name, minted by the owner
-beside the payload where every other name of that type already lives. A consumer that can produce
-one variant is answering a subtype of what the Action takes, which is ordinary assignability and
-needs no rule of its own; a Tower reading both schemas can see which endings it will never report.
+**Several Actions and not one, because an answer is whatever changes the Facts a condition is
+derived from, and those are Actions a Worker already has.** A review is approved or sent back. A
+ticket is resolved, or escalated — which ends this Task and raises another at the next tier — or
+answered with a request to the customer. A truck kept waiting at a dock postpones its Task until an
+instant, and a measure added to a permit leaves its Task open and changed. TASK-15 already makes
+whether a Task closes a consequence of the Facts rather than of the call, so the list is *what a
+consumer may do about this Task*, and not *the ways it can end*: an answer that leaves the condition
+holding is still an answer. The same Action answers several types — a pallet moved fixes a loading
+fault and a weight fault alike — and is performed for reasons that are no Task's at all.
 
-**What the name does not do is bind on a call, and that is worth saying plainly.** A Worker cannot
+One Action per type would have made every owner mint an umbrella over Actions it already had, once
+per type, and the umbrella costs more than a name. An idempotency key is declared per Action
+(ENDP-38), and so is whatever a Worker authorizes per Action: an umbrella holds one key declaration
+for answers whose identities differ, and one right for answers a Contract may want to grant apart.
+
+**An answer finds its Action by name, and the name is matched inside the Task type.** The answerer
+declares what it produces for each Action it can perform (TASK-36), and a Tower compares each
+against the input of the owner's Action of that name. That name is the owner's word, exactly as the
+members of the payload and of the Action's input are, and it is matched by a party that did not
+mint it — which is NAME-7's test. It needs no namespace of its own for the reason those members need
+none: the match only ever happens inside one qualified Task type, so the collision NAME-7 exists to
+prevent, two meanings under one name, is already separated by the type. What the name does decide
+is the consequence this file accepts for every member, below where it argues why the answerer
+declares what it produces: two owners that call one answer by two names are asking for two
+documents, and an answerer that produces one of them is told so.
+
+An Action's input may still be a union, and an answerer that produces some of its variants is
+producing a subtype of what that Action takes, which is ordinary assignability and needs no rule of
+its own. Nothing requires a discriminator: the Action's name already says which answer this is, and
+inside one Action the variants are the owner's business.
+
+**What the names do not do is bind on a call, and that is worth saying plainly.** A Worker cannot
 tell an Action performed *because of* a Task from one performed for any other reason: the two are
-the same request. The name tells a consumer what would answer, and nothing refuses a performance
+the same request. The names tell a consumer what would answer, and nothing refuses a performance
 that answers nothing.
 
-TASK-33 is the other side of the same name, and it is what makes the
+TASK-36 is the other side of the same name, and it is what makes the
 [architecture](../docs/architecture.md)'s *unit of discovery* concrete: the Tower catalogs Workers
 by the Task types they answer, so a Worker that answers `tech.rowing.fleet.verify-vehicle` says so
 where every reader already looks. Both lists are drawn from one vocabulary, and NAME-7 reaches both
@@ -68,9 +90,10 @@ two are joined by a party that met neither.
 the owner's.** A Task travels one way and its answer travels back, so there are two documents and
 two questions. Under `raises` the owner says what it *sends*; under `skills` the answerer says what
 it *needs to receive* in order to act — and it is the answerer who knows that, because it is the one
-who has to act on it. Under `actions` the owner says what its answering Action *takes*; under
-`skills` the answerer says what it *produces* — and again it is the answerer who knows, because a
-Worker that can tell you where a vehicle is may have no way of knowing whether it is reachable.
+who has to act on it. Under `actions` the owner says what each of its answering Actions *takes*;
+under `skills` the answerer says what it *produces* for each it can perform — and again it is the
+answerer who knows, because a Worker that can tell you where a vehicle is may have no way of knowing
+whether it is reachable, and so can report it found and never report it missing.
 NAME-6 says which way to judge each pair: a document is judged against the party that sends it. So
 a Tower holding both Descriptors answers the question an operator asks at enrollment — *can this
 Worker take that one's Tasks?* — on both halves, before any Task exists, and asks again on every
@@ -119,7 +142,7 @@ A Worker that raises Tasks and answers none, or answers and raises none, is the 
 rather than the exception. **Both rules bind anyway, and they say the empty case differently.** A
 Worker that raises nothing still declares `raises` as an empty map, because the entry exists and
 every reader parses one shape; a Worker that answers nothing omits `skills` entirely, because
-TASK-33 is a root field and DESC-34 already has a Worker leave out what it does not implement. What
+TASK-36 is a root field and DESC-34 already has a Worker leave out what it does not implement. What
 neither rule requires is *content* — and both require that what content there is be complete. A
 Worker that answers a Task type and leaves it out of `skills` is not conformant; it is merely
 undiscoverable, which is the same thing from the Tower's side and is why nothing outside can tell.
@@ -164,6 +187,45 @@ what an operator needs to know is *how long this has been true*, and a Task open
 one nobody has answered. It is the same field ALRT-3 puts on an Alert and it is read the same way:
 it tells *this is new* from *this is the same thing as yesterday*, which is most of what anybody
 wanted a status for.
+
+## What a Task binds, and what it offers now
+
+**TASK-37 (required). A Task may carry under `inputs`, keyed by one of the Actions TASK-35 names
+for its type, values for members of that Action's input — each member one that input declares, and
+each value one that member's schema accepts.**
+
+**TASK-38 (required). A Task may carry under `available` which of the Actions TASK-35 names for its
+type may answer it now, each one of those names. Absent, every one may.**
+
+**`inputs` is what the owner already knows, written where the answer will need it.** A Task knows
+which vehicle it is about, and every Action that answers it takes that vehicle as a member of its
+input. Until this rule an answer found the value by a convention nobody wrote: an answerer copied
+the payload's member of the same name, and a console filled its form the same way — which works
+exactly as long as the owner named the two alike, and fails silently the first time it did not. The
+owner is the one party that knows which value goes in which member, so it says so, and it says so
+per Action because two Actions may use one name for two things.
+
+**Values and not schemas.** The schema of each member is already in the `actions` entry (ACT-2),
+and what travels here is what fills it — which is why it can be checked against that schema rather
+than kept in step with it.
+
+**It binds nothing on the call.** A consumer may send other values, and the Worker judges the input
+it receives as it judges any other (ACT-5): a Worker cannot tell an Action performed because of a
+Task from one performed for any other reason, and the values a Task offered do not change that.
+They are the owner's proposal, and a console shows them as one — filled in, and editable.
+
+**`available` says what the owner would accept now, and it is derived on the same read as the
+Task.** An Action can answer the type and still not apply to this Task at this moment: a ticket
+already escalated cannot be escalated again, and a permit cannot be authorized while a measure on it
+is pending. The Worker knows that from its Facts when it answers the read, so a console shows only
+what will not be refused, and an agent left with one answer is not asked to choose. It is a
+statement about now and not a promise: a Fact may change between the read and the call, and the
+Worker refuses what the current state does not allow with `409` (ACT-17), whatever a read said.
+
+Absent means every answer applies, which is what every Task meant before the member existed. An
+empty list is a Task nobody can answer right now — one waiting on a reply from outside, say — and
+it is still open, because TASK-15 closes a Task when its condition stops holding and not when its
+answers run out.
 
 ## Answering one
 
@@ -243,7 +305,7 @@ anybody did about it.
 
 ## Still open here
 
-- **Who verifies that a Worker answers the Task types it declares under TASK-33.** The Tower at
+- **Who verifies that a Worker answers the Task types it declares under TASK-36.** The Tower at
   registration, the owner at claim time, or nobody. Open in [undecided](../docs/undecided.md).
 - Whether a Task may carry a deadline of its own.
 - **Whether a consumer can say it is working on something, without a lease.** An advisory note on
@@ -254,6 +316,28 @@ anybody did about it.
   it. Open in [undecided](../docs/undecided.md).
 
 ## Withdrawn
+
+- **TASK-34** (required, W, 0.4–0.5) — required that a Task type name at most one answering
+  Action, with the ways it can end as variants of that Action's input told apart by a
+  discriminator. Replaced by **TASK-35**, which admits several and requires no discriminator; a type
+  answered by two Actions failed TASK-34 and satisfies TASK-35, so the verdict moves and the id did
+  not survive.
+
+  The argument was that an answerer cannot name the owner's Actions, so one Action was the only
+  place the mapping from an answer to the Action taking it could go. It can name them, exactly as it
+  already named the discriminator's values and every member of the input: each is the owner's word,
+  matched inside a qualified Task type. One Action did not dissolve the mapping, it moved it from
+  the Action's name into a constant inside its input — and charged every owner an umbrella Action
+  per type over Actions it already had, while an answer that leaves the Task open, a measure added
+  or a wait extended, had to be spelled as an ending it is not.
+
+- **TASK-33** (required, W, 0.4–0.5) — required that a Skill declare what it produces as one JSON
+  Schema. Replaced by **TASK-36**, which keys it by the name of the owner's answering Action; a
+  Skill declaring one schema satisfied TASK-33 and does not satisfy TASK-36, so the verdict moves
+  and the id did not survive.
+
+  One schema was the other side of TASK-34's one Action, and it goes for the same reason: where a
+  type has several answers, what an answerer produces is one document per Action it can perform.
 
 - **TASK-32** (required, W, 0.1–0.4) — required that every Task type name exactly one answering
   Action. Replaced by **TASK-34**, which admits a type no Action answers; a type cleared by
@@ -280,6 +364,9 @@ anybody did about it.
   declaring the mapping was a copy of something that could drift. One Action dissolves it: the
   endings are variants of one schema, the discriminator is the owner's own word for each, and
   covering some of them is a subtype of covering all — which is a fact about schemas, not a rule.
+
+  TASK-35 brings the list back, and TASK-34's entry above says why the argument in this one did not
+  hold: the discriminator was the owner's own word, and so is an Action's name.
 
 - **TASK-30** — required the same map, each entry able to declare the payload it requires. Replaced
   by **TASK-31**, which lets an entry also declare what it produces in answer. A Descriptor that

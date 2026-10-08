@@ -17,7 +17,7 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 102 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 105 |
 | **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 37 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 28 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
@@ -165,26 +165,28 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ACT-20 | H | 0.4 | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
 | ACT-21 | W | 0.4 | `configure` has a reading address, and it answers a document its own input schema would accept, without the members marked `writeOnly` |
 
-## tasks.md — 10
+## tasks.md — 12
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
 | TASK-27 | W | 0.1 | The entry carries one address, which a read answers Tasks from |
-| TASK-34 | W | 0.4 | Every Task type it raises, with a payload schema and, where one answers it, the one Action — which its `actions` entry accepts, and whose input takes what the type's variants carry |
-| TASK-33 | W | 0.4 | The Task types it answers, read off the Descriptor root under `skills`, keyed by type. The two schemas an entry may declare are validated by the schema and not otherwise reached: whether a Worker requires or produces the right thing has no witness against that Worker alone, and `packages/client`'s `canAnswer` is where two Descriptors are compared |
+| TASK-35 | W | 0.5 | Every Task type it raises, with a payload schema and the Actions that answer it — none, one or several — each of which its `actions` entry accepts |
+| TASK-36 | W | 0.5 | The Task types it answers, read off the Descriptor root under `skills`, keyed by type, with what it produces keyed by answering Action. The schemas an entry may declare are validated by the schema and not otherwise reached: whether a Worker requires or produces the right thing has no witness against that Worker alone, and `packages/client`'s `canAnswer` is where two Descriptors are compared |
 | TASK-4 | W | 0.1 | Every Task type name is a qualified name |
 | TASK-5 | W | 0.1 | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
 | TASK-6 | H | 0.1 | Two credentials covering different Tasks must exist before two lists can be compared |
 | TASK-8 | W | 0.1 | A type the entry does not declare is `400` + `invalid_parameter` |
 | TASK-15 | N | 0.1 | A Task that disappears may have had its condition stop holding at that moment for reasons of its own. Nothing outside can tell — which is exactly why the rule matters |
 | TASK-19 | N | 0.1 | Recommended. What a nudge IS has no witness: an owner notifying by some other means is indistinguishable from one that does not notify at all |
+| TASK-37 | W | 0.5 | Each Task read that carries `inputs` fills in only Actions its type names, members their inputs declare, and values those members accept. A page where no Task carries it is `not exercised`. The value is judged against what the member's schema fixes — `type`, `const`, `enum` — and no further, as TASK-28's payload is not validated against its declared schema either |
+| TASK-38 | W | 0.5 | Each Task read that carries `available` names only Actions its type names. Whether the Worker then accepts them is a statement about the moment of the read, and a later `409` does not contradict it |
 | TASK-28 | W | 0.1 | Each Task carries its id, type, payload and the instant its condition began |
 
 **Sixteen rules of the Claim lifecycle were withdrawn**, and with them the only checks in this tool
 that changed a Worker: taking a lease, renewing it, closing it, and the fencing token that refused a
 stale Response. `spec/tasks.md` carries the argument. Every check that is left is a GET.
 
-## alerts.md — 7
+## alerts.md — 8
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -195,6 +197,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | ALRT-8 | N | 0.4 | An Alert that disappears may have had its condition stop holding, or may have been dismissed by somebody the verifier never saw. Nothing outside can tell — which is the same shape as TASK-15 and the same reason it matters |
 | ALRT-6 | H | 0.1 | Two credentials must exist before two lists can be compared |
 | ALRT-7 | W | 0.1 | Every Action an Alert offers is one the Worker's own `actions` entry accepts. An agreement between two entries, which no schema reaches |
+| ALRT-9 | W | 0.5 | Each Alert read that carries `inputs` fills in only Actions it offers, members their inputs declare, and values those members accept. The value is judged against what the member's schema fixes — `type`, `const`, `enum` — and no further, as TASK-28's payload is not validated against its declared schema either |
 
 ## activity.md — 6
 
@@ -335,7 +338,7 @@ at all.
 
 ## Where this stands
 
-189 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
+192 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.

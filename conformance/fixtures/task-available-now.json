@@ -1,0 +1,15 @@
+{
+  "schema": "task",
+  "valid": true,
+  "rule": "TASK-38",
+  "why": "A Task whose type has several answers, saying which apply to it now: the vehicle was already reported missing, so only an inspection can follow. Derived on the same read as the Task, and a statement about now rather than a promise — what the state no longer allows is still refused with `409`.",
+  "document": {
+    "id": "task-1",
+    "type": "tech.rowing.fleet.verify-vehicle",
+    "payload": {
+      "vehicle": "ABC-123"
+    },
+    "since": "2026-10-08T09:00:00+02:00",
+    "available": ["record-inspection"]
+  }
+}

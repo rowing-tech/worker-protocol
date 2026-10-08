@@ -1,0 +1,18 @@
+{
+  "schema": "task-type-declaration",
+  "valid": false,
+  "rule": "TASK-35",
+  "why": "`answeredBy` written as one name, which is what a Task type declared until edition 0.5. The member is a list now, so the shape a 0.4 Worker served is refused rather than read as a list of one: a reader that guessed would be guessing in the one place the two editions disagree.",
+  "document": {
+    "payload": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      },
+      "required": ["vehicle"]
+    },
+    "answeredBy": "record-inspection"
+  }
+}

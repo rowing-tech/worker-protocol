@@ -24,7 +24,7 @@ const NO_SUCH_TYPE = "tech.rowing.no-such.task-type-4c1f";
 export async function checkNudges(
   entry: Record<string, unknown> | undefined,
   url: string | null,
-  /** TASK-33's declaration, read off the Descriptor root: the types this Worker may be nudged for. */
+  /** TASK-36's declaration, read off the Descriptor root: the types this Worker may be nudged for. */
   skills: string[],
   rules: Map<string, Rule>,
   attribution: Attribution,

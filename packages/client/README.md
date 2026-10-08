@@ -96,20 +96,25 @@ exists while its condition holds and it is gone when that stops being true.
 const open = await worker.tasks?.list();
 
 for (const task of open ?? []) {
-  // How to answer this type: the Action to post, and the JSON Schema of what it takes. Both are
-  // read out of the Descriptor you already hold — the Task itself says nothing about how to answer
-  // it, because that belongs to the Worker that raised it.
-  const answer = worker.tasks?.answers(task.type);
+  // How to answer this type: each Action that answers it, and the JSON Schema of what each takes.
+  // Both are read out of the Descriptor you already hold — the Task itself says nothing about how
+  // to answer it, because that belongs to the Worker that raised it.
+  // Handed the Task itself, it answers for this Task now: only what is `available`, each with the
+  // values the owner already filled in as `prefill`.
+  const answers = worker.tasks?.answers(task) ?? [];
+  const answer = answers.find(({ action }) => action === "record-check");
   if (answer === undefined) continue;
 
-  const input = doTheWork(task.payload);
+  const input = { ...answer.prefill, ...doTheWork(task.payload) };
   await worker.actions?.perform(answer.action, input, { idempotencyKey: crypto.randomUUID() });
 }
 ```
 
-The schema comes back as it travels, so a console can render a form from it and an agent can build
-the document, neither having been told anything about this Worker in advance. Where a Task can end
-several ways, that schema is a discriminated union and each ending is a variant.
+The schemas come back as they travel, so a console can render a form for each answer and an agent
+can pick the one it can produce, neither having been told anything about this Worker in advance. A
+Task type may have several answers — a check recorded, a vehicle reported missing — and each is an
+Action of its own. `worker.alerts?.offers(alert)` answers the same question for an Alert: what it
+offers, each with its schema and the values it filled in.
 
 `worker.nudges?.(type)` tells a Worker there is work of a type it answers. It buys latency and
 nothing else — a consumer reading on its own schedule is slower and never wrong — so it answers
@@ -136,9 +141,10 @@ const { verdict, why } = canAnswer(owner.descriptor, answerer.descriptor, taskTy
 ```
 
 A Worker declares its *Skills*: the Task types it can answer, what it needs to be handed to answer
-one, and what it produces. `canAnswer` compares that against what the owner sends and what the
-owner's answering Action takes, in both directions, and answers `compatible`, `incompatible` or
-`unknown` with a reason. `unknown` is not `false`: an answerer that declares the Skill and states no
+one, and what it produces for each answering Action it can perform. `canAnswer` compares that
+against what the owner sends and what the owner's Actions of those names take, in both directions,
+and answers `compatible`, `incompatible` or `unknown` with a reason, and `through` names the
+answers that fit. `unknown` is not `false`: an answerer that declares the Skill and states no
 requirement has claimed the capability and said nothing about what it needs, which the protocol
 allows, and reporting that as a refusal would be inventing an obligation.
 

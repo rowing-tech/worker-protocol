@@ -17,6 +17,48 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-08 — edition 0.5
+
+All five packages encode **edition 0.5**, which breaks what a 0.4 reader assumed about how a Task is
+answered. A verifier on 0.4 meeting a 0.5 Worker says it is behind rather than judging it (DESC-33).
+The release that carries it is a MINOR of the packages, which `^0.6.0` does not take.
+
+### Edition 0.5
+
+- **A Task type names every Action that answers it.** TASK-35 replaces TASK-34: `answeredBy` is a
+  list of the owner's own Action names — none, one or several — rather than one name with the ways
+  a Task can end packed into that Action's input as a discriminated union. An answer is whatever
+  changes the facts the condition is derived from, so approving, escalating, postponing or adding to
+  a Task are answers as much as resolving it is, and a Worker reuses the Actions it already has
+  instead of minting one per Task type. No discriminator is required any more.
+- **A Skill says what it produces per answer.** TASK-36 replaces TASK-33: `produces` is a map from
+  the name of the owner's answering Action to the JSON Schema of what the answerer produces for it.
+  The name is matched only inside one qualified Task type, so it needs no namespace of its own.
+- **A Task or an Alert fills in what it already knows for its Actions.** TASK-37 and ALRT-9 add
+  `inputs`, keyed by Action name and then by member of that Action's input — `{ "resume-source": {
+  source: "portal" } }` — so a console opens the form filled in and an answerer no longer copies
+  payload fields by matching names. Values and not schemas: each is checked against the schema the
+  `actions` entry already declares, and it binds nothing on the call.
+- **A Task says which of its answers apply now.** TASK-38 adds `available`, a subset of the Actions
+  its type names, derived on the same read. Absent means all of them; what the state does not allow
+  is still refused with `409`.
+- schemas: `answeredBy` is an array; `produces` is a record of schemas; `inputs` and `available` on
+  a Task and `inputs` on an Alert; fixtures for each new rule.
+- hono: `raises[type].answeredBy` takes `string[]`, and `skills[type].produces` a record of Zod
+  objects keyed by Action name; `OpenTask` takes `inputs` and `available`, and `Alert` takes
+  `inputs`.
+- client: `tasks.answers(type)` returns every answering Action with its input, `[]` where none
+  answers; handed a Task, it returns only what is `available` and each answer's `prefill` from
+  `inputs`. `alerts.offers(alert)` does the same for an Alert. `canAnswer` compares per Action and
+  names the answers that fit in `through`.
+- conformance: TASK-35 fails a Task type naming an Action the `actions` entry does not accept, and
+  no longer judges whether an answering Action's input is a discriminated union. TASK-37, TASK-38
+  and ALRT-9 are judged on the Tasks and Alerts a read answers; a value is checked against what its
+  member's schema fixes (`type`, `const`, `enum`) and no further.
+- minimal-worker: `answer-check` becomes `record-check` and `report-missing`, both answering
+  `check-silent-vehicle`, and each Task fills in its vehicle for both.
+- skills move to 2.5.0.
+
 ## [0.6.0] - 2026-10-07 — edition 0.4
 
 All five packages encode **edition 0.4**, which breaks what a 0.3 reader assumed — an `events` entry
@@ -578,7 +620,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.3.1...v0.4.0

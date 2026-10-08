@@ -1,0 +1,22 @@
+{
+  "schema": "task",
+  "valid": true,
+  "rule": "TASK-37",
+  "why": "A Task that fills in, for each Action answering it, the vehicle it is about. The owner is the one party that knows the payload's `vehicle` is each input's `vehicle`, so it says so per Action rather than leaving an answerer or a console to guess from matching names.",
+  "document": {
+    "id": "task-1",
+    "type": "tech.rowing.fleet.verify-vehicle",
+    "payload": {
+      "vehicle": "ABC-123"
+    },
+    "since": "2026-10-08T09:00:00+02:00",
+    "inputs": {
+      "record-inspection": {
+        "vehicle": "ABC-123"
+      },
+      "report-missing": {
+        "vehicle": "ABC-123"
+      }
+    }
+  }
+}

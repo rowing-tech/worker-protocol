@@ -263,6 +263,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.4"
     },
     {
+      "id": "ALRT-9",
+      "file": "alerts.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.5"
+    },
+    {
       "id": "DESC-1",
       "file": "descriptor.md",
       "class": "required",
@@ -1532,14 +1539,44 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "tasks.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.4"
+      "introducedIn": "0.4",
+      "withdrawnIn": "0.5"
     },
     {
       "id": "TASK-34",
       "file": "tasks.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.4"
+      "introducedIn": "0.4",
+      "withdrawnIn": "0.5"
+    },
+    {
+      "id": "TASK-35",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.5"
+    },
+    {
+      "id": "TASK-36",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.5"
+    },
+    {
+      "id": "TASK-37",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.5"
+    },
+    {
+      "id": "TASK-38",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.5"
     }
   ],
   "codes": [
@@ -1697,6 +1734,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     "alert": {
       "": "ALRT-3",
       "id": "ALRT-3",
+      "inputs": "ALRT-9",
       "severity": "ALRT-4",
       "since": "ALRT-3",
       "summary": "ALRT-3"
@@ -1722,10 +1760,10 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "capabilities/*/version": "DESC-9",
       "edition": "DESC-23",
       "id": "DESC-6",
-      "skills": "TASK-33",
-      "skills/*": "TASK-33",
-      "skills/*/payload": "TASK-33",
-      "skills/*/produces": "TASK-33"
+      "skills": "TASK-36",
+      "skills/*": "TASK-36",
+      "skills/*/payload": "TASK-36",
+      "skills/*/produces": "TASK-36"
     },
     "error": {
       "": "ENDP-39",
@@ -1855,9 +1893,9 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "": "NAME-7"
     },
     "skill-declaration": {
-      "": "TASK-33",
-      "payload": "TASK-33",
-      "produces": "TASK-33"
+      "": "TASK-36",
+      "payload": "TASK-36",
+      "produces": "TASK-36"
     },
     "subscription-ended": {
       "": "SUB-15",
@@ -1911,14 +1949,16 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "nextCursor": "ENDP-21"
     },
     "task-type-declaration": {
-      "": "TASK-34",
-      "answeredBy": "TASK-34",
-      "payload": "TASK-34",
+      "": "TASK-35",
+      "answeredBy": "TASK-35",
+      "payload": "TASK-35",
       "supersededBy": "NAME-7"
     },
     "task": {
       "": "TASK-28",
+      "available": "TASK-38",
       "id": "TASK-28",
+      "inputs": "TASK-37",
       "payload": "TASK-28",
       "since": "TASK-28",
       "type": "NAME-7"
@@ -1926,10 +1966,10 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     "tasks-entry": {
       "": "TASK-27",
       "address": "DESC-36",
-      "raises": "TASK-34",
-      "raises/*": "TASK-34",
-      "raises/*/answeredBy": "TASK-34",
-      "raises/*/payload": "TASK-34",
+      "raises": "TASK-35",
+      "raises/*": "TASK-35",
+      "raises/*/answeredBy": "TASK-35",
+      "raises/*/payload": "TASK-35",
       "raises/*/supersededBy": "NAME-7",
       "version": "DESC-9"
     }

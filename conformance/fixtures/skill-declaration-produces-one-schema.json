@@ -1,0 +1,29 @@
+{
+  "schema": "skill-declaration",
+  "valid": false,
+  "rule": "TASK-36",
+  "why": "`produces` written as one JSON Schema, which is what a Skill declared until edition 0.5. Read as a map it has members named `type`, `properties` and `required` whose values are not schemas, so it is refused: a Task type has several answers, and one schema cannot say which of them it is for.",
+  "document": {
+    "payload": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      },
+      "required": ["vehicle"]
+    },
+    "produces": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        },
+        "reachable": {
+          "type": "boolean"
+        }
+      },
+      "required": ["vehicle", "reachable"]
+    }
+  }
+}

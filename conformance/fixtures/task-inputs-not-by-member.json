@@ -1,0 +1,17 @@
+{
+  "schema": "task",
+  "valid": false,
+  "rule": "TASK-37",
+  "why": "`inputs` holding a bare value under an Action's name. What is filled in is keyed by Action and then by member of that Action's input, so a value with no member name says nothing about which field it belongs in.",
+  "document": {
+    "id": "task-1",
+    "type": "tech.rowing.fleet.verify-vehicle",
+    "payload": {
+      "vehicle": "ABC-123"
+    },
+    "since": "2026-10-08T09:00:00+02:00",
+    "inputs": {
+      "record-inspection": "ABC-123"
+    }
+  }
+}

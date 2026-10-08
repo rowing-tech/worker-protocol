@@ -2,9 +2,10 @@
  * Whether one Worker can answer another's Tasks, decided from what both of them declared.
  *
  * This is the question an operator asks when enrolling a Worker — *can it take that one's work?* —
- * and `spec/tasks.md` is what answers it. TASK-34 has the owner declare the payload it sends under
- * `raises`; TASK-33 has the answerer declare what it requires under `skills`. NAME-6 fixes which
- * way to judge the two: a document a Worker receives is judged against the party that sends it.
+ * and `spec/tasks.md` is what answers it. TASK-35 has the owner declare the payload it sends under
+ * `raises`, and the Actions that answer it; TASK-36 has the answerer declare what it requires under
+ * `skills`, and what it produces for each of those Actions it can perform. NAME-6 fixes which way
+ * to judge each pair: a document a Worker receives is judged against the party that sends it.
  *
  * **It compares declarations and calls nothing.** Both Descriptors are already in hand — a Tower
  * holds a dated copy of each (DESC-20) — so the answer arrives at enrollment, before any Task
@@ -28,12 +29,17 @@ type Descriptor = z.infer<typeof descriptor>;
  * What was decided, and why — so that a console can say it rather than showing a boolean.
  *
  * `unknown` is not `false`. An answerer that declares the Skill and states no requirement has
- * claimed the capability and said nothing about what it needs, which TASK-33 admits; a Tower that
+ * claimed the capability and said nothing about what it needs, which TASK-36 admits; a Tower that
  * reported that as a refusal would be inventing an obligation the specification does not carry.
+ *
+ * `through` names the owner's Actions this answerer can perform with what it produces, in the order
+ * the owner declared them, wherever the answering half found any. A Task type may have several
+ * answers and an answerer that gives one of them is a fit; which one is what a Tower shows.
  */
 export type Compatibility = {
   verdict: "compatible" | "incompatible" | "unknown";
   why: string;
+  through?: string[];
 };
 
 /** The `type` a schema fixes for one member, where it fixes one. */
@@ -42,7 +48,7 @@ const typeOf = (schema: Declared, member: string): unknown => schema.properties?
 /**
  * Whether what one party requires is covered by what the other provides — NAME-6, one direction.
  *
- * The tractable part of comparing two JSON Schemas, and the part `spec/tasks.md` states in TASK-33:
+ * The tractable part of comparing two JSON Schemas, and the part `spec/tasks.md` states in TASK-36:
  * a receiver may ask for less than the sender produces and may not ask for more. So every member
  * the receiver requires must be one the sender declares, and where both fix a `type` for it the two
  * must agree. Full subsumption is undecidable in general, and a Tower that attempted it would refuse
@@ -50,12 +56,12 @@ const typeOf = (schema: Declared, member: string): unknown => schema.properties?
  * and it reads the same in both directions, which is why it is stated here once rather than derived
  * from either half's rule.
  *
- * **The discriminator is the owner's word and is not charged to the answerer.** TASK-34 puts a
- * Task's endings in a union told apart by a member the OWNER mints — `outcome: "found"` — and an
- * answerer writing its own Descriptor cannot know that word, because it serves owners it has never
- * read. Counting it as coverage the answerer owes would refuse every honest answerer and would put
- * the per-owner mapping back exactly where withdrawing TASK-2's list took it from. So it is skipped
- * where the answerer says nothing about it, and used to pick the variant where it says something.
+ * **A discriminator is the owner's word and is not charged to the answerer.** An Action's input
+ * may be a union told apart by a member the OWNER mints — `outcome: "found"` — and an answerer
+ * writing its own Descriptor need not repeat that word to be producing one of its variants.
+ * Counting it as coverage the answerer owes would refuse an answerer that produces exactly one
+ * variant and says so by its shape. So it is skipped where the answerer says nothing about it, and
+ * used to pick the variant where it says something.
  */
 function covered(requires: Declared, provides: Declared, noun: string): Compatibility {
   const takes = variantsOf(requires);
@@ -101,11 +107,12 @@ function accepts(requires: Declared, provides: Declared, told: string | undefine
  * Can `answerer` answer `owner`'s Tasks of this type?
  *
  * Two documents travel, one each way, so there are two halves to judge and both must hold. The
- * Task goes from owner to answerer: what the answerer REQUIRES (TASK-33 `payload`) must be covered
- * by what the owner SENDS (TASK-34 `payload`). The answer goes back: what the owner's answering
- * Action TAKES (ACT-2 `input`, named by TASK-34 `answeredBy`) must be covered by what the answerer
- * PRODUCES (TASK-33 `produces`). Either half the answerer left undeclared is `unknown` — a claim
- * with nothing to check, which TASK-33 admits and a Tower must not report as a refusal.
+ * Task goes from owner to answerer: what the answerer REQUIRES (TASK-36 `payload`) must be covered
+ * by what the owner SENDS (TASK-35 `payload`). The answer goes back: for at least one Action the
+ * owner names (TASK-35 `answeredBy`), what it TAKES (ACT-2 `input`) must be covered by what the
+ * answerer PRODUCES for that name (TASK-36 `produces`). Either half the answerer left undeclared is
+ * `unknown` — a claim with nothing to check, which TASK-36 admits and a Tower must not report as a
+ * refusal.
  */
 export function canAnswer(owner: Descriptor, answerer: Descriptor, type: string): Compatibility {
   const skill = answerer.skills?.[type];
@@ -114,7 +121,7 @@ export function canAnswer(owner: Descriptor, answerer: Descriptor, type: string)
   }
 
   const tasks = owner.capabilities.tasks as
-    | { raises?: Record<string, { payload: Declared; answeredBy: string }> }
+    | { raises?: Record<string, { payload: Declared; answeredBy?: string[] }> }
     | undefined;
   const raised = tasks?.raises?.[type];
   if (raised === undefined) {
@@ -128,29 +135,74 @@ export function canAnswer(owner: Descriptor, answerer: Descriptor, type: string)
       ? { verdict: "unknown", why: "it states no requirement for what it receives" }
       : covered(requires, raised.payload, "it requires what the owner does not send:");
 
-  // Sending: what the answerer produces, against what the one Action the owner names will take.
-  // Where the Task has several endings they are variants of that input, and producing some of them
-  // is producing a subtype — assignable, and `covered` looks inside the union to say so.
-  const declared = (owner.capabilities.actions as { accepts?: Record<string, { input: Declared }> })
-    ?.accepts;
-  const produces = skill.produces as Declared | undefined;
-  const takes = declared?.[raised.answeredBy]?.input;
-  let sending: Compatibility;
-  if (produces === undefined) {
-    sending = { verdict: "unknown", why: "it states nothing about what it produces" };
-  } else if (takes === undefined) {
-    sending = { verdict: "unknown", why: "the owner's answering Action is not one it accepts" };
-  } else {
-    sending = covered(takes, produces, "the owner's Action requires what it does not produce:");
-  }
+  const sending = answering({
+    names: raised.answeredBy ?? [],
+    produces: skill.produces as Record<string, Declared> | undefined,
+    accepts: (owner.capabilities.actions as { accepts?: Record<string, { input: Declared }> })
+      ?.accepts,
+  });
+  const through = sending.through === undefined ? {} : { through: sending.through };
 
   const halves = [receiving, sending];
   const refused = halves.find((one) => one.verdict === "incompatible");
-  if (refused !== undefined) return refused;
+  if (refused !== undefined) return { verdict: "incompatible", why: refused.why, ...through };
   const open = halves.filter((one) => one.verdict === "unknown");
-  if (open.length > 0) return { verdict: "unknown", why: open.map((one) => one.why).join("; ") };
+  if (open.length > 0) {
+    return { verdict: "unknown", why: open.map((one) => one.why).join("; "), ...through };
+  }
   return {
     verdict: "compatible",
     why: "it can read what the owner sends and produce what it takes",
+    ...through,
   };
+}
+
+/**
+ * The answering half: which of the owner's Actions the answerer can perform with what it produces.
+ *
+ * Matched by name, and only inside the one Task type both sides already agreed on, which is why the
+ * name needs no namespace (TASK-35). One Action that fits is enough — a Task type with several
+ * answers is answered by giving any of them — and an Action the answerer produces for and the owner
+ * does not name is simply not an answer here: two owners that call one answer by two names are
+ * asking for two documents.
+ */
+function answering(declared: {
+  names: string[];
+  produces: Record<string, Declared> | undefined;
+  accepts: Record<string, { input: Declared }> | undefined;
+}): Compatibility {
+  const { names, produces, accepts } = declared;
+  if (produces === undefined) {
+    return { verdict: "unknown", why: "it states nothing about what it produces" };
+  }
+  if (names.length === 0) {
+    return { verdict: "unknown", why: "the owner names no Action that answers this type" };
+  }
+  const shared = names.filter((name) => produces[name] !== undefined);
+  if (shared.length === 0) {
+    return {
+      verdict: "incompatible",
+      why: `it produces for none of the owner's answers: ${names.join(", ")}`,
+    };
+  }
+
+  const fits: string[] = [];
+  const refusals: string[] = [];
+  for (const name of shared) {
+    const takes = accepts?.[name]?.input;
+    // A name the owner's own `actions` entry does not accept is the owner's Descriptor disagreeing
+    // with itself, which the verifier reports against it; it is no answer here and no refusal.
+    if (takes === undefined) continue;
+    const judged = covered(
+      takes,
+      produces[name] as Declared,
+      `\`${name}\` requires what it does not produce:`,
+    );
+    if (judged.verdict === "compatible") fits.push(name);
+    else refusals.push(judged.why);
+  }
+
+  if (fits.length > 0) return { verdict: "compatible", why: "", through: fits };
+  if (refusals.length > 0) return { verdict: "incompatible", why: refusals.join("; ") };
+  return { verdict: "unknown", why: "none of the owner's answering Actions is one it accepts" };
 }

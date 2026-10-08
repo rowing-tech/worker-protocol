@@ -1,0 +1,31 @@
+{
+  "schema": "skill-declaration",
+  "valid": true,
+  "rule": "TASK-36",
+  "why": "What this Worker produces, keyed by the name of the owner's answering Action it can perform. It can report a vehicle found and has no way to report one missing, so it declares one answer and not the other — and a Tower comparing it with an owner sees which of that owner's answers it can give.",
+  "document": {
+    "payload": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      },
+      "required": ["vehicle"]
+    },
+    "produces": {
+      "record-inspection": {
+        "type": "object",
+        "properties": {
+          "vehicle": {
+            "type": "string"
+          },
+          "reachable": {
+            "type": "boolean"
+          }
+        },
+        "required": ["vehicle", "reachable"]
+      }
+    }
+  }
+}

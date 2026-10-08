@@ -25,7 +25,7 @@ back — so that when the answer lands, both places know.
   over the value either way — it sees the credential on every request, so it knows which Contract
   each read and each Action came under. Listed in [spec/metrics.md](../spec/metrics.md).
 - **Whether a consumer reports the cost and elapsed time of the work it did, and who consolidates
-  it.** Nothing carries either today — a Response is one Action and its input is the Worker's own
+  it.** Nothing carries either today — a Response is an Action and its input is the Worker's own
   shape — and the consumer's own metrics, split by the Contract, are the obvious candidate. Listed
   in [spec/metrics.md](../spec/metrics.md).
 - **Whether a person's cross-owner work list is the Tower's or a Worker's.** A teams app is one

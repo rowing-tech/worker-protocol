@@ -56,7 +56,7 @@ const report = await verify({
   credential: process.env.WORKER_PROTOCOL_CREDENTIAL,
   mayPerform: true,
   arrangement: {
-    safeAction: { name: "answer-check", input: { vehicle: "ABC-123", reachable: true } },
+    safeAction: { name: "record-check", input: { vehicle: "ABC-123", reachable: true } },
     secondCredential: process.env.SECOND_CREDENTIAL,
   },
 });
@@ -125,10 +125,10 @@ npx @worker-protocol/conformance https://fleet.example.com --may-perform \
 
 ```json
 {
-  "safeAction": { "name": "answer-check", "input": { "vehicle": "ABC-123", "reachable": true } },
+  "safeAction": { "name": "record-check", "input": { "vehicle": "ABC-123", "reachable": true } },
   "otherCallerCredential": "another-callers-token",
   "publishingAction": {
-    "name": "answer-check",
+    "name": "record-check",
     "input": { "vehicle": "DEF-456", "reachable": true },
     "publishes": "tech.rowing.worker-protocol.task-ended"
   }

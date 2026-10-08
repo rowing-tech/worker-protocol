@@ -69,6 +69,15 @@ type SubscriptionRequest = z.infer<typeof subscriptionRequest>;
 export type PageRead = { cursor?: string };
 
 /** A list read whole, with the one page of it a caller that keeps its own cursor asks for. */
+/**
+ * One way to answer a Task or act on an Alert: the Action to post, the JSON Schema of what it takes,
+ * and the values the Worker already filled in for it (TASK-37, ALRT-9), where it filled any in.
+ *
+ * `prefill` is the owner's proposal and binds nothing: a console renders it into the form as
+ * editable values, and what is posted is judged as any input is.
+ */
+export type Offered = { action: string; input: unknown; prefill?: Record<string, unknown> };
+
 export type Listed<T> = (() => Promise<T[]>) & {
   /** One page, and the cursor for the next one where there is more (ENDP-20). */
   page: (read?: PageRead) => Promise<Page<T>>;
@@ -94,7 +103,14 @@ export type Consumed = {
     settings?: () => Promise<unknown>;
   };
   /** ALRT-2. The Alerts whose conditions hold, whole; `.page()` for one page of them. */
-  alerts?: Listed<Alert>;
+  alerts?: Listed<Alert> & {
+    /**
+     * What an operator can do about this Alert: each Action it offers that the `actions` entry
+     * accepts, with its schema and the values the Alert filled in (ALRT-7, ALRT-9). In the order the
+     * Alert lists them. A name the entry does not accept is left out, as `tasks.answers` leaves one.
+     */
+    offers: (alert: Alert) => Offered[];
+  };
   /** ACTV-2. What the Worker is doing and has undertaken to do. Read, never written. */
   activity?: Listed<Activity>;
   /**
@@ -151,23 +167,28 @@ export type Consumed = {
     /** One page of the same read, for a caller that keeps the cursor itself. */
     page: (read?: { type?: string } & PageRead) => Promise<Page<Task>>;
     /**
-     * How to answer a Task of this type: the Action to post, and the shape it takes.
+     * How to answer a Task of this type, or this Task: each Action that answers it, and the shape
+     * each takes.
      *
      * A Task carries its id, its type, its payload and when its condition began — and nothing about
      * how to answer it, because that belongs to the Worker that raised it and is declared twice
-     * over in its Descriptor: the Task type names the Action that answers it (TASK-34), and that
+     * over in its Descriptor: the Task type names the Actions that answer it (TASK-35), and each
      * Action declares the JSON Schema of its input (ACT-2). Reading both is two walks down a
      * document a consumer already holds, and every consumer was doing them by hand.
      *
-     * The schema is handed back as it travels, so a console can render a form from it and an agent
-     * can build the document, neither having been told anything about this Worker. Where the Task
-     * can end several ways, that schema is a discriminated union and each ending is a variant.
+     * The schemas are handed back as they travel, so a console can render a form for each answer
+     * and an agent can pick the one it can produce, neither having been told anything about this
+     * Worker. In the order the Worker declared them.
      *
-     * `undefined` where this Worker does not raise the type, or names an Action its own `actions`
-     * entry does not accept — a Descriptor disagreeing with itself is the verifier's to report
-     * against that Worker, and handing back a call that would answer `404` is not a consumer's job.
+     * Handed a Task rather than a type, it answers for that Task now: only the Actions it says are
+     * `available` (TASK-38), each with the values it already filled in as `prefill` (TASK-37).
+     *
+     * `undefined` where this Worker does not raise the type, and empty where no Action answers it.
+     * A name its own `actions` entry does not accept is left out — a Descriptor disagreeing with
+     * itself is the verifier's to report against that Worker, and handing back a call that would
+     * answer `404` is not a consumer's job.
      */
-    answers: (type: string) => { action: string; input: unknown } | undefined;
+    answers: (of: string | Task) => Offered[] | undefined;
   };
 };
 
@@ -228,6 +249,21 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
   const addressOf = (name: string): string | undefined => {
     const declared = entry(name)?.address;
     return typeof declared === "string" ? call.resolve(declared) : undefined;
+  };
+
+  /**
+   * The named Actions as a console needs them: each one the `actions` entry accepts, with its input
+   * schema and the values already filled in for it. A name the entry does not accept is the
+   * Worker's Descriptor disagreeing with itself — the verifier's to report, and no call to offer.
+   */
+  const offering = (names: string[], inputs?: Record<string, Record<string, unknown>>) => {
+    const accepts = (entry("actions") as { accepts?: Record<string, { input: unknown }> })?.accepts;
+    return names.flatMap((action): Offered[] => {
+      const taken = accepts?.[action];
+      if (taken === undefined) return [];
+      const prefill = inputs?.[action];
+      return [{ action, input: taken.input, ...(prefill === undefined ? {} : { prefill }) }];
+    });
   };
 
   const consumed: Consumed = { descriptor, edition: descriptor.edition };
@@ -306,6 +342,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
       {
         page: ({ cursor }: PageRead = {}) =>
           page<Alert>(call, alertsAddress, alertPage, "ALRT-2", {}, cursor),
+        offers: (alert: Alert) => offering(alert.actions, alert.inputs),
       },
     );
   }
@@ -400,17 +437,17 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
           cursor,
         ),
 
-      // TASK-34 names the Action; ACT-2 declares its input. Both are already in the document this
-      // consumer read, so this walks it rather than calling anything.
-      answers: (type) => {
-        const raises = (entry("tasks") as { raises?: Record<string, { answeredBy?: string }> })
+      // TASK-35 names the Actions; ACT-2 declares each one's input. Both are already in the
+      // document this consumer read, so this walks it rather than calling anything.
+      answers: (of) => {
+        const raises = (entry("tasks") as { raises?: Record<string, { answeredBy?: string[] }> })
           ?.raises;
-        const accepts = (entry("actions") as { accepts?: Record<string, { input: unknown }> })
-          ?.accepts;
-        const action = raises?.[type]?.answeredBy;
-        if (action === undefined) return undefined;
-        const taken = accepts?.[action];
-        return taken === undefined ? undefined : { action, input: taken.input };
+        const one = typeof of === "string" ? undefined : of;
+        const raised = raises?.[one?.type ?? (of as string)];
+        if (raised === undefined) return undefined;
+        // TASK-38: what applies to this Task now, where it says; every answer of the type where not.
+        const names = one?.available ?? raised.answeredBy ?? [];
+        return offering(names, one?.inputs);
       },
     };
   }

@@ -68,12 +68,12 @@ export const fleetWorker = defineWorker<{ CREDENTIAL?: string }>((env) => ({
   },
 
   tasks: {
-    // What this Worker sends with a Task of this type, and the one operation of its own that
-    // answers it. Whoever does the work never has to be told where to send the answer.
+    // What this Worker sends with a Task of this type, and the operations of its own that answer
+    // it. Whoever does the work never has to be told where to send the answer.
     raises: {
       [SILENT_VEHICLE]: {
         payload: z.object({ vehicle: z.string() }),
-        answeredBy: "answer-check",
+        answeredBy: ["answer-check"],
       },
     },
     // The condition, and the whole of what this Worker owes. A Task exists while its vehicle is

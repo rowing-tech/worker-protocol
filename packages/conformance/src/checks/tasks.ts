@@ -2,6 +2,7 @@ import { taskPage, tasksEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
+import { judgeInputs } from "./inputs.ts";
 
 /**
  * The `tasks` Capability, which is now reading and nothing else.
@@ -13,55 +14,27 @@ import type { Transcript } from "../transcript.ts";
  */
 export const CLAIMS = [
   "TASK-27",
-  "TASK-34",
+  "TASK-35",
   "TASK-4",
   "TASK-5",
   "TASK-8",
   "TASK-28",
+  "TASK-37",
+  "TASK-38",
   "NAME-7",
 ] as const;
 
 type Entry = {
-  raises: Record<string, { payload: unknown; answeredBy?: string }>;
+  raises: Record<string, { payload: unknown; answeredBy?: string[] }>;
 };
-
-/** A declared input, read only for the members TASK-34's second half is about. */
-type Declared = {
-  const?: unknown;
-  properties?: Record<string, Declared>;
-  anyOf?: Declared[];
-  oneOf?: Declared[];
-};
-
-/**
- * Whether a union's variants are told apart by a discriminator — TASK-34's second obligation.
- *
- * A member that every variant fixes to a constant of its own, which is what a discriminated union
- * writes and what an answerer needs in order to say which ending it is producing. Without one a
- * consumer reading the schema cannot name the ending it can reach, and the mapping TASK-34 exists
- * to dissolve comes back as a conversation between two parties.
- *
- * The same walk `packages/client`'s `skills.ts` does when it decides whether one Worker can answer
- * another's Tasks. It is six lines and it is written twice rather than imported, because a verifier
- * depending on a consumer library would make the tool's verdicts turn on a package it is supposed
- * to be able to judge.
- */
-function told(variants: Declared[]): boolean {
-  const first = variants[0];
-  if (first === undefined) return false;
-  return Object.keys(first.properties ?? {}).some((member) => {
-    const fixed = variants.map((one) => one.properties?.[member]?.const);
-    return fixed.every((one) => one !== undefined) && new Set(fixed).size === variants.length;
-  });
-}
 
 export async function checkTasks(
   entry: Record<string, unknown> | undefined,
   url: string | null,
-  /** TASK-33, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
+  /** TASK-36, read off the Descriptor ROOT. Its names are Task types, so NAME-7 and TASK-4 reach
    * them — and reach them even for a Worker that declares a Skill and no `tasks` entry. */
   skills: string[],
-  /** The `actions` entry's own map, because TASK-34 is about the Action's name AND its input. */
+  /** The `actions` entry's own map, because TASK-35 names Actions that entry must accept. */
   accepts: Record<string, { input?: unknown }>,
   rules: Map<string, Rule>,
   attribution: Attribution,
@@ -111,52 +84,86 @@ export async function checkTasks(
   // says so per rule rather than once, because a report naming one of them is the point.
   crossing(Object.keys(raises).length);
 
-  // TASK-34 has two obligations and neither is a shape inside one entry, which is why the schema
-  // reaches neither and both are here.
-  //
-  // The first is the name: answering a Task is performing one of the OWNER's own Actions, so a
-  // Task type naming an Action the Worker does not accept is a Descriptor disagreeing with itself.
-  //
-  // The second is the input of the Action it names. Where a Task can end more than one way the
-  // endings are variants of that input, told apart by a discriminator — and without one, a
-  // consumer holding a schema it can satisfy cannot say WHICH ending it is reporting, so the
-  // mapping this rule dissolved comes back as something two parties have to agree out of band.
-  // Unions of one are not judged: an input that is not a union is a Task that ends one way.
+  // TASK-35 is not a shape inside one entry, which is why the schema cannot reach it: answering a
+  // Task is performing one of the OWNER's own Actions, so a Task type naming an Action the Worker
+  // does not accept is a Descriptor disagreeing with itself. What it no longer asks is anything of
+  // those Actions' inputs: edition 0.4 required a discriminator because one Action carried
+  // every ending, and with several the name already says which answer is which.
   const dangling: string[] = [];
-  const untold: string[] = [];
   for (const [type, declaration] of Object.entries(raises)) {
     // A type no Action answers is work done elsewhere, whose condition clears on a Fact the Worker
-    // observes. There is no name to check and no input to read.
-    if (declaration.answeredBy === undefined) continue;
-    const declared = accepts[declaration.answeredBy];
-    if (declared === undefined) {
-      dangling.push(
-        `${type} names \`${declaration.answeredBy}\`, which its \`actions\` entry does not accept`,
-      );
-      continue;
-    }
-    const input = declared.input as Declared | undefined;
-    const variants = input?.anyOf ?? input?.oneOf;
-    if (variants !== undefined && variants.length > 1 && !told(variants)) {
-      untold.push(
-        `${type} is answered by \`${declaration.answeredBy}\`, whose input is a union of ${variants.length} with no member fixed to a different constant in each`,
-      );
+    // observes. There is no name to check.
+    for (const name of declaration.answeredBy ?? []) {
+      if (accepts[name] === undefined) {
+        dangling.push(`${type} names \`${name}\`, which its \`actions\` entry does not accept`);
+      }
     }
   }
 
-  const faults = [...dangling, ...untold];
   if (Object.keys(raises).length === 0) {
-    say("TASK-34", "notExercised", "the Worker raises no Task type");
-  } else if (faults.length === 0) {
-    say("TASK-34", "passes");
+    say("TASK-35", "notExercised", "the Worker raises no Task type");
+  } else if (dangling.length === 0) {
+    say("TASK-35", "passes");
   } else {
-    say("TASK-34", "fails", faults.join("; "));
+    say("TASK-35", "fails", dangling.join("; "));
   }
+
+  /**
+   * TASK-37 and TASK-38, judged on the Tasks a read answered: what each fills in, and what it says
+   * applies now, both against the Actions TASK-35 names for its type. A Task that carries neither
+   * exercises neither, and a page where none does is `not exercised` rather than a pass.
+   */
+  const judgeOffers = (
+    items: {
+      id: string;
+      type: string;
+      inputs?: Record<string, Record<string, unknown>>;
+      available?: string[];
+    }[],
+  ) => {
+    const filled: string[] = [];
+    const applying: string[] = [];
+    for (const task of items) {
+      const named = raises[task.type]?.answeredBy ?? [];
+      if (task.inputs !== undefined) {
+        filled.push(
+          ...judgeInputs({
+            owner: `task ${task.id}`,
+            inputs: task.inputs,
+            offered: named,
+            accepts,
+          }),
+        );
+      }
+      for (const name of task.available ?? []) {
+        if (!named.includes(name)) {
+          applying.push(`task ${task.id} says \`${name}\` applies, which its type does not name`);
+        }
+      }
+    }
+    const verdict = (id: string, carried: boolean, faults: string[], member: string) => {
+      if (!carried) say(id, "notExercised", `no Task read carries \`${member}\``);
+      else if (faults.length === 0) say(id, "passes");
+      else say(id, "fails", faults.join("; "));
+    };
+    verdict(
+      "TASK-37",
+      items.some((task) => task.inputs !== undefined),
+      filled,
+      "inputs",
+    );
+    verdict(
+      "TASK-38",
+      items.some((task) => task.available !== undefined),
+      applying,
+      "available",
+    );
+  };
 
   if (url === null) {
     allExcept("notExercised", "the reading address did not resolve", [
       "TASK-27",
-      "TASK-34",
+      "TASK-35",
       "TASK-4",
       "NAME-7",
     ]);
@@ -168,21 +175,28 @@ export async function checkTasks(
   const answer = await transcript.send(url, "the Tasks whose conditions hold");
   if (answer.status !== 200) {
     say("TASK-5", "fails", `the reading address answered ${answer.status}`);
-    say("TASK-28", "notExercised", "no page of Tasks was read");
+    for (const id of ["TASK-28", "TASK-37", "TASK-38"]) {
+      say(id, "notExercised", "no page of Tasks was read");
+    }
   } else {
     const page = taskPage.safeParse(answer.json);
     if (page.success) {
       say("TASK-5", "passes");
       if (page.data.items.length === 0) {
-        say("TASK-28", "notExercised", "no condition is holding, so no Task was read");
+        for (const id of ["TASK-28", "TASK-37", "TASK-38"]) {
+          say(id, "notExercised", "no condition is holding, so no Task was read");
+        }
       } else {
         say("TASK-28", "passes");
+        judgeOffers(page.data.items);
       }
     } else {
       const issue = page.error.issues[0];
       const id = ruleFor(attribution, "task-page", issue?.path ?? []) ?? "TASK-5";
       say(id, "fails", `${issue?.path.join(".") || "(root)"}: ${issue?.message}`);
-      say(id === "TASK-5" ? "TASK-28" : "TASK-5", "notExercised", "the page did not validate");
+      for (const other of ["TASK-5", "TASK-28", "TASK-37", "TASK-38"]) {
+        if (other !== id) say(other, "notExercised", "the page did not validate");
+      }
     }
   }
 

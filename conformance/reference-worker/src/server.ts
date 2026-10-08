@@ -178,7 +178,7 @@ export function referenceWorker(
     id: options.id ?? DEFAULT_ID,
     edition: options.edition,
 
-    // TASK-33: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
+    // TASK-36: what this Worker answers, beside the id and not inside `tasks`. A Skill is served
     // at no address — it is what this Worker IS, and a Capability is what it serves.
     skills: SKILLS,
 

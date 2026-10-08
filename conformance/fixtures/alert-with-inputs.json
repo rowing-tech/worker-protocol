@@ -1,0 +1,18 @@
+{
+  "schema": "alert",
+  "valid": true,
+  "rule": "ALRT-9",
+  "why": "An Alert about a paused source that offers the Action resuming one and fills in which source. Without the value the operator who presses the button gets an empty form; with it, the form opens filled in and editable. A value and not a schema, so ALRT-7's reason for carrying names still holds.",
+  "document": {
+    "id": "source-paused:portal",
+    "severity": "warning",
+    "since": "2026-10-08T09:00:00+02:00",
+    "summary": "The portal source has been paused since this morning.",
+    "actions": ["resume-source"],
+    "inputs": {
+      "resume-source": {
+        "source": "portal"
+      }
+    }
+  }
+}

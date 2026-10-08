@@ -2,6 +2,7 @@ import { alertPage, alertsEntry } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
+import { judgeInputs } from "./inputs.ts";
 
 /**
  * The `alerts` Capability.
@@ -14,12 +15,13 @@ import type { Transcript } from "../transcript.ts";
  * ALRT-8 is absent because nothing can reach it. An Alert that disappears may have had its
  * condition stop holding, or may have been dismissed by somebody this verifier never saw.
  */
-export const CLAIMS = ["ALRT-1", "ALRT-2", "ALRT-3", "ALRT-4", "ALRT-7"] as const;
+export const CLAIMS = ["ALRT-1", "ALRT-2", "ALRT-3", "ALRT-4", "ALRT-7", "ALRT-9"] as const;
 
 export async function checkAlerts(
   entry: Record<string, unknown> | undefined,
   url: string | null,
-  actionNames: string[],
+  /** The `actions` entry's own map: ALRT-7 reads its names and ALRT-9 the inputs they declare. */
+  accepts: Record<string, { input?: unknown }>,
   rules: Map<string, Rule>,
   attribution: Attribution,
   transcript: Transcript,
@@ -71,6 +73,7 @@ export async function checkAlerts(
     say("ALRT-3", "notExercised", "no condition is holding, so no Alert was read");
     say("ALRT-4", "notExercised", "no condition is holding, so no severity was read");
     say("ALRT-7", "notExercised", "no condition is holding, so no Action was offered");
+    say("ALRT-9", "notExercised", "no condition is holding, so nothing was filled in");
     return results;
   }
   say("ALRT-3", "passes");
@@ -79,7 +82,7 @@ export async function checkAlerts(
   // ALRT-7: every Action an Alert offers is one this Worker's own `actions` entry accepts. An
   // agreement between two entries, which is the part no schema reaches — and a Descriptor
   // disagreeing with itself is DESC-18 one level down.
-  const accepted = new Set(actionNames);
+  const accepted = new Set(Object.keys(accepts));
   const dangling: string[] = [];
   for (const alert of page.data.items) {
     for (const action of alert.actions) {
@@ -94,6 +97,21 @@ export async function checkAlerts(
   } else {
     say("ALRT-7", "fails", `${dangling.join("; ")}, which its \`actions\` entry does not accept`);
   }
+
+  // ALRT-9: what an Alert fills in is for an Action it offers, a member that Action's input
+  // declares, and a value that member's schema accepts. `inputs.ts` holds the walk TASK-37 shares.
+  const filled = page.data.items.filter((alert) => alert.inputs !== undefined);
+  const faults = filled.flatMap((alert) =>
+    judgeInputs({
+      owner: `alert ${alert.id}`,
+      inputs: alert.inputs ?? {},
+      offered: alert.actions,
+      accepts,
+    }),
+  );
+  if (filled.length === 0) say("ALRT-9", "notExercised", "no Alert read carries `inputs`");
+  else if (faults.length === 0) say("ALRT-9", "passes");
+  else say("ALRT-9", "fails", faults.join("; "));
 
   return results;
 }

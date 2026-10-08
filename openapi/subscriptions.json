@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — subscriptions",
-    "version": "0.4",
+    "version": "0.5",
     "description": "A consumer subscribing to this Worker's events, and ending a subscription. The deliveries themselves are not described here: they go to the subscriber's own sink, as CloudEvents in the HTTP binding's structured mode (SUB-11), validated first by the CloudEvents webhook handshake (SUB-10).",
     "license": {
       "name": "Apache-2.0",

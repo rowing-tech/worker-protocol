@@ -20,6 +20,27 @@
       "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
       "format": "date-time",
       "description": "TASK-28. When this Task's condition began. It is what a stuck Task is read from: one open since Tuesday is one nobody has answered, and it is the field ALRT-3 puts on an Alert, read the same way. It replaced counts of Claims that had failed and lapsed, and says less: how long a condition has held, and nothing about what anybody did about it."
+    },
+    "inputs": {
+      "description": "TASK-37. Values the owner already knows for the input of the Actions that answer this Task, keyed by Action name — one of those TASK-35 names for its type — and then by member of that Action's input. Values and not schemas: each is checked against the schema the `actions` entry already declares for that member. It binds nothing on the call; a console shows the values filled in and editable, and the Worker judges what it receives (ACT-5).",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": {}
+      }
+    },
+    "available": {
+      "description": "TASK-38. Which of the Actions TASK-35 names for this Task's type may answer it now, derived from the Worker's Facts on the same read as the Task. Absent, every one may; empty, none may yet and the Task is still open. A statement about now and not a promise: what the current state does not allow is still refused with `409` (ACT-17).",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     }
   },
   "required": [

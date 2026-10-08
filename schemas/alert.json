@@ -29,6 +29,19 @@
         "minLength": 1
       },
       "description": "ALRT-3, ALRT-7. The Actions this Alert offers, by the names the Worker's own `actions` entry holds them under. May be empty. Names and not schemas, because the schema is already in that entry and a second copy is a second thing to keep in step."
+    },
+    "inputs": {
+      "description": "ALRT-9. Values the Worker already knows for the input of the Actions this Alert offers, keyed by Action name — one of `actions` — and then by member of that Action's input. Values and not schemas, so ALRT-7's reason for names still holds: each value is checked against the schema the `actions` entry declares for its member. It binds nothing on the call.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": {}
+      }
     }
   },
   "required": [

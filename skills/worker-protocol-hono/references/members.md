@@ -12,9 +12,10 @@ and the rule each one cites.
   may answer `{ verdict: "accepted", principal, caller }` instead, both optional: `principal`
   reaches an Action's `run` and `tasks.covers(token, principal)`, so neither looks the holder up
   again, and `caller` is the stable string a header idempotency key is scoped to (ENDP-34).
-- `skills: { [type]: { payload?, produces? } }` — the Task types this Worker answers: what it needs
-  to receive, and what it hands back (TASK-33). It sits at the root because a Skill is served at no
-  address — it is what the Worker *is*, where a Capability is what it *serves*.
+- `skills: { [type]: { payload?, produces?: { [action]: schema } } }` — the Task types this Worker
+  answers: what it needs to receive, and what it hands back for each of the owner's answering
+  Actions it can perform, by that Action's name (TASK-36). It sits at the root because a Skill is
+  served at no address — it is what the Worker *is*, where a Capability is what it *serves*.
 - `edition?: string` — only to pin the edition verified against. Otherwise the package's.
 
 ## The nine Capabilities
@@ -33,16 +34,20 @@ and the rule each one cites.
   secret with `.meta({ writeOnly: true })`: `mount()` leaves it out of the reading address and
   keeps it when a form omits it (ACT-20, ACT-21). `supersededBy` names the Action in `accepts` that
   replaces this one, which is still answered as declared (NAME-10).
-- `alerts: () => Alert[]` — `{ id, severity: "warning" | "critical", since, summary, actions }`.
+- `alerts: () => Alert[]` — `{ id, severity: "warning" | "critical", since, summary, actions,
+  inputs? }`. `inputs` fills in, per offered Action and member, what the Alert already knows
+  (ALRT-9).
   `since` is when the condition began (ALRT-3).
 - `activity: () => Activity[]` — `{ id, state, since, summary }`, state being `scheduled`, `pending`
   or `running` (ACTV-4).
 - `nudges: (type) => void` — note the type and read the work sooner. Optional, and what it buys is
   latency alone (TASK-19).
-- `tasks: { raises: { [type]: { payload, answeredBy?, supersededBy? } }, current(), covers?,
-  pageSize? }` — `answeredBy` is absent for a type no Action answers, whose condition clears on a
-  Fact (TASK-34); `current()` derives the open Tasks on every read, because nobody closes one
-  (TASK-15).
+- `tasks: { raises: { [type]: { payload, answeredBy?: string[], supersededBy? } }, current(),
+  covers?, pageSize? }` — `answeredBy` names every Action of the Worker's own that answers the
+  type, and is absent or empty for a type no Action answers, whose condition clears on a Fact
+  (TASK-35); `current()` derives the open Tasks on every read, because nobody closes one
+  (TASK-15). Each may carry `inputs` — per answering Action and member, what the Task already
+  knows (TASK-37) — and `available`, the answers that apply now (TASK-38).
 - `events: { broker, protocolBinding, destination, publishes: { [type]: { data, supersededBy? } },
   republishWindowSeconds? }` — a declaration only. No address is served (EVT-13). A Task type's or
   an event type's `supersededBy` names its replacement in the same map, as an Action's does.

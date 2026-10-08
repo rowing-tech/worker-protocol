@@ -1,0 +1,18 @@
+{
+  "schema": "task-type-declaration",
+  "valid": true,
+  "rule": "TASK-35",
+  "why": "A Task type answered by three Actions of the owner's own: an inspection recorded, a vehicle reported missing, and the check postponed until an instant. An answer is whatever changes the Facts the condition is derived from, and whether the Task then closes is a consequence of those Facts (TASK-15) — so postponing it is an answer as much as resolving it is.",
+  "document": {
+    "payload": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      },
+      "required": ["vehicle"]
+    },
+    "answeredBy": ["record-inspection", "report-missing", "postpone-check"]
+  }
+}

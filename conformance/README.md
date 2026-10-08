@@ -28,8 +28,8 @@ Workers and both are templates: [minimal-worker](../examples/minimal-worker) to 
 A run produces a verdict for **every** rule in the specification, never only for the ones it
 exercised. That is the whole design of this vocabulary, and the reason is the one this repository
 applies everywhere else: something is produced and a party reads it. A report listing the checks
-that ran, all green, over a specification of 189 rules tells an operator that a Worker was checked
-against the protocol. Today that would be 139 of them, and nothing on the page would say which — so
+that ran, all green, over a specification of 192 rules tells an operator that a Worker was checked
+against the protocol. Today that would be 142 of them, and nothing on the page would say which — so
 the reader concludes more than was established, which is the same fault as a generated artifact
 nobody compares.
 
