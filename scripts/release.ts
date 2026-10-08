@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -20,6 +20,12 @@ import { join } from "node:path";
  * It does not check that the tree is clean. What is released is the commit, and whatever is
  * uncommitted is simply not in it; deciding what to commit is the author's business, not this
  * script's.
+ *
+ * **It does check that `origin/main` already has the commit, and refuses otherwise.** A tag pushed
+ * ahead of `main` publishes a version whose source the default branch does not show, until somebody
+ * remembers to push — which happened twice before this check existed. It never pushes `main` for
+ * you: pushing a branch is a separate decision about what is reviewed, and the tag stays the one
+ * act this script performs.
  *
  * Usage:
  *   node scripts/release.ts [--dry-run]
@@ -53,6 +59,19 @@ const existing = execFileSync("git", ["tag", "--list", tag], {
 if (existing) {
   console.error(`${tag} already exists. A released version is never republished under the same`);
   console.error("number — npm would refuse it, and a moved tag is worse than a refusal. Bump.");
+  process.exit(1);
+}
+
+// The commit being tagged must already be on `origin/main`, read fresh rather than from whatever the
+// last fetch left behind. `--is-ancestor` exits 0 when it is, 1 when it is not.
+execFileSync("git", ["fetch", "--quiet", "origin", "main"], { cwd: ROOT, stdio: "inherit" });
+const onMain =
+  spawnSync("git", ["merge-base", "--is-ancestor", "HEAD", "origin/main"], { cwd: ROOT }).status ===
+  0;
+
+if (!onMain) {
+  console.error(`${tag} would point at a commit origin/main does not have. Push main first:`);
+  console.error("  git push origin main");
   process.exit(1);
 }
 

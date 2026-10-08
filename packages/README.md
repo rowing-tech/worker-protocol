@@ -222,13 +222,17 @@ lower one: a range claiming Zod 4.0 works would be a claim nothing here has ever
 
 ## Releasing
 
-Three commands, and the middle one is not a command:
+Four steps, and the middle two are yours:
 
 ```
 pnpm bump <patch|minor|major|x.y.z>   set the root and every package to one version
 <commit the manifests>
+git push origin main
 pnpm release                          tag that commit v<version> and push the tag
 ```
+
+`pnpm release` refuses a commit `origin/main` does not have yet, so the tag never points ahead of
+the default branch; it does not push `main` itself.
 
 `pnpm bump --dry-run` prints what would change and writes nothing. `pnpm release --dry-run` prints
 the git commands and runs none of them.
