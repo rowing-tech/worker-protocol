@@ -23,6 +23,22 @@ parsing the body.
 `401` when it cannot be read, `403` when it is understood and carries no right (ENDP-40). What makes
 a token good is the Worker's own business and may be a network call.
 
+**When that call cannot be made, the answer is `503` `unavailable`, not `401`.** An identity
+provider that is down, rate limited or silent has said nothing about the credential, and a `401`
+tells the caller its credential is bad and not to retry (ENDP-28). Send `Retry-After` when the
+delay is known. Three limits keep it honest:
+
+- it depends only on the credential presented and on whether its check could run — never on
+  anything about another credential or another caller;
+- answering from a verdict cached while the remote check is down is fine, because it answers for
+  that same credential, which is what authenticating answers anyway; keep cached refusals short;
+- no credential at all is always `401`, decided locally with no remote call. A `503` there turns a
+  `reject` into a `retry`, and the caller loops.
+
+Code that checks a credential outside the protocol's addresses — filtering a listing by it, say —
+meets the same third answer, and owes it the same `503`: a check that only asks "accepted?" treats
+an unavailable provider as a refused credential without a word.
+
 ## 4. The error envelope
 
 `schemas/error.json`: `{ code, message, class }` (ENDP-39). The code fixes both the status and the

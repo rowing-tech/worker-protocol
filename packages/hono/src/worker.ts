@@ -155,14 +155,28 @@ export type Worker = {
 /**
  * What `authenticate` answers about one credential (REG-3, REG-34, ENDP-40).
  *
- * The object form exists for acceptance alone. A refused credential names nobody, because REG-32
- * gives a refusal nothing to say, and a principal found for one would have nowhere to go.
+ * **The object form carries what `mount()` reads**, and each bare word is the same verdict with
+ * nothing to carry. A refusal still names nobody, because REG-32 gives a refusal nothing to say, and
+ * a principal found for one would have nowhere to go.
+ *
+ * **`unavailable` is not a verdict on the credential.** It says this Worker could not judge it right
+ * now — the identity provider it validates against is down, rate limited or did not answer — and
+ * `mount()` answers it `503`, class `retry`, so the caller tries again rather than treating a good
+ * credential as bad. `retryAfter`, whole seconds above zero, becomes `Retry-After`.
+ *
+ * It may depend on the credential presented and on whether its check could run, and on nothing
+ * about any other credential or caller: a verdict cached while the remote check is down answers for
+ * that same credential, which is what authenticating answers anyway. No credential at all is
+ * `unauthenticated`, decided without a remote call — answering it `unavailable` turns a `reject`
+ * into a `retry`, and ENDP-28 exists so a caller never loops on one.
  */
 export type Verdict =
   | "accepted"
   | "unauthenticated"
   | "forbidden"
-  | { verdict: "accepted"; principal?: unknown; caller?: string };
+  | "unavailable"
+  | { verdict: "accepted"; principal?: unknown; caller?: string }
+  | { verdict: "unavailable"; retryAfter: number };
 
 /**
  * TASK-36. What a Worker declares about one Skill: the payload it needs to receive to answer one,

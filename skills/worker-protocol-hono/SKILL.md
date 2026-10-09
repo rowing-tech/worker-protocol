@@ -70,6 +70,16 @@ Read `references/members.md` for the signature of each member, and
   principal, caller }`, `caller` a stable string for whoever the lookup found — never the token,
   which changes on rotation. `mount()` scopes a header key to it (ENDP-34) and leaves an input key
   global (ENDP-35). Without it every caller shares one scope, which is right for a single secret.
+- **Answer `"unavailable"` when the credential could not be checked, never `"unauthenticated"`**:
+  an identity provider down, rate limited or silent has said nothing about the key, and a `401`
+  tells the caller not to retry (ENDP-28). Answer `{ verdict: "unavailable", retryAfter }` when the
+  delay is known, and do not throw for it — a throw is `500 internal_error`. It depends only on the
+  credential presented and on whether its check could run, never on another credential or caller.
+  A verdict cached while the provider is down answers for that same credential and is fine; keep
+  cached refusals short. No token at all is `"unauthenticated"`, decided with no remote call: a
+  `503` there turns a `reject` into a `retry`. Code that calls `authenticate` outside `mount()` —
+  filtering a listing, say — gets the same verdict and owes it a `503` with `Retry-After` itself;
+  a check for `"accepted"` alone treats an unavailable provider as a refused key without a word.
 - **A Worker that performs an Action by calling another derives the downstream idempotency key
   from `call.idempotencyKey` and `call.caller` together** — never from the store's own keys, whose
   format is private. A repeat reaches `run` only after an earlier attempt threw or refused, and the
@@ -109,7 +119,8 @@ Read `references/members.md` for the signature of each member, and
 | `mount()` writes it, the same in every Worker | The Worker writes it, because only it knows |
 |---|---|
 | The Descriptor, every address, the edition, both headers | `id`, and which Capabilities exist |
-| `Authorization: Bearer` everywhere, `401` and `403` | `authenticate(token)` → accepted (with a `principal` and a `caller`, or not) / unauthenticated / forbidden |
+| `Authorization: Bearer` everywhere, `401`, `403`, and `503` with `Retry-After` | `authenticate(token)` → accepted (with a `principal` and a `caller`, or not) / unauthenticated / forbidden / unavailable (with a `retryAfter`, or not) |
+| A throw anywhere answered `500 internal_error` in the envelope | Nothing, unless it sets its own `onError` after `mount()` |
 | The error envelope, every code with its status and class | An `unprocessable_content` refusal from `run` |
 | Page envelope, cursor, cap, order, unknown-filter refusal | Which Tasks, Alerts and activities exist right now |
 | Metric parameters, half-open intervals, buckets in the zone | The value in each bucket |

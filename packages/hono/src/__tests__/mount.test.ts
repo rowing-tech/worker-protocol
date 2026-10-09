@@ -1,4 +1,5 @@
 import { EDITION } from "@worker-protocol/schemas";
+import { HTTPException } from "hono/http-exception";
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
 import {
@@ -547,6 +548,78 @@ describe("mount(), with a Worker that awaits", () => {
     const answer = await get("/tasks", "from-the-db");
     const page = (await answer.json()) as { items: { id: string }[] };
     expect(page.items.map((task) => task.id)).toEqual(["t-2"]);
+  });
+});
+
+/**
+ * A Worker that cannot judge a credential right now, and one that fails outright.
+ *
+ * An identity provider rate limited or down is not a verdict on the key, so the guard answers
+ * `unavailable` and the caller retries; a throw nobody planned for is `internal_error`. Both in the
+ * envelope, because a caller classifies by it (ENDP-14), and Hono's text/plain `500` gave it none.
+ */
+describe("mount(), when the credential cannot be checked", () => {
+  const holding = (authenticate: Worker["authenticate"]) =>
+    mount({
+      id: "tech.rowing.test.unavailable",
+      authenticate,
+      health: () => ({ status: "healthy", checks: {} }),
+    });
+
+  const read = (app: ReturnType<typeof mount>) =>
+    app.fetch(
+      new Request("http://worker.invalid/health", { headers: { authorization: "Bearer k" } }),
+    );
+
+  it("answers a bare `unavailable` 503, `retry`, with no Retry-After", async () => {
+    const answer = await read(holding(() => "unavailable"));
+    expect(answer.status).toBe(503);
+    expect(answer.headers.get("retry-after")).toBeNull();
+    expect(answer.headers.get("worker-protocol-edition")).toBe(EDITION);
+    expect(await answer.json()).toMatchObject({ code: "unavailable", class: "retry" });
+  });
+
+  it("carries the delay it was given as Retry-After", async () => {
+    const answer = await read(holding(async () => ({ verdict: "unavailable", retryAfter: 30 })));
+    expect(answer.status).toBe(503);
+    expect(answer.headers.get("retry-after")).toBe("30");
+    expect(await answer.json()).toMatchObject({ code: "unavailable", class: "retry" });
+  });
+
+  it("answers a throw from `authenticate` or the builder as `internal_error`", async () => {
+    const throwing = holding(() => {
+      throw new Error("the identity provider answered something nobody expected");
+    });
+    const unbuilt = mount(() => {
+      throw new Error("no binding named DB");
+    });
+    for (const app of [throwing, unbuilt]) {
+      const answer = await read(app);
+      expect(answer.status).toBe(500);
+      expect(answer.headers.get("content-type")).toContain("application/json");
+      expect(answer.headers.get("worker-protocol-edition")).toBe(EDITION);
+      expect(await answer.json()).toMatchObject({ code: "internal_error", class: "retry" });
+    }
+  });
+
+  it("answers a throw that carries its own response with that response, as Hono does", async () => {
+    const answer = await read(
+      holding(() => {
+        throw new HTTPException(418, { message: "Its own." });
+      }),
+    );
+    expect(answer.status).toBe(418);
+    expect(await answer.text()).toBe("Its own.");
+  });
+
+  it("leaves the answer to a host's own `onError`, set after mount()", async () => {
+    const app = holding(() => {
+      throw new Error("the host's to answer");
+    });
+    app.onError((_, c) => c.json({ code: "unavailable", message: "Host.", class: "retry" }, 503));
+    const answer = await read(app);
+    expect(answer.status).toBe(503);
+    expect(await answer.json()).toMatchObject({ message: "Host." });
   });
 });
 

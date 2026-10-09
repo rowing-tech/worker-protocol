@@ -175,7 +175,7 @@ that moved changes the address in its Descriptor; it does not send its callers o
 | `422` | `reject` | The body is well-formed and matches the schema, and this Worker will not accept its content |
 | `429` | `retry` | Too many requests. Carries `Retry-After` |
 | `500` | `retry` | The Worker failed for its own reasons |
-| `503` | `retry` | The Worker cannot serve right now — starting, `unhealthy`, a dependency down, an idempotency key whose performance has not finished |
+| `503` | `retry` | The Worker cannot serve right now — starting, `unhealthy`, a dependency down, an idempotency key whose performance has not finished. May carry `Retry-After` |
 | `502`, `504` | `retry` | Something the Worker depends on did not answer |
 
 The table is closed and the success side is not, because the two sides are read by different

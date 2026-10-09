@@ -456,6 +456,33 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   app.notFound(() => envelope({ code: "not_found", message: "No such address." }));
 
   /**
+   * ENDP-40 for a throw nobody answered: `internal_error` in the envelope, where Hono's own handler
+   * would answer a `500` in text/plain that ENDP-39 has no reading of.
+   *
+   * It reaches whatever throws below the edition's middleware — `authenticate`, a builder, any
+   * surface's handler — so the edition and, on a Capability's address, its version are set on the
+   * answer as on any other. What carries a response of its own, as Hono's `HTTPException` does
+   * through `getResponse()`, is answered with that response, as Hono's handler does.
+   *
+   * A builder that throws for a condition that will not change — a binding or a secret it was never
+   * given — is answered `500`, which is `retry`, and ENDP-11 forbids a `5xx` for such a condition.
+   * This handler cannot tell that throw from a passing one, and Hono's answered `500` for it too, so
+   * nothing is lost by answering it in the envelope; what fixes it is the configuration.
+   *
+   * **A host's own `onError` on this app, set after `mount()`, replaces this one**, because Hono
+   * keeps one per app. Mounted into another app with `route()`, this one still answers this app's
+   * addresses, whatever the parent's says.
+   */
+  app.onError((error, c) => {
+    if ("getResponse" in error && typeof error.getResponse === "function") {
+      const answer = error.getResponse() as Response;
+      return c.newResponse(answer.body, answer);
+    }
+    console.error(error);
+    return envelope({ code: "internal_error", message: "The Worker failed." });
+  });
+
+  /**
    * The Worker the guard resolved for a request, and whom it accepted, for the handler to read.
    *
    * **A builder runs once per request, and this is how.** The guard and the handler are two
@@ -479,6 +506,18 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     // defines, the Descriptor's route included. What makes one good is the Worker's (REG-3).
     // REG-32: the refusal distinguishes nothing — a refusal that explains itself is an oracle.
     const answered = (await worker.authenticate?.(bearer(c))) ?? "accepted";
+    // Not a verdict on the credential but on whether it could be judged, so it says nothing
+    // REG-32 withholds. `Retry-After` is delay-seconds, a whole number, and a delay that is not one
+    // above zero is left off rather than sent as something a caller would have to second-guess.
+    if (
+      answered === "unavailable" ||
+      (typeof answered === "object" && answered.verdict === "unavailable")
+    ) {
+      const answer = envelope({ code: "unavailable", message: "Cannot check credentials now." });
+      const delay = typeof answered === "object" ? Math.ceil(answered.retryAfter) : Number.NaN;
+      if (delay > 0 && Number.isFinite(delay)) answer.headers.set("retry-after", String(delay));
+      return answer;
+    }
     const verdict = typeof answered === "string" ? answered : answered.verdict;
     if (verdict !== "accepted") return envelope({ code: verdict, message: "No." });
     resolved.set(c, {

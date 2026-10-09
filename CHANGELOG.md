@@ -17,6 +17,29 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-09 — edition 0.6
+
+All five packages still encode **edition 0.6**. From solution-starter, which validates API keys
+against WorkOS on every request and had to throw a host-defined error, and answer it in an
+`onError` of its own, to say the provider was down.
+
+### Added
+
+- hono: `authenticate` may answer `"unavailable"`, or `{ verdict: "unavailable", retryAfter }` in
+  whole seconds, when the credential could not be checked — an identity provider down, rate limited
+  or silent. `mount()` answers it `503 unavailable`, `retry`, in the envelope, with `Retry-After`
+  when a delay is given. Until now a Worker in that state could only call a good credential bad, or
+  throw. The verdicts it already answered behave as they did.
+- spec: the `503` row of ENDP-40's table says it may carry `Retry-After`, as HTTP already allows. No
+  rule changes, and the edition does not move.
+
+### Fixed
+
+- hono: a throw from `authenticate`, from a builder or from any surface's handler is answered
+  `500 internal_error` in the envelope, where it was Hono's `500` in text/plain, which no caller can
+  classify by ENDP-39. A throw that carries its own response, as `HTTPException` does, is answered
+  with it. An `onError` a host sets on the app after `mount()` replaces this one.
+
 ## [0.8.1] - 2026-10-08 — edition 0.6
 
 All five packages still encode **edition 0.6**. From the document-intake Worker moving to 0.8.0.

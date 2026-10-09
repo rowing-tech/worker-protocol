@@ -7,11 +7,15 @@ and the rule each one cites.
 ## Beside `id`, and not a Capability
 
 - `id: string` — the Worker's own name, deployed with it, never the URL (DESC-6, DESC-27).
-- `authenticate: (token) => "accepted" | "unauthenticated" | "forbidden"`, or a promise of one. It
-  may await: validating a token against an identity provider is a network call (REG-3). Accepting
-  may answer `{ verdict: "accepted", principal, caller }` instead, both optional: `principal`
-  reaches an Action's `run` and `tasks.covers(token, principal)`, so neither looks the holder up
-  again, and `caller` is the stable string a header idempotency key is scoped to (ENDP-34).
+- `authenticate: (token) => "accepted" | "unauthenticated" | "forbidden" | "unavailable"`, or a
+  promise of one. It may await: validating a token against an identity provider is a network call
+  (REG-3). Accepting may answer `{ verdict: "accepted", principal, caller }` instead, both optional:
+  `principal` reaches an Action's `run` and `tasks.covers(token, principal)`, so neither looks the
+  holder up again, and `caller` is the stable string a header idempotency key is scoped to
+  (ENDP-34). `"unavailable"` means the check could not run — the provider is down, rate limited or
+  silent — and `mount()` answers `503`, `retry`; `{ verdict: "unavailable", retryAfter }`, whole
+  seconds, adds `Retry-After`. A throw from it, or from the builder, is answered `500`
+  `internal_error` in the envelope; an `onError` set on the app after `mount()` replaces that.
 - `skills: { [type]: { payload?, produces?: { [action]: schema } } }` — the Task types this Worker
   answers: what it needs to receive, and what it hands back for each of the owner's answering
   Actions it can perform, by that Action's name (TASK-36). It sits at the root because a Skill is
