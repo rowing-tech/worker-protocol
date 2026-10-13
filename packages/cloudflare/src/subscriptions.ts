@@ -172,12 +172,15 @@ export function withSubscriptions<B extends DurableObjectClass>(
   return WithSubscriptions;
 }
 
-/** What `durableSubscriptions` needs of a stub: the methods `withSubscriptions` adds, over RPC. */
-export type SubscriptionsRpc = Rpc<SubscriptionMethods>;
+/** What `durableSubscriptions` needs: the methods `withSubscriptions` adds, from a stub or the object. */
+export type SubscriptionsRpc = Rpc<SubscriptionMethods> | SubscriptionMethods;
 
 const parse = (record: string) => JSON.parse(record) as StoredSubscription;
 
-/** `subscriptions.store` for `mount()` and `eventHub()`, over the object with `withSubscriptions`. */
+/**
+ * `subscriptions.store` for `mount()` and `eventHub()`, over the object with `withSubscriptions`:
+ * a stub, or the object itself where `mount()` runs inside it and every call is local.
+ */
 export const durableSubscriptions = (stub: SubscriptionsRpc): SubscriptionStore => {
   const read = (record: string | null) => (record === null ? undefined : parse(record));
   return {

@@ -4,7 +4,8 @@ import type { GivenUp, OutboxEvent } from "@worker-protocol/cloudflare";
 import { type CloudEvent, type Delivery, LIFECYCLE } from "@worker-protocol/hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env.ts";
-import { fleetOf, QUIET_AFTER_MS, QUIET_VEHICLE } from "../src/fleet.ts";
+import { fleetOf } from "../src/fleet.ts";
+import { QUIET_AFTER_MS, QUIET_VEHICLE } from "../src/quiet.ts";
 import worker from "../src/worker.ts";
 import { captureEvents, fakeQueue } from "./outbound.ts";
 

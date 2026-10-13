@@ -14,12 +14,22 @@ a `Map` in a process, which is correct in one long-lived process and silently wr
 second time *while the caller believes it is protected*, and both calls answer `200` so nobody sees
 two.
 
-[src/fleet.ts](src/fleet.ts) is the Durable Object all five live in. [src/worker.ts](src/worker.ts)
-is the Worker over it, and is the file to read beside `minimal-worker` to see what changed: the
-declarations are identical and the Facts come from somewhere else. What is the protocol's in that
-object — the outcomes, the subscriptions, the outbox and the records — comes from
+[src/fleet.ts](src/fleet.ts) is the Durable Object all five live in, and it answers the protocol
+from its own `fetch`. [src/protocol.ts](src/protocol.ts) is the Worker it answers with, and is the
+file to read beside `minimal-worker` to see what changed: the declarations are identical and the
+Facts come from somewhere else. [src/worker.ts](src/worker.ts) is the entrypoint, which forwards
+every request to the object and keeps the cron and the Queues. What is the protocol's in that object
+— the outcomes, the subscriptions, the outbox and the records — comes from
 [`@worker-protocol/cloudflare`](../../packages/cloudflare), one mixin per piece, and what is left in
-the file is the domain.
+the file is the domain. [src/quiet.ts](src/quiet.ts) is the domain apart from where it is kept.
+
+**`mount()` runs inside the object because each call to it from outside is a round trip.** An
+Action reserves its key, reads the Facts, performs and records its outcome; through a stub that was
+four calls in a row, and on a deployed Worker reached from another continent each cost about 650 ms
+while the object worked for none of it. From inside, they are SQLite calls, and a request pays the
+one round trip that brought it there. Forwarding everything is what one object for the whole fleet
+allows; it also makes the Descriptor and `health` pay that trip, which a Worker that cares about
+those reads avoids by keeping them in front.
 
 ## The domain
 
@@ -150,7 +160,7 @@ It found a second one the same way. Moving two shared constants onto [src/worker
 and both suites went on passing, because `@cloudflare/vitest-pool-workers` *imports* the module.
 `wrangler dev` *deploys* it, and the runtime refused to start: **an entrypoint module may export
 only handlers and Durable Object classes**, so a number beside them is `Incorrect type for map
-entry` at startup. The constants live in [src/fleet.ts](src/fleet.ts) now. The suite that caught it
+entry` at startup. The constants live in [src/quiet.ts](src/quiet.ts) now. The suite that caught it
 is the one in `packages/conformance`, which is the only place anything here is deployed rather than
 imported — and that is the second argument for this example, in the same shape as the first.
 
@@ -161,7 +171,7 @@ leaves the isolate and does not return. Querying Workers Logs would recover it a
 it needs a secret holding an account token with **`Workers Observability Write`**, there is no
 read-only scope, and that token covers every Worker in the account.
 
-This example does not go looking for it. [cycle()](src/worker.ts) *records* what it did, in one call
+This example does not go looking for it. [cycle()](src/fleet.ts) *records* what it did, in one call
 to the durable object, the way it already counts a metric and raises an event. A record written on
 purpose belongs to the work that produced it; a `console` line scraped out of the runtime belongs to
 whichever isolate was running, which is a different thing and a worse one to serve.

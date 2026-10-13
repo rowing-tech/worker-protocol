@@ -17,6 +17,22 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-10-13 — edition 0.7
+
+All five packages still encode **edition 0.7**. From the deployed document-intake demo on 0.9.0,
+whose Actions took four seconds, measured to be almost entirely round trips to its Durable Object.
+
+### Added
+
+- cloudflare: `durableOutcomes`, `durableSubscriptions` and `durableLogs` take the object itself as
+  well as a stub, so `mount()` can answer from inside the Durable Object. Through a stub an Action
+  made four round trips in a row — reserve, read the Facts, perform, record — at about 650 ms each
+  on the demo reached from another continent, with the object working for none of it. From inside
+  they are SQLite calls and a request pays one. The README says how, and what it costs.
+- fleet-worker: `mount()` answers from inside `Fleet`, and the entrypoint forwards every request to
+  it. The declaration moves to `protocol.ts`, the domain to `quiet.ts`, and the cycle onto the
+  object. An inspection sends its events after the answer rather than before it.
+
 ## [0.9.1] - 2026-10-13 — edition 0.7
 
 All five packages still encode **edition 0.7**. From a run of the verifier against the deployed

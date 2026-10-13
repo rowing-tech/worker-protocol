@@ -131,10 +131,13 @@ export function withLogs<B extends DurableObjectClass>(
   return WithLogs;
 }
 
-/** What `durableLogs` needs of a stub: the read `withLogs` adds, over RPC. */
-export type LogsRpc = Pick<Rpc<LogMethods>, "logs">;
+/** What `durableLogs` needs: the read `withLogs` adds, from a stub or the object itself. */
+export type LogsRpc = Pick<Rpc<LogMethods>, "logs"> | Pick<LogMethods, "logs">;
 
-/** `logs` for `mount()`, over the object with `withLogs`. `mount()` decodes the query. */
+/**
+ * `logs` for `mount()`, over the object with `withLogs`: a stub, or the object itself where
+ * `mount()` runs inside it. `mount()` decodes the query.
+ */
 export const durableLogs = (stub: LogsRpc, options: { pageSize: number }): LogFacts => ({
   pageSize: options.pageSize,
   read: async ({ levels, from, to, cursor, limit }) => {

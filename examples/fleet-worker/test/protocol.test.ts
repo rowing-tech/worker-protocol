@@ -1,7 +1,8 @@
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { fleetOf, QUIET_AFTER_MS } from "../src/fleet.ts";
+import { fleetOf } from "../src/fleet.ts";
+import { QUIET_AFTER_MS } from "../src/quiet.ts";
 import { captureEvents } from "./outbound.ts";
 
 /**

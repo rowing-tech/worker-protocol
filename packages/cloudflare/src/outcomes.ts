@@ -73,10 +73,21 @@ export function withOutcomes<B extends DurableObjectClass>(Base: B): Mixed<B, Ou
   return WithOutcomes;
 }
 
-/** What `durableOutcomes` needs of a stub: the three methods `withOutcomes` adds, over RPC. */
-export type OutcomesRpc = Rpc<OutcomeMethods>;
+/**
+ * What `durableOutcomes` needs: the three methods `withOutcomes` adds, over RPC from a stub — or
+ * called directly on the object itself, where `mount()` runs inside it.
+ */
+export type OutcomesRpc = Rpc<OutcomeMethods> | OutcomeMethods;
 
-/** `actions.outcomes` for `mount()`, over the object that carries `withOutcomes`. */
+/**
+ * `actions.outcomes` for `mount()`, over the object that carries `withOutcomes`.
+ *
+ * **Handed the object itself rather than a stub, each call is local.** From a Worker in front of
+ * the object every one of them is a round trip, and an Action makes several — reserve, perform,
+ * record — which on a deployed Worker reached from another continent cost about 650 ms each while
+ * the object worked for none of it. `mount()` answering inside the object, from its own `fetch`,
+ * makes them SQLite calls, and the request pays one round trip in all.
+ */
 export const durableOutcomes = (stub: OutcomesRpc): OutcomeStore => ({
   begin: (key, until) => stub.beginOutcome(key, until),
   complete: (key, held) => stub.completeOutcome(key, held),

@@ -213,9 +213,46 @@ the rest out inside the transaction of the write that raised them.
 
 ## Also exported
 
-`durableOutcomes`, `durableSubscriptions` and `durableLogs` turn a stub into the store `mount()`
-takes. A subscription crosses the RPC boundary as JSON — its filters nest, and a stub's types do not
-survive a recursive one — and these do the parsing, so a Worker never sees the strings.
+`durableOutcomes`, `durableSubscriptions` and `durableLogs` turn the object into the store `mount()`
+takes: a stub, from a Worker in front of it, or the object itself, from inside. A subscription
+crosses the RPC boundary as JSON — its filters nest, and a stub's types do not survive a recursive
+one — and these do the parsing, so a Worker never sees the strings.
+
+## Serve `mount()` from inside the object
+
+**Every call a store makes through a stub is a round trip, and an Action makes several.** It
+reserves its key, reads the Facts its refusal is written on, performs, and records its outcome —
+four calls in a row from a Worker in front of the object. Measured on a deployed Worker reached
+from another continent, each cost about 650 ms and the object worked for none of it: an Action took
+four seconds that was almost entirely distance.
+
+Answered from the object's own `fetch`, every one of those is a SQLite call and the request pays
+one round trip. `mount()` needs nothing for it — it answers wherever it is asked — and the stores
+take the object itself:
+
+```ts
+export class Fleet extends withOutbox(withSubscriptions(withOutcomes(DurableObject<Env>)), {
+  events: (env) => env.EVENTS,
+}) {
+  private served: ReturnType<typeof mount> | undefined;
+  async fetch(request: Request): Promise<Response> {
+    this.served ??= mount(declaredOver(this, this.env)); // durableOutcomes(this), …
+    return this.served.fetch(request);
+  }
+}
+
+export default {
+  fetch: (request: Request, env: Env) => env.FLEET.get(env.FLEET.idFromName("fleet")).fetch(request),
+};
+```
+
+What it costs is that everything forwarded meets the object: a read that touches no Fact — the
+Descriptor, `health` — pays the round trip too, and one object takes every request. A Worker with
+one object for its whole domain can forward everything, as `examples/fleet-worker` does; one that
+cares about those reads keeps them in front and forwards only the surfaces that reach its Facts,
+and one with an object per tenant forwards each request to that tenant's. Where the outbox is
+flushed inside an Action, `ctx.waitUntil(this.flush())` sends it after the answer: the rows are
+owed in the transaction already, and the alarm sends what the send did not take.
 `tailRecords(events)` is what a Tail Worker records of the invocations it is handed: an exception
 nobody caught and an invocation that ended badly, and never their `console` output.
 

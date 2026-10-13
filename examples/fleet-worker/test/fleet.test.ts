@@ -2,7 +2,7 @@ import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { LIFECYCLE } from "@worker-protocol/hono";
 import { describe, expect, it } from "vitest";
-import { QUIET_AFTER_MS } from "../src/fleet.ts";
+import { QUIET_AFTER_MS } from "../src/quiet.ts";
 import { captureEvents } from "./outbound.ts";
 
 /**
