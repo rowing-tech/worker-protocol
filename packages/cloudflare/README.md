@@ -242,9 +242,19 @@ export class Fleet extends withOutbox(withSubscriptions(withOutcomes(DurableObje
 }
 
 export default {
-  fetch: (request: Request, env: Env) => env.FLEET.get(env.FLEET.idFromName("fleet")).fetch(request),
+  fetch: (request: Request, env: Env) =>
+    forward({ to: env.FLEET.get(env.FLEET.idFromName("fleet")), request }),
 };
 ```
+
+**`forward` is what the entrypoint does, and it does two things a bare `stub.fetch(request)` got
+wrong on a deployed Worker.** It reads the body before handing the request on: forwarded as a
+stream, a body `mount()` never reads — a `401` answered first — is left behind the response, and
+the runtime records an error on every such call. And it answers a lost connection to the object
+`503 unavailable` in the error envelope: thrown, that is the runtime's `500` in plain text, which no
+caller can classify (ENDP-39) and which ENDP-13 has it give up on. It does not retry: an Action
+under an idempotency key is safe for the caller to repeat, one without may have reached the object
+or not, and the caller is the party that knows which it sent.
 
 What it costs is that everything forwarded meets the object: a read that touches no Fact — the
 Descriptor, `health` — pays the round trip too, and one object takes every request. A Worker with

@@ -17,6 +17,22 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-10-13 — edition 0.7
+
+All five packages still encode **edition 0.7**. From the deployed document-intake demo, answering
+`mount()` from inside its Durable Object on 0.9.2: Actions went from about 4 s to about 0.33 s, and
+the entrypoint in front of the object showed two faults that every Worker forwarding to one has.
+
+### Added
+
+- cloudflare: `forward({ to, request, edition? })`, the entrypoint's half of serving `mount()` from
+  inside the object. It reads the body before forwarding, because a body `mount()` never read — a
+  `401` answered first — was left behind the response and the runtime logged an error each time.
+  And it answers a lost connection to the object `503 unavailable`, `retry`, in the envelope: the
+  runtime's own plain-text `500` was what a caller got, which it cannot classify (ENDP-39) and so
+  gives up on (ENDP-13). It does not retry; the caller knows whether what it sent is safe to repeat.
+- fleet-worker: the entrypoint forwards with it.
+
 ## [0.9.2] - 2026-10-13 — edition 0.7
 
 All five packages still encode **edition 0.7**. From the deployed document-intake demo on 0.9.0,

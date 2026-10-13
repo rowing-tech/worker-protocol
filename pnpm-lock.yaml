@@ -287,6 +287,9 @@ importers:
       '@worker-protocol/hono':
         specifier: workspace:*
         version: link:../hono
+      '@worker-protocol/schemas':
+        specifier: workspace:*
+        version: link:../schemas
     devDependencies:
       '@cloudflare/vitest-pool-workers':
         specifier: 0.22.0

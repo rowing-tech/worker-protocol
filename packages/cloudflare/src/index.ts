@@ -15,6 +15,7 @@
  */
 
 export type { DurableObjectClass, EnvOf, Mixed } from "./durable.ts";
+export { forward } from "./forward.ts";
 export {
   type Advanced,
   type LifecycleMethods,

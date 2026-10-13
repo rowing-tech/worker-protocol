@@ -1,4 +1,4 @@
-import { consumeQueues } from "@worker-protocol/cloudflare";
+import { consumeQueues, forward } from "@worker-protocol/cloudflare";
 import type { Env } from "./env.ts";
 import { fleetOf } from "./fleet.ts";
 import { hubOver } from "./protocol.ts";
@@ -25,7 +25,10 @@ import { hubOver } from "./protocol.ts";
 export { Fleet } from "./fleet.ts";
 
 export default {
-  fetch: (request: Request, env: Env, _ctx: ExecutionContext) => fleetOf(env).fetch(request),
+  // `forward` reads the body before handing it on, and answers a lost connection to the object in
+  // the protocol's envelope rather than as the runtime's plain-text `500`.
+  fetch: (request: Request, env: Env, _ctx: ExecutionContext) =>
+    forward({ to: fleetOf(env), request }),
   /** The cron in `wrangler.jsonc`. A Worker finds work on a schedule, which is what makes it one. */
   scheduled: async (_controller: unknown, env: Env) => {
     await fleetOf(env).cycle();
