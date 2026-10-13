@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — actions",
-    "version": "0.6",
+    "version": "0.7",
     "description": "Performing an operation a Worker accepts. The `configure` reading address of ACT-21 is not described here: its address is declared inside an Action rather than beside the Capability, and the document it answers is shaped by that Action's own input schema, which is the Worker's.",
     "license": {
       "name": "Apache-2.0",
@@ -42,6 +42,16 @@
             "in": "header",
             "required": false,
             "description": "ENDP-38. Where the Action declares it reads a key from the header. Within the declared window a repeat under the same key is not a second performance; the same key with a different body is `409`.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Worker-Protocol-Task",
+            "in": "header",
+            "required": false,
+            "description": "TASK-39. The open Task this call answers, by the id the Task carries, and optionally `; since=` and the instant its condition began. A Task that is not open is `404`; an Action its type does not list is `400`; one it does not offer now is `409`. Absent, the call answers no Task and is performed as any other.",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -130,7 +140,7 @@
             }
           },
           "400": {
-            "description": "ENDP-39. The shared error envelope, carrying one of: `invalid_parameter` (ACT-7), `schema_mismatch` (ACT-8), `idempotency_key_required` (ENDP-18), `unsupported_version` (ENDP-6).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `invalid_parameter` (ACT-7), `invalid_parameter` (TASK-40), `schema_mismatch` (ACT-8), `idempotency_key_required` (ENDP-18), `unsupported_version` (ENDP-6).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
@@ -214,7 +224,7 @@
             }
           },
           "404": {
-            "description": "ENDP-39. The shared error envelope, carrying one of: `not_found` (ACT-6).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `not_found` (ACT-6), `not_found` (TASK-39).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",
@@ -242,7 +252,7 @@
             }
           },
           "409": {
-            "description": "ENDP-39. The shared error envelope, carrying one of: `idempotency_key_reused` (ENDP-17).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `conflict` (ACT-17), `conflict` (TASK-41), `idempotency_key_reused` (ENDP-17), `idempotency_key_reused` (TASK-43).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

@@ -10,6 +10,7 @@ import {
   type Recorded,
 } from "../actions.ts";
 import { mount } from "../mount.ts";
+import { type Publishable, taskAnswered } from "../subscriptions.ts";
 import type { Worker } from "../worker.ts";
 
 /**
@@ -994,5 +995,198 @@ describe("mount(), an Action that the current state may refuse", () => {
     const refused = await perform("DOC-3", "k-4");
     expect(refused.status).toBe(409);
     expect(await refused.json()).toMatchObject({ code: "conflict", message: "already exported" });
+  });
+});
+
+describe("mount(), a call that names the Task it answers", () => {
+  const REVIEW = "tech.rowing.test.review";
+  const INSPECT = "tech.rowing.test.inspect";
+  const SINCE = new Date("2026-10-13T09:00:00Z");
+  const runs: { name: string; task: string | undefined }[] = [];
+  const published: Publishable[] = [];
+  const answer = (_: unknown, call: ActionCall) => {
+    runs.push({ name: call.name, task: call.task?.id });
+    if (call.task !== undefined) {
+      published.push(taskAnswered({ task: call.task, action: call.name, at: new Date() }));
+    }
+    return undefined;
+  };
+  const document = z.object({ document: z.string() });
+  const app = mount({
+    id: "tech.rowing.worker-protocol.test",
+    authenticate: () => "accepted",
+    actions: {
+      outcomes: memoryOutcomes(),
+      accepts: {
+        approve: action({
+          input: document,
+          idempotency: { required: false, from: "header", windowSeconds: 60 },
+          run: answer,
+        }),
+        "send-back": action({
+          input: document,
+          idempotency: { required: false, from: "input", members: ["document"], windowSeconds: 60 },
+          run: answer,
+        }),
+        inspect: action({ input: z.object({}), run: answer }),
+        archive: action({ input: z.object({}), run: answer }),
+      },
+    },
+    tasks: {
+      raises: {
+        [REVIEW]: { payload: z.object({}), answeredBy: ["approve", "send-back"] },
+        [INSPECT]: { payload: z.object({}), answeredBy: ["inspect"] },
+      },
+      current: () => [
+        { id: "D-1", type: REVIEW, payload: {}, since: SINCE },
+        { id: "D-2", type: REVIEW, payload: {}, since: SINCE, available: ["send-back"] },
+        { id: "V-1", type: INSPECT, payload: {}, since: SINCE },
+      ],
+      covers: (token) => (token === "narrow" ? ["D-1"] : undefined),
+    },
+  });
+
+  const perform = async (
+    name: string,
+    given: { task?: string; key?: string; body?: unknown; token?: string } = {},
+  ) => {
+    const before = runs.length;
+    const response = await app.fetch(
+      new Request(`http://worker.invalid/actions?action=${name}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${given.token ?? "wide"}`,
+          ...(given.task === undefined ? {} : { "worker-protocol-task": given.task }),
+          ...(given.key === undefined ? {} : { "idempotency-key": given.key }),
+        },
+        body: JSON.stringify(
+          given.body ?? (name === "approve" || name === "send-back" ? { document: "d" } : {}),
+        ),
+      }),
+    );
+    const json = response.status === 204 ? null : ((await response.json()) as { code?: string });
+    return { status: response.status, code: json?.code, performed: runs.length > before };
+  };
+
+  it("performs a call that names no Task as it always did, and tells `run` of none", async () => {
+    expect(await perform("archive")).toMatchObject({ status: 204, performed: true });
+    expect(runs.at(-1)).toEqual({ name: "archive", task: undefined });
+  });
+
+  it("hands `run` the open Task it named, from which `task-answered` is published (EVT-20)", async () => {
+    published.length = 0;
+    expect(await perform("approve", { task: "D-1" })).toMatchObject({
+      status: 204,
+      performed: true,
+    });
+    expect(runs.at(-1)).toEqual({ name: "approve", task: "D-1" });
+    expect(published).toEqual([
+      {
+        type: "tech.rowing.worker-protocol.task-answered",
+        subject: "D-1",
+        extensions: { tasktype: REVIEW },
+        data: { id: "D-1", type: REVIEW, action: "approve" },
+        time: expect.any(Date),
+      },
+    ]);
+  });
+
+  it("refuses a Task it never raised with 404, and performs nothing (TASK-39)", async () => {
+    expect(await perform("approve", { task: "D-9" })).toEqual({
+      status: 404,
+      code: "not_found",
+      performed: false,
+    });
+  });
+
+  it("compares `since` when the call carries it, and refuses another occurrence (TASK-39)", async () => {
+    const other = await perform("approve", { task: "D-1; since=2026-10-12T09:00:00Z" });
+    expect(other).toEqual({ status: 404, code: "not_found", performed: false });
+    const same = await perform("approve", { task: "D-1; since=2026-10-13T11:00:00+02:00" });
+    expect(same).toMatchObject({ status: 204, performed: true });
+  });
+
+  it("refuses a header it cannot read as malformed, rather than as an id", async () => {
+    expect(await perform("approve", { task: "D-1; since=yesterday" })).toEqual({
+      status: 400,
+      code: "invalid_parameter",
+      performed: false,
+    });
+  });
+
+  it("refuses a Task the credential does not cover exactly as one that is not there (TASK-39)", async () => {
+    expect(await perform("send-back", { task: "D-2", token: "narrow" })).toEqual({
+      status: 404,
+      code: "not_found",
+      performed: false,
+    });
+  });
+
+  it("refuses an Action the Task's type does not list with 400 (TASK-40)", async () => {
+    for (const name of ["archive", "inspect"]) {
+      expect(await perform(name, { task: "D-1" })).toEqual({
+        status: 400,
+        code: "invalid_parameter",
+        performed: false,
+      });
+    }
+  });
+
+  it("refuses an Action the Task does not offer now with 409 (TASK-41)", async () => {
+    expect(await perform("approve", { task: "D-2" })).toEqual({
+      status: 409,
+      code: "conflict",
+      performed: false,
+    });
+  });
+
+  it("answers a repeat from the record before asking about its Task (TASK-42, EVT-21)", async () => {
+    published.length = 0;
+    const body = { document: "TASK-42" };
+    expect(await perform("send-back", { task: "D-1", body })).toMatchObject({
+      status: 204,
+      performed: true,
+    });
+    expect(await perform("send-back", { task: "D-9", body })).toEqual({
+      status: 204,
+      code: undefined,
+      performed: false,
+    });
+    expect(published).toHaveLength(1);
+  });
+
+  it("refuses a header key naming another Task than it was first sent with (TASK-43)", async () => {
+    expect(await perform("approve", { key: "k-43" })).toMatchObject({ status: 204 });
+    expect(await perform("approve", { key: "k-43", task: "D-1" })).toEqual({
+      status: 409,
+      code: "idempotency_key_reused",
+      performed: false,
+    });
+    expect(await perform("approve", { key: "k-43" })).toMatchObject({
+      status: 204,
+      performed: false,
+    });
+  });
+
+  it("compares an input key on the body alone, whatever Task the repeat names (TASK-43)", async () => {
+    const body = { document: "pallet-7" };
+    expect(await perform("send-back", { task: "D-1", body })).toMatchObject({ status: 204 });
+    expect(await perform("send-back", { task: "D-2", body })).toEqual({
+      status: 204,
+      code: undefined,
+      performed: false,
+    });
+    expect(await perform("send-back", { body })).toMatchObject({ status: 204, performed: false });
+  });
+
+  it("gives the key back when the Task refuses, so the call may be made without it", async () => {
+    expect(await perform("approve", { key: "k-back", task: "D-9" })).toMatchObject({
+      status: 404,
+    });
+    expect(await perform("approve", { key: "k-back" })).toMatchObject({
+      status: 204,
+      performed: true,
+    });
   });
 });

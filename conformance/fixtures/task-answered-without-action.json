@@ -1,0 +1,10 @@
+{
+  "schema": "task-answered",
+  "valid": false,
+  "rule": "EVT-20",
+  "why": "An answer that does not say which Action answered is an ending under another name, and the one thing a subscriber came to this type for is missing.",
+  "document": {
+    "id": "task-1",
+    "type": "tech.rowing.fleet.verify-vehicle"
+  }
+}

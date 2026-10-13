@@ -49,7 +49,8 @@ Options:
                         that publishes: verify()'s \`arrangement\`, except \`sink\`,
                         which is the two options below.
   --sink-port <port>    Serve a sink on 127.0.0.1:<port> for \`subscriptions\`. Needs
-                        publishingAction in the arrangement. 0 takes a free port.
+                        publishingAction or answeringAction in the arrangement. 0
+                        takes a free port.
   --sink-url <url>      Where the Worker is to deliver, when that is not the socket:
                         a tunnel's public https URL forwarding to --sink-port. A
                         deployed Worker refuses a plaintext or loopback sink.
@@ -119,6 +120,7 @@ const arrangementFile = z.strictObject({
   recordsEveryRequest: z.boolean().optional(),
   publishedEvent: z.json().optional(),
   publishingAction: action.extend({ publishes: z.string().min(1) }).optional(),
+  answeringAction: action.extend({ task: z.string().min(1) }).optional(),
   before: z.array(action).optional(),
   after: z.array(action).optional(),
   abandonment: z.boolean().optional(),
@@ -159,9 +161,10 @@ async function openSink(): Promise<ListeningSink | undefined> {
     return undefined;
   }
   // A sink nothing publishes to judges nothing, and the run would say so only as `notExercised`.
-  if (arrangement.publishingAction === undefined) {
+  if (arrangement.publishingAction === undefined && arrangement.answeringAction === undefined) {
     refuse(
-      "--sink-port needs `publishingAction` in the arrangement: nothing else makes a Worker publish.",
+      "--sink-port needs `publishingAction` or `answeringAction` in the arrangement: nothing else " +
+        "makes a Worker publish.",
     );
   }
   const number = Number(port);

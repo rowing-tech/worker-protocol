@@ -1,0 +1,11 @@
+{
+  "schema": "task-answered",
+  "valid": true,
+  "rule": "EVT-20",
+  "why": "The data of a `task-answered` event: the Task, its type, and the Action that answered it. No caller, because the owner sees a credential and not a Worker, and no instant, because the event's `time` carries it.",
+  "document": {
+    "id": "task-1",
+    "type": "tech.rowing.fleet.verify-vehicle",
+    "action": "record-inspection"
+  }
+}

@@ -328,6 +328,16 @@ export const performAction = createRoute({
             "Where the Action declares it reads a key from the header. Within the declared window a repeat under the same key is not a second performance; the same key with a different body is `409`.",
           ),
         }),
+      "Worker-Protocol-Task": z
+        .string()
+        .min(1)
+        .optional()
+        .openapi({
+          description: cite(
+            "TASK-39",
+            "The open Task this call answers, by the id the Task carries, and optionally `; since=` and the instant its condition began. A Task that is not open is `404`; an Action its type does not list is `400`; one it does not offer now is `409`. Absent, the call answers no Task and is performed as any other.",
+          ),
+        }),
       "Worker-Protocol-Capability-Version": expectedVersion,
     }),
     // No schema, deliberately, and so no validation here: the body is the Action's own input,
@@ -356,10 +366,15 @@ export const performAction = createRoute({
     ),
     ...refusals([
       ["invalid_parameter", "ACT-7"],
+      ["invalid_parameter", "TASK-40"],
       ["schema_mismatch", "ACT-8"],
       ["idempotency_key_required", "ENDP-18"],
       ["not_found", "ACT-6"],
+      ["not_found", "TASK-39"],
+      ["conflict", "ACT-17"],
+      ["conflict", "TASK-41"],
       ["idempotency_key_reused", "ENDP-17"],
+      ["idempotency_key_reused", "TASK-43"],
       ["unprocessable_content", "ACT-17"],
       ...SHARED,
     ]),

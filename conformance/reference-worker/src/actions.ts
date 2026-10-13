@@ -20,6 +20,7 @@ import {
   type OpenTask,
   type Publishable,
   type Refusal,
+  taskAnswered,
   taskEnded,
 } from "@worker-protocol/hono";
 import * as z from "zod";
@@ -57,7 +58,11 @@ export function createActions(facts: {
       // ENDP-38, ACT-19: a key in the header is opaque and the Worker records it without parsing
       // it, which is what a caller reaches for when its payload carries no identity of its own.
       idempotency: { required: true, from: "header", windowSeconds: 3600 },
-      run: async ({ vehicle }) => {
+      run: async ({ vehicle }, { name, task }) => {
+        // EVT-20: the call named the Task it answers, and `mount()` checked it was open and that
+        // its type lists this Action. `run` is reached once per performance and never for a repeat
+        // answered from the record, which is EVT-21's count.
+        if (task !== undefined) await publish(taskAnswered({ task, action: name, at: new Date() }));
         // A verification is now on record for this vehicle, whatever it found. The Task that asked
         // for one ends by condition (TASK-15): the Action changed a Fact, and the Task followed —
         // and this is the one place that knows it, so it is where its end is published (EVT-15).

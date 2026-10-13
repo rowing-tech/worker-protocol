@@ -232,10 +232,11 @@ export const matches = (filters: SubscriptionFilter[] | undefined, event: CloudE
 
 // ---- the lifecycle of Tasks and Alerts (EVT-15) -------------------------------------------------
 
-/** The four types EVT-15 names, under the specification's own namespace (NAME-8). */
+/** The types EVT-15 and EVT-20 name, under the specification's own namespace (NAME-8). */
 export const LIFECYCLE = {
   taskRaised: "tech.rowing.worker-protocol.task-raised",
   taskEnded: "tech.rowing.worker-protocol.task-ended",
+  taskAnswered: "tech.rowing.worker-protocol.task-answered",
   alertRaised: "tech.rowing.worker-protocol.alert-raised",
   alertEnded: "tech.rowing.worker-protocol.alert-ended",
 } as const;
@@ -263,6 +264,27 @@ export const taskEnded = (task: Pick<OpenTask, "id" | "type">): Publishable => (
   data: { id: task.id, type: task.type },
 });
 
+/**
+ * EVT-20: an Action was performed on a call that named this open Task (TASK-39).
+ *
+ * Published from `run`, where `call.task` says which Task the call named — once per performance,
+ * and never for a repeat ENDP-16 answered, which never reaches `run` (EVT-21). `at` is the instant
+ * of the performance and becomes the event's `time`, which this type requires and `data` does not
+ * repeat. It carries no caller: that is a credential's identity, not a Worker, and whoever assigned
+ * the work is the one who knows who did it.
+ */
+export const taskAnswered = (answer: {
+  task: Pick<OpenTask, "id" | "type">;
+  action: string;
+  at: Date;
+}): Publishable => ({
+  type: LIFECYCLE.taskAnswered,
+  subject: answer.task.id,
+  extensions: { tasktype: answer.task.type },
+  data: { id: answer.task.id, type: answer.task.type, action: answer.action },
+  time: answer.at,
+});
+
 /** EVT-15: an Alert began. `subject` is its id; `alertseverity` is what a subscriber filters on. */
 export const alertRaised = (alert: Alert): Publishable => ({
   type: LIFECYCLE.alertRaised,
@@ -280,7 +302,7 @@ export const alertEnded = (alert: Pick<Alert, "id" | "severity">): Publishable =
 });
 
 /**
- * EVT-15, EVT-17: the declarations of the lifecycle types, for `events.publishes`.
+ * EVT-15, EVT-17, EVT-20: the declarations of the lifecycle types, for `events.publishes`.
  *
  * Each with the `data` EVT-15's table gives and the one extension a subscriber filters it by, so a
  * Worker that publishes them declares what it sends without writing either again. Spread them
@@ -288,6 +310,12 @@ export const alertEnded = (alert: Pick<Alert, "id" | "severity">): Publishable =
  */
 export const lifecycleEvents = (which: {
   tasks?: boolean;
+  /**
+   * EVT-20's `task-answered`, apart from `tasks` because it is published from a different place —
+   * `run`, on a call that named its Task — and a Worker that publishes when Tasks are raised and end
+   * may publish nothing there. Declaring it would tell every subscriber to expect what never comes.
+   */
+  answers?: boolean;
   alerts?: boolean;
 }): Record<string, EventTypeDeclaration> => ({
   ...(which.tasks
@@ -295,6 +323,14 @@ export const lifecycleEvents = (which: {
         [LIFECYCLE.taskRaised]: { data: taskSchema, extensions: { tasktype: qualifiedName } },
         [LIFECYCLE.taskEnded]: {
           data: z.object({ id: z.string(), type: qualifiedName }),
+          extensions: { tasktype: qualifiedName },
+        },
+      }
+    : {}),
+  ...(which.answers
+    ? {
+        [LIFECYCLE.taskAnswered]: {
+          data: z.object({ id: z.string(), type: qualifiedName, action: z.string() }),
           extensions: { tasktype: qualifiedName },
         },
       }

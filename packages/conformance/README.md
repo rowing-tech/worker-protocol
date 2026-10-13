@@ -109,8 +109,9 @@ it — so it arrives the way the base URL and the credential do: out of band, fr
 
 `arrangement` takes `safeAction`, `secondSafeAction`, `refusedInput`, `asyncAction`,
 `secondCredential`, `otherCallerCredential`, `consumerCredential`, `unprivilegedCredential`,
-`justStarted`, `replaceableSettings`, `publishedEvent`, `sink`, `publishingAction`, `before`,
-`after` and `abandonment`. Anything not arranged reports `notExercised` naming what was missing.
+`justStarted`, `replaceableSettings`, `publishedEvent`, `sink`, `publishingAction`,
+`answeringAction`, `before`, `after` and `abandonment`. Anything not arranged reports `notExercised`
+naming what was missing.
 
 `before` and `after` are Actions the verifier performs around every check, in order and with
 `mayPerform`: what puts the Worker in a state where its rules can be exercised now — a source
@@ -148,6 +149,14 @@ npx @worker-protocol/conformance https://fleet.example.com --may-perform \
 
 `publishingAction` has to publish while it is being performed: the verifier waits five seconds for
 the delivery, so an Action whose event leaves on the next scheduled run reports SUB-11 failed.
+
+`answeringAction` is an Action safe to perform, an input, and the id of an open Task it answers with
+that input: `{ "name": "record-check", "input": { … }, "task": "task-7" }`. The verifier subscribes
+to `task-answered` at the sink, performs it naming the Task in `Worker-Protocol-Task`, and repeats
+it under the same key — one event for the performance and none for the repeat (EVT-20, EVT-21). It
+may close the Task, so name one nothing else in the arrangement needs open. TASK-39 to TASK-43 need
+no Task named: they use the safe Actions above against whatever Tasks the Worker holds open, and
+the Tasks they name are refused or answered from the record, so nothing more is performed.
 
 The file is checked strictly: a key it does not know stops the run with exit 2 rather than being
 ignored, because an ignored key reports its rules `notExercised` to somebody who believes they

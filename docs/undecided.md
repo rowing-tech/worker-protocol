@@ -11,9 +11,6 @@ back — so that when the answer lands, both places know.
 
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers. Listed in [spec/health.md](../spec/health.md).
-- **Who verifies that a worker answers the Task types it declares.** The Control Tower at
-  registration, the owner when a Response arrives, or nobody. Nothing can today: an Action carries
-  no sign of the Task it answered, so an owner sees a performance and not a Response.
 - **What a Contract carries beyond credentials.** Rate, retention of Task events, when a revocation
   takes effect, and the time zone a multi-tenant Worker cuts a consumer's metric buckets in.
   Revocation is listed in [spec/registration.md](../spec/registration.md) and the time zone in
@@ -25,8 +22,10 @@ back — so that when the answer lands, both places know.
   over the value either way — it sees the credential on every request, so it knows which Contract
   each read and each Action came under. Listed in [spec/metrics.md](../spec/metrics.md).
 - **Whether a consumer reports the cost and elapsed time of the work it did, and who consolidates
-  it.** Nothing carries either today — a Response is an Action and its input is the Worker's own
-  shape — and the consumer's own metrics, split by the Contract, are the obvious candidate. Listed
+  it.** Nothing carries either today — a Response is an Action, told apart from any other
+  performance only where its call names the Task it answers (TASK-39), and its input is the
+  Worker's own shape — and the consumer's own metrics, split by the Contract, are the obvious
+  candidate. Listed
   in [spec/metrics.md](../spec/metrics.md).
 - **Whether a person's cross-owner work list is the Tower's or a Worker's.** A teams app is one
   answer; the console is another.

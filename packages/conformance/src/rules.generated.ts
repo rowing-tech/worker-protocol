@@ -879,6 +879,20 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.6"
     },
     {
+      "id": "EVT-20",
+      "file": "events.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.7"
+    },
+    {
+      "id": "EVT-21",
+      "file": "events.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.7"
+    },
+    {
       "id": "HLTH-1",
       "file": "health.md",
       "class": "required",
@@ -1598,6 +1612,41 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "W",
       "introducedIn": "0.5"
+    },
+    {
+      "id": "TASK-39",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.7"
+    },
+    {
+      "id": "TASK-40",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.7"
+    },
+    {
+      "id": "TASK-41",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.7"
+    },
+    {
+      "id": "TASK-42",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.7"
+    },
+    {
+      "id": "TASK-43",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.7"
     }
   ],
   "codes": [
@@ -1960,6 +2009,12 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "abandonAfterSeconds": "SUB-1",
       "address": "DESC-36",
       "version": "DESC-9"
+    },
+    "task-answered": {
+      "": "EVT-20",
+      "action": "EVT-20",
+      "id": "EVT-20",
+      "type": "NAME-7"
     },
     "task-ended": {
       "": "EVT-15",

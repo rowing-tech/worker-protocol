@@ -80,6 +80,8 @@ export type Call = {
   body?: string;
   /** ENDP-38. Where the Action declares it reads a key from the header. */
   idempotencyKey?: string;
+  /** TASK-39. The `Worker-Protocol-Task` header: the Task this call to an Action answers. */
+  task?: string;
   /**
    * Whether a `404` here means the ADDRESS serves nothing (DESC-38) or that a resource is gone.
    *
@@ -124,6 +126,7 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
     if (call.idempotencyKey !== undefined) {
       headers.set("idempotency-key", call.idempotencyKey);
     }
+    if (call.task !== undefined) headers.set("worker-protocol-task", call.task);
     return send(call.url, {
       method: call.method ?? "GET",
       headers,

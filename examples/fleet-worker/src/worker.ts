@@ -90,6 +90,16 @@ const EVENTS = {
       data: z.object({ id: z.string(), type: z.literal(QUIET_VEHICLE) }),
       extensions: { tasktype: z.literal(QUIET_VEHICLE) },
     },
+    // EVT-20: an inspection on a call that named the Task it answers. Narrowed the same way, and
+    // to the one Action that answers it.
+    [LIFECYCLE.taskAnswered]: {
+      data: z.object({
+        id: z.string(),
+        type: z.literal(QUIET_VEHICLE),
+        action: z.literal("record-inspection"),
+      }),
+      extensions: { tasktype: z.literal(QUIET_VEHICLE) },
+    },
   },
   // EVT-8: what a consumer sizes its deduplication store against, and what bounds a retry.
   republishWindowSeconds: 3600,
@@ -162,8 +172,14 @@ export const fleetWorker = defineWorker<Env>((env) => {
           input: z.object({ vehicle: z.string().min(1), reachable: z.boolean() }),
           result: z.object({ recordedAt: z.string() }),
           idempotency: { required: true, from: "header", windowSeconds: 3600 },
-          run: async ({ vehicle }) => {
-            await fleet.inspect(vehicle, Date.now());
+          // `task` is the Task the call named in `Worker-Protocol-Task`, where it named one, and
+          // what `task-answered` is published about (EVT-20).
+          run: async ({ vehicle }, { name, task }) => {
+            await fleet.inspect(
+              vehicle,
+              Date.now(),
+              task === undefined ? undefined : { task, action: name },
+            );
             return { recordedAt: new Date().toISOString() };
           },
         }),

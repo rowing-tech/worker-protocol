@@ -242,6 +242,8 @@ const claims: [file: string, pattern: string, expected: string][] = [
   ["README.md", "this edition has issued, (\\d+) are withdrawn", `${retired}`],
   ["conformance/README.md", "over a specification of (\\d+) rules", `${all}`],
   ["conformance/README.md", "Today that would be (\\d+) of them", `${W + H}`],
+  // The numerator of this sentence is what the reference worker buys, which only a run of the
+  // verifier knows: `reference-worker.test.ts` compares it, and this compares the denominator.
   ["conformance/README.md", "buys is [\\w-]+ of the ([\\w-]+) rules the register marks", spell(H)],
   ["conformance/README.md", "verdict for the ([\\w-]+) rules that bind somebody", spell(P)],
   ["conformance/verifiability.md", "^(\\d+) rules across", `${all}`],

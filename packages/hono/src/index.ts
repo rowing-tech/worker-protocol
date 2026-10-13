@@ -68,6 +68,7 @@ export {
   SUBSCRIPTION_ENDED,
   type SubscriptionFacts,
   type SubscriptionStore,
+  taskAnswered,
   taskEnded,
   taskRaised,
   wantedBy,

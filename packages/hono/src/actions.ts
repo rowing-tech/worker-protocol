@@ -11,14 +11,15 @@
  * console can render a form from the declaration without being told anything else, and a Worker
  * that wrote the schema by hand and the validation by hand had two places to disagree.
  *
- * **Nothing here knows whether an Action is answering a Task.** It used to: a holder named its
- * Claim in a header and this refused a stale one before performing anything. The lease is
- * withdrawn, so a Response and any other performance are the same request, which `spec/tasks.md`
- * states rather than hides.
+ * **A call may say which Task it answers, and only then does this know.** `Worker-Protocol-Task`
+ * names an open Task (TASK-39), whose type must list the Action (TASK-40) and whose `available`
+ * must not leave it out (TASK-41). A call without the header is a performance like any other, as
+ * it always was: an Action is still performed for reasons that are no Task's at all.
  */
 
 import * as z from "zod";
 import type { ErrorCode } from "./codes.ts";
+import { availableFor, type OpenTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
 import type { Answer, Refusal } from "./worker.ts";
 
 /**
@@ -95,6 +96,17 @@ export type ActionCall = {
    * reserved under. Absent where it named none, and then every caller shares one scope.
    */
   caller?: string;
+  /**
+   * TASK-39. The open Task this call says it answers, as `current()` gave it, and absent where the
+   * call names none. By the time `run` sees it, it was open, its type lists this Action (TASK-40)
+   * and its `available` does not leave it out (TASK-41).
+   *
+   * **This is where `task-answered` is published from (EVT-20), and only here.** `run` is reached
+   * once per performance and never for a repeat ENDP-16 answers from the record, which is exactly
+   * EVT-21's count — and a Worker that writes its Facts and its outbox in one transaction writes
+   * the answer in the same one. `taskAnswered()` builds the event.
+   */
+  task?: OpenTask;
 };
 
 export type ActionDeclarations = Record<string, Action>;
@@ -226,8 +238,12 @@ const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message }
  * `until` is epoch milliseconds on the Worker's own clock. Nothing compares it against a caller's:
  * ENDP-16 is a promise the Worker makes about its own memory, and the caller only ever learns
  * whether it was kept by sending the request again.
+ *
+ * `task` is the `Worker-Protocol-Task` the call carried, kept for a header key alone: TASK-43 makes
+ * the same key naming another Task a different request, and an input key is compared on the body
+ * alone. A record written before it existed has none, and reads as a call that named no Task.
  */
-export type Recorded = { body: string; answer: Answer; until: number };
+export type Recorded = { body: string; answer: Answer; until: number; task?: string };
 
 /**
  * A store in memory: right in one long-lived process, and wrong everywhere else.
@@ -279,9 +295,83 @@ type Performance = {
   principal: unknown;
   /** ENDP-34: the caller `authenticate` named, where it named one. */
   caller: string | undefined;
+  /** TASK-39: the `Worker-Protocol-Task` header, unread, where one was sent. */
+  task: string | undefined;
 };
 
-export function actions(facts: ActionFacts) {
+/** The `tasks` entry's declaration and facts, which a call naming a Task is checked against. */
+type TasksDeclared = TaskFacts & { raises: TaskTypes };
+
+/**
+ * TASK-39's header, read: the Task's id, and the instant its condition began where the caller said.
+ *
+ * `t-81` or `t-81; since=2026-10-13T09:00:00Z`. A value that does not read as either is a parameter
+ * that is malformed, which ENDP-40 answers `400 invalid_parameter` — refused rather than taken as
+ * an id with a semicolon in it, because a caller that wrote `since` meant it to be compared.
+ */
+const readTaskHeader = (value: string): { id: string; since?: number } | undefined => {
+  const [head, ...parameters] = value.split(";");
+  const id = head?.trim() ?? "";
+  if (id === "" || parameters.length > 1) return undefined;
+  if (parameters.length === 0) return { id };
+  const match = /^\s*since=(.+?)\s*$/.exec(parameters[0] ?? "");
+  const since = match?.[1] === undefined ? Number.NaN : Date.parse(match[1]);
+  return Number.isNaN(since) ? undefined : { id, since };
+};
+
+/**
+ * TASK-39, TASK-40, TASK-41: the open Task a call names, or why it may not answer it.
+ *
+ * Asked only after the key has been taken (TASK-42), so a repeat is answered from the record
+ * whatever became of its Task since — the consumer whose own answer closed it learns that it took
+ * effect rather than being told `404`.
+ */
+async function answering(
+  header: string,
+  given: {
+    name: string;
+    tasks: TasksDeclared | undefined;
+    accepts: ActionDeclarations;
+    call: Omit<ActionCall, "name" | "task">;
+  },
+): Promise<OpenTask | Refusal> {
+  const named = readTaskHeader(header);
+  if (named === undefined) {
+    return refuse("invalid_parameter", "Worker-Protocol-Task is not a Task id, with `since`.");
+  }
+  const { name, tasks, accepts, call } = given;
+
+  // TASK-39: not open is one answer, whatever the reason — no Task under that id, one this
+  // credential does not cover (TASK-6), or not the occurrence `since` named. A Task has no state
+  // once its condition stops holding, so there is no telling *ended* from *never was*, and a
+  // refusal that told *not yours* from *not there* would say which ids are real (REG-32).
+  const covers = await tasks?.covers?.(call.token, call.principal);
+  const task = (await tasks?.current())?.find((one) => one.id === named.id);
+  const gone =
+    task === undefined ||
+    (covers !== undefined && !covers.includes(task.id)) ||
+    (named.since !== undefined && task.since.getTime() !== named.since);
+  if (gone || tasks === undefined) {
+    return refuse("not_found", `No open Task ${named.id} is answered here.`);
+  }
+
+  // TASK-40: an Action the type does not list. The caller re-reads the Descriptor and finds it,
+  // which is TASK-8's case one surface over, and answered with TASK-8's code.
+  const names = tasks.raises[task.type]?.answeredBy ?? [];
+  if (!names.includes(name)) {
+    return refuse("invalid_parameter", `${name} does not answer a Task of type ${task.type}.`);
+  }
+
+  // TASK-41: one the type lists and the Task does not offer now — derived exactly as a read
+  // derives it, so a console never offered what this refuses.
+  const available = await availableFor(task, { names, accepts, call });
+  if (available !== undefined && !available.includes(name)) {
+    return refuse("conflict", `${name} does not apply to Task ${task.id} now.`);
+  }
+  return task;
+}
+
+export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
   // ENDP-16 needs somewhere to record, and `mount()` has refused to build a Worker that declares a
   // key without naming one — so by here it is either given or never asked for.
   const recorded = facts.outcomes;
@@ -293,6 +383,7 @@ export function actions(facts: ActionFacts) {
     token,
     principal,
     caller,
+    task: header,
   }: Performance): Promise<Answer | Refusal> {
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
     const declaration = facts.accepts[name];
@@ -376,18 +467,41 @@ export function actions(facts: ActionFacts) {
       if (reservation !== "reserved") {
         // ENDP-17: a key reused with a different body is `409`, within the scope ENDP-34 and
         // ENDP-35 give it. Only the caller can tell a retry from a genuine repeat, and this is the
-        // Worker declining to guess.
-        if (reservation.held.body !== raw) {
-          return refuse("idempotency_key_reused", "That key was used with another body.");
+        // Worker declining to guess. TASK-43: a header key is the caller's statement about its own
+        // attempts, so the same key naming another Task — or one where it named none — is another
+        // request too; an input key is the fact itself, and a second Task it answers is no reason
+        // to refuse it.
+        const otherTask =
+          keyed.idempotency.from === "header" &&
+          (reservation.held.task ?? null) !== (header ?? null);
+        if (reservation.held.body !== raw || otherTask) {
+          return refuse(
+            "idempotency_key_reused",
+            otherTask
+              ? "That key was used naming another Task."
+              : "That key was used with another body.",
+          );
         }
-        // ENDP-16: within the window, a repeat is not a second performance.
+        // ENDP-16: within the window, a repeat is not a second performance. TASK-42: it is answered
+        // before its Task is asked about, so a repeat whose Task has since closed still learns
+        // what happened to it.
         return reservation.held.answer;
       }
     }
 
-    const call = { name, token, idempotencyKey: recordedKey, principal, caller };
+    const call: ActionCall = { name, token, idempotencyKey: recordedKey, principal, caller };
     let produced: unknown;
     try {
+      // TASK-39, TASK-40, TASK-41: the Task the call names, asked after the key was taken (TASK-42)
+      // and before anything is performed.
+      if (header !== undefined) {
+        const task = await answering(header, { name, tasks, accepts: facts.accepts, call });
+        if (isRefusal(task)) {
+          if (keyed !== undefined) await keyed.store.release(keyed.key);
+          return task;
+        }
+        call.task = task;
+      }
       // ACT-17: the current state does not allow it. Asked here, after a repeat was answered from
       // its recorded outcome, so a performance that already happened is replayed and not refused.
       const refused = await declaration.refuses?.(input.data as never, call);
@@ -423,6 +537,7 @@ export function actions(facts: ActionFacts) {
         body: raw,
         answer,
         until: now + keyed.idempotency.windowSeconds * 1000,
+        ...(keyed.idempotency.from === "header" && header !== undefined ? { task: header } : {}),
       });
     }
     return answer;

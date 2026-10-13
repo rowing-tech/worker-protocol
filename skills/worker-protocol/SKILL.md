@@ -14,7 +14,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.6.0"
+  version: "2.7.0"
 ---
 
 # worker-protocol, in any language
@@ -123,6 +123,16 @@ whose reason is understood is one that survives a refactor.
   judges what arrives as always.
 - **Say which answers apply now** (TASK-38) with `available` on the Task, derived on the same read.
   Absent means all of them. Still refuse what the state does not allow with `409` (ACT-17).
+- **A call may name the Task it answers** in `Worker-Protocol-Task: <id>`, or
+  `<id>; since=<instant>` to name one occurrence (TASK-39). As the owner, refuse a Task that is not
+  open — never raised, ended, not covered by the credential, or not that `since` — with
+  `404 not_found`; an Action its type does not list with `400 invalid_parameter` (TASK-40); one it
+  does not offer now with `409 conflict` (TASK-41). Perform nothing in any of the three. Look the
+  key up first: a repeat is answered from the record even if its Task has since closed (TASK-42).
+  A header key repeated with a different `Worker-Protocol-Task`, or with it on one call and not the
+  other, is `409 idempotency_key_reused`; an input key ignores the header (TASK-43). Without the
+  header a call is exactly what it always was. A Task id may recur for a later occurrence of the
+  same condition; without `since` an answer lands on whatever is open under that id.
 - **Skills sit at the Descriptor's root, not inside the `tasks` entry** (TASK-36). `skills` is what
   this Worker does for others; `tasks` is what it needs done. A Worker that only answers others'
   Tasks declares `skills` and no `tasks` at all. What it `produces` is keyed by the owner's
@@ -188,6 +198,11 @@ whose reason is understood is one that survives a refactor.
   Publish them where your code knows the moment — a Task is derived on read, so no read sees one
   born. Derive each event's id from the transition, the resource and its `since`, so a change seen
   twice is published once, and never publish an ending without its birth.
+- **`task-answered` says a Task was answered, with which Action and when** (EVT-20): `subject` the
+  Task's id, `tasktype` as an extension, `time` the instant of the performance — required here —
+  and `data` `{ id, type, action }`. Publish one per performance on a call that named an open Task,
+  and none for a repeat answered from the record (EVT-21). It never carries the caller: that is a
+  credential's identity, not a Worker, and who did the work is for whoever assigned it to know.
 - **Write the condition that refuses an answer once** (ACT-17, TASK-38): a call the current state
   does not allow is `409 conflict`, and a Task leaves that answer out of `available`. Ask the same
   predicate in both places, with the Task's `inputs` standing in for the call's input.

@@ -86,7 +86,7 @@ export const CODES = [
     code: "idempotency_key_reused",
     status: 409,
     class: "reject",
-    condition: "A key reused with a different body.",
+    condition: "A key reused with a different body, or naming another Task.",
   },
   {
     code: "unprocessable_content",

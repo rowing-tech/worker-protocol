@@ -106,7 +106,13 @@ for (const task of open ?? []) {
   if (answer === undefined) continue;
 
   const input = { ...answer.prefill, ...doTheWork(task.payload) };
-  await worker.actions?.perform(answer.action, input, { idempotencyKey: crypto.randomUUID() });
+  // Naming the Task tells the owner which one this answers (TASK-39), and the owner refuses the
+  // call — performing nothing — if it is no longer open, if this Action does not answer its type,
+  // or if the Task does not offer it now. Handed the Task as read, it names that occurrence.
+  await worker.actions?.perform(answer.action, input, {
+    idempotencyKey: crypto.randomUUID(),
+    task,
+  });
 }
 ```
 

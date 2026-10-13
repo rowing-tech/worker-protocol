@@ -17,6 +17,54 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-13 — edition 0.7
+
+All five packages encode **edition 0.7**. A verifier on 0.6 meeting a 0.7 Worker says it is behind
+rather than judging it (DESC-33), so the release that carries it has to be a MINOR of the packages,
+which `^0.8.0` does not take. What it carries is issue #9: a Response could not be told apart from
+any other performance, so nobody could verify that a Worker answers the Task types it declares.
+
+### Edition 0.7
+
+- **A call to an Action may name the Task it answers** in `Worker-Protocol-Task`: the Task's id,
+  and optionally `; since=` and the instant its condition began, which names one occurrence. A call
+  without it is exactly what it was. A Task's id may recur for a later occurrence of the same
+  condition; without `since` an answer lands on whatever is open under that id.
+- **The owner holds the call to the Task it names, and performs nothing when it refuses**: a Task
+  that is not open, not covered by the credential or not that occurrence is `404 not_found`
+  (TASK-39); an Action its type does not list is `400 invalid_parameter` (TASK-40); one it does not
+  offer now is `409 conflict` (TASK-41).
+- **The key comes before the Task** (TASK-42): a repeat is answered from the record even after its
+  Task closed, so a consumer whose own answer closed it learns that it took effect. A header key
+  repeated naming another Task, or with the header on one call and not the other, is
+  `409 idempotency_key_reused`; an input key is compared on the body alone (TASK-43).
+- **`tech.rowing.worker-protocol.task-answered`** (EVT-20): the Task's id in `subject`, its type as
+  `tasktype`, the instant of the performance as `time`, required here, and `data` `{ id, type,
+  action }` — never the caller. One per performance on a call that named an open Task, and none for
+  a repeat (EVT-21). Publishing it is not required and naming it is, as for EVT-15's four.
+- spec: `docs/undecided.md` no longer asks who verifies that a Worker answers the Task types it
+  declares. The owner verifies the pairing on every call that names a Task; comparing a Skill
+  against what a Worker did belongs to whoever assigned the work. `conflict` names a condition
+  again, ACT-17's and TASK-41's.
+- schemas: `task-answered.json`, the data of the new event; two fixtures.
+- hono: `mount()` reads `Worker-Protocol-Task` and answers TASK-39 to TASK-41 after the key is taken
+  and before anything runs, giving the key back on a refusal. `run` and `refuses` are told the Task
+  as `call.task`. A header key's record keeps the header it arrived with (`Recorded.task`).
+  `taskAnswered({ task, action, at })` builds the event, and `lifecycleEvents({ answers: true })`
+  declares it — its own flag, because it is published from `run` and not where Tasks are raised.
+  The route declares the header, and `409 conflict` for ACT-17, which it already answered.
+- client: `actions.perform(name, input, { task })` sends the header — handed the Task as read, it
+  names that occurrence with its `since`; handed an id, whatever is open under it.
+- conformance: TASK-39 to TASK-43 against the safe Actions and whatever Tasks the Worker holds open;
+  EVT-20 and EVT-21 at the sink, with `answeringAction` in the arrangement naming the Task. They run
+  after the subscription checks, once an Action that publishes has raised its Tasks. The CLI accepts
+  it. The reference worker answers its own Tasks by name and publishes `task-answered`, and its test
+  now compares the number of `H` rules it exercises with the sentence in `conformance/README.md`
+  that states it, which had drifted.
+- fleet-worker: `record-inspection` writes `task-answered` into the outbox with the inspection when
+  its call names the Task, and its verification exercises EVT-20 and EVT-21 through both Queues.
+- skills move to 2.7.0.
+
 ## [0.8.2] - 2026-10-09 — edition 0.6
 
 All five packages still encode **edition 0.6**. From solution-starter, which validates API keys

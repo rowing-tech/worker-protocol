@@ -364,8 +364,9 @@ Contract is. The rule is about the call, not about the history.
   [undecided](../docs/undecided.md).
 - Whether reading a Worker's Tasks and performing one of the Actions that answer them are
   authorized by the same right. TASK-6 already divides what a credential may *see*; nothing divides
-  what it may *do*, because an Action carries no sign of the Task it answers. A Contract that
-  granted the reading and withheld the Action would be expressing something no call can carry.
+  what it may *do*. A call may now name the Task it answers (TASK-39), but it need not, and a
+  Contract that granted the reading and withheld the Action would still be expressing something a
+  call that names no Task does not carry.
 - Whether a Tower exposes an enrollment surface at all. This protocol defines what a Worker serves;
   a Tower's own API is not in it.
 

@@ -201,6 +201,11 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         refuses: ({ vehicle }) =>
           vehicle !== undefined && !silent.has(vehicle) ? "not quiet" : undefined,
         // `vehicle` is a string here because the schema above says so, and the editor knows it.
+        //
+        // A caller answering a Task may name it in `Worker-Protocol-Task`, and `mount()` refuses
+        // the call before this runs if that Task is not open, its type does not list this
+        // operation, or it does not offer it now. Where one was named it arrives as the second
+        // argument's `task`, which is where a Worker that publishes `task-answered` publishes it.
         run: ({ vehicle }) => check(vehicle),
       }),
       "report-missing": action({

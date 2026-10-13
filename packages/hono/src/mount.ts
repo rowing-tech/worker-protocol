@@ -199,7 +199,7 @@ function surfacesOf(worker: Worker) {
           accepts: worker.actions?.accepts ?? {},
         })
       : undefined,
-    actions: worker.actions ? actionsSurface(worker.actions) : undefined,
+    actions: worker.actions ? actionsSurface(worker.actions, worker.tasks) : undefined,
     metrics: worker.metrics ? metricsSurface(worker.metrics) : undefined,
     logs: worker.logs ? logsSurface(worker.logs) : undefined,
   };
@@ -625,6 +625,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           token: bearer(c),
           principal,
           caller,
+          task: c.req.header("worker-protocol-task"),
         }),
       );
     },

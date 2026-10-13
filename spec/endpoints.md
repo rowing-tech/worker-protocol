@@ -9,8 +9,10 @@ Two shapes are shared by every surface and have schemas of their own: the error 
 [schemas/error.json](../schemas/error.json), and the page envelope,
 [schemas/page.json](../schemas/page.json). Three header names are fixed by this file and by nothing
 else, because a JSON Schema describes a body and not a header:
-`Worker-Protocol-Edition`, `Worker-Protocol-Capability-Version` and `Idempotency-Key`. What follows
-is what no schema can state. Rules carry ids; the convention is in [spec/README.md](README.md).
+`Worker-Protocol-Edition`, `Worker-Protocol-Capability-Version` and `Idempotency-Key`. A fourth,
+`Worker-Protocol-Task`, which names the Task a call to an Action answers, is fixed by
+[tasks](tasks.md) (TASK-39). What follows is what no schema can state. Rules carry ids; the
+convention is in [spec/README.md](README.md).
 
 ## One fixed route, and no fixed prefix
 
@@ -218,16 +220,16 @@ the argument beneath each code — why `502` and `504` are two of them, why `sch
 |---|---|---|---|
 | `malformed_request` | `400` | `reject` | A body that will not parse, or a content type that is not `application/json` — ENDP-4, ENDP-40 |
 | `schema_mismatch` | `400` | `reject` | A body that parses and does not match the schema the surface declared — ACT-8 |
-| `invalid_parameter` | `400` | `reject` | A parameter missing or malformed — ENDP-40 |
+| `invalid_parameter` | `400` | `reject` | A parameter missing or malformed — ENDP-40, TASK-40 |
 | `unknown_filter` | `400` | `reject` | A filter parameter the Worker does not recognize — ENDP-24 |
 | `unsupported_version` | `400` | `reject` | A requested Capability version the Worker cannot answer — ENDP-6 |
 | `idempotency_key_required` | `400` | `reject` | An Action requires a key and none was sent — ENDP-18 |
 | `unauthenticated` | `401` | `reject` | No credential, or one the Worker cannot read — ENDP-40 |
 | `forbidden` | `403` | `reject` | The credential is understood and does not carry the right — ENDP-40 |
-| `not_found` | `404` | `reject` | No such address, or no such resource — ENDP-40, DESC-38 |
+| `not_found` | `404` | `reject` | No such address, or no such resource — ENDP-40, DESC-38, TASK-39 |
 | `request_timeout` | `408` | `retry` | The request did not arrive in time to be answered — ENDP-40 |
-| `conflict` | `409` | `reject` | The request conflicts with the current state — ENDP-40 |
-| `idempotency_key_reused` | `409` | `reject` | A key reused with a different body — ENDP-17 |
+| `conflict` | `409` | `reject` | The request conflicts with the current state — ENDP-40, ACT-17, TASK-41 |
+| `idempotency_key_reused` | `409` | `reject` | A key reused with a different body, or naming another Task — ENDP-17, TASK-43 |
 | `unprocessable_content` | `422` | `reject` | Well-formed, schema-valid, and refused on the Worker's own rules — ENDP-40, ENDP-12 |
 | `rate_limited` | `429` | `retry` | Too many requests — ENDP-40 |
 | `internal_error` | `500` | `retry` | The Worker failed for its own reasons — ENDP-40 |
@@ -236,14 +238,12 @@ the argument beneath each code — why `502` and `504` are two of them, why `sch
 | `upstream_timeout` | `504` | `retry` | Something the Worker depends on did not answer in time — ENDP-40 |
 
 Every code above names a condition some rule already states. None was invented to fill a gap, and
-where the text has not committed to a condition there is deliberately no code for it — with one
-exception, and it is now the only loose thread in the vocabulary. **`conflict` is broad, and today
-nothing but `idempotency_key_reused` answers under its status.** It was written broad because
-ENDP-40 named *a Task already claimed* among its 409s, and the three rules in [tasks](tasks.md)
-that used it are withdrawn with the lease they were about. Whether a code with no condition left to
-name should survive an edition is a question for the next one; withdrawing it now would be spending
-an edition's price to remove a code nobody sends, which is the same ceremony in the other
-direction.
+where the text has not committed to a condition there is deliberately no code for it. **`conflict`
+was the loose thread, and it is tied.** It was written broad because ENDP-40 named *a Task already
+claimed* among its 409s, and the three rules in [tasks](tasks.md) that used it were withdrawn with
+the lease they were about. ACT-17 now answers a refusal caused by the current state with it, and
+TASK-41 an answer the Task does not offer now — both the same condition, a state that a Fact can
+change between a read and a call.
 
 [actions](actions.md) is the first file to have spent that price. `schema_mismatch` is not
 `malformed_request`, and the difference is what a caller does next: a body that will not parse

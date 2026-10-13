@@ -46,6 +46,13 @@ const arrangementWith = (sink: ListeningSink) => ({
     input: {},
     publishes: "tech.rowing.worker-protocol.task-raised",
   },
+  // EVT-20, EVT-21: the cycle above leaves every vehicle quiet, and inspecting DEF-456 on a call
+  // naming its Task puts `task-answered` in the outbox beside `task-ended`, through both Queues.
+  answeringAction: {
+    name: "record-inspection",
+    input: { vehicle: "DEF-456", reachable: true },
+    task: "quiet:DEF-456",
+  },
 });
 
 describe("a Worker on workerd, verified over HTTP", () => {
@@ -83,6 +90,15 @@ describe("a Worker on workerd, verified over HTTP", () => {
     // the day any rule fails, this test says which.
     const failing = report.results.filter((one) => one.verdict === "fails").map((r) => r.rule.id);
     expect(failing).toEqual([]);
+  });
+
+  it("publishes one `task-answered` through the outbox and both Queues, and none for a repeat", () => {
+    // EVT-20 and EVT-21 on the runtime the Worker is built for: the answer is written with the
+    // inspection it reports, leaves by the same outbox, and a repeat answered from the Durable
+    // Object's record never reaches `run` to write another.
+    for (const id of ["EVT-20", "EVT-21", "TASK-39", "TASK-43"]) {
+      expect(result(id)?.verdict, `${id}: ${result(id)?.detail ?? ""}`).toBe("passes");
+    }
   });
 
   it("keeps ENDP-16's promise across requests, which is what the Durable Object is for", () => {

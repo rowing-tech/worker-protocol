@@ -72,6 +72,14 @@ in order — a reading keyed by vehicle, kind and instant names three:
 - a repeat inside the window replays the recorded outcome rather than performing again (ENDP-16);
 - a key in use is `503` `unavailable`, `retry` rather than `reject` (ENDP-32).
 
+**A call naming the Task it answers is held to it** (TASK-39 to TASK-43). Read
+`Worker-Protocol-Task` as the Task's id, optionally `; since=` and an instant. Ask the key first and
+answer a repeat from the record whatever became of the Task; then refuse a Task that is not open, or
+not that occurrence, `404 not_found`; an Action its type does not list `400 invalid_parameter`; one
+it does not offer now `409 conflict`. A header key is recorded with the `Worker-Protocol-Task` it
+arrived with, and the same key with another value — or with none, or the reverse — is
+`409 idempotency_key_reused`. An input key ignores the header.
+
 **Whose a key is follows where it is read from.** A key from the `Idempotency-Key` header belongs to
 the caller that sent it, so the same string from two callers is two keys (ENDP-34): record it under
 the caller your authentication found, not under the token, which changes on rotation. A key read

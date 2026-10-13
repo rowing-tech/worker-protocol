@@ -72,6 +72,25 @@ const RAISED: (OpenTask & { vehicle?: string })[] = [
     vehicle: "DEF-456",
     since: new Date(Date.now() - 2 * HOUR),
   },
+  // TASK-41: a vehicle whose verification waits on something from outside, so its one answer is
+  // not offered now and a call naming it is refused `409` until the wait is over.
+  {
+    id: "task-4",
+    type: VERIFY_VEHICLE,
+    payload: { vehicle: "GHI-789" },
+    vehicle: "GHI-789",
+    since: new Date(Date.now() - 3 * HOUR),
+    available: [],
+  },
+  // EVT-20, EVT-21: the Task the verifier answers by name, so that `task-answered` is published
+  // about a Task no other check needs open.
+  {
+    id: "task-5",
+    type: VERIFY_VEHICLE,
+    payload: { vehicle: "JKL-012" },
+    vehicle: "JKL-012",
+    since: new Date(Date.now() - 4 * HOUR),
+  },
   // TASK-28: a condition that began three days ago, so the field a stuck Task is read from has
   // been seen carrying something an operator would act on rather than always saying `just now`.
   {

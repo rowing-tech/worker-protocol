@@ -1,4 +1,6 @@
+import { readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorker } from "../../../../conformance/reference-worker/src/server.ts";
 import { verify } from "../index.ts";
@@ -13,6 +15,19 @@ import { listenAsSink } from "../sink.ts";
  * verified — and the way out is not more checks, it is one check that has actually reached a
  * server and come back with a verdict.
  */
+
+const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
+
+/** A count as `conformance/README.md` spells it, the way `scripts/lint-verifiability.ts` does. */
+const ONES = `zero one two three four five six seven eight nine ten eleven twelve thirteen
+  fourteen fifteen sixteen seventeen eighteen nineteen`.split(/\s+/);
+const TENS = "twenty thirty forty fifty sixty seventy eighty ninety".split(" ");
+const spell = (n: number): string => {
+  if (n < 20) return ONES[n] ?? `${n}`;
+  if (n >= 100) return `${n}`;
+  const tens = TENS[Math.floor(n / 10) - 2] ?? `${n}`;
+  return n % 10 === 0 ? tens : `${tens}-${ONES[n % 10]}`;
+};
 
 const start = (options: Parameters<typeof createWorker>[0] = {}) =>
   new Promise<{ url: string; close: () => Promise<void> }>((resolve) => {
@@ -48,6 +63,13 @@ const ARRANGEMENT = {
     name: "record-verification",
     input: { vehicle: "DEF-456", verified: true },
     publishes: "tech.rowing.worker-protocol.task-ended",
+  },
+  // EVT-20, EVT-21: verifying JKL-012 answers `task-5`, named in the call, and nothing else here
+  // needs that Task open.
+  answeringAction: {
+    name: "record-verification",
+    input: { vehicle: "JKL-012", verified: true },
+    task: "task-5",
   },
   safeAction: {
     name: "record-verification",
@@ -119,7 +141,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.6");
+    expect(report.edition).toBe("0.7");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -254,15 +276,22 @@ describe("the reference worker, verified", () => {
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(22);
     // How many of the rules that need a Worker ARRANGED to be observed this double actually buys.
-    // `conformance/README.md` states the number in prose and `scripts/lint-verifiability.ts` can
-    // only locate that sentence, not compute it — the count lives here, where the report does.
+    // `scripts/lint-verifiability.ts` checks the denominator of the sentence that says so, which
+    // the register gives it; the numerator is known only by running this verifier against this
+    // Worker, which is what happens here — so this is where that sentence is compared. It drifted
+    // for as long as nothing did.
     const arranged = report.results.filter(
       (r) => r.rule.reach === "H" && (r.verdict === "passes" || r.verdict === "fails"),
     );
-    expect(arranged.length).toBe(32);
+    expect(arranged.length).toBe(39);
+    const readme = await readFile(join(ROOT, "conformance", "README.md"), "utf8");
+    const claimed = /buys is ([\w-]+) of the [\w-]+ rules the register marks/.exec(readme)?.[1];
+    expect(claimed, "conformance/README.md: what the reference worker buys").toBe(
+      spell(arranged.length),
+    );
 
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(139);
+    expect(counts.passes).toBe(146);
     expect(counts.fails).toBe(0);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -402,9 +431,9 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.6");
+      expect(report.verifierEdition).toBe("0.7");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.6");
+      expect(report.results[0]?.detail).toContain("holds edition 0.7");
     } finally {
       await ahead.close();
     }
@@ -412,9 +441,9 @@ describe("the reference worker, verified", () => {
 
   it("verifies nothing against a later MINOR while the MAJOR is 0", async () => {
     // DESC-32 lets a MINOR break before 1.0, so DESC-33 has a verifier behind on MINOR treat it as
-    // it treats a later MAJOR: judging a 0.7 Worker by 0.6's rules could fail it for what 0.7
+    // it treats a later MAJOR: judging a 0.8 Worker by 0.7's rules could fail it for what 0.8
     // changed, and the honest sentence is that the verifier is the one behind.
-    const ahead = await start({ edition: "0.7" });
+    const ahead = await start({ edition: "0.8" });
     try {
       const report = await verify({ baseUrl: ahead.url });
       expect(report.older).toBe(true);

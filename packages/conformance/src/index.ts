@@ -3,6 +3,7 @@ import type { Attribution } from "./attribution.ts";
 import { checkActions } from "./checks/actions.ts";
 import { checkActivity } from "./checks/activity.ts";
 import { checkAlerts } from "./checks/alerts.ts";
+import { checkAnswers } from "./checks/answers.ts";
 import { checkArranged } from "./checks/arranged.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
@@ -153,6 +154,15 @@ export type Arrangement = {
    * has subscribed to `publishes` at the arranged sink, and what reaches the sink is judged.
    */
   publishingAction?: { name: string; input: unknown; publishes: string };
+  /**
+   * An Action safe to perform, an input for it, and the id of an open Task it answers with that
+   * input (EVT-20, EVT-21).
+   *
+   * The verifier subscribes to `task-answered` at the arranged sink, performs this naming the Task
+   * in `Worker-Protocol-Task`, and performs it again under the same key: the first publishes one
+   * `task-answered` and the repeat none. It may close the Task, so name one no other step needs.
+   */
+  answeringAction?: { name: string; input: unknown; task: string };
   /**
    * Actions the verifier performs before any check, in order — a source paused so that an Alert is
    * open, a Task raised so that the Task rules have one to read. It needs `mayPerform`, and a step
@@ -540,6 +550,31 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           arrangement: options.arrangement ?? {},
           rules: byId,
           attribution,
+          transcript: tape,
+        })),
+      );
+      // TASK-39 to TASK-43, EVT-20 and EVT-21: calls naming the Task they answer. Last, because
+      // a Worker whose Tasks are raised by an Action has them open only once the Action that
+      // publishes has run — and the answering Action may end the Task it names.
+      const { capabilities } = descriptor.document;
+      results.push(
+        ...(await checkAnswers({
+          accepts:
+            (
+              capabilities.actions as {
+                accepts?: Record<string, { idempotency?: { from: string } }>;
+              }
+            )?.accepts ?? {},
+          raises:
+            (capabilities.tasks as { raises?: Record<string, { answeredBy?: string[] }> })
+              ?.raises ?? {},
+          actionsUrl: surface("actions"),
+          tasksUrl: surface("tasks"),
+          subscriptionsUrl: surface("subscriptions"),
+          publishes: Object.keys(events?.publishes ?? {}),
+          mayPerform: options.mayPerform === true,
+          arrangement: options.arrangement ?? {},
+          rules: byId,
           transcript: tape,
         })),
       );

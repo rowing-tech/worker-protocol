@@ -8,7 +8,7 @@ import {
   mount,
   type Worker,
 } from "@worker-protocol/hono";
-import { qualifiedName, taskEnded } from "@worker-protocol/schemas";
+import { qualifiedName, taskAnswered, taskEnded } from "@worker-protocol/schemas";
 import { Hono } from "hono";
 import * as z from "zod";
 import { createActions } from "./actions.ts";
@@ -108,6 +108,9 @@ const EVENTS = {
     // EVT-15: the specification's own name and shape, published when a verification ends a
     // Task — which is the moment only this Worker knows.
     [LIFECYCLE.taskEnded]: { data: taskEnded, extensions: { tasktype: qualifiedName } },
+    // EVT-20: published when a verification arrives on a call that named the Task it answers,
+    // which `run` learns from `call.task` and nowhere else.
+    [LIFECYCLE.taskAnswered]: { data: taskAnswered, extensions: { tasktype: qualifiedName } },
   },
   // EVT-8: what a consumer sizes its deduplication store against. An hour, declared, because
   // `remember forever` is not implementable.

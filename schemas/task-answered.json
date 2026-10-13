@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task-answered.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EVT-20. The answered Task's id, as TASK-28 gave it."
+    },
+    "type": {
+      "description": "EVT-20. The answered Task's type.",
+      "$ref": "qualified-name.json"
+    },
+    "action": {
+      "type": "string",
+      "minLength": 1,
+      "description": "EVT-20. The name of the Action that answered it, one TASK-35 names for its type, as the owner's `actions` entry holds it."
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "action"
+  ],
+  "additionalProperties": {},
+  "title": "Task answered",
+  "description": "EVT-20. The data of `tech.rowing.worker-protocol.task-answered`: an Action was performed on a call that named this open Task (TASK-39). Whether the Task then closes is a consequence of the Facts (TASK-15). The instant is the event's `time`. At least these members; a Worker may carry more of its own."
+}

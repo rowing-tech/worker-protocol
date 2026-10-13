@@ -248,6 +248,41 @@ witnesses one being born; only the Worker's own logic does, at the moment a Fact
 here says when to publish, and a Worker that compares snapshots of its Tasks to find out has chosen
 to miss whatever came and went between two of them.
 
+## A Task answered
+
+**EVT-20 (required). A Worker that publishes the answers to its Tasks publishes each under
+`tech.rowing.worker-protocol.task-answered`, declared under `publishes` like any other, with the
+Task's id as `subject`, its type as the extension `tasktype`, the instant the Action was performed
+as `time`, and a `data` carrying at least `{ id, type, action }` — the Task's id, its type, and the
+name of the Action that answered it.**
+
+**EVT-21 (required). It publishes one for each performance of an Action on a call that named an
+open Task (TASK-39), and none for a call answered from a recorded outcome (ENDP-16) or refused.**
+
+**It is a fifth lifecycle type, on EVT-15's terms: publishing it is not required, and naming it
+is.** A subscriber that wants answers as they happen subscribes to one name on every Worker it
+meets, and does not have to infer an answer from a `task-ended` — which a Task may never reach after
+a genuine answer, because TASK-15 leaves it open while its condition holds. It is not a member of
+`task-ended` for the same reason: an ending names no cause, and an answer that preceded one did not
+necessarily produce it.
+
+**`time` carries the instant, and `data` does not repeat it.** CloudEvents means `time` as when the
+occurrence happened, which here is the performance, and nothing else in this protocol requires it of
+an event. Requiring it of this type puts the instant in one place, where no member of `data` can
+contradict it and where a filter reaches it as a context attribute (SUB-13).
+
+**It does not say who answered.** The caller is whatever the owner's authentication makes of a
+credential (ENDP-34) and not a Worker, and the party that knows which Worker answered is the one
+that assigned the work ([tasks](tasks.md) argues it). Published, it would also tell every subscriber
+— possibly another organisation — who works for whom, which is the leak ENDP-34 closed for
+idempotency keys. An owner that wants it in the event carries it as a member of its own, which
+EVT-15's *at least* already allows.
+
+**One event per performance, and a repeat is not one.** ENDP-16 answers a repeat from the record
+without performing anything, so publishing for it would count one answer twice — and a party
+comparing a Worker's Skill against what it did would be comparing against a number this Worker
+inflated.
+
 ## What this file does not fix
 
 **What a Worker publishes, and when.** Nothing here enumerates events, requires any, or says that a

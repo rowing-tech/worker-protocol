@@ -74,10 +74,11 @@ producing a subtype of what that Action takes, which is ordinary assignability a
 its own. Nothing requires a discriminator: the Action's name already says which answer this is, and
 inside one Action the variants are the owner's business.
 
-**What the names do not do is bind on a call, and that is worth saying plainly.** A Worker cannot
-tell an Action performed *because of* a Task from one performed for any other reason: the two are
-the same request. The names tell a consumer what would answer, and nothing refuses a performance
-that answers nothing.
+**The names bind on a call only when the call says which Task it answers.** A call that names
+none is the same request whether it was made *because of* a Task or for any other reason, and
+nothing refuses a performance that answers nothing. A call that names one, in the header TASK-39
+reads, is held to the names: the owner refuses an Action its type does not list (TASK-40), and
+[naming the Task a call answers](#naming-the-task-a-call-answers) carries the rest.
 
 TASK-36 is the other side of the same name, and it is what makes the
 [architecture](../docs/architecture.md)'s *unit of discovery* concrete: the Tower catalogs Workers
@@ -113,7 +114,10 @@ difference between *the names matched* and *this Worker can understand the work*
 will then *do* the work is not something any declaration can promise, and this file does not
 pretend one can: what remains is to hand it a Task and see whether the Action arrives, which is what
 the verifier already does under an arrangement, and to read its [activity](activity.md) and watch
-the owner's Task close. A Worker's Skill says what it needs; its record says what it did.
+the owner's Task close. Where the call names the Task it answers, the owner says which Action
+answered it and when (EVT-20) — and not who, because the owner sees a credential and the party that
+knows which Worker it handed the work to is the one that handed it over. A Worker's Skill says what
+it needs; its record says what it did, and that record is kept by whoever assigns the work.
 
 The answerer's schema may ask for less than the owner sends — a consumer that needs one field of a
 ten-field payload declares one — and every document the owner produces then satisfies it. It may
@@ -210,9 +214,9 @@ and what travels here is what fills it — which is why it can be checked agains
 than kept in step with it.
 
 **It binds nothing on the call.** A consumer may send other values, and the Worker judges the input
-it receives as it judges any other (ACT-5): a Worker cannot tell an Action performed because of a
-Task from one performed for any other reason, and the values a Task offered do not change that.
-They are the owner's proposal, and a console shows them as one — filled in, and editable.
+it receives as it judges any other (ACT-5). A call that names the Task it answers (TASK-39) is held
+to the Task's type and to what is available now, and never to the values the Task offered. They are
+the owner's proposal, and a console shows them as one — filled in, and editable.
 
 **`available` says what the owner would accept now, and it is derived on the same read as the
 Task.** An Action can answer the type and still not apply to this Task at this moment: a ticket
@@ -241,9 +245,10 @@ condition. An owner that closed a Task because somebody said so would be holding
 authority it had given away — which is the one thing the
 [architecture](../docs/architecture.md) does not allow of a Worker.
 
-So answering a Task is performing an Action, under [actions](actions.md) and nothing added: ACT-5
-posts it, the Worker changes the Facts the condition is derived from, and the Task is gone the next
-time anybody reads. There is no second call and nothing to close.
+So answering a Task is performing an Action, under [actions](actions.md) and with one header
+added where the caller wants the owner to know which Task it answers (TASK-39): ACT-5 posts it, the
+Worker changes the Facts the condition is derived from, and the Task is gone the next time anybody
+reads. There is no second call and nothing to close.
 
 **Two consumers may therefore answer the same Task, and that is admitted rather than prevented.**
 What bounds it is what bounds any repeat in this protocol: an Action whose idempotency key is read
@@ -268,6 +273,95 @@ fixed *here* and not by the Worker, which is the one thing an Action's input may
 recommends rather than binds because a Worker that reads only on a nudge is one dropped request
 away from stalling silently: the schedule is what the design rests on, and a consumer that declares
 no nudge is slower and never wrong.
+
+## Naming the Task a call answers
+
+**TASK-39 (required). A call to an Action that names in its `Worker-Protocol-Task` header a Task
+that is not open is `404`, with the code `not_found`, and the Action is not performed. Not open is
+no Task under that id whose condition holds, one the credential presented does not cover (TASK-6),
+or — where the header carries `since` — none whose condition began at that instant.**
+
+**TASK-40 (required). A call naming an open Task, to an Action that TASK-35 does not name for that
+Task's type, is `400`, with the code `invalid_parameter`, and the Action is not performed.**
+
+**TASK-41 (required). A call naming an open Task, to an Action that TASK-35 names for its type and
+that the Task's `available` (TASK-38), as the Worker would answer it now, leaves out, is `409`, with
+the code `conflict`, and the Action is not performed.**
+
+**TASK-42 (required). A call under an idempotency key that already has a recorded outcome, or whose
+performance has not finished, is answered by ENDP-16, ENDP-17 or ENDP-32 before TASK-39, TASK-40 or
+TASK-41 is asked.**
+
+**TASK-43 (required). A key read from the `Idempotency-Key` header, reused by its caller on a call
+whose `Worker-Protocol-Task` differs from the first — another value, or the header on one call and
+not on the other — is `409`, with the code `idempotency_key_reused`. A key read from the input is
+compared on the body alone, as ENDP-17 has it.**
+
+**The header's value is the id the owner gave the Task, and optionally the instant its condition
+began:** `Worker-Protocol-Task: t-81`, or `Worker-Protocol-Task: t-81; since=2026-10-13T09:00:00Z`,
+both read off the Task as TASK-28 gives it. The call goes to the owner, so the owner's own id needs
+no qualification. It does not carry the type: the owner looks the Task up in every case, to know
+whether it is open, so a type on the call would save nothing and would add a case where the
+caller's type contradicts the owner's. **A call without the header is exactly the call it was
+before this section existed**, and an Action is still performed for reasons that are no Task's at
+all.
+
+**A Task that is not open is one the owner does not know, and the refusal does not tell them
+apart.** A Task exists while its condition holds and has no state afterwards (TASK-28), so an owner
+that told *ended* from *never existed* would need a history this file has spent a section refusing
+to require. It can legitimately happen: two consumers answer one Task, and the first answer
+resolved the condition. The second is told the Task is gone, which is what it needed to know, and
+nothing is performed on its behalf — the call asked for an answer to that Task, and that Task no
+longer needs one. A consumer that wants the Action performed anyway sends it again without the
+header. A Task the credential does not cover is refused the same way, for REG-32's reason: a
+refusal that told *exists and is not yours* from *does not exist* would say which ids are real.
+
+**A Task's id may recur, and an answer applies to the occurrence open when the call arrives.** An
+owner that derives its ids from the condition — the vehicle it is about, the document under review
+— gives a later occurrence of the same condition the same id, and that is admitted rather than
+forbidden: TASK-15 makes a Task its condition, and an id that names the condition is the ordinary
+consequence. The cost is accepted knowingly. An answer meant for an earlier occurrence can land on
+a later one, and a review approved late may approve a version nobody read. **A caller that wants to
+rule that out names the occurrence, with `since`**: the owner already holds the instant TASK-28
+requires of it, compares it, and refuses a call whose instant is not the open occurrence's under
+TASK-39. Without `since`, nothing is compared, and the answer lands where the id points now.
+
+**TASK-40 and TASK-41 divide at whether the caller could have known.** An Action the type does not
+list is a fault in the caller, which re-reads the Descriptor and finds it — exactly TASK-8's case
+one surface over, and answered with TASK-8's code. An Action the type lists and the Task does not
+offer now is a statement about the present, which a Fact can change between a read and a call:
+that is the condition `conflict` exists for, and ACT-17 already answers the same state with the same
+code when no Task is named. Neither needs a code of its own, because neither asks a caller to do
+anything the codes it already reads do not say.
+
+**The key comes before the Task, because a retry has to learn what happened to it.** A consumer
+whose own answer closed the Task, and which lost the response and repeats, would otherwise be told
+`404` and never learn that its answer took effect. ENDP-16 already promises it the recorded
+outcome, and TASK-42 says only that the promise is kept whatever became of the Task since. A repeat
+is not a performance, so it is not an answer either: nothing is published for it (EVT-21).
+
+**Whether the header counts towards a key follows where the key is read from, for the reason
+ENDP-34 and ENDP-35 divide on.** A header key is a caller's statement about its own attempts, and a
+caller that sends one key naming two Tasks has asked for two things under one name: answered from
+the record, the second Task would stay open while its caller believed it answered. An input key is
+the fact itself, and one performance can answer two Tasks of different types — a pallet moved clears
+a loading fault and a weight fault alike — so a second caller reporting the same fact for another
+Task is answered the recorded outcome. That holds even when the Task it names is of a type the
+Action does not answer: the key is asked first, so the call is answered from the record and not
+refused under TASK-40, which is TASK-42's order and not a gap in TASK-40.
+
+**Nothing else here fixes an order.** Where ACT-8's `schema_mismatch` falls against TASK-39,
+TASK-40 and TASK-41 is the Worker's: a call that fails both is refused either way and has to be
+fixed either way, and reading a key from the input needs the input read first. What is fixed is
+what changes an outcome — the key before the Task, and every check before the performance.
+
+**The owner verifies the pairing on every call that names a Task, and that is where its part
+ends.** Whether a Worker's declared Skill matches the answers it gives is not a question the owner
+can answer: it sees a credential, and cannot tell a consumer Worker from an orchestrator calling on
+somebody's behalf, or from a person. The party that knows which Worker answered is the one that
+assigned the work — by rules of its own, or by letting a Worker take it — and the record is its to
+keep. What the owner can say is that a Task was answered, with which Action and when, and it says
+so in [events](events.md) (EVT-20).
 
 ## Why there is no lease here
 
@@ -305,8 +399,6 @@ anybody did about it.
 
 ## Still open here
 
-- **Who verifies that a Worker answers the Task types it declares under TASK-36.** The Tower at
-  registration, the owner at claim time, or nobody. Open in [undecided](../docs/undecided.md).
 - Whether a Task may carry a deadline of its own.
 - **Whether a consumer can say it is working on something, without a lease.** An advisory note on
   a Task would answer most of what the counts answered and none of what the lease did. It is not

@@ -515,11 +515,11 @@ export async function checkSubscriptions(given: {
 }
 
 /** A header of one exchange, case-insensitively. */
-const header = (exchange: SinkExchange, name: string): string | undefined =>
+export const header = (exchange: SinkExchange, name: string): string | undefined =>
   Object.entries(exchange.headers).find(([key]) => key.toLowerCase() === name)?.[1];
 
 /** The CloudEvent a structured-mode delivery carried, or `undefined`. */
-const event = (exchange: SinkExchange): Record<string, string | undefined> | undefined => {
+export const event = (exchange: SinkExchange): Record<string, string | undefined> | undefined => {
   try {
     const parsed = JSON.parse(exchange.body) as unknown;
     return parsed !== null && typeof parsed === "object"
@@ -534,7 +534,7 @@ const event = (exchange: SinkExchange): Record<string, string | undefined> | und
  * Waits for `count` exchanges the predicate picks out to reach the sink, up to `patience`
  * milliseconds, and answers them.
  */
-const arrival = async (
+export const arrival = async (
   sink: NonNullable<Arrangement["sink"]>,
   wanted: (exchange: SinkExchange) => boolean,
   patience = PATIENCE_MS,

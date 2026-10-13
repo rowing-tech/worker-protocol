@@ -35,6 +35,10 @@ A fleet, simplified from a telemetry worker that polls a GPS provider.
 - The crossing is also when the Task is born, and a reading or an inspection is when it ends, so
   `task-raised` and `task-ended` (EVT-15) are written into the outbox at those moments — by the
   Worker, which is the only party that knows them.
+- An inspection whose call names its Task in `Worker-Protocol-Task` also writes `task-answered`
+  (EVT-20), in the same transaction as the inspection. A Task's id is `quiet:<vehicle>`, so the next
+  silence of the same vehicle is the same id: an answer naming it without `since` lands on whichever
+  silence is open, which the specification admits.
 
 The GPS provider and the broker are both stubs. The subscribers are not: each delivery is a message
 on a Cloudflare Queue. What is real either way is the shape: an outbox that survives a publish that

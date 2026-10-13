@@ -35,7 +35,12 @@ and the rule each one cites.
   it of every open Task the Action answers with that Task's `inputs`, leaving refused answers out
   of `available` (ACT-17, TASK-38). The input it gets may be partial.
   `run(input, call)` is told `call.name`, `call.token`, `call.idempotencyKey` — the key as the
-  caller sent it — `call.principal` and `call.caller`. A Worker forwarding to another derives its
+  caller sent it — `call.principal`, `call.caller` and `call.task`, the open Task a call named in
+  `Worker-Protocol-Task`. `mount()` has already refused one that is not open (`404`, TASK-39), whose
+  type does not list the Action (`400`, TASK-40) or that does not offer it now (`409`, TASK-41),
+  after the key, so a repeat is replayed first (TASK-42), and a header key naming another Task is
+  `409` (TASK-43). Publish `taskAnswered({ task: call.task, action: call.name, at })` from `run`,
+  which a repeat never reaches (EVT-20, EVT-21). A Worker forwarding to another derives its
   downstream key from the key and the caller together. `idempotency` is `{ from: "header" }` or
   `{ from: "input", members: [...] }`, several members making one key in order (ENDP-38). An
   asynchronous Action's declared `result` is the body of its `202` (ACT-18). Mark a `configure`
@@ -61,9 +66,11 @@ and the rule each one cites.
   (EVT-13). `extensions` is a Zod schema per extension attribute its events carry (EVT-17); the hub
   refuses an event carrying any other, and refuses at construction a name that is not lower-case
   letters and digits or is a CloudEvents context attribute (EVT-18, EVT-19). Spread
-  `lifecycleEvents({ tasks, alerts })` into `publishes` for the four EVT-15 types with their data
-  and extensions. A Task type's or an event type's `supersededBy` names its replacement in the same
-  map, as an Action's does.
+  `lifecycleEvents({ tasks, answers, alerts })` into `publishes` for the EVT-15 types and EVT-20's
+  `task-answered`, with their data and extensions. `answers` is its own flag because it is published
+  from `run` and not where Tasks are raised; declare it only where something publishes it. A Task
+  type's or an event type's `supersededBy` names its replacement in the same map, as an Action's
+  does.
 - `subscriptions: { abandonAfterSeconds, store, queue, allows?, accepts?, insecureSinkOrigins?,
   attemptTimeoutMs? }` — `store` a consistent `SubscriptionStore` (a Durable Object, or
   `memorySubscriptions()` in one process), `queue` a `DeliveryQueue` whose consumer calls
@@ -92,8 +99,9 @@ and the rule each one cites.
   and `deliver(delivery)` from the queue consumer, which answers whether to retry.
   `memorySubscriptions()` and `memoryDeliveries()` are the one-process pair.
 - `taskRaised`, `taskEnded`, `alertRaised`, `alertEnded` — build lifecycle events with the names and
-  shape EVT-15 fixes. `lifecycleChanges({ previous, current })` compares two snapshots by id, for a
-  Worker that chooses to; nothing calls it on its own.
+  shape EVT-15 fixes, and `taskAnswered({ task, action, at })` EVT-20's, with `at` as its `time`.
+  `lifecycleChanges({ previous, current })` compares two snapshots by id, for a Worker that chooses
+  to; nothing calls it on its own.
 - `CODES` and `ErrorCode` — the closed refusal vocabulary, each code with its status and class.
 - `bucketsIn`, `startOf`, `endOf`, `rfc3339` — metric boundaries and the instant format.
 - `LEVELS`, `LogLevel`, `LogRecord`, `LogQuery`, `LogPage`, `LogFacts` — the `logs` vocabulary.

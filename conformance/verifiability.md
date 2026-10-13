@@ -18,7 +18,7 @@ this document, and separating them moved six rules.
 | Class | Meaning | Count |
 |---|---|---|
 | **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 107 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 38 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 45 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 28 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
@@ -165,7 +165,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ACT-20 | H | 0.4 | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
 | ACT-21 | W | 0.4 | `configure` has a reading address, and it answers a document its own input schema would accept, without the members marked `writeOnly` |
 
-## tasks.md — 12
+## tasks.md — 17
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -181,6 +181,11 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | TASK-37 | W | 0.5 | Each Task read that carries `inputs` fills in only Actions its type names, members their inputs declare, and values those members accept. A page where no Task carries it is `not exercised`. The value is judged against what the member's schema fixes about one value — `type`, `const`, `enum`, `pattern`, string lengths and numeric bounds — and no further, as TASK-28's payload is not validated against its declared schema either |
 | TASK-38 | W | 0.5 | Each Task read that carries `available` names only Actions its type names. Whether the Worker then accepts them is a statement about the moment of the read, and a later `409` does not contradict it |
 | TASK-28 | W | 0.1 | Each Task carries its id, type, payload and the instant its condition began |
+| TASK-39 | H | 0.7 | A call to the arranged safe Action naming a Task id the Worker never gave is `404` + `not_found`; with an open Task's id and an instant that is not its `since`, the same. Needs the safe Action because ACT-8 may be asked first, so the input has to be one the Worker accepts |
+| TASK-40 | H | 0.7 | A call to the arranged safe Action naming an open Task whose type does not list that Action is `400` + `invalid_parameter`. A Worker with no such Task open is `not exercised` |
+| TASK-41 | H | 0.7 | A call to the arranged safe Action naming an open Task whose type lists it and whose `available` leaves it out is `409` + `conflict`. A Worker with no such Task open is `not exercised` |
+| TASK-42 | H | 0.7 | The arranged safe Action whose key is read from the input, performed once naming no Task and repeated naming a Task the Worker never gave: the recorded outcome, and not `404` |
+| TASK-43 | H | 0.7 | The arranged safe Action whose key is read from the header, performed once naming no Task and repeated under the same key naming one: `409` + `idempotency_key_reused`, and not `404` |
 
 **Sixteen rules of the Claim lifecycle were withdrawn**, and with them the only checks in this tool
 that changed a Worker: taking a lease, renewing it, closing it, and the fencing token that refused a
@@ -218,7 +223,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | NDG-2 | H | 0.1 | A nudge that is accepted sends the Worker to read somebody's Tasks, so it needs a Worker arranged to be told — the same position ACT-5 is in, and the same permission |
 | NDG-3 | W | 0.1 | A nudge for a type the Worker declares no Skill for is `404` + `not_found`, and nothing happened. The same shape as ACT-6, and W for the same reason: the witness is a refusal |
 
-## events.md — 14
+## events.md — 16
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -236,6 +241,8 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | EVT-17 | W | 0.6 | Each event type's `extensions`, read off the entry: a JSON Schema per name. That the events carry no other is EVT-18's |
 | EVT-18 | H | 0.6 | Observed at an arranged sink, on the event the publishing Action caused: every attribute beyond CloudEvents' own is declared for its type, and its value agrees with what that schema fixes about one value |
 | EVT-19 | W | 0.6 | Every declared extension name is lower-case letters and digits and none of CloudEvents' context attributes nor `data`. A Worker that declares none is `not exercised` |
+| EVT-20 | H | 0.7 | Observed at an arranged sink, when the arranged answering Action is performed naming an open Task: `task-answered` with the Task's id in `subject`, its type as `tasktype`, a `time`, and `data` carrying the id, the type and the Action |
+| EVT-21 | H | 0.7 | The same call repeated under the same key at that sink: the recorded outcome, and no second `task-answered`. An answering Action that takes no key is `not exercised` |
 
 ## naming.md — 10
 
@@ -341,7 +348,7 @@ at all.
 
 ## Where this stands
 
-195 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
+202 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.

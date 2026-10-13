@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.6";
+export const EDITION = "0.7";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -1339,6 +1339,37 @@ export const taskEnded = z
       "carry more of its own.",
   });
 
+/**
+ * EVT-20 — what a Task's answered event carries: which Task, and the Action that answered it.
+ *
+ * Not the caller, which is whatever the owner's authentication made of a credential and not a
+ * Worker; and not the instant, which is the event's `time` and is said once.
+ */
+export const taskAnswered = z
+  .looseObject({
+    id: z
+      .string()
+      .min(1)
+      .meta({ description: "EVT-20. The answered Task's id, as TASK-28 gave it." }),
+    type: qualifiedName.meta({ description: "EVT-20. The answered Task's type." }),
+    action: z
+      .string()
+      .min(1)
+      .meta({
+        description:
+          "EVT-20. The name of the Action that answered it, one TASK-35 names for its type, as " +
+          "the owner's `actions` entry holds it.",
+      }),
+  })
+  .meta({
+    title: "Task answered",
+    description:
+      "EVT-20. The data of `tech.rowing.worker-protocol.task-answered`: an Action was performed " +
+      "on a call that named this open Task (TASK-39). Whether the Task then closes is a " +
+      "consequence of the Facts (TASK-15). The instant is the event's `time`. At least these " +
+      "members; a Worker may carry more of its own.",
+  });
+
 /** EVT-15 — what an Alert's ended event carries, on the same reasoning as `taskEnded`. */
 export const alertEnded = z
   .looseObject({
@@ -1690,6 +1721,7 @@ registry.add(eventDestination, { id: "event-destination" });
 registry.add(eventTypeDeclaration, { id: "event-type-declaration" });
 registry.add(eventsEntry, { id: "events-entry" });
 registry.add(taskEnded, { id: "task-ended" });
+registry.add(taskAnswered, { id: "task-answered" });
 registry.add(alertEnded, { id: "alert-ended" });
 registry.add(subscriptionsEntry, { id: "subscriptions-entry" });
 registry.add(subscriptionFilter, { id: "subscription-filter" });

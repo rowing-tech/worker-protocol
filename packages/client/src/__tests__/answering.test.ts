@@ -152,3 +152,39 @@ describe("alerts.offers()", () => {
     ]);
   });
 });
+
+describe("perform(), naming the Task it answers", () => {
+  const sent: { url: string; task: string | null }[] = [];
+  const owner = () =>
+    consume("https://worker.invalid", {
+      fetch: (async (url: string, init?: RequestInit) => {
+        if (new URL(url).pathname.endsWith("/.well-known/worker-protocol")) {
+          return new Response(JSON.stringify(descriptor), { headers: HEADERS });
+        }
+        sent.push({ url, task: new Headers(init?.headers).get("worker-protocol-task") });
+        return new Response(null, { status: 204, headers: HEADERS });
+      }) as typeof fetch,
+    });
+  const input = { vehicle: "ABC-123", reachable: true };
+
+  it("names the occurrence when handed the Task as it was read (TASK-39)", async () => {
+    const task = {
+      id: "task-1",
+      type: SILENT,
+      payload: {},
+      since: "2026-10-13T09:00:00Z",
+    };
+    await (await owner()).actions?.perform("record-check", input, { task });
+    expect(sent.at(-1)?.task).toBe("task-1; since=2026-10-13T09:00:00Z");
+  });
+
+  it("names whatever is open under an id when handed the id alone", async () => {
+    await (await owner()).actions?.perform("record-check", input, { task: "task-1" });
+    expect(sent.at(-1)?.task).toBe("task-1");
+  });
+
+  it("names no Task when told of none, as every call did before", async () => {
+    await (await owner()).actions?.perform("record-check", input);
+    expect(sent.at(-1)?.task).toBeNull();
+  });
+});

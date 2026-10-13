@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { withLogs, withOutbox, withOutcomes, withSubscriptions } from "@worker-protocol/cloudflare";
-import { type OpenTask, taskEnded, taskRaised } from "@worker-protocol/hono";
+import { type OpenTask, taskAnswered, taskEnded, taskRaised } from "@worker-protocol/hono";
 import type { Env } from "./env.ts";
 
 /**
@@ -166,14 +166,27 @@ export class Fleet extends withLogs(
    * What `record-inspection` does: somebody looked, so the condition stops holding — and the Task
    * with it, which is the other moment only this Worker knows. An inspection of a vehicle that was
    * not quiet ends nothing, so it raises nothing.
+   *
+   * `answered` is the Task the call named, where it named one (TASK-39): `mount()` has already
+   * checked it was open and that its type lists this Action. Its `task-answered` (EVT-20) goes into
+   * the outbox with the inspection and the ending, so the three are written together or not at all
+   * — and a repeat answered from the record never reaches here, which is EVT-21's count.
    */
-  async inspect(vehicle: string, at: number): Promise<void> {
+  async inspect(
+    vehicle: string,
+    at: number,
+    answered?: { task: OpenTask; action: string },
+  ): Promise<void> {
     const ending = (await this.quiet(at, quietAfterMs(this.env))).find(
       (one) => one.vehicle === vehicle,
     );
     await this.ctx.storage.put(`${INSPECTION}${vehicle}`, at);
-    if (ending === undefined) return;
-    this.enqueue(at, [taskEnded(quietTask(ending))]);
+    const owed = [
+      ...(answered === undefined ? [] : [taskAnswered({ ...answered, at: new Date(at) })]),
+      ...(ending === undefined ? [] : [taskEnded(quietTask(ending))]),
+    ];
+    if (owed.length === 0) return;
+    this.enqueue(at, owed);
     await this.flush();
   }
 

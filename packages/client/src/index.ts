@@ -160,8 +160,9 @@ export type Consumed = {
     /**
      * TASK-5. Every Task whose condition holds that this credential covers.
      *
-     * Answering one is `actions.perform` with an Action the Task type names, and there is nothing
-     * to claim and nothing to close: the condition stops holding and the Task is gone.
+     * Answering one is `actions.perform` with an Action the Task type names, and with the Task
+     * as `task` so the owner knows which one it answers. There is nothing to claim and nothing to
+     * close: the condition stops holding and the Task is gone.
      */
     list: (type?: string) => Promise<Task[]>;
     /** One page of the same read, for a caller that keeps the cursor itself. */
@@ -215,7 +216,21 @@ export type LogRead = {
 export type PerformOptions = {
   /** ENDP-38. Where the Action declares it reads a key from the header. */
   idempotencyKey?: string;
+  /**
+   * TASK-39. The Task this call answers, sent as `Worker-Protocol-Task`.
+   *
+   * Handed the Task as `tasks.list` read it, the call names that occurrence: its id and the
+   * instant its condition began, so an owner that gives a later occurrence the same id refuses
+   * this call `404` rather than applying it there. Handed an id alone, it names whatever is open
+   * under that id when the call arrives. Either way the owner refuses an Action the Task's type
+   * does not list (`400`) or the Task does not offer now (`409`), and nothing is performed.
+   */
+  task?: Task | string;
 };
+
+/** TASK-39: the header's value, naming the occurrence where the caller holds the Task itself. */
+const taskHeader = (task: Task | string): string =>
+  typeof task === "string" ? task : `${task.id}; since=${task.since}`;
 
 const rfc3339 = (at: Date) => at.toISOString().replace(/\.\d{3}Z$/, "Z");
 
@@ -316,6 +331,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         method: "POST",
         body: JSON.stringify(input),
         idempotencyKey: perform.idempotencyKey,
+        ...(perform.task === undefined ? {} : { task: taskHeader(perform.task) }),
       });
       // ACT-10, ACT-18: `200` with the Action's own result, `204` with none, `202` where it does
       // not complete within the call. The result is the Worker's shape and is not validated.

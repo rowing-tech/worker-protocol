@@ -118,7 +118,7 @@ export type TaskSurface = {
  * that to the SDK. A Task that says `available` itself keeps what it said; one whose answers
  * declare no `refuses` has nothing to narrow and carries no `available`, which means all of them.
  */
-async function availableFor(
+export async function availableFor(
   task: OpenTask,
   given: { names: string[]; accepts: ActionDeclarations; call: Omit<ActionCall, "name"> },
 ): Promise<string[] | undefined> {
