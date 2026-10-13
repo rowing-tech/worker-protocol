@@ -67,6 +67,13 @@ export type VerifyOptions = {
   arrangement?: Arrangement;
   /** For tests and for a caller that needs its own agent. Defaults to the global `fetch`. */
   fetch?: typeof globalThis.fetch;
+  /**
+   * How long a delivery may take to reach an arranged sink before the verifier stops waiting, in
+   * milliseconds. Thirty seconds where not given. The specification fixes no delivery deadline, so
+   * this is the tool's patience: a Worker whose events cross a Queue on their way out is slower
+   * than one in a process, and is not wrong for it.
+   */
+  patienceMs?: number;
 };
 
 /**
@@ -548,6 +555,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           actionsUrl: surface("actions"),
           mayPerform: options.mayPerform === true,
           arrangement: options.arrangement ?? {},
+          ...(options.patienceMs === undefined ? {} : { patienceMs: options.patienceMs }),
           rules: byId,
           attribution,
           transcript: tape,
@@ -572,6 +580,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           tasksUrl: surface("tasks"),
           subscriptionsUrl: surface("subscriptions"),
           publishes: Object.keys(events?.publishes ?? {}),
+          ...(options.patienceMs === undefined ? {} : { patienceMs: options.patienceMs }),
           mayPerform: options.mayPerform === true,
           arrangement: options.arrangement ?? {},
           rules: byId,

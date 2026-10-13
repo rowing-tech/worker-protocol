@@ -17,6 +17,33 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-13 — edition 0.7
+
+All five packages still encode **edition 0.7**. From a run of the verifier against the deployed
+document-intake demo on 0.9.0: seven runs against production, none clean, each failing something
+else, and none of it the Worker's fault.
+
+### Fixed
+
+- conformance: ENDP-23 compared two reads of a metric byte for byte and reported any difference as
+  an order that moved, so a current bucket counting between the two reads failed it. It now checks
+  that each read is ascending by start, the order MET-14 declares, and compares nothing else.
+- conformance: ENDP-2 failed a collection that lost an item between two reads with nothing gained,
+  which is also what a job finishing looks like (ACTV-7, TASK-15, ALRT-8). A loss is now read
+  twice more and fails only if it happens again; a collection left with nothing to read again is
+  `not exercised`.
+- conformance: a delivery was waited for five seconds, which a Worker publishing through an outbox
+  and a Queue exceeds; SUB-11, SUB-16 and EVT-20 failed in turn. The wait is thirty seconds by
+  default, and the detail of a failure says how long it was.
+- conformance: EVT-21 watched two seconds for a second `task-answered`, less than one delivery
+  through a Queue, so a second event published in error could arrive unseen. It watches three
+  times what the first delivery took on that run, at least two seconds and at most the patience.
+
+### Added
+
+- conformance: `verify({ patienceMs })` and `--patience <seconds>`: how long a delivery may take to
+  reach the sink. The specification fixes no deadline, so this is the tool's patience.
+
 ## [0.9.0] - 2026-10-13 — edition 0.7
 
 All five packages encode **edition 0.7**. A verifier on 0.6 meeting a 0.7 Worker says it is behind

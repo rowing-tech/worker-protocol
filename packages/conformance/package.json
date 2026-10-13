@@ -1,6 +1,6 @@
 {
   "name": "@worker-protocol/conformance",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "workerProtocolEdition": "0.7",
   "description": "Point it at a Worker's base URL, get a report of what it complies with",
   "keywords": [

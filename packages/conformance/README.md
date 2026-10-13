@@ -147,8 +147,11 @@ npx @worker-protocol/conformance https://fleet.example.com --may-perform \
 }
 ```
 
-`publishingAction` has to publish while it is being performed: the verifier waits five seconds for
-the delivery, so an Action whose event leaves on the next scheduled run reports SUB-11 failed.
+`publishingAction` has to publish while it is being performed, or soon after: the verifier waits
+thirty seconds for the delivery by default, which `verify({ patienceMs })` and `--patience` change.
+The specification fixes no delivery deadline, so this is the tool's patience and not a rule. It
+costs nothing on a run that passes, because the wait ends when the delivery arrives; only the checks
+that wait for something not to arrive, SUB-13 and EVT-21, wait longer.
 
 `answeringAction` is an Action safe to perform, an input, and the id of an open Task it answers with
 that input: `{ "name": "record-check", "input": { … }, "task": "task-7" }`. The verifier subscribes

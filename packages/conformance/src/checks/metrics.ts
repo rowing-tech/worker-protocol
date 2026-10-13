@@ -247,20 +247,27 @@ export async function checkMetrics(
   // the page having validated above is the witness.
   say("ENDP-20", "passes");
 
-  // ENDP-23: a collection declares an order and holds it, so that paging terminates. The witness
-  // is an unchanged read answering the same items in the same order — a collection whose order
-  // moves between two reads has none for a cursor to resume from.
+  // ENDP-23: a collection declares an order and holds it, so that paging terminates. A metric's is
+  // declared already — ascending by start (MET-14) — so the witness is each of two reads in that
+  // order. What the two answer is not compared: the current bucket keeps accumulating, and a bucket
+  // is born the first time something lands in it (MET-15), so two honest reads a second apart may
+  // differ in values and in which buckets they hold, and neither is an order that moved.
   const repeated = await transcript.send(
     readUrl({ metric: name, granularity, from: iso(now - span), to: iso(now + 3_600_000) }),
     "the same read again, to see whether the order holds",
   );
   const second = metricPage.safeParse(repeated.json);
+  /** The first bucket that starts before the one ahead of it, or `undefined` where none does. */
+  const outOfOrder = (items: { start: string }[]) =>
+    items.find(
+      (one, at) => at > 0 && Date.parse(one.start) < Date.parse(items[at - 1]?.start ?? ""),
+    );
   if (!second.success) {
     say("ENDP-23", "notExercised", "the repeated read did not validate");
-  } else if (JSON.stringify(second.data.items) !== JSON.stringify(buckets)) {
-    say("ENDP-23", "fails", "an unchanged read answered its buckets in a different order");
   } else {
-    say("ENDP-23", "passes");
+    const wrong = outOfOrder(buckets) ?? outOfOrder(second.data.items);
+    if (wrong === undefined) say("ENDP-23", "passes");
+    else say("ENDP-23", "fails", `the bucket starting ${wrong.start} comes after a later one`);
   }
 
   if (buckets.length === 0) {

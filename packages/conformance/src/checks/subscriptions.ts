@@ -56,8 +56,17 @@ const LIFECYCLE: Record<string, string> = {
   "tech.rowing.worker-protocol.alert-ended": "alertseverity",
 };
 
-/** How long a delivery may take to reach the sink before the verifier stops waiting for it. */
-const PATIENCE_MS = 5000;
+/**
+ * How long a delivery may take to reach the sink before the verifier stops waiting for it, unless
+ * `verify({ patienceMs })` says otherwise.
+ *
+ * **The specification fixes no delivery deadline, so this is the tool's patience and not a rule.**
+ * It used to be five seconds, and a Worker on Cloudflare delivering through an outbox and a Queue
+ * took one to four, so a run against production failed SUB-11, SUB-16 or EVT-20 in turn by a few
+ * milliseconds. Waiting longer costs nothing on a run that passes — `arrival` returns the moment
+ * what it waits for arrives — and only a check that waits for an absence waits the whole of it.
+ */
+export const DEFAULT_PATIENCE_MS = 30_000;
 
 /** How long a retry may take after the sink recovers: the backoff, then a Queue's own wait. */
 const RETRY_PATIENCE_MS = 30_000;
@@ -89,6 +98,8 @@ export async function checkSubscriptions(given: {
   publishes: string[];
   /** EVT-17: the extensions each type declares, by type, for EVT-18 to judge a delivery against. */
   extensions: Record<string, Record<string, unknown>>;
+  /** How long a delivery may take to reach the sink; `DEFAULT_PATIENCE_MS` where not given. */
+  patienceMs?: number;
   actionsUrl: string | null;
   mayPerform: boolean;
   arrangement: Arrangement;
@@ -99,6 +110,7 @@ export async function checkSubscriptions(given: {
   const { entry, url, workerId, publishes, actionsUrl, mayPerform, arrangement, transcript } =
     given;
   const { results, say, allExcept } = verdicts(given.rules, CLAIMS);
+  const patience = given.patienceMs ?? DEFAULT_PATIENCE_MS;
 
   if (entry === undefined) {
     allExcept("notExercised", "the Worker declares no `subscriptions`");
@@ -290,7 +302,7 @@ export async function checkSubscriptions(given: {
       performed = await provoke("");
       const performedNow = performed.status >= 200 && performed.status <= 299;
       if (performedNow && failing) {
-        const refused = await arrival(sink, (one) => ofType(one) && mine(one));
+        const refused = await arrival(sink, (one) => ofType(one) && mine(one), patience);
         const refusedId = refused[0] === undefined ? undefined : event(refused[0])?.id;
         if (refusedId !== undefined) {
           failingShown =
@@ -301,11 +313,11 @@ export async function checkSubscriptions(given: {
         delivered = await arrival(
           sink,
           (one) => ofType(one) && (!mine(one) || event(one)?.id === refusedId),
-          RETRY_PATIENCE_MS,
+          Math.max(RETRY_PATIENCE_MS, patience),
           2,
         );
       } else if (performedNow) {
-        delivered = await arrival(sink, ofType);
+        delivered = await arrival(sink, ofType, patience);
       }
     } finally {
       if (failing) sink.respond?.(undefined);
@@ -322,7 +334,7 @@ export async function checkSubscriptions(given: {
       say(
         "SUB-11",
         "fails",
-        `nothing of type ${trigger.publishes} reached the sink with its credential`,
+        `nothing of type ${trigger.publishes} reached the sink with its credential within ${patience / 1000} s`,
       );
       for (const rule of ["SUB-13", "SUB-16", "EVT-15", ...later]) {
         say(rule, "notExercised", "no delivery reached the sink");
@@ -409,7 +421,7 @@ export async function checkSubscriptions(given: {
         say(
           "SUB-12",
           "fails",
-          `an event the sink answered 503 to was not delivered again within ${RETRY_PATIENCE_MS / 1000} s`,
+          `an event the sink answered 503 to was not delivered again within ${Math.max(RETRY_PATIENCE_MS, patience) / 1000} s`,
         );
       if (lastDelivered === undefined) {
         say("SUB-16", "fails", "the subscription does not show when a delivery last succeeded");
@@ -537,7 +549,7 @@ export const event = (exchange: SinkExchange): Record<string, string | undefined
 export const arrival = async (
   sink: NonNullable<Arrangement["sink"]>,
   wanted: (exchange: SinkExchange) => boolean,
-  patience = PATIENCE_MS,
+  patience = DEFAULT_PATIENCE_MS,
   count = 1,
 ): Promise<SinkExchange[]> => {
   const until = Date.now() + patience;

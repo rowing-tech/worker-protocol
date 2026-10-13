@@ -172,9 +172,16 @@ async function probeReads(
   //
   // What the rule is actually about is stated in its own argument: listing a Worker's open Tasks
   // does not consume them, reading its Alerts does not dismiss them. The witness is items that
-  // were there and are gone, with none arriving — a read that empties what it read. That is not
-  // airtight either, because a Task may close on its own between two calls, and the detail says
-  // what was compared so a reader can weigh it.
+  // were there and are gone, with none arriving — a read that empties what it read.
+  //
+  // **A loss is confirmed on a second pair of reads before it is called a failure.** Tasks,
+  // Alerts and activity end on their own, and a Worker is right to stop listing them (TASK-15,
+  // ALRT-8, ACTV-7): against a deployed Worker a job that finished between the two reads was
+  // reported as a read that consumed it. One pair cannot tell the two apart — a collection of one
+  // item that ended looks exactly like one that was consumed. A read that consumes does it every
+  // time, and the world does not keep ending things in step with the reads, so a loss is read
+  // twice more: lost again, it fails; held, the first was the world; nothing left to read, and the
+  // rule was not exercised on that collection.
   const items = (payload: string): string[] | null => {
     try {
       const parsed = JSON.parse(payload) as { items?: unknown };
@@ -189,36 +196,69 @@ async function probeReads(
     }
   };
 
+  /** The items `after` lost from `before`, where it lost some and gained none; else none. */
+  const lost = (before: string[], after: string[]): string[] => {
+    const present = new Set(after);
+    const held = new Set(before);
+    const gone = before.filter((id) => !present.has(id));
+    return after.some((id) => !held.has(id)) ? [] : gone;
+  };
+
   const emptied: string[] = [];
+  const unsettled: string[] = [];
   let collections = 0;
   for (const surface of answered) {
-    const again = await transcript.send(
-      surface.url,
-      `the \`${surface.capability}\` address, again`,
-    );
+    const read = async (which: string) => {
+      const answer = await transcript.send(
+        surface.url,
+        `the \`${surface.capability}\` address, ${which}`,
+      );
+      return { status: answer.status, items: answer.status === 200 ? items(answer.body) : null };
+    };
+    const again = await read("again");
     if (again.status !== 200) {
       emptied.push(`\`${surface.capability}\` answered ${again.status} on a second read`);
       continue;
     }
     const before = items(surface.body);
-    const after = items(again.body);
-    if (before === null || after === null) continue;
+    if (before === null || again.items === null) continue;
     collections += 1;
+    if (lost(before, again.items).length === 0) continue;
 
-    const present = new Set(after);
-    const gone = before.filter((id) => !present.has(id));
-    const arrived = after.filter((id) => !new Set(before).has(id));
-    if (gone.length > 0 && arrived.length === 0) {
-      emptied.push(`\`${surface.capability}\` lost ${gone.length} item(s) to being read`);
+    // The second pair: what a read that consumes would lose again, and the world would not.
+    const third = await read("a third time, after it lost items");
+    const fourth = await read("a fourth time, to see whether reading is what lost them");
+    if (third.items === null || fourth.items === null) {
+      emptied.push(`\`${surface.capability}\` answered ${fourth.status} on a fourth read`);
+    } else if (third.items.length === 0) {
+      unsettled.push(
+        `\`${surface.capability}\` lost items between two reads and then held nothing to read again`,
+      );
+    } else {
+      const again = lost(third.items, fourth.items);
+      if (again.length > 0) {
+        emptied.push(
+          `\`${surface.capability}\` lost items to being read on two pairs of reads, ${again.length} the second time`,
+        );
+      }
     }
   }
 
   if (answered.length > 0) {
+    // A collection left unsettled says nothing either way, so it neither fails the rule nor
+    // passes it; another collection judged clean still does.
+    const judged = collections - unsettled.length;
     if (emptied.length > 0) say("ENDP-2", "fails", emptied.join("; "));
     else if (collections === 0) {
       say("ENDP-2", "notExercised", "no declared surface answered a collection to read twice");
+    } else if (judged === 0) {
+      say("ENDP-2", "notExercised", unsettled.join("; "));
     } else {
-      say("ENDP-2", "passes", "every collection answered the same items on a second read");
+      say(
+        "ENDP-2",
+        "passes",
+        ["no collection lost to being read what it held", ...unsettled].join("; "),
+      );
     }
   }
 

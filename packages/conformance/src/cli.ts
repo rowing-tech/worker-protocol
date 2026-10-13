@@ -54,6 +54,9 @@ Options:
   --sink-url <url>      Where the Worker is to deliver, when that is not the socket:
                         a tunnel's public https URL forwarding to --sink-port. A
                         deployed Worker refuses a plaintext or loopback sink.
+  --patience <seconds>  How long a delivery may take to reach the sink. 30 by default:
+                        the specification fixes no deadline, so this is the tool's
+                        patience, and an absence is waited for the whole of it.
   --json                Write the report to stdout as JSON, and nothing else.
   -h, --help            This.
 
@@ -67,6 +70,7 @@ const { values, positionals } = parseArgs({
     arrangement: { type: "string" },
     "sink-port": { type: "string" },
     "sink-url": { type: "string" },
+    patience: { type: "string" },
     json: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
   },
@@ -214,6 +218,15 @@ function print(report: Report): void {
   }
 }
 
+const patienceMs = (() => {
+  if (values.patience === undefined) return undefined;
+  const seconds = Number(values.patience);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    refuse(`--patience takes a number of seconds, not ${values.patience}.`);
+  }
+  return seconds * 1000;
+})();
+
 let report: Report;
 
 try {
@@ -221,6 +234,7 @@ try {
     baseUrl,
     credential: values.credential ?? process.env.WORKER_PROTOCOL_CREDENTIAL,
     mayPerform: values["may-perform"],
+    ...(patienceMs === undefined ? {} : { patienceMs }),
     arrangement:
       sink === undefined
         ? arrangement

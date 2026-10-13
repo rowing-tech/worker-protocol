@@ -2,7 +2,7 @@ import { taskPage } from "@worker-protocol/schemas";
 import type { Arrangement, SafeAction } from "../index.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
 import { type Transcript, withParams } from "../transcript.ts";
-import { arrival, event, header } from "./subscriptions.ts";
+import { arrival, DEFAULT_PATIENCE_MS, event, header } from "./subscriptions.ts";
 
 /**
  * A call that names the Task it answers, and the event an owner publishes for one.
@@ -27,13 +27,14 @@ export const CLAIMS = [
 const ANSWERED = "tech.rowing.worker-protocol.task-answered";
 
 /**
- * How long the sink is watched for a second `task-answered` after the repeat (EVT-21).
+ * The least the sink is watched for a second `task-answered` after the repeat (EVT-21).
  *
- * What is judged is an absence, so the wait cannot end early: it is the whole of it, every run. The
- * first event had already arrived when the repeat was sent, so this is the time one more delivery
- * would take on the same path, and not the time a first one might.
+ * What is judged is an absence, so the wait cannot end early. It is three times what the first
+ * delivery took, measured on this run, and never less than this: a fixed two seconds was shorter
+ * than one delivery through a Queue in production, so a second event published in error would have
+ * arrived after the verifier stopped looking and the rule would have passed.
  */
-const SILENCE_MS = 2000;
+const SILENCE_LEAST_MS = 2000;
 
 type Declaration = { idempotency?: { from: string } };
 type OpenTask = { id: string; type: string; since: string; available?: string[] };
@@ -48,6 +49,8 @@ export async function checkAnswers(given: {
   subscriptionsUrl: string | null;
   /** EVT-12: what the `events` entry publishes. */
   publishes: string[];
+  /** How long a delivery may take to reach the sink; `DEFAULT_PATIENCE_MS` where not given. */
+  patienceMs?: number;
   mayPerform: boolean;
   arrangement: Arrangement;
   rules: Map<string, Rule>;
@@ -248,6 +251,7 @@ async function checkPublished(given: {
   tasksUrl: string | null;
   subscriptionsUrl: string | null;
   publishes: string[];
+  patienceMs?: number;
   arrangement: Arrangement;
   transcript: Transcript;
   perform: (
@@ -300,18 +304,25 @@ async function checkPublished(given: {
       intent: `\`${answering.name}\`, naming Task ${task.id}`,
     };
 
+    const patience = given.patienceMs ?? DEFAULT_PATIENCE_MS;
+    const sentAt = Date.now();
     const done = await perform(answering, call);
     if (done.status < 200 || done.status > 299) {
       return skip(`\`${answering.name}\` naming Task ${task.id} answered ${done.status}`);
     }
-    const arrived = await arrival(sink, mine);
+    const arrived = await arrival(sink, mine, patience);
+    const took = Date.now() - sentAt;
     const sent = arrived[0] === undefined ? undefined : event(arrived[0]);
     const data = (sent as { data?: { id?: unknown; type?: unknown; action?: unknown } } | undefined)
       ?.data;
 
     // EVT-20: the Task in `subject`, its type as `tasktype`, a `time`, and the Action in `data`.
     if (sent === undefined) {
-      say("EVT-20", "fails", `nothing of type ${ANSWERED} about Task ${task.id} reached the sink`);
+      say(
+        "EVT-20",
+        "fails",
+        `nothing of type ${ANSWERED} about Task ${task.id} reached the sink within ${patience / 1000} s`,
+      );
     } else if (
       sent.tasktype === task.type &&
       typeof sent.time === "string" &&
@@ -335,9 +346,15 @@ async function checkPublished(given: {
       say("EVT-21", "notExercised", "the first performance published nothing to count against");
     } else {
       await perform(answering, { ...call, intent: `${call.intent}, again under the same key` });
-      const counted = await arrival(sink, mine, SILENCE_MS, 2);
+      const silence = Math.min(Math.max(3 * took, SILENCE_LEAST_MS), patience);
+      const counted = await arrival(sink, mine, silence, 2);
       if (counted.length === 1) say("EVT-21", "passes");
-      else say("EVT-21", "fails", `a repeat answered from the record published ${ANSWERED} again`);
+      else
+        say(
+          "EVT-21",
+          "fails",
+          `a repeat answered from the record published ${ANSWERED} again, within ${silence / 1000} s`,
+        );
     }
   } finally {
     await transcript.send(withParams(subscriptionsUrl, { subscription: id }), "ending it", {

@@ -91,7 +91,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
 | ENDP-1 | W | 0.1 | Every address called is one the Descriptor declared. The negative — that no undeclared surface exists — is unreachable and is not what the rule says |
-| ENDP-2 | W | 0.1 | A GET, repeated, leaves the readable state unchanged |
+| ENDP-2 | W | 0.1 | A GET, repeated, does not lose what it read: a collection that loses items and gains none is read twice more, and fails only if it loses again. Tasks, Alerts and activity end on their own, and one pair cannot tell that from a read that consumes; a collection left with nothing to read again is `not exercised` |
 | ENDP-4 | W | 0.1 | `application/json`, UTF-8, parses |
 | ENDP-37 | W | 0.4 | Every response carries the edition; every response from a declared Capability address also carries its version, and the Descriptor's does not need one |
 | ENDP-6 | W | 0.1 | Send an unanswerable Capability version, expect `400` + `unsupported_version` |
@@ -106,7 +106,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ENDP-19 | W | 0.1 | Recommended. A collection longer than the cap answers a capped page |
 | ENDP-20 | W | 0.1 | Every list answers the page envelope |
 | ENDP-21 | P | 0.1 | *Opaque* is unfalsifiable from outside; *never constructed by a caller* binds the caller |
-| ENDP-23 | W | 0.1 | Page twice, check the order holds and paging terminates |
+| ENDP-23 | W | 0.1 | Page twice, check each read holds the declared order and paging terminates. Values and which items are present are not compared: a metric's current bucket keeps counting and a bucket is born when something first lands in it |
 | ENDP-24 | W | 0.1 | An invented filter parameter is `400` + `unknown_filter` |
 | ENDP-33 | H | 0.2 | Page twice while the collection is being added to, and check the second page repeats nothing from the first. It needs a Worker whose collection changes on demand, which is `logs` with a Worker that records when it is read — under an offset the arrivals push the collection along and the repeat is the failure |
 | ENDP-39 | W | 0.4 | Every 4xx and 5xx response carries code, message and class |
