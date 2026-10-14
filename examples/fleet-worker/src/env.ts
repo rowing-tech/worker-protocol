@@ -11,9 +11,14 @@ export type Env = {
   FLEET: DurableObjectNamespace<import("./fleet.ts").Fleet>;
   /** REG-3's token, as a secret. Absent in a deployment that has not set one. */
   CREDENTIAL?: string;
-  /** The stub standing in for a GPS provider: the plate numbers this cycle heard from. */
-  SOURCE_VEHICLES?: string;
-  /** How long a vehicle may say nothing before it is quiet, in minutes. `fleet.ts` has the default. */
+  /**
+   * Where the cycle reads the fleet's positions from: `https`, or `http` on `localhost` beside
+   * `wrangler dev`. Validated at the start of every cycle (`config.ts`).
+   */
+  SOURCE_URL?: string;
+  /** Presented to the source as a bearer token, where it wants one. A secret. */
+  SOURCE_TOKEN?: string;
+  /** How long a vehicle may say nothing before it is quiet, in minutes. `config.ts` checks it. */
   QUIET_AFTER_MINUTES?: string;
   /** The Queue every event leaves the outbox on, whose consumer fans it out to the subscriptions. */
   EVENTS: Queue<import("@worker-protocol/cloudflare").OutboxEvent>;

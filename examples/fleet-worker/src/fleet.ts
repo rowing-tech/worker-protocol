@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { withLogs, withOutbox, withOutcomes, withSubscriptions } from "@worker-protocol/cloudflare";
 import { mount, type OpenTask, taskAnswered, taskEnded, taskRaised } from "@worker-protocol/hono";
 import type { Env } from "./env.ts";
-import { fleetWorker, listed } from "./protocol.ts";
+import { fleetWorker } from "./protocol.ts";
 import { CYCLE_MS, type Quiet, quietAfterMs, quietTask, type Reading } from "./quiet.ts";
 
 /**
@@ -106,10 +106,19 @@ export class Fleet extends withLogs(
     return (await this.flush()).sent;
   }
 
-  /** TASK-15: the condition. A vehicle is quiet while its last reading is old and uninspected. */
-  async quiet(now: number, quietAfterMs: number): Promise<Quiet[]> {
+  /**
+   * TASK-15: the condition. A vehicle is quiet while its last reading is old and uninspected.
+   *
+   * `overlay` is readings as though they had been ingested, for `preview`: each replaces the one on
+   * record and clears the vehicle's inspection, exactly as `ingest` would — and nothing is written.
+   */
+  async quiet(now: number, quietAfterMs: number, overlay: Reading[] = []): Promise<Quiet[]> {
     const readings = await this.ctx.storage.list<number>({ prefix: READING });
     const inspections = await this.ctx.storage.list<number>({ prefix: INSPECTION });
+    for (const one of overlay) {
+      readings.set(`${READING}${one.vehicle}`, one.at);
+      inspections.delete(`${INSPECTION}${one.vehicle}`);
+    }
     const held: Quiet[] = [];
     for (const [key, at] of readings) {
       const vehicle = key.slice(READING.length);
@@ -154,31 +163,23 @@ export class Fleet extends withLogs(
   }
 
   /**
-   * One cycle: read what the source says, and record it — what the cron runs, and the `run-cycle`
-   * Action.
-   *
-   * The provider is a stub, which is the honest limit of an example in this repository. `ingest`
-   * enqueues what the readings raised in the same transaction as the readings, and sends it before
-   * it returns. What the events Queue does not take, the alarm sends later.
+   * What `ingest` would raise and end with these readings, by Task id, writing nothing: the answer
+   * to a dry run of the cycle (`cycle.ts`). The same two comparisons `ingest` makes, over the
+   * readings laid on top of what is on record rather than written into it.
    */
-  async cycle(): Promise<{ readings: number; published: number }> {
-    const now = Date.now();
-    const readings: Reading[] = listed(this.env.SOURCE_VEHICLES).map((vehicle) => ({
-      vehicle,
-      at: now,
-    }));
-    const published = await this.ingest(readings, now, quietAfterMs(this.env));
-    // LOG-2: the record, written on purpose and in one call. This is the whole of what a Worker
-    // does for this Capability — it decides what is worth a line and where that line is kept.
-    this.record([
-      {
-        at: Date.now(),
-        level: "info",
-        message: "cycle complete",
-        fields: { readings: readings.length, published },
-      },
-    ]);
-    return { readings: readings.length, published };
+  async preview(
+    readings: Reading[],
+    now: number,
+    quietAfterMs: number,
+  ): Promise<{ raise: string[]; end: string[] }> {
+    const before = await this.quiet(now - CYCLE_MS, quietAfterMs);
+    const after = await this.quiet(now, quietAfterMs, readings);
+    const was = new Set(before.map((one) => one.vehicle));
+    const is = new Set(after.map((one) => one.vehicle));
+    return {
+      raise: after.filter((one) => !was.has(one.vehicle)).map((one) => quietTask(one).id),
+      end: before.filter((one) => !is.has(one.vehicle)).map((one) => quietTask(one).id),
+    };
   }
 
   /** The protocol, answered from here, built once per object because the declaration is. */

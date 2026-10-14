@@ -17,6 +17,22 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-10-13 — edition 0.7
+
+All five packages still encode **edition 0.7**, and none of them changes: this release carries the
+Cloudflare example, which is how `@worker-protocol/cloudflare` explains what it is for.
+
+### Changed
+
+- fleet-worker: the half that reads the world, as issue #6 asks. A cycle validates its bindings
+  before any work (`config.ts`), polls `SOURCE_URL` and maps what it answers outside the object
+  (`source.ts`), and enters the object once with the readings (`cycle.ts`) — a Durable Object lets
+  other requests through while it awaits a `fetch`, and 0.9.2 had moved the cycle inside it. Every
+  record a cycle writes carries its id. `POST /cycle` runs one by hand, and `?dryRun=true` says
+  which Tasks it would raise and end and writes nothing. A configuration it refuses is recorded,
+  fails the cron, and makes `health` `unhealthy`. `run-cycle` is replaced by `record-readings`,
+  which takes readings already read; the source stub is replaced by `SOURCE_URL`.
+
 ## [0.9.3] - 2026-10-13 — edition 0.7
 
 All five packages still encode **edition 0.7**. From the deployed document-intake demo, answering

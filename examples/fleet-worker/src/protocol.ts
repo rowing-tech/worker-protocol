@@ -14,6 +14,7 @@ import {
   type Worker,
 } from "@worker-protocol/hono";
 import * as z from "zod";
+import { configFromEnv } from "./config.ts";
 import type { Env } from "./env.ts";
 import type { Fleet } from "./fleet.ts";
 import { QUIET_VEHICLE, quietAfterMs, quietTask } from "./quiet.ts";
@@ -39,7 +40,7 @@ const ID = "tech.rowing.fleet.tracker";
 const BACKED_UP = 20;
 
 /** A comma-separated variable as a list, with the empty entries a trailing comma leaves dropped. */
-export const listed = (value: string | undefined) =>
+const listed = (value: string | undefined) =>
   (value ?? "").split(",").filter((one) => one.length > 0);
 
 /** SUB-1. How long a sink may fail without interruption before its subscription ends: a day. */
@@ -130,13 +131,29 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
     authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
 
     // HLTH-2: one status and named checks. HLTH-3 forbids `healthy` while a check is not, so the
-    // outbox backing up takes the whole Worker to `degraded` and says which check said so.
+    // outbox backing up takes the whole Worker to `degraded` and says which check said so — and a
+    // configuration the cycle refuses takes it to `unhealthy`, because a cron that fails shows in
+    // the platform's dashboard and nowhere a Tower reading this Worker looks.
     health: async () => {
       const { depth } = await fleet.outbox();
-      const status = depth > BACKED_UP ? ("degraded" as const) : ("healthy" as const);
+      const outbox = depth > BACKED_UP ? ("degraded" as const) : ("healthy" as const);
+      const refused = (() => {
+        try {
+          configFromEnv(env);
+          return undefined;
+        } catch (thrown) {
+          return thrown instanceof Error ? thrown.message : String(thrown);
+        }
+      })();
       return {
-        status,
-        checks: { outbox: { status, detail: `${depth} events waiting to be published` } },
+        status: refused !== undefined ? ("unhealthy" as const) : outbox,
+        checks: {
+          outbox: { status: outbox, detail: `${depth} events waiting to be published` },
+          configuration:
+            refused === undefined
+              ? { status: "healthy" as const }
+              : { status: "unhealthy" as const, detail: refused },
+        },
       };
     },
 
@@ -191,10 +208,23 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
             return { recordedAt: new Date().toISOString() };
           },
         }),
-        "run-cycle": action({
-          input: z.object({}),
-          result: z.object({ readings: z.number(), published: z.number() }),
-          run: () => fleet.cycle(),
+        // What a source that pushes its readings would call, and what the cycle does with what
+        // it polled. It takes the readings already read: the network is never awaited inside the
+        // object this runs in (`source.ts`).
+        "record-readings": action({
+          input: z.object({
+            readings: z
+              .array(z.object({ vehicle: z.string().min(1), at: z.iso.datetime({ offset: true }) }))
+              .min(1),
+          }),
+          result: z.object({ published: z.number() }),
+          run: async ({ readings }) => ({
+            published: await fleet.ingest(
+              readings.map((one) => ({ vehicle: one.vehicle, at: Date.parse(one.at) })),
+              Date.now(),
+              quietAfterMs(env),
+            ),
+          }),
         }),
       },
     },

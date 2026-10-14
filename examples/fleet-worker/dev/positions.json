@@ -1,0 +1,7 @@
+{
+  "positions": [
+    { "unit": "ABC-123", "lastReportAt": "2026-10-13T09:00:00Z" },
+    { "unit": "DEF-456", "lastReportAt": "2026-10-13T09:05:00Z" },
+    { "unit": "GHI-789", "lastReportAt": "2026-10-13T09:10:00Z" }
+  ]
+}

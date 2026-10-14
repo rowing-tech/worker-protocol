@@ -21,8 +21,9 @@ export const QUIET_AFTER_MS = 15 * CYCLE_MS;
  *
  * A variable rather than only a constant because it is calibration, as a sensor's threshold is, and
  * because a Worker under test needs a vehicle to go quiet now rather than in fifteen minutes: the
- * conformance suite runs it at zero, so the cycle it performs raises a Task the verifier can watch
- * arrive at its sink.
+ * conformance suite runs it at zero, so the readings it records raise a Task the verifier can watch
+ * arrive at its sink. `config.ts` refuses a value that is not a number before a cycle runs; this
+ * answers the default for one, so a read of the Tasks never fails over it.
  */
 export const quietAfterMs = (env: Pick<Env, "QUIET_AFTER_MINUTES">): number => {
   const minutes =

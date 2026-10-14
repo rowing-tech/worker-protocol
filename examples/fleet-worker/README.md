@@ -23,6 +23,13 @@ every request to the object and keeps the cron and the Queues. What is the proto
 [`@worker-protocol/cloudflare`](../../packages/cloudflare), one mixin per piece, and what is left in
 the file is the domain. [src/quiet.ts](src/quiet.ts) is the domain apart from where it is kept.
 
+**The half that reads the world runs in the entrypoint, never in the object.**
+[src/cycle.ts](src/cycle.ts) is the cycle the cron runs: [src/config.ts](src/config.ts) validates
+the bindings before any work, [src/source.ts](src/source.ts) polls the source and maps it, and the
+object is entered once with the readings in hand. A Durable Object lets other requests through
+while it awaits an outbound `fetch`, so a poll from inside it would let them interleave under the
+cycle — and keep the object running, and billed, for as long as the source took.
+
 **`mount()` runs inside the object because each call to it from outside is a round trip.** An
 Action reserves its key, reads the Facts, performs and records its outcome; through a stub that was
 four calls in a row, and on a deployed Worker reached from another continent each cost about 650 ms
@@ -35,7 +42,8 @@ those reads avoids by keeping them in front.
 
 A fleet, simplified from a telemetry worker that polls a GPS provider.
 
-- A cron records what the source last said about each vehicle.
+- A cron polls the source and records what it last said about each vehicle. A source that pushes
+  its readings instead calls `record-readings`, which takes them already read.
 - A vehicle that has not reported inside the window is **quiet**.
 - A quiet vehicle is a Task (`tech.rowing.fleet.inspect-quiet-vehicle`) for whoever can go and look.
 - Performing `record-inspection` puts a verification on record, so the condition stops holding and
@@ -50,9 +58,10 @@ A fleet, simplified from a telemetry worker that polls a GPS provider.
   silence of the same vehicle is the same id: an answer naming it without `since` lands on whichever
   silence is open, which the specification admits.
 
-The GPS provider and the broker are both stubs. The subscribers are not: each delivery is a message
-on a Cloudflare Queue. What is real either way is the shape: an outbox that survives a publish that
-failed, because a Fact that was true does not stop being true because a broker was down.
+The broker is a stub, and the source is whatever `SOURCE_URL` names. The subscribers are not: each
+delivery is a message on a Cloudflare Queue. What is real either way is the shape: an outbox that
+survives a publish that failed, because a Fact that was true does not stop being true because a
+broker was down.
 
 ## Running it
 
@@ -67,14 +76,31 @@ the Descriptor, which is the only address this protocol fixes:
 curl -H 'authorization: Bearer f-token' localhost:8787/.well-known/worker-protocol
 ```
 
-The cron does not fire in local development. Drive a cycle by hand, either through the Action or
-through wrangler's scheduled endpoint:
+`wrangler.jsonc` points `SOURCE_URL` at an address nothing answers, so a cycle records that it
+could not read the source. To have one, serve [dev/positions.json](dev/positions.json) — or a
+source of your own in that shape — and point the Worker at it; `http` is accepted on `localhost`
+and nowhere else:
 
 ```
-curl -X POST -H 'authorization: Bearer f-token' -H 'content-type: application/json' \
-  'localhost:8787/actions?action=run-cycle' -d '{}'
+python3 -m http.server 8790 --directory examples/fleet-worker/dev
+pnpm --filter @worker-protocol/fleet-worker dev --var SOURCE_URL:http://localhost:8790/positions.json
+```
+
+The cron does not fire in local development. Drive a cycle by hand at this Worker's own operator
+route, or through wrangler's scheduled endpoint. `?dryRun=true` reads and maps the source and says
+which Tasks the cycle would raise and end, and writes nothing — not even a record:
+
+```
+curl -X POST -H 'authorization: Bearer f-token' 'localhost:8787/cycle?dryRun=true'
+curl -X POST -H 'authorization: Bearer f-token' 'localhost:8787/cycle'
 curl 'localhost:8787/cdn-cgi/handler/scheduled'
 ```
+
+Every record a cycle writes to `/logs` carries the cycle's id in `fields.cycle`, so one run reads
+back whole. A cycle whose configuration it cannot use — no `SOURCE_URL`, one that is not `https`, a
+`QUIET_AFTER_MINUTES` that is not a number — does nothing, records why, fails the cron, and makes
+`health` answer `unhealthy` with a `configuration` check saying the same, so a Tower sees it
+through the protocol too.
 
 `CREDENTIAL` is a secret and is not in `wrangler.jsonc`. Set one with `wrangler secret put
 CREDENTIAL` for a deployment, or pass `--var CREDENTIAL:f-token` to `wrangler dev`.
@@ -121,11 +147,11 @@ crosses none.
 
 It also subscribes, which is the one place `subscriptions` runs end to end on the runtime it is
 built for. The suite serves a sink on a local port, exempts its origin with `DEV_SINK_ORIGINS`, and
-starts the Worker with `QUIET_AFTER_MINUTES` at zero, so the `run-cycle` the verifier performs makes
-every vehicle quiet at once. Each Task it raises leaves the outbox for `fleet-events`, is fanned out
-to `fleet-deliveries` by the Worker's own consumer — the Queues Miniflare runs, not fakes — and
-arrives at the sink, where the handshake, the credential, the filter and the lifecycle event are
-judged.
+starts the Worker with `QUIET_AFTER_MINUTES` at zero, so the `record-readings` the verifier performs
+makes every vehicle quiet at once. Each Task it raises leaves the outbox for `fleet-events`, is
+fanned out to `fleet-deliveries` by the Worker's own consumer — the Queues Miniflare runs, not fakes
+— and arrives at the sink, where the handshake, the credential, the filter and the lifecycle event
+are judged.
 
 [verify]: ../../packages/conformance/src/__tests__/fleet-worker.test.ts
 

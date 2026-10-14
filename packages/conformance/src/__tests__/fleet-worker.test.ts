@@ -33,20 +33,26 @@ const CREDENTIAL = "f-token";
  * Action that makes it publish, delivered to a sink of the verifier's own.
  *
  * `record-inspection` records that somebody looked at a vehicle, and changes nothing but this
- * Worker's Facts. `run-cycle` reads the stub provider, and with `QUIET_AFTER_MINUTES` at zero every
- * vehicle it hears from goes quiet at once — so the cycle raises a Task per vehicle, and each
- * `task-raised` crosses the outbox, the events Queue and the deliveries Queue to reach the sink:
- * the whole of `subscriptions` on the runtime it is built for, over the Queues Miniflare runs.
+ * Worker's Facts. `record-readings` records what a source reported, and with `QUIET_AFTER_MINUTES`
+ * at zero every vehicle it hears from goes quiet at once — so it raises a Task per vehicle, and
+ * each `task-raised` crosses the outbox, the events Queue and the deliveries Queue to reach the
+ * sink: the whole of `subscriptions` on the runtime it is built for, over the Queues Miniflare
+ * runs.
  */
 const arrangementWith = (sink: ListeningSink) => ({
   safeAction: { name: "record-inspection", input: { vehicle: "ABC-123", reachable: true } },
   sink: { url: sink.url, received: sink.received },
   publishingAction: {
-    name: "run-cycle",
-    input: {},
+    name: "record-readings",
+    input: {
+      readings: ["ABC-123", "DEF-456", "GHI-789"].map((vehicle) => ({
+        vehicle,
+        at: new Date().toISOString(),
+      })),
+    },
     publishes: "tech.rowing.worker-protocol.task-raised",
   },
-  // EVT-20, EVT-21: the cycle above leaves every vehicle quiet, and inspecting DEF-456 on a call
+  // EVT-20, EVT-21: the readings above leave every vehicle quiet, and inspecting DEF-456 on a call
   // naming its Task puts `task-answered` in the outbox beside `task-ended`, through both Queues.
   answeringAction: {
     name: "record-inspection",
@@ -129,7 +135,7 @@ describe("a Worker on workerd, verified over HTTP", () => {
     for (const id of ["SUB-2", "SUB-7", "SUB-10", "SUB-11", "SUB-13", "SUB-16", "EVT-15"]) {
       expect(result(id)?.verdict, id).toBe("passes");
     }
-    // What reached the sink were the cycle's Tasks. Not necessarily all three: the verifier ends its
+    // What reached the sink were the readings' Tasks. Not necessarily all three: the verifier ends its
     // subscriptions once the first delivery has had a moment's company, and a delivery the Queue
     // carries after that finds no subscription to make it for.
     const delivered = sink

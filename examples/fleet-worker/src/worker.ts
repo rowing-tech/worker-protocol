@@ -1,14 +1,18 @@
 import { consumeQueues, forward } from "@worker-protocol/cloudflare";
+import { ConfigError } from "./config.ts";
+import { cycle } from "./cycle.ts";
 import type { Env } from "./env.ts";
 import { fleetOf } from "./fleet.ts";
 import { hubOver } from "./protocol.ts";
+import { UpstreamError } from "./source.ts";
 
 /**
  * The Worker's entrypoint, in front of the object that answers it.
  *
  * Every request goes to the object, which serves `mount()` from its own `fetch` (`fleet.ts`): one
  * round trip, after which everything a rule needs is a local call. What stays here is what the
- * platform hands an entrypoint and nothing else — the cron and the Queues.
+ * platform hands an entrypoint, and the cycle, which reads the source and so must not run inside
+ * the object (`source.ts`): the cron, an operator's `POST /cycle`, and the Queues.
  *
  * **Forwarding everything is a choice this Worker can make because it watches one fleet** and so
  * has one object. A read that touches no Fact — the Descriptor, `health` — now pays the round trip
@@ -24,14 +28,53 @@ import { hubOver } from "./protocol.ts";
  */
 export { Fleet } from "./fleet.ts";
 
+/**
+ * `POST /cycle`: the cron's cycle, run by hand, and `?dryRun=true` to read and map the source and
+ * say what the cycle would do — which Tasks it would raise and end — writing nothing at all.
+ *
+ * It is this Worker's own operator route and not a surface of the protocol, which reserves no path
+ * (ENDP-1) and so leaves this one free. The credential is the protocol's, checked here because the
+ * route never reaches `mount()`.
+ */
+async function operate(request: Request, env: Env): Promise<Response> {
+  const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
+  if (env.CREDENTIAL === undefined || token !== env.CREDENTIAL) {
+    return Response.json({ error: "unauthenticated" }, { status: 401 });
+  }
+  const dry = new URL(request.url).searchParams.get("dryRun");
+  try {
+    return Response.json(
+      await cycle({ fleet: fleetOf(env), env, dryRun: dry === "true" || dry === "1" }),
+    );
+  } catch (thrown) {
+    // The two failures an operator can act on, said as what they are. Anything else is a fault in
+    // this code, and is left to throw.
+    if (thrown instanceof ConfigError) {
+      return Response.json({ error: "configuration", message: thrown.message }, { status: 503 });
+    }
+    if (thrown instanceof UpstreamError) {
+      return Response.json({ error: "source", message: thrown.message }, { status: 502 });
+    }
+    throw thrown;
+  }
+}
+
 export default {
-  // `forward` reads the body before handing it on, and answers a lost connection to the object in
-  // the protocol's envelope rather than as the runtime's plain-text `500`.
-  fetch: (request: Request, env: Env, _ctx: ExecutionContext) =>
-    forward({ to: fleetOf(env), request }),
-  /** The cron in `wrangler.jsonc`. A Worker finds work on a schedule, which is what makes it one. */
+  fetch: (request: Request, env: Env, _ctx: ExecutionContext) => {
+    if (request.method === "POST" && new URL(request.url).pathname === "/cycle") {
+      return operate(request, env);
+    }
+    // `forward` reads the body before handing it on, and answers a lost connection to the object
+    // in the protocol's envelope rather than as the runtime's plain-text `500`.
+    return forward({ to: fleetOf(env), request });
+  },
+  /**
+   * The cron in `wrangler.jsonc`. A Worker finds work on a schedule, which is what makes it one. A
+   * cycle that refuses its configuration or cannot read the source has recorded why, and throws,
+   * so the platform shows the cron failed.
+   */
   scheduled: async (_controller: unknown, env: Env) => {
-    await fleetOf(env).cycle();
+    await cycle({ fleet: fleetOf(env), env });
   },
   /**
    * Both Queues in `wrangler.jsonc`. On `fleet-events`, each batch is published to the subscribers

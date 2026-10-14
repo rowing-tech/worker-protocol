@@ -1,9 +1,11 @@
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { cycle } from "../src/cycle.ts";
 import { fleetOf } from "../src/fleet.ts";
 import { QUIET_AFTER_MS } from "../src/quiet.ts";
 import { captureEvents } from "./outbound.ts";
+import { NOW, source } from "./source.ts";
 
 /**
  * The protocol's surfaces, over the deployed Worker.
@@ -164,11 +166,7 @@ describe("what the Worker recorded while it was working", () => {
 
   it("answers what a cycle recorded, most recent first, with its structured fields", async () => {
     // A cycle records on purpose, in the Worker's own code path.
-    await at("/actions?action=run-cycle", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    });
+    await cycle({ fleet: fleet(), env, fetch: source([{ unit: "ABC-123", lastReportAt: NOW }]) });
 
     const answered = await page();
     expect(answered.items.length).toBeGreaterThan(0);
