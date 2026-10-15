@@ -88,8 +88,10 @@ and the rule each one cites.
   `consumeQueues` does.
 - `grants: { store, applicants(caller, principal) }` — `store` a `GrantStore` (`memoryGrants()` in
   one process); `applicants` which callers may apply, required, and `mount()` refuses to build
-  without it (GRANT-2). The applicant is the `caller` your `authenticate` names, so name a stable
-  identity there — never the id of a key: rotating that key would orphan every grant it applied.
+  without it (GRANT-2). The applicant is the `caller` your `authenticate` names, and a caller it
+  names nothing for is refused `403` without `applicants` being asked — a Worker holding one static
+  secret names its one caller. Name a stable identity there, never the id of a key: rotating that
+  key would orphan every grant it applied, and every series counted under them.
   `mount()` mints each credential, answers it once and keeps only its SHA-256; a presented
   credential is looked up by digest before `authenticate`, on every request that carries one, so
   index the digest and answer a miss cheaply. `put(grant, expected)` compares the serial it holds
@@ -99,7 +101,16 @@ and the rule each one cites.
   and `subscriptions.allows` are still asked and may only narrow inside it (GRANT-8). It is `403`
   on health, metrics, alerts, activity, logs and settings (GRANT-10). Hand `eventHub` the same
   store as `grants: { store }`, so a subscription a narrowed, rotated or revoked credential made
-  ends as `revoked` before its next delivery (GRANT-9).
+  ends as `revoked` before its next delivery (GRANT-9). `call.grant` is `{ applicant, id }` for a
+  call a grant's credential made: hand it to `taskAnswered({ ..., grant: call.grant })` and the
+  applicant's deliveries carry `contract` (EVT-22); record `contractKey(call.grant)` under a
+  `contract` dimension and `mount()` turns a caller's `contract=<id>` into the same key, so nobody
+  else's id ever matches (MET-23). The key is opaque: store it exactly as returned, and declare
+  `contract: {}` with no values — `mount()` refuses a set, which would let anybody break it down.
+  `grant` lives on the `Publishable` in memory only: a Worker that publishes from an outbox stores
+  `call.grant` with the row and hands it back to `taskAnswered`, or the applicant's delivery loses
+  `contract` without a word. What goes to a broker never carries it — `envelopeOf` leaves it out,
+  and a Worker publishing to one by hand must too (EVT-22).
 - `logs: { read({ levels, from, to, cursor, limit }), pageSize? }` — answer
   `{ records: [{ at, level, message, fields? }], nextCursor? }`, most recent first. `levels` arrives
   expanded and in order, lowest first, so the ladder never needs re-deriving.

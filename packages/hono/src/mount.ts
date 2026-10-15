@@ -246,6 +246,21 @@ const complainer = () => {
 };
 
 /**
+ * A metric that declares a set of values for `contract`. MET-19 would then let anybody break it
+ * down, and every Contract's share would be shown to whoever asked — the leak MET-23 exists to close.
+ */
+function enumerated(worker: Worker): string | null {
+  const offending = Object.entries(worker.metrics?.publishes ?? {}).find(
+    ([, metric]) => metric.dimensions.contract?.values !== undefined,
+  );
+  if (offending === undefined) return null;
+  return (
+    `MET-23: \`${offending[0]}\` declares a set of values for \`contract\`, which would let any ` +
+    "caller break it down and see every Contract's share. Declare it with no values: `contract: {}`."
+  );
+}
+
+/**
  * A Worker that declares `grants` and does not say who may apply one. Nobody becomes an applicant
  * by omission, so every caller is refused — which is safe, and a Capability that serves nobody.
  */
@@ -431,6 +446,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       checked = true;
       warn(unrecorded(worker));
       warn(unguarded(worker));
+      warn(enumerated(worker));
       firstStore = worker.actions?.outcomes;
     } else {
       warn(forgetful(firstStore, worker.actions?.outcomes));
@@ -443,7 +459,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // `5xx` for a condition that will not change, and this one never will.
   if (typeof source !== "function") {
     checked = true;
-    const fault = unrecorded(source) ?? unguarded(source);
+    const fault = unrecorded(source) ?? unguarded(source) ?? enumerated(source);
     if (fault !== null) throw new Error(fault);
     firstStore = source.actions?.outcomes;
   }
@@ -670,10 +686,10 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
 
   serve(
     { capability: "metrics", path: "/metrics", route: readMetric, ownParameters: true },
-    async (c, { worker }) => {
+    async (c, { worker, caller }) => {
       const read = surfacesOf(worker).metrics;
       if (!read) return undeclared("metrics");
-      return page(c, await read(query(c)));
+      return page(c, await read(query(c), caller ?? null));
     },
   );
 
@@ -694,6 +710,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           caller,
           task: c.req.header("worker-protocol-task"),
           coverage: coverageOf(grant),
+          ...(grant === undefined ? {} : { grant: { applicant: grant.applicant, id: grant.id } }),
         }),
       );
     },
@@ -886,12 +903,20 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     caller,
     principal,
   }: Resolved): Promise<
-    { surface: ReturnType<typeof grantsSurface>; applicant: string | null } | Response
+    { surface: ReturnType<typeof grantsSurface>; applicant: string } | Response
   > => {
     if (!worker.grants) return undeclared("grants");
-    const applicant = caller ?? null;
+    // GRANT-2: an applicant is a caller `authenticate` named. One it named nothing for is refused
+    // without asking `applicants`, because `contract` would reach every unnamed reader (MET-23,
+    // EVT-22) — a grant applied by nobody in particular is one everybody would be told about.
+    const applicant = caller;
     const { applicants } = worker.grants;
-    if (typeof applicants !== "function" || !(await applicants(applicant, principal))) {
+    if (
+      applicant === undefined ||
+      applicant === "" ||
+      typeof applicants !== "function" ||
+      !(await applicants(applicant, principal))
+    ) {
       return envelope({ code: "forbidden", message: "Not covered by this credential." });
     }
     return {

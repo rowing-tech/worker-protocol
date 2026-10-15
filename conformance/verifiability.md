@@ -17,8 +17,8 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 108 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 56 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 109 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 57 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 28 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
@@ -225,7 +225,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | NDG-2 | H | 0.1 | A nudge that is accepted sends the Worker to read somebody's Tasks, so it needs a Worker arranged to be told — the same position ACT-5 is in, and the same permission |
 | NDG-3 | W | 0.1 | A nudge for a type the Worker declares no Skill for is `404` + `not_found`, and nothing happened. The same shape as ACT-6, and W for the same reason: the witness is a refusal |
 
-## events.md — 16
+## events.md — 17
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -245,6 +245,7 @@ stale Response. `spec/tasks.md` carries the argument. Every check that is left i
 | EVT-19 | W | 0.6 | Every declared extension name is lower-case letters and digits and none of CloudEvents' context attributes nor `data`. A Worker that declares none is `not exercised` |
 | EVT-20 | H | 0.7 | Observed at an arranged sink, when the arranged answering Action is performed naming an open Task: `task-answered` with the Task's id in `subject`, its type as `tasktype`, a `time`, and `data` carrying the id, the type and the Action |
 | EVT-21 | H | 0.7 | The same call repeated under the same key at that sink: the recorded outcome, and no second `task-answered`. An answering Action that takes no key is `not exercised` |
+| EVT-22 | H | 0.8 | The arranged answer, performed under a grant the verifier applied for the purpose, reaches the verifier's own subscription with that grant's id as `data.contract`. That no other subscriber is told it would need a second subscriber holding no grant, and is not observed |
 
 ## naming.md — 10
 
@@ -275,7 +276,7 @@ and then echoed, where no party's correctness turns on the spelling and nothing 
 | HLTH-4 | H | 0.1 | The Worker must leave the window between start and first evaluation pollable |
 | HLTH-5 | W | 0.1 | The health address answers `200` whatever it reports |
 
-## metrics.md — 20
+## metrics.md — 21
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -299,6 +300,7 @@ and then echoed, where no party's correctness turns on the spelling and nothing 
 | MET-18 | W | 0.1 | The file names the check: an unfiltered answer smaller than one of its own filtered answers over the same interval, on a metric that only accumulates upward |
 | MET-19 | W | 0.1 | `by` on a free dimension is refused |
 | MET-22 | W | 0.4 | Every bucket's start and end land on a boundary cut in the declared zone, for a caller with no other agreement — which the verifier is |
+| MET-23 | W | 0.8 | A metric that declares `contract` declares no set of values for it, and fixed to an id the verifier holds no grant under it answers no bucket |
 
 **The most checkable file in the specification**: 19 of 20, and the twentieth is an admitted
 exception. Several need buckets to exist before they say anything, which is `not exercised` and not
@@ -370,7 +372,7 @@ own and are revoked before the run ends.
 
 ## Where this stands
 
-214 rules across fifteen files, none of them `open`, under edition 0.4. Every rule the register
+216 rules across fifteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.

@@ -32,6 +32,9 @@ export const DECLARATIONS: Record<string, z.infer<typeof metricDeclaration>> = {
       // A free dimension: filtered under MET-16 and never grouped under MET-19, because nothing
       // would bound the number of series.
       tenant: {},
+      // MET-23: the Contract a resolution came under, which this double's seed never was — so a
+      // read fixing any id matches nothing, and an unfixed one is the whole.
+      contract: {},
     },
   },
   "vehicles-reporting": {

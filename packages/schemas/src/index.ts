@@ -1363,6 +1363,15 @@ export const taskAnswered = z
           "EVT-20. The name of the Action that answered it, one TASK-35 names for its type, as " +
           "the owner's `actions` entry holds it.",
       }),
+    contract: z
+      .string()
+      .min(1)
+      .optional()
+      .meta({
+        description:
+          "EVT-22. The id of the grant whose credential performed the Action, carried only in a " +
+          "delivery to a subscription the grant's applicant made, and never published to a broker.",
+      }),
   })
   .meta({
     title: "Task answered",

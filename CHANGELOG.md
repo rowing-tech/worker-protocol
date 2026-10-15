@@ -21,10 +21,10 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 All five packages encode **edition 0.8**. A verifier on 0.7 meeting a 0.8 Worker says it is behind
 rather than judging it (DESC-33), so the release that carries it has to be a MINOR of the packages,
-which `^0.9.0` does not take. What it carries is the first two checkpoints of issue #10: what a
-credential may do is divided as what it may see already was, and an optional `grants` Capability
-through which whoever brokers a Contract tells an owner what its credential covers and receives
-the credential the owner issues.
+which `^0.9.0` does not take. What it carries is issue #10: what a credential may do is divided as
+what it may see already was; an optional `grants` Capability through which whoever brokers a
+Contract tells an owner what its credential covers and receives the credential the owner issues;
+and `contract`, told to that party and nobody else.
 
 ### Edition 0.8
 
@@ -41,22 +41,30 @@ the credential the owner issues.
   its id, and the Task types, Actions and event types a credential issued for it covers, each `all`
   or a list of names the Worker declares (`422` otherwise) — a GET lists the applicant's own and a
   DELETE with `grant` revokes one, `404` for an id the caller holds none under. The applicant is the
-  caller that applied it, never the credential's bytes, and a grant's credential never applies one
-  (`403`). Creating answers `201` with the credential; applying again replaces what the grant covers
-  and issues a credential only with `rotate: true`. From the response on, a revoked or rotated
+  caller that applied it, never the credential's bytes, and always one the Worker names: a caller it
+  names nothing for, and a grant's credential, never apply one (`403`). Creating answers `201` with
+  the credential; applying again replaces what the grant covers and issues a credential only with
+  `rotate: true`. From the response on, a revoked or rotated
   credential is `401` everywhere, a narrowed one `403` for what it lost, and a subscription it made
   that is no longer covered ends as `revoked` and receives nothing more. A grant bounds what its
   credential covers and the Worker may narrow inside it, never widen; `all` includes what the
   Worker declares later. A grant's credential is `403` on health, metrics, alerts, activity, logs
   and the settings: watching is enrollment, which no grant names.
+- **`contract`, for the applicant only.** A metric counted per Contract declares a free dimension
+  named `contract`; fixed to an id it answers what came under the caller's own grant of that id and
+  nothing for anybody else, and it is never broken down (MET-23). A `task-answered` performed with
+  a grant's credential carries `data.contract` in deliveries to the applicant's subscriptions and
+  in no other, and never on a broker (EVT-22).
 - spec: `spec/registration.md` no longer asks whether reading a Worker's Tasks and performing the
   Actions that answer them are one right, nor how an owner learns what a credential covers. The
   *permission model* non-goal of `spec/README.md` names what the protocol now divides — Tasks read,
   Actions performed, event types consumed — and the *credential lifecycle* non-goal keeps the
   identity provider's lifecycle except for a credential issued through `grants`; the note on the
   withdrawn revocation rule says why that one is observable. `docs/undecided.md` keeps only what a
-  Contract carries beyond coverage: rate, retention and a consumer's time zone. The dictionary in
-  `docs/architecture.md` gains Grant and Applicant — not the Broker, which carries Events.
+  Contract carries beyond coverage — rate, retention and a consumer's time zone — and no longer
+  asks whether the protocol names a `contract` dimension; `spec/metrics.md` lists the two questions
+  `docs/undecided.md` already said it did. `docs/architecture.md` says what an owner holds of a
+  Contract, and its dictionary gains Grant and Applicant — not the Broker, which carries Events.
 - schemas: `available`'s description cites TASK-44. `grants-entry.json`, `grant-id.json`,
   `grant-request.json`, `grant.json`, `grant-receipt.json` and `grant-page.json`;
   `capability-name.json` gains `grants`.
@@ -73,12 +81,20 @@ the credential the owner issues.
   credential and `503` for the other. `eventHub` takes
   `grants: { store }` and ends a subscription whose grant changed under it as `revoked` before its
   next delivery. `memoryGrants()` for one process; `openapi/grants.json`.
+- hono: `call.grant` is `{ applicant, id }` for a call a grant's credential made;
+  `taskAnswered({ ..., grant })` adds `contract` to the applicant's deliveries alone, and
+  `contractKey(grant)` is the value a Worker records under `contract`, which `mount()` resolves a
+  caller's `contract=<id>` to. `mount()` refuses an unnamed caller on `grants` without asking
+  `applicants`, and refuses to build a metric that declares a set of values for `contract`.
+- schemas: `task-answered.json` gains an optional `contract`.
 - client: `consume(...).grants` with `apply`, `list` and `revoke`.
 - conformance: ACT-22 and TASK-44, with `uncoveredAction` — a credential and a declared Action it
   does not cover — in the arrangement and the CLI. ACT-22's call carries no key and a body that is
   not JSON, so a conformant Worker performs nothing with it; it is still a POST, made only with
   `mayPerform`. The reference worker takes `narrowCredential` and `coveredActions`.
-- conformance: GRANT-1 from the Descriptor, and GRANT-2 to GRANT-10 behind `applyGrants` and
+- conformance: MET-23 from the Descriptor and one read; EVT-22 at the sink, answering the arranged
+  Task under a grant the verifier applies, with `applyGrants`. GRANT-1 from the Descriptor, and
+  GRANT-2 to GRANT-10 behind `applyGrants` and
   `mayPerform`: the verifier applies one grant of its own, narrows, rotates and revokes it, and
   cleans up whatever went wrong. The reference worker serves `grants`, with the operator as its one
   applicant, and the Tower simulation reads it in the registry.

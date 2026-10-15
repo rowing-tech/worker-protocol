@@ -420,6 +420,17 @@ under Contract runs with the Tower down**, which is the claim worth making and t
 consumer that needs a *new* Contract, or credentials that have expired, waits for the Tower like
 anyone else. What never waits is the work.
 
+**What an owner holds of a Contract is a grant, and never the Contract.** The Tower applies one to
+every owner whose Task types, Actions or events the Contract names ([grants](../spec/grants.md)):
+the three lists, under the Contract's own id. The owner issues the credential for it and keeps
+only a digest, so the credential is whatever the owner already knows how to check and the Tower
+holds no signing key. Changing, rotating and revoking go the same way, and a revocation takes effect
+from its response. What an owner counts and publishes under a grant reaches only the Tower that
+applied it: a `contract` dimension on its metrics (MET-23), and the `contract` member of a
+`task-answered` delivered to that Tower's subscription (EVT-22). That is how a Tower compares a
+Worker's Skills against what it did without assigning the work — and how it learns who worked under
+which Contract without any other subscriber learning it too.
+
 ## Settings are an Action
 
 Configuration is not a separate mechanism. A worker publishes an Action, `configure`, whose schema

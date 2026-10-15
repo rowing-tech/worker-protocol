@@ -640,6 +640,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           actionsUrl: surface("actions"),
           tasksUrl: surface("tasks"),
           subscriptionsUrl: surface("subscriptions"),
+          grantsUrl: surface("grants"),
           publishes: Object.keys(events?.publishes ?? {}),
           ...(options.patienceMs === undefined ? {} : { patienceMs: options.patienceMs }),
           mayPerform: options.mayPerform === true,

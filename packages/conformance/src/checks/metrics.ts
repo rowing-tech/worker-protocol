@@ -32,6 +32,7 @@ export const CLAIMS = [
   "MET-18",
   "MET-19",
   "MET-22",
+  "MET-23",
   "NAME-1",
   // Judged here because this check already holds a valid page. A generic probe cannot construct a
   // read for an arbitrary surface — which parameters a surface requires is each Capability file's
@@ -473,6 +474,35 @@ export async function checkMetrics(
     }
   } else {
     say("MET-19", "notExercised", "no dimension declares a closed set to group by");
+  }
+
+  // MET-23: `contract` declares no set, and fixed to an id this caller holds no grant under it
+  // matches nothing — whatever the Worker counted under other Contracts.
+  const counted = Object.entries(publishes).find(([, one]) => "contract" in one.dimensions);
+  if (counted === undefined) {
+    say("MET-23", "notExercised", "no metric declares a `contract` dimension");
+  } else if (counted[1].dimensions.contract?.values !== undefined) {
+    say("MET-23", "fails", `\`${counted[0]}\` declares a set of values for \`contract\``);
+  } else {
+    const [metric, one] = counted;
+    const nobodys = await transcript.send(
+      readUrl({
+        metric,
+        granularity: one.granularities.includes("day") ? "day" : (one.granularities[0] ?? "day"),
+        from: iso(now - span),
+        to: iso(now + 3_600_000),
+        contract: `conformance-${crypto.randomUUID().slice(0, 8)}`,
+      }),
+      "a metric fixed to a `contract` nobody holds",
+    );
+    const page = metricPage.safeParse(nobodys.json);
+    if (nobodys.status !== 200 || !page.success) {
+      say("MET-23", "fails", `fixing \`contract\` to an unknown id answered ${nobodys.status}`);
+    } else if (page.data.items.length > 0) {
+      say("MET-23", "fails", "a `contract` nobody holds matched what was counted");
+    } else {
+      say("MET-23", "passes");
+    }
   }
 
   return results;

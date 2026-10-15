@@ -283,6 +283,27 @@ without performing anything, so publishing for it would count one answer twice �
 comparing a Worker's Skill against what it did would be comparing against a number this Worker
 inflated.
 
+**EVT-22 (required). A `task-answered` whose Action was performed with a credential issued for a
+grant carries under `data` the member `contract`, the grant's id, in each delivery to a subscription
+the grant's applicant made (SUB-8) — and in no other delivery, and in no event published to a
+broker.**
+
+**Who answered, told only to the party that already knows.** EVT-20 leaves the caller out because a
+subscriber, possibly another organisation, would learn who works for whom, and a Contract's id says
+exactly that. The applicant of the grant is the one subscriber it tells nothing new: it brokered the
+Contract and holds the id. So the member travels to it and to nobody else, and with it a Tower can
+read which answers came under which of its Contracts — and compare a Worker's Skills against what it
+did — without ever assigning the work.
+
+**Pushed to the applicant, never published to a broker.** A message on a broker reaches every
+consumer of the topic alike, so a member meant for one of them cannot ride on it; an event published
+to a broker carries no `contract`. A subscription is addressed, which is what makes the difference
+possible.
+
+**One event, two contents, and nothing breaks.** The applicant and any other subscriber receive the
+same `source` and `id`, so each deduplicates as EVT-1 has it; neither ever sees the other's copy,
+and a relay owes the applicant's copy unchanged like any other (EVT-7).
+
 ## What this file does not fix
 
 **What a Worker publishes, and when.** Nothing here enumerates events, requires any, or says that a

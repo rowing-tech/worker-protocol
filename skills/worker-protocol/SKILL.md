@@ -210,6 +210,11 @@ whose reason is understood is one that survives a refactor.
   watching is enrollment (GRANT-10). From the response on: revoked or rotated away is `401`
   everywhere, narrowed is `403` for what it lost, and a subscription it made that is no longer
   covered ends as `revoked` and receives nothing more.
+- **`contract` is told to the applicant of a grant and nobody else.** A metric counted per Contract
+  declares a free dimension named `contract`; a read fixing an id answers what came under the
+  caller's own grant of that id, and nothing for anybody else's — never `403`, never a breakdown
+  (MET-23). A `task-answered` performed with a grant's credential carries `data.contract`, the
+  grant's id, in deliveries to the applicant's subscriptions only, and never on a broker (EVT-22).
 - **The lifecycle of Tasks and Alerts has fixed names** (EVT-15): `task-raised`, `task-ended`,
   `alert-raised`, `alert-ended` under `tech.rowing.worker-protocol`, with the id in `subject` and
   `tasktype` or `alertseverity` as an extension, declared under `extensions` like any other.

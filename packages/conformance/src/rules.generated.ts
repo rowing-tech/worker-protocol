@@ -900,6 +900,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.7"
     },
     {
+      "id": "EVT-22",
+      "file": "events.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
       "id": "GRANT-1",
       "file": "grants.md",
       "class": "required",
@@ -1221,6 +1228,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "W",
       "introducedIn": "0.4"
+    },
+    {
+      "id": "MET-23",
+      "file": "metrics.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.8"
     },
     {
       "id": "NAME-1",
@@ -2104,6 +2118,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     "task-answered": {
       "": "EVT-20",
       "action": "EVT-20",
+      "contract": "EVT-22",
       "id": "EVT-20",
       "type": "NAME-7"
     },

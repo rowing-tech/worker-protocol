@@ -22,6 +22,7 @@ export const CLAIMS = [
   "TASK-43",
   "EVT-20",
   "EVT-21",
+  "EVT-22",
 ] as const;
 
 const ANSWERED = "tech.rowing.worker-protocol.task-answered";
@@ -47,6 +48,8 @@ export async function checkAnswers(given: {
   actionsUrl: string | null;
   tasksUrl: string | null;
   subscriptionsUrl: string | null;
+  /** EVT-22: where to apply the grant an answer is performed under. */
+  grantsUrl: string | null;
   /** EVT-12: what the `events` entry publishes. */
   publishes: string[];
   /** How long a delivery may take to reach the sink; `DEFAULT_PATIENCE_MS` where not given. */
@@ -75,13 +78,14 @@ export async function checkAnswers(given: {
   const from = (one: SafeAction) => accepts[one.name]?.idempotency?.from;
   const perform = (
     one: { name: string; input: unknown },
-    how: { task?: string; key?: string; intent: string },
+    how: { task?: string; key?: string; intent: string; credential?: string },
   ) =>
     transcript.send(withParams(actionsUrl, { action: one.name }), how.intent, {
       method: "POST",
       body: JSON.stringify(one.input),
       headers: {
         "content-type": "application/json",
+        ...(how.credential === undefined ? {} : { authorization: `Bearer ${how.credential}` }),
         ...(how.task === undefined ? {} : { "worker-protocol-task": how.task }),
         ...(how.key === undefined ? {} : { "idempotency-key": how.key }),
       },
@@ -254,9 +258,11 @@ async function checkPublished(given: {
   patienceMs?: number;
   arrangement: Arrangement;
   transcript: Transcript;
+  /** EVT-22: where to apply a grant the answer is performed under, with `applyGrants`. */
+  grantsUrl: string | null;
   perform: (
     one: { name: string; input: unknown },
-    how: { task?: string; key?: string; intent: string },
+    how: { task?: string; key?: string; intent: string; credential?: string },
   ) => Promise<{ status: number; body: string }>;
   say: (id: string, verdict: "passes" | "fails" | "notExercised", detail?: string) => void;
 }): Promise<void> {
@@ -264,7 +270,7 @@ async function checkPublished(given: {
   const answering = arrangement.answeringAction;
   const sink = arrangement.sink;
   const skip = (why: string) => {
-    for (const id of ["EVT-20", "EVT-21"]) say(id, "notExercised", why);
+    for (const id of ["EVT-20", "EVT-21", "EVT-22"]) say(id, "notExercised", why);
   };
   if (!given.publishes.includes(ANSWERED)) return skip(`the Worker does not publish ${ANSWERED}`);
   if (answering === undefined || sink === undefined) {
@@ -290,6 +296,20 @@ async function checkPublished(given: {
     return skip(`the subscription to ${ANSWERED} answered ${created.status}`);
   }
 
+  // EVT-22: where the verifier may apply grants, the answer is performed under one of its own, and
+  // the verifier is that grant's applicant — so its own subscription is told the `contract`.
+  const grantId = `conformance-answered-${Date.now()}`;
+  let granted: string | undefined;
+  if (arrangement.applyGrants === true && given.grantsUrl !== null) {
+    const applied = await transcript.send(given.grantsUrl, "a grant to answer the Task under", {
+      method: "POST",
+      body: JSON.stringify({ id: grantId, tasks: "all", actions: [answering.name], events: [] }),
+      headers: { "content-type": "application/json" },
+    });
+    const issued = (applied.json as { credential?: unknown } | null)?.credential;
+    if (applied.status === 201 && typeof issued === "string") granted = issued;
+  }
+
   try {
     const mine = (one: Parameters<typeof header>[0]) =>
       one.method === "POST" &&
@@ -302,6 +322,7 @@ async function checkPublished(given: {
       task: task.id,
       key,
       intent: `\`${answering.name}\`, naming Task ${task.id}`,
+      ...(granted === undefined ? {} : { credential: granted }),
     };
 
     const patience = given.patienceMs ?? DEFAULT_PATIENCE_MS;
@@ -313,8 +334,11 @@ async function checkPublished(given: {
     const arrived = await arrival(sink, mine, patience);
     const took = Date.now() - sentAt;
     const sent = arrived[0] === undefined ? undefined : event(arrived[0]);
-    const data = (sent as { data?: { id?: unknown; type?: unknown; action?: unknown } } | undefined)
-      ?.data;
+    const data = (
+      sent as
+        | { data?: { id?: unknown; type?: unknown; action?: unknown; contract?: unknown } }
+        | undefined
+    )?.data;
 
     // EVT-20: the Task in `subject`, its type as `tasktype`, a `time`, and the Action in `data`.
     if (sent === undefined) {
@@ -336,6 +360,25 @@ async function checkPublished(given: {
         "EVT-20",
         "fails",
         "the event does not carry the Task, its type, a `time` and the Action",
+      );
+    }
+
+    // EVT-22: performed under the verifier's own grant, its own subscription is told the id.
+    if (granted === undefined) {
+      say(
+        "EVT-22",
+        "notExercised",
+        "the verifier was not permitted to apply a grant to answer under",
+      );
+    } else if (sent === undefined) {
+      say("EVT-22", "notExercised", "nothing reached the sink to read a `contract` from");
+    } else if (data?.contract === grantId) {
+      say("EVT-22", "passes");
+    } else {
+      say(
+        "EVT-22",
+        "fails",
+        "an answer under a grant reached its applicant's subscription without the grant's `contract`",
       );
     }
 
@@ -361,5 +404,14 @@ async function checkPublished(given: {
       method: "DELETE",
       permanent: true,
     });
+    if (granted !== undefined && given.grantsUrl !== null) {
+      await transcript.send(
+        withParams(given.grantsUrl, { grant: grantId }),
+        "revoking that grant",
+        {
+          method: "DELETE",
+        },
+      );
+    }
   }
 }

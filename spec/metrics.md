@@ -282,6 +282,31 @@ answer differently with nothing to distinguish them. It is checkable from outsid
 case: on a metric that only accumulates upward, an unfiltered answer that is smaller than one of its
 own filtered answers over the same interval has broken this rule.
 
+## Under which Contract
+
+**MET-23 (required). A dimension named `contract` counts what came under the credentials a grant
+issued (GRANT-4), and declares no set of values. Fixed to an id, a read answers what came under the
+caller's own grant of that id, and what came under any other grant is never in it.**
+
+**A Tower compares a Worker's Skills against its answers without assigning any work**, and this is
+what it reads to do it: how many answers, performances or anything else a Worker counts came under
+each Contract it brokered. One name means one thing across every Worker that declares it, so a
+Tower does not learn each owner's own spelling, and a Worker that counts nothing per Contract
+declares no such dimension.
+
+**The value is the applicant's own id, and it means something only beside the applicant.** Two
+applicants may hold grants under one id (GRANT-4), so the Worker reads a fixed `contract` together
+with who is asking. Fixed by anybody else — a caller holding no grant under that id, or another
+applicant — it matches nothing, which is MET-17's answer for a value never seen and never `403`: a
+refusal would confirm that the id exists. What the caller gets is a series of its own, which is
+exactly what it already knew.
+
+**Filtered and never broken down, for MET-19's reason and one more.** The ids are an open set, and
+the Descriptor is the same for every caller (REG-8), so no set of them can be declared. And a
+breakdown would show every Contract's share to whoever asked, which is who works for whom — the
+leak EVT-20 refused to put in an event. MET-18 accumulates over the dimension a read does not fix,
+so a reader who fixes nothing still gets the whole, and the buckets still add up.
+
 ## What this file does not fix
 
 **What a Worker counts, and how it derives it.** Which quantities are worth publishing, what a
@@ -308,11 +333,11 @@ monitoring system. The period is the distinction.
 
 ## Still open here
 
-- **Whether a metric is broken down by Contract.** It would be a dimension like any other, and the
-  Worker is authoritative over the value: it sees the credential on every request, so it knows which
-  Contract each read and each Action came under. What is undecided is whether this protocol
-  names that dimension, which would make one name mean the same thing across Workers, or leaves each
-  Worker to declare its own. Open in [undecided](../docs/undecided.md).
+- The time zone a multi-tenant Worker cuts one consumer's buckets in, which MET-22 leaves to what
+  the two agreed and nothing here carries. Open in [undecided](../docs/undecided.md).
+- Whether a consumer reports the cost and elapsed time of the work it did, and who consolidates it
+  — its own metrics, under `contract`, are the obvious candidate. Open in
+  [undecided](../docs/undecided.md).
 
 ## Withdrawn
 

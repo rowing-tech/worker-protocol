@@ -13,6 +13,7 @@ import type * as z from "zod";
 import { bucketsIn, type Granularity, halfOpen, rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { decodeCursor, encodeCursor } from "./collection.ts";
+import { contractKey } from "./grants.ts";
 import type { Refusal } from "./worker.ts";
 
 export type MetricDeclarations = Record<string, z.infer<typeof metricDeclaration>>;
@@ -67,7 +68,11 @@ type MetricPage = z.infer<typeof metricPage>;
 export function metrics(facts: MetricFacts) {
   const cap = facts.pageSize ?? 500;
 
-  return async function read(query: URLSearchParams): Promise<Refusal | MetricPage> {
+  return async function read(
+    query: URLSearchParams,
+    /** MET-23: who is asking, so a fixed `contract` means that caller's own grant of that id. */
+    caller: string | null = null,
+  ): Promise<Refusal | MetricPage> {
     // MET-8: a read names one metric. MET-9: one the entry does not declare is a resource that
     // does not exist, which is MET-10's division — the name is wrong, not the parameter.
     const name = query.get("metric");
@@ -132,7 +137,12 @@ export function metrics(facts: MetricFacts) {
       if (declared.values !== undefined && !declared.values.includes(value)) {
         return refuse("invalid_parameter", `${dimension} does not take the value ${value}.`);
       }
-      fixed[dimension] = value;
+      // MET-23: an id means something only beside its applicant, so the Worker is asked for the
+      // value it recorded under this caller's grant of that id — which another caller never has. A
+      // caller `authenticate` named nothing for is never an applicant (GRANT-2), so `""` is a key
+      // nothing was ever recorded under.
+      fixed[dimension] =
+        dimension === "contract" ? contractKey({ applicant: caller ?? "", id: value }) : value;
     }
 
     const cut = bucketsIn(start, end, granularity, facts.timeZone);

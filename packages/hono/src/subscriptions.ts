@@ -27,7 +27,13 @@ import * as z from "zod";
 import { readJson, schemaMismatch } from "./actions.ts";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
-import { type Covered, type GrantFacts, grantOf, covers as listCovers } from "./grants.ts";
+import {
+  type Covered,
+  type GrantFacts,
+  type GrantRef,
+  grantOf,
+  covers as listCovers,
+} from "./grants.ts";
 import type { OpenTask } from "./tasks.ts";
 import type { Alert, Answer, EventTypeDeclaration, Refusal, Worker } from "./worker.ts";
 
@@ -198,6 +204,12 @@ export type Publishable = {
   id?: string;
   /** When the Fact occurred, where that is not the moment of publishing: an outbox row's instant. */
   time?: number | Date;
+  /**
+   * EVT-22. The grant whose credential caused this event, where one did. Never sent as such: a
+   * delivery to a subscription the grant's applicant made carries its id as `data.contract`, and no
+   * other delivery carries anything of it. `taskAnswered()` sets it from `call.grant`.
+   */
+  grant?: GrantRef;
 };
 
 // ---- the six dialects ---------------------------------------------------------------------------
@@ -280,12 +292,15 @@ export const taskAnswered = (answer: {
   task: Pick<OpenTask, "id" | "type">;
   action: string;
   at: Date;
+  /** EVT-22: `call.grant`, so the grant's applicant, and nobody else, is told the `contract`. */
+  grant?: GrantRef;
 }): Publishable => ({
   type: LIFECYCLE.taskAnswered,
   subject: answer.task.id,
   extensions: { tasktype: answer.task.type },
   data: { id: answer.task.id, type: answer.task.type, action: answer.action },
   time: answer.at,
+  ...(answer.grant === undefined ? {} : { grant: answer.grant }),
 });
 
 /** EVT-15: an Alert began. `subject` is its id; `alertseverity` is what a subscriber filters on. */
@@ -594,11 +609,21 @@ export function eventHub(worker: Publisher) {
     const at = Date.now();
     const events = batch.map((one) => envelope(one, at));
     const subscribed = await subscribedTo(events.map((event) => event.type));
-    const deliveries = events.flatMap((event) =>
-      (subscribed.get(event.type) ?? [])
+    const deliveries = events.flatMap((event, index) => {
+      const grant = batch[index]?.grant;
+      return (subscribed.get(event.type) ?? [])
         .filter((one) => matches(one.filters, event))
-        .map((one) => ({ subscription: one.id, event, publishedAt: at, attempt: 1 })),
-    );
+        .map((one) => ({
+          subscription: one.id,
+          // EVT-22: the grant's applicant is told the `contract`, and no other subscriber is.
+          event:
+            grant !== undefined && one.caller === grant.applicant
+              ? { ...event, data: { ...(event.data as object), contract: grant.id } }
+              : event,
+          publishedAt: at,
+          attempt: 1,
+        }));
+    });
     return { events, deliveries };
   };
 

@@ -293,7 +293,7 @@ describe("the reference worker, verified", () => {
     const arranged = report.results.filter(
       (r) => r.rule.reach === "H" && (r.verdict === "passes" || r.verdict === "fails"),
     );
-    expect(arranged.length).toBe(50);
+    expect(arranged.length).toBe(51);
     const readme = await readFile(join(ROOT, "conformance", "README.md"), "utf8");
     const claimed = /buys is ([\w-]+) of the [\w-]+ rules the register marks/.exec(readme)?.[1];
     expect(claimed, "conformance/README.md: what the reference worker buys").toBe(
@@ -301,7 +301,7 @@ describe("the reference worker, verified", () => {
     );
 
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(158);
+    expect(counts.passes).toBe(160);
     expect(counts.fails).toBe(0);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,

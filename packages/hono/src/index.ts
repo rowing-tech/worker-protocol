@@ -31,7 +31,9 @@ export { CODES, type ErrorCode } from "./codes.ts";
 export {
   type Coverage,
   type Covered,
+  contractKey,
   type GrantFacts,
+  type GrantRef,
   type GrantStore,
   memoryGrants,
   type StoredGrant,

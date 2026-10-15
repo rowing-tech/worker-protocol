@@ -43,14 +43,20 @@ The declaration is [schemas/grants-entry.json](../schemas/grants-entry.json), a 
 **GRANT-1 (required). A `grants` entry declares an address.**
 
 **GRANT-2 (required). A grant belongs to its applicant: the caller that applied it, the same caller
-ENDP-34 scopes a key to. Which callers may apply is the Worker's own; on this address any other is
-`403`, with the code `forbidden`, and so is every credential issued for a grant.**
+ENDP-34 scopes a key to, and one the Worker's authentication names. Which named callers may apply is
+the Worker's own; on this address any other is `403`, with the code `forbidden`, and so is a caller
+the Worker names nothing for, and every credential issued for a grant.**
 
 **The applicant is a caller and not a credential.** A Tower rotates its own credential like anybody
 else, and a grant bound to the bytes it was applied with would be orphaned by the rotation — no
 longer listable, revocable or readable under `contract` by the party that brokered it. Who is
-calling is whatever the Worker's authentication decides, as ENDP-34 already has it; an owner that
-cannot tell its callers apart has one applicant, which is what one static secret already means.
+calling is whatever the Worker's authentication decides, as ENDP-34 already has it.
+
+**An applicant is a caller the Worker names, because `contract` is told to it and to nobody else**
+(MET-23, EVT-22). A Worker that cannot tell its callers apart would tell every one of them; a grant
+applied by *nobody in particular* would make every unnamed reader its applicant. So a Worker that
+names no caller has no applicant, and one holding a single static secret that wants to apply grants
+names the one caller that secret is.
 
 **Which callers may apply is the owner's, and this file does not say how.** An owner enrolled with
 one Tower accepts that Tower's caller; one watched by two may accept both, and each applies grants
@@ -151,7 +157,9 @@ Worker is operated, because they are the relationship between a Worker and whoev
 which REG-34 fixes and ALRT-6 keeps one document for every reader — not a Contract between a
 consumer and a Service. A grant that opened them would let a Contract hand out what enrollment
 withholds, and the one Worker with alerts to hide would have a second door to them. A party that
-should watch a Worker is enrolled with it, with a credential recorded for it, as any Tower is.
+should watch a Worker is enrolled with it, with a credential recorded for it, as any Tower is. A
+party that both watches a Worker and works under a Contract with it therefore holds two credentials
+there: the one recorded at enrollment, and the one a grant issued.
 
 **GRANT-9 (required). A change takes effect from the response to it. Revoked, or replaced by a
 rotation, a credential is `401` on every address, and every subscription it created ends as

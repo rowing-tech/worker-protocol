@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
 import { action } from "../actions.ts";
-import { memoryGrants } from "../grants.ts";
+import { contractKey, memoryGrants } from "../grants.ts";
 import { mount } from "../mount.ts";
 import {
   eventHub,
@@ -9,6 +9,7 @@ import {
   memorySubscriptions,
   SUBSCRIPTION_ENDED,
   type SubscriptionFacts,
+  taskAnswered,
 } from "../subscriptions.ts";
 import type { Worker } from "../worker.ts";
 
@@ -356,5 +357,219 @@ describe("grants, and the Worker's own covers", () => {
     expect(page.items).toEqual([expect.objectContaining({ id: "D-1", available: ["approve"] })]);
     expect((await send(credential, "/actions?action=inspect", "POST", {})).status).toBe(403);
     expect((await send(credential, "/actions?action=approve", "POST", {})).status).toBe(204);
+  });
+});
+
+/**
+ * `contract`: what came under a grant, told to its applicant and nobody else — a metric dimension
+ * fixed by the applicant's own id (MET-23), and a member of `task-answered` in its deliveries only
+ * (EVT-22).
+ */
+describe("contract, for the applicant only", () => {
+  const ANSWERED = "tech.rowing.worker-protocol.task-answered";
+  const setup = () => {
+    const posted: { auth: string | null; body: { data: Record<string, unknown> } }[] = [];
+    const fetch = (async (_url: string, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "OPTIONS") {
+        return new Response(null, { headers: { "webhook-allowed-origin": ID } });
+      }
+      posted.push({
+        auth: new Headers(init?.headers).get("authorization"),
+        body: JSON.parse(String(init?.body)),
+      });
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const queue = memoryDeliveries();
+    const subscriptions: SubscriptionFacts = {
+      abandonAfterSeconds: 3600,
+      store: memorySubscriptions(),
+      queue,
+      fetch,
+    };
+    const events = {
+      publishes: { [ANSWERED]: { data: z.looseObject({}), extensions: { tasktype: z.string() } } },
+      republishWindowSeconds: 3600,
+    };
+    const grants = {
+      store: memoryGrants(),
+      applicants: (caller: string | null) => caller !== "ops",
+    };
+    const hub = eventHub({ id: ID, events, subscriptions, grants });
+    queue.consume(hub.deliver);
+    // What this Worker counts: one answer per performance, under the grant it came under.
+    const answers: { contract: string | null }[] = [];
+    const worker: Worker = {
+      id: ID,
+      authenticate: (token) =>
+        token === "tower-a" || token === "tower-b" || token === "ops"
+          ? { verdict: "accepted", caller: token }
+          : "unauthenticated",
+      metrics: {
+        timeZone: "UTC",
+        publishes: {
+          answers: {
+            unit: "1",
+            additive: true,
+            granularities: ["year"],
+            dimensions: { contract: {} },
+          },
+        },
+        read: ({ buckets, fixed }) => {
+          const counted = answers.filter(
+            (one) => fixed.contract === undefined || one.contract === fixed.contract,
+          ).length;
+          return counted === 0 ? [] : [{ start: buckets[0]?.start ?? new Date(), value: counted }];
+        },
+      },
+      actions: {
+        accepts: {
+          approve: action({
+            input: z.object({}),
+            run: async (_, call) => {
+              answers.push({ contract: call.grant === undefined ? null : contractKey(call.grant) });
+              if (call.task !== undefined) {
+                await hub.publish(
+                  taskAnswered({
+                    task: call.task,
+                    action: call.name,
+                    at: new Date(),
+                    grant: call.grant,
+                  }),
+                );
+              }
+              return undefined;
+            },
+          }),
+        },
+      },
+      tasks: {
+        raises: { [REVIEW]: { payload: z.object({}), answeredBy: ["approve"] } },
+        current: () => [{ id: "D-1", type: REVIEW, payload: {}, since: SINCE }],
+      },
+      events,
+      subscriptions,
+      grants,
+    };
+    const app = mount(worker);
+    const send = (
+      token: string,
+      path: string,
+      init: { method?: string; body?: unknown; task?: string } = {},
+    ) =>
+      app.fetch(
+        new Request(`http://worker.invalid${path}`, {
+          method: init.method ?? "GET",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+            ...(init.task === undefined ? {} : { "worker-protocol-task": init.task }),
+          },
+          ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+        }),
+      );
+    return { send, queue, posted };
+  };
+
+  const YEAR = (() => {
+    const year = new Date().getUTCFullYear();
+    return `from=${year}-01-01T00:00:00Z&to=${year + 1}-01-01T00:00:00Z`;
+  })();
+  const total = async (
+    send: ReturnType<typeof setup>["send"],
+    token: string,
+    contract?: string,
+  ) => {
+    const page = (await (
+      await send(
+        token,
+        // MET-11: whole buckets only, so a whole year.
+        `/metrics?metric=answers&${YEAR}${contract === undefined ? "" : `&contract=${contract}`}`,
+      )
+    ).json()) as { items: { value: number }[] };
+    return page.items.reduce((sum, one) => sum + one.value, 0);
+  };
+
+  it("counts under the applicant's own id, and under nobody else's (MET-23)", async () => {
+    const { send } = setup();
+    const { credential } = (await (
+      await send("tower-a", "/grants", { method: "POST", body: { ...REVIEWER, events: [] } })
+    ).json()) as { credential: string };
+    await send(credential, "/actions?action=approve", { method: "POST", body: {} });
+    await send("ops", "/actions?action=approve", { method: "POST", body: {} });
+
+    expect(await total(send, "tower-a", "c-42")).toBe(1);
+    expect(await total(send, "tower-b", "c-42")).toBe(0);
+    expect(await total(send, "ops", "c-42")).toBe(0);
+    // MET-18: fixing nothing accumulates over every Contract and none.
+    expect(await total(send, "ops")).toBe(2);
+    // MET-19: never broken down.
+    expect((await send("tower-a", `/metrics?metric=answers&${YEAR}&by=contract`)).status).toBe(400);
+  });
+
+  it("tells the applicant's subscription the `contract`, and no other subscriber (EVT-22)", async () => {
+    const { send, queue, posted } = setup();
+    const { credential } = (await (
+      await send("tower-a", "/grants", { method: "POST", body: { ...REVIEWER, events: [] } })
+    ).json()) as { credential: string };
+    for (const [token, sinkCredential] of [
+      ["tower-a", "for-a"],
+      ["ops", "for-ops"],
+    ]) {
+      await send(token as string, "/subscriptions", {
+        method: "POST",
+        body: { types: [ANSWERED], sink: "https://sink.example.com/events", sinkCredential },
+      });
+    }
+    await send(credential, "/actions?action=approve", { method: "POST", body: {}, task: "D-1" });
+    await queue.idle();
+
+    const to = (sink: string) => posted.find((one) => one.auth === `Bearer ${sink}`)?.body.data;
+    expect(to("for-a")).toEqual({ id: "D-1", type: REVIEW, action: "approve", contract: "c-42" });
+    expect(to("for-ops")).toEqual({ id: "D-1", type: REVIEW, action: "approve" });
+  });
+});
+
+describe("grants, an applicant is a named caller", () => {
+  it("refuses a caller `authenticate` names nothing for, without asking `applicants` (GRANT-2)", async () => {
+    let asked = false;
+    const app = mount({
+      id: ID,
+      authenticate: () => "accepted",
+      grants: {
+        store: memoryGrants(),
+        applicants: () => {
+          asked = true;
+          return true;
+        },
+      },
+    });
+    const answer = await app.fetch(
+      new Request("http://worker.invalid/grants", {
+        method: "POST",
+        headers: { authorization: "Bearer anyone", "content-type": "application/json" },
+        body: JSON.stringify({ id: "c-1", tasks: [], actions: [], events: [] }),
+      }),
+    );
+    expect(answer.status).toBe(403);
+    expect(asked).toBe(false);
+  });
+
+  it("will not mount a metric that declares a set of values for `contract` (MET-23)", () => {
+    const enumerated = {
+      id: ID,
+      metrics: {
+        timeZone: "UTC",
+        publishes: {
+          answers: {
+            unit: "1",
+            additive: true,
+            granularities: ["day"],
+            dimensions: { contract: { values: ["c-1"] } },
+          },
+        },
+        read: () => [],
+      },
+    } as unknown as Worker;
+    expect(() => mount(enumerated)).toThrow(/MET-23/);
   });
 });

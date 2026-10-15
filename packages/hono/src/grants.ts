@@ -30,8 +30,8 @@ export type Coverage = { tasks: Covered; actions: Covered; events: Covered };
 
 /** One grant as a store holds it. */
 export type StoredGrant = Coverage & {
-  /** GRANT-2: the caller that applied it, or `null` where `authenticate` names none. */
-  applicant: string | null;
+  /** GRANT-2: the caller that applied it, as `authenticate` named it. Never unnamed. */
+  applicant: string;
   /** GRANT-4: the applicant's id for it, unique only beside the applicant. */
   id: string;
   /** The SHA-256 of the credential issued for it last, base64url. Never the credential itself. */
@@ -62,16 +62,16 @@ export type StoredGrant = Coverage & {
  */
 export type GrantStore = {
   get: (
-    applicant: string | null,
+    applicant: string,
     id: string,
   ) => StoredGrant | undefined | Promise<StoredGrant | undefined>;
   /** The grant whose current credential has this digest. */
   byDigest: (digest: string) => StoredGrant | undefined | Promise<StoredGrant | undefined>;
   put: (grant: StoredGrant, expected: number | null) => boolean | Promise<boolean>;
   /** Whether there was a grant to remove. */
-  remove: (applicant: string | null, id: string) => boolean | Promise<boolean>;
+  remove: (applicant: string, id: string) => boolean | Promise<boolean>;
   /** GRANT-6: every grant of one applicant. */
-  list: (applicant: string | null) => StoredGrant[] | Promise<StoredGrant[]>;
+  list: (applicant: string) => StoredGrant[] | Promise<StoredGrant[]>;
 };
 
 /** What a Worker declares and hands `mount()` for `grants`. */
@@ -82,14 +82,14 @@ export type GrantFacts = {
    * with whom it accepted. Required, so nobody becomes an applicant by omission; a credential
    * issued for a grant is refused before this is asked.
    */
-  applicants: (caller: string | null, principal: unknown) => boolean | Promise<boolean>;
+  applicants: (caller: string, principal: unknown) => boolean | Promise<boolean>;
 };
 
 /** A store in memory: right in one long-lived process, on `memoryOutcomes()`'s terms. */
 export const memoryGrants = (): GrantStore => {
   const held = new Map<string, StoredGrant>();
   const digests = new Map<string, string>();
-  const keyOf = (applicant: string | null, id: string) => JSON.stringify([applicant, id]);
+  const keyOf = (applicant: string, id: string) => JSON.stringify([applicant, id]);
   return {
     get: (applicant, id) => held.get(keyOf(applicant, id)),
     byDigest: (digest) => {
@@ -141,15 +141,27 @@ export const grantCaller = (grant: Pick<StoredGrant, "applicant" | "id" | "seria
 /** The grant a caller names, where it is a grant's credential's. */
 export const grantOf = (
   caller: string | null,
-): { applicant: string | null; id: string; serial: number } | undefined => {
+): { applicant: string; id: string; serial: number } | undefined => {
   if (caller === null || !caller.startsWith('["grant",')) return undefined;
   try {
-    const [, applicant, id, serial] = JSON.parse(caller) as [string, string | null, string, number];
+    const [, applicant, id, serial] = JSON.parse(caller) as [string, string, string, number];
     return { applicant, id, serial };
   } catch {
     return undefined;
   }
 };
+
+/** Which grant a performance came under: its applicant and its id, which is all `contract` needs. */
+export type GrantRef = { applicant: string; id: string };
+
+/**
+ * MET-23: the value a Worker records under a `contract` dimension for what came under a grant, and
+ * the value `mount()` turns a caller's `contract=<id>` into before the Worker's `read` sees it. An id
+ * means something only beside its applicant, so the value is both, as a JSON tuple nothing can forge;
+ * a caller fixing an id it holds no grant under asks for a value nothing was ever recorded under.
+ */
+export const contractKey = (grant: GrantRef): string =>
+  JSON.stringify(["contract", grant.applicant, grant.id]);
 
 /** Whether a list covers one name. */
 export const covers = (list: Covered, name: string): boolean =>
@@ -183,20 +195,20 @@ export function grantsSurface(config: {
 
   return {
     /** GRANT-6: this applicant's grants, by id, and never a credential. */
-    async list(applicant: string | null): Promise<Record<string, unknown>> {
+    async list(applicant: string): Promise<Record<string, unknown>> {
       const all = await facts.store.list(applicant);
       return { items: [...all].sort((a, b) => a.id.localeCompare(b.id)).map(listed) };
     },
 
     /** GRANT-7: revokes one of this applicant's grants, or answers that it holds none. */
-    async revoke(asked: { applicant: string | null; id: string }): Promise<Answer | Refusal> {
+    async revoke(asked: { applicant: string; id: string }): Promise<Answer | Refusal> {
       const removed = await facts.store.remove(asked.applicant, asked.id);
       if (!removed) return refuse("not_found", "No such grant.");
       return { status: 204, body: null };
     },
 
     /** GRANT-3 to GRANT-5: creates, replaces, or rotates. */
-    async apply(asked: { applicant: string | null; raw: string }): Promise<Answer | Refusal> {
+    async apply(asked: { applicant: string; raw: string }): Promise<Answer | Refusal> {
       const read = readJson(asked.raw);
       if ("code" in read) return read;
       const request = grantRequest.safeParse(read.parsed);

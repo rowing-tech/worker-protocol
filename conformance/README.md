@@ -19,7 +19,7 @@ copy it. Most of it is a `WorkerOptions` surface that exists so the suite can co
 *wrong* on purpose — an edition of `banana`, an id that does not match, a boot window held open —
 because that is how DESC-23, DESC-33, DESC-27, HLTH-4 and ENDP-1 are provoked. It is a test double,
 and a reader who opened it looking for how to write a Worker was reading the wrong file. What it
-buys is fifty of the fifty-six rules the register marks `H`. `examples/` now holds two
+buys is fifty-one of the fifty-seven rules the register marks `H`. `examples/` now holds two
 Workers and both are templates: [minimal-worker](../examples/minimal-worker) to copy, and
 [fleet-worker](../examples/fleet-worker) to copy on Cloudflare.
 
@@ -28,8 +28,8 @@ Workers and both are templates: [minimal-worker](../examples/minimal-worker) to 
 A run produces a verdict for **every** rule in the specification, never only for the ones it
 exercised. That is the whole design of this vocabulary, and the reason is the one this repository
 applies everywhere else: something is produced and a party reads it. A report listing the checks
-that ran, all green, over a specification of 214 rules tells an operator that a Worker was checked
-against the protocol. Today that would be 164 of them, and nothing on the page would say which — so
+that ran, all green, over a specification of 216 rules tells an operator that a Worker was checked
+against the protocol. Today that would be 166 of them, and nothing on the page would say which — so
 the reader concludes more than was established, which is the same fault as a generated artifact
 nobody compares.
 

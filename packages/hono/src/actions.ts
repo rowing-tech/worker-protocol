@@ -19,7 +19,7 @@
 
 import * as z from "zod";
 import type { ErrorCode } from "./codes.ts";
-import { type Coverage, covers as listCovers, within } from "./grants.ts";
+import { type Coverage, type GrantRef, covers as listCovers, within } from "./grants.ts";
 import { availableFor, type OpenTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
 import type { Answer, Refusal } from "./worker.ts";
 
@@ -108,6 +108,12 @@ export type ActionCall = {
    * the answer in the same one. `taskAnswered()` builds the event.
    */
   task?: OpenTask;
+  /**
+   * GRANT-4. The grant whose credential made this call — its applicant and its id — and absent for
+   * any other credential. Hand it to `taskAnswered()` so its applicant's deliveries carry `contract`
+   * (EVT-22), and record `contractKey(call.grant)` under a `contract` dimension (MET-23).
+   */
+  grant?: GrantRef;
 };
 
 export type ActionDeclarations = Record<string, Action>;
@@ -312,6 +318,8 @@ type Performance = {
   task: string | undefined;
   /** GRANT-8: what the grant this credential was issued for covers, where it was issued for one. */
   coverage?: Coverage;
+  /** GRANT-4: that grant's applicant and id, for `call.grant`. */
+  grant?: GrantRef;
 };
 
 /** The `tasks` entry's declaration and facts, which a call naming a Task is checked against. */
@@ -403,6 +411,7 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
     caller,
     task: header,
     coverage,
+    grant,
   }: Performance): Promise<Answer | Refusal> {
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
     const declaration = facts.accepts[name];
@@ -519,7 +528,14 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
       }
     }
 
-    const call: ActionCall = { name, token, idempotencyKey: recordedKey, principal, caller };
+    const call: ActionCall = {
+      name,
+      token,
+      idempotencyKey: recordedKey,
+      principal,
+      caller,
+      ...(grant === undefined ? {} : { grant }),
+    };
     let produced: unknown;
     try {
       // TASK-39, TASK-40, TASK-41: the Task the call names, asked after the key was taken (TASK-42)
