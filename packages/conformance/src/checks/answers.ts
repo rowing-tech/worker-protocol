@@ -1,4 +1,4 @@
-import { taskPage } from "@worker-protocol/schemas";
+import { grantReceipt, taskPage } from "@worker-protocol/schemas";
 import type { Arrangement, SafeAction } from "../index.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
 import { type Transcript, withParams } from "../transcript.ts";
@@ -26,6 +26,9 @@ export const CLAIMS = [
 ] as const;
 
 const ANSWERED = "tech.rowing.worker-protocol.task-answered";
+
+/** How one Action call is made: the Task it names, its key, and a credential other than the run's. */
+type Call = { task?: string; key?: string; intent: string; credential?: string };
 
 /**
  * The least the sink is watched for a second `task-answered` after the repeat (EVT-21).
@@ -76,10 +79,7 @@ export async function checkAnswers(given: {
   /** A Task id no Worker gave: what TASK-39 must refuse, and TASK-42 and TASK-43 must not reach. */
   const nowhere = fresh("no-such-task");
   const from = (one: SafeAction) => accepts[one.name]?.idempotency?.from;
-  const perform = (
-    one: { name: string; input: unknown },
-    how: { task?: string; key?: string; intent: string; credential?: string },
-  ) =>
+  const perform = (one: { name: string; input: unknown }, how: Call) =>
     transcript.send(withParams(actionsUrl, { action: one.name }), how.intent, {
       method: "POST",
       body: JSON.stringify(one.input),
@@ -92,7 +92,10 @@ export async function checkAnswers(given: {
       permanent: true,
     });
 
-  const open = await allOpen(tasksUrl, transcript, "the open Tasks, to name one in a call");
+  const open = await allOpen(transcript, {
+    url: tasksUrl,
+    intent: "the open Tasks, to name one in a call",
+  });
   const lists = (task: OpenTask, name: string) =>
     (raises[task.type]?.answeredBy ?? []).includes(name);
 
@@ -229,13 +232,18 @@ export async function checkAnswers(given: {
 }
 
 /** Every open Task this credential covers, page by page (ENDP-21), up to a bound. */
-async function allOpen(url: string, transcript: Transcript, intent: string): Promise<OpenTask[]> {
+export async function allOpen(
+  transcript: Transcript,
+  read: { url: string; intent: string; headers?: HeadersInit },
+): Promise<OpenTask[]> {
+  const { url, intent, headers } = read;
   const open: OpenTask[] = [];
   let cursor: string | undefined;
   for (let pages = 0; pages < 20; pages += 1) {
     const read = await transcript.send(
       cursor === undefined ? url : withParams(url, { cursor }),
       pages === 0 ? intent : `${intent}, the next page`,
+      headers === undefined ? {} : { headers },
     );
     const page = taskPage.safeParse(read.json);
     if (!page.success) break;
@@ -262,7 +270,7 @@ async function checkPublished(given: {
   grantsUrl: string | null;
   perform: (
     one: { name: string; input: unknown },
-    how: { task?: string; key?: string; intent: string; credential?: string },
+    how: Call,
   ) => Promise<{ status: number; body: string }>;
   say: (id: string, verdict: "passes" | "fails" | "notExercised", detail?: string) => void;
 }): Promise<void> {
@@ -281,7 +289,10 @@ async function checkPublished(given: {
   }
 
   const task = (
-    await allOpen(tasksUrl, transcript, `the open Tasks, to find ${answering.task}`)
+    await allOpen(transcript, {
+      url: tasksUrl,
+      intent: `the open Tasks, to find ${answering.task}`,
+    })
   ).find((one) => one.id === answering.task);
   if (task === undefined) return skip(`Task ${answering.task} is not open`);
 
@@ -299,15 +310,16 @@ async function checkPublished(given: {
   // EVT-22: where the verifier may apply grants, the answer is performed under one of its own, and
   // the verifier is that grant's applicant — so its own subscription is told the `contract`.
   const grantId = `conformance-answered-${Date.now()}`;
+  const grantsUrl = arrangement.applyGrants === true ? given.grantsUrl : null;
   let granted: string | undefined;
-  if (arrangement.applyGrants === true && given.grantsUrl !== null) {
-    const applied = await transcript.send(given.grantsUrl, "a grant to answer the Task under", {
+  if (grantsUrl !== null) {
+    const applied = await transcript.send(grantsUrl, "a grant to answer the Task under", {
       method: "POST",
       body: JSON.stringify({ id: grantId, tasks: "all", actions: [answering.name], events: [] }),
       headers: { "content-type": "application/json" },
     });
-    const issued = (applied.json as { credential?: unknown } | null)?.credential;
-    if (applied.status === 201 && typeof issued === "string") granted = issued;
+    const receipt = grantReceipt.safeParse(applied.json);
+    if (applied.status === 201 && receipt.success) granted = receipt.data.credential;
   }
 
   try {
@@ -404,14 +416,10 @@ async function checkPublished(given: {
       method: "DELETE",
       permanent: true,
     });
-    if (granted !== undefined && given.grantsUrl !== null) {
-      await transcript.send(
-        withParams(given.grantsUrl, { grant: grantId }),
-        "revoking that grant",
-        {
-          method: "DELETE",
-        },
-      );
+    if (granted !== undefined && grantsUrl !== null) {
+      await transcript.send(withParams(grantsUrl, { grant: grantId }), "revoking that grant", {
+        method: "DELETE",
+      });
     }
   }
 }

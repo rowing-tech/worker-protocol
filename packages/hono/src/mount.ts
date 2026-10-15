@@ -10,7 +10,7 @@ import {
 } from "./actions.ts";
 import { byCode } from "./codes.ts";
 import { collection, serializeSince } from "./collection.ts";
-import { type Coverage, digestOf, grantCaller, grantsSurface, type StoredGrant } from "./grants.ts";
+import { digestOf, grantCaller, grantsSurface, mayBeIssued, type StoredGrant } from "./grants.ts";
 import { logs as logsSurface } from "./logs.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
 import { subscriptionsSurface } from "./subscriptions.ts";
@@ -191,11 +191,9 @@ type Resolved = {
   grant?: StoredGrant;
 };
 
-/** GRANT-8: what a grant's credential covers, as the surfaces that divide coverage read it. */
-const coverageOf = (grant: StoredGrant | undefined): Coverage | undefined =>
-  grant === undefined
-    ? undefined
-    : { tasks: grant.tasks, actions: grant.actions, events: grant.events };
+/** GRANT-2, GRANT-10: the refusal a credential gets on what it does not cover, said once. */
+const notCovered = () =>
+  envelope({ code: "forbidden", message: "Not covered by this credential." });
 
 /**
  * The surfaces a grant's credential is refused outright: the relationship of enrollment, which no
@@ -566,42 +564,35 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     // asked, so it never reaches the Worker's identity provider. Revoked or rotated away, it is in
     // neither, and is `401` (GRANT-9).
     const token = bearer(c);
-    if (worker.grants !== undefined && token !== undefined) {
-      const grant = await worker.grants.store.byDigest(await digestOf(token));
-      if (grant !== undefined) {
-        resolved.set(c, { worker, principal: undefined, caller: grantCaller(grant), grant });
-        const asked = c.req.header("worker-protocol-capability-version");
-        if (asked !== undefined && asked !== "1") {
-          return envelope({
-            code: "unsupported_version",
-            message: "This Worker answers version 1.",
-          });
-        }
-        c.res.headers.set("worker-protocol-edition", worker.edition ?? EDITION);
-        await next();
-        return;
+    const grant =
+      worker.grants !== undefined && token !== undefined && mayBeIssued(token)
+        ? await worker.grants.store.byDigest(await digestOf(token))
+        : undefined;
+    if (grant !== undefined) {
+      resolved.set(c, { worker, principal: undefined, caller: grantCaller(grant), grant });
+    } else {
+      const answered = (await worker.authenticate?.(token)) ?? "accepted";
+      // Not a verdict on the credential but on whether it could be judged, so it says nothing
+      // REG-32 withholds. `Retry-After` is delay-seconds, a whole number, and a delay that is not
+      // one above zero is left off rather than sent as something a caller would have to
+      // second-guess.
+      if (
+        answered === "unavailable" ||
+        (typeof answered === "object" && answered.verdict === "unavailable")
+      ) {
+        const answer = envelope({ code: "unavailable", message: "Cannot check credentials now." });
+        const delay = typeof answered === "object" ? Math.ceil(answered.retryAfter) : Number.NaN;
+        if (delay > 0 && Number.isFinite(delay)) answer.headers.set("retry-after", String(delay));
+        return answer;
       }
+      const verdict = typeof answered === "string" ? answered : answered.verdict;
+      if (verdict !== "accepted") return envelope({ code: verdict, message: "No." });
+      resolved.set(c, {
+        worker,
+        principal: typeof answered === "string" ? undefined : answered.principal,
+        caller: typeof answered === "string" ? undefined : answered.caller,
+      });
     }
-    const answered = (await worker.authenticate?.(token)) ?? "accepted";
-    // Not a verdict on the credential but on whether it could be judged, so it says nothing
-    // REG-32 withholds. `Retry-After` is delay-seconds, a whole number, and a delay that is not one
-    // above zero is left off rather than sent as something a caller would have to second-guess.
-    if (
-      answered === "unavailable" ||
-      (typeof answered === "object" && answered.verdict === "unavailable")
-    ) {
-      const answer = envelope({ code: "unavailable", message: "Cannot check credentials now." });
-      const delay = typeof answered === "object" ? Math.ceil(answered.retryAfter) : Number.NaN;
-      if (delay > 0 && Number.isFinite(delay)) answer.headers.set("retry-after", String(delay));
-      return answer;
-    }
-    const verdict = typeof answered === "string" ? answered : answered.verdict;
-    if (verdict !== "accepted") return envelope({ code: verdict, message: "No." });
-    resolved.set(c, {
-      worker,
-      principal: typeof answered === "string" ? undefined : answered.principal,
-      caller: typeof answered === "string" ? undefined : answered.caller,
-    });
 
     // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot
     // answer that version refuses the request WHOLE rather than substituting its own. On every
@@ -650,7 +641,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       // A grant's credential covers what a Contract names and nothing of enrollment (GRANT-2,
       // GRANT-8): refused whole, before anything about the call is read.
       if (entry.grant !== undefined && capability !== null && ENROLLMENT.has(capability)) {
-        return envelope({ code: "forbidden", message: "Not covered by this credential." });
+        return notCovered();
       }
       const stray = ownParameters ? undefined : strayParameter(c);
       return stray ?? handler(c, entry);
@@ -709,7 +700,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           principal,
           caller,
           task: c.req.header("worker-protocol-task"),
-          coverage: coverageOf(grant),
+          coverage: grant,
           ...(grant === undefined ? {} : { grant: { applicant: grant.applicant, id: grant.id } }),
         }),
       );
@@ -724,10 +715,8 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     const stray = strayParameter(c);
     if (stray) return stray;
     const { worker, grant } = held(c);
-    // The settings are the operator's, which is enrollment and no Contract's (GRANT-8).
-    if (grant !== undefined) {
-      return envelope({ code: "forbidden", message: "Not covered by this credential." });
-    }
+    // GRANT-10: the settings are the operator's, which is enrollment and no Contract's.
+    if (grant !== undefined) return notCovered();
     const settings = worker.actions?.settings;
     const configure = worker.actions?.accepts.configure;
     if (!settings || !configure) return undeclared("configure");
@@ -813,7 +802,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     async (c, { worker, principal, grant }) => {
       const tasks = surfacesOf(worker).tasks;
       if (!tasks) return undeclared("tasks");
-      return page(c, await tasks.read(query(c), bearer(c), principal, coverageOf(grant)));
+      return page(c, await tasks.read(query(c), bearer(c), principal, grant));
     },
   );
 
@@ -917,7 +906,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       typeof applicants !== "function" ||
       !(await applicants(applicant, principal))
     ) {
-      return envelope({ code: "forbidden", message: "Not covered by this credential." });
+      return notCovered();
     }
     return {
       applicant,

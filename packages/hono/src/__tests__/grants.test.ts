@@ -28,6 +28,28 @@ const MOVED = "tech.rowing.fleet.vehicle-moved";
 const PARKED = "tech.rowing.fleet.vehicle-parked";
 const SINCE = new Date("2026-10-15T09:00:00Z");
 
+/** One request to a mounted Worker, with a credential and a JSON body or a raw one. */
+type Sent = { path: string; method?: string; body?: unknown; raw?: string; task?: string };
+
+const requester =
+  (app: { fetch: (request: Request) => Response | Promise<Response> }) =>
+  (token: string, sent: Sent) =>
+    app.fetch(
+      new Request(`http://worker.invalid${sent.path}`, {
+        method: sent.method ?? "GET",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          ...(sent.task === undefined ? {} : { "worker-protocol-task": sent.task }),
+        },
+        ...(sent.raw !== undefined
+          ? { body: sent.raw }
+          : sent.body === undefined
+            ? {}
+            : { body: JSON.stringify(sent.body) }),
+      }),
+    );
+
 const EVENTS = {
   publishes: {
     [MOVED]: { data: z.object({ vehicle: z.string() }) },
@@ -89,28 +111,13 @@ const build = () => {
   queue.consume(hub.deliver);
   const app = mount(worker);
 
-  const call = (
-    token: string,
-    path: string,
-    init: { method?: string; body?: unknown; raw?: string } = {},
-  ) =>
-    app.fetch(
-      new Request(`http://worker.invalid${path}`, {
-        method: init.method ?? "GET",
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        ...(init.raw !== undefined
-          ? { body: init.raw }
-          : init.body === undefined
-            ? {}
-            : { body: JSON.stringify(init.body) }),
-      }),
-    );
+  const call = requester(app);
   const apply = (token: string, body: Record<string, unknown>) =>
-    call(token, "/grants", { method: "POST", body });
+    call(token, { path: "/grants", method: "POST", body });
   const taskIds = async (token: string) =>
-    ((await (await call(token, "/tasks")).json()) as { items: { id: string }[] }).items.map(
-      (one) => one.id,
-    );
+    (
+      (await (await call(token, { path: "/tasks" })).json()) as { items: { id: string }[] }
+    ).items.map((one) => one.id);
   return { app, call, apply, taskIds, hub, queue, posted, runs: () => runs };
 };
 
@@ -119,7 +126,9 @@ const REVIEWER = { id: "c-42", tasks: [REVIEW], actions: ["approve"], events: [M
 describe("grants, applying", () => {
   it("is declared with its address (GRANT-1)", async () => {
     const { call } = build();
-    const document = (await (await call("ops", "/.well-known/worker-protocol")).json()) as {
+    const document = (await (
+      await call("ops", { path: "/.well-known/worker-protocol" })
+    ).json()) as {
       capabilities: Record<string, unknown>;
     };
     expect(document.capabilities.grants).toEqual({ version: 1, address: "../grants" });
@@ -141,7 +150,7 @@ describe("grants, applying", () => {
       credential: string;
     };
     expect((await apply(credential, { ...REVIEWER, id: "c-43" })).status).toBe(403);
-    expect((await call(credential, "/grants")).status).toBe(403);
+    expect((await call(credential, { path: "/grants" })).status).toBe(403);
   });
 
   it("refuses a name the Worker does not declare, and applies nothing (GRANT-3)", async () => {
@@ -149,7 +158,7 @@ describe("grants, applying", () => {
     const refused = await apply("tower-a", { ...REVIEWER, actions: ["approve", "delete-all"] });
     expect(refused.status).toBe(422);
     expect(await refused.json()).toMatchObject({ code: "unprocessable_content" });
-    expect(await (await call("tower-a", "/grants")).json()).toEqual({ items: [] });
+    expect(await (await call("tower-a", { path: "/grants" })).json()).toEqual({ items: [] });
   });
 
   it("replaces without issuing, and rotates only when asked (GRANT-5)", async () => {
@@ -159,14 +168,18 @@ describe("grants, applying", () => {
     const replaced = await apply("tower-a", { ...REVIEWER, tasks: "all" });
     expect(replaced.status).toBe(200);
     expect(await replaced.json()).toEqual({ ...REVIEWER, tasks: "all" });
-    expect((await call(first.credential, "/.well-known/worker-protocol")).status).toBe(200);
+    expect((await call(first.credential, { path: "/.well-known/worker-protocol" })).status).toBe(
+      200,
+    );
 
     const rotated = await apply("tower-a", { ...REVIEWER, rotate: true });
     expect(rotated.status).toBe(200);
     const { credential } = (await rotated.json()) as { credential: string };
     expect(credential).not.toBe(first.credential);
-    expect((await call(first.credential, "/.well-known/worker-protocol")).status).toBe(401);
-    expect((await call(credential, "/.well-known/worker-protocol")).status).toBe(200);
+    expect((await call(first.credential, { path: "/.well-known/worker-protocol" })).status).toBe(
+      401,
+    );
+    expect((await call(credential, { path: "/.well-known/worker-protocol" })).status).toBe(200);
   });
 });
 
@@ -175,8 +188,10 @@ describe("grants, listing and revoking", () => {
     const { apply, call } = build();
     await apply("tower-a", REVIEWER);
     await apply("tower-b", { ...REVIEWER, tasks: [] });
-    expect(await (await call("tower-a", "/grants")).json()).toEqual({ items: [REVIEWER] });
-    expect(await (await call("tower-b", "/grants")).json()).toEqual({
+    expect(await (await call("tower-a", { path: "/grants" })).json()).toEqual({
+      items: [REVIEWER],
+    });
+    expect(await (await call("tower-b", { path: "/grants" })).json()).toEqual({
       items: [{ ...REVIEWER, tasks: [] }],
     });
   });
@@ -186,12 +201,18 @@ describe("grants, listing and revoking", () => {
     const { credential } = (await (await apply("tower-a", REVIEWER)).json()) as {
       credential: string;
     };
-    expect((await call("tower-b", "/grants?grant=c-42", { method: "DELETE" })).status).toBe(404);
-    expect((await call(credential, "/tasks")).status).toBe(200);
+    expect((await call("tower-b", { path: "/grants?grant=c-42", method: "DELETE" })).status).toBe(
+      404,
+    );
+    expect((await call(credential, { path: "/tasks" })).status).toBe(200);
 
-    expect((await call("tower-a", "/grants?grant=c-42", { method: "DELETE" })).status).toBe(204);
-    expect((await call(credential, "/tasks")).status).toBe(401);
-    expect((await call("tower-a", "/grants?grant=c-42", { method: "DELETE" })).status).toBe(404);
+    expect((await call("tower-a", { path: "/grants?grant=c-42", method: "DELETE" })).status).toBe(
+      204,
+    );
+    expect((await call(credential, { path: "/tasks" })).status).toBe(401);
+    expect((await call("tower-a", { path: "/grants?grant=c-42", method: "DELETE" })).status).toBe(
+      404,
+    );
   });
 });
 
@@ -211,7 +232,7 @@ describe("grants, what a credential covers", () => {
       credential: string;
     };
     const post = (name: string, body: unknown) =>
-      call(credential, `/actions?action=${name}`, { method: "POST", body });
+      call(credential, { path: `/actions?action=${name}`, method: "POST", body });
     expect((await post("approve", { document: "d" })).status).toBe(204);
     expect((await post("inspect", {})).status).toBe(403);
 
@@ -227,16 +248,21 @@ describe("grants, what a credential covers", () => {
     const { credential } = (await (await apply("tower-a", REVIEWER)).json()) as {
       credential: string;
     };
-    expect((await call(credential, "/.well-known/worker-protocol")).status).toBe(200);
-    expect((await call(credential, "/health")).status).toBe(403);
+    expect((await call(credential, { path: "/.well-known/worker-protocol" })).status).toBe(200);
+    expect((await call(credential, { path: "/health" })).status).toBe(403);
   });
 });
 
 describe("grants, and the subscriptions a credential made", () => {
-  const subscribe = (call: ReturnType<typeof build>["call"], token: string, types: string[]) =>
-    call(token, "/subscriptions", {
+  const subscribe = (
+    call: ReturnType<typeof build>["call"],
+    asked: { token: string; types: string[] },
+  ) =>
+    call(asked.token, {
+      path: "/subscriptions",
+
       method: "POST",
-      body: { types, sink: "https://sink.example.com/events", sinkCredential: "s" },
+      body: { types: asked.types, sink: "https://sink.example.com/events", sinkCredential: "s" },
     });
 
   it("subscribes only to the event types its grant names (GRANT-8)", async () => {
@@ -244,8 +270,8 @@ describe("grants, and the subscriptions a credential made", () => {
     const { credential } = (await (await apply("tower-a", REVIEWER)).json()) as {
       credential: string;
     };
-    expect((await subscribe(call, credential, [PARKED])).status).toBe(403);
-    expect((await subscribe(call, credential, [MOVED])).status).toBe(201);
+    expect((await subscribe(call, { token: credential, types: [PARKED] })).status).toBe(403);
+    expect((await subscribe(call, { token: credential, types: [MOVED] })).status).toBe(201);
   });
 
   it("ends a narrowed subscription as revoked, and delivers it nothing more (GRANT-9)", async () => {
@@ -253,7 +279,7 @@ describe("grants, and the subscriptions a credential made", () => {
     const { credential } = (await (await apply("tower-a", REVIEWER)).json()) as {
       credential: string;
     };
-    await subscribe(call, credential, [MOVED]);
+    await subscribe(call, { token: credential, types: [MOVED] });
     await apply("tower-a", { ...REVIEWER, events: [] });
 
     await hub.publish({ type: MOVED, subject: "ABC-123", data: { vehicle: "ABC-123" } });
@@ -267,7 +293,7 @@ describe("grants, and the subscriptions a credential made", () => {
     const { credential } = (await (await apply("tower-a", REVIEWER)).json()) as {
       credential: string;
     };
-    await subscribe(call, credential, [MOVED]);
+    await subscribe(call, { token: credential, types: [MOVED] });
     await apply("tower-a", { ...REVIEWER, rotate: true });
 
     await hub.publish({ type: MOVED, subject: "ABC-123", data: { vehicle: "ABC-123" } });
@@ -280,7 +306,7 @@ describe("grants, and the subscriptions a credential made", () => {
     const { credential } = (await (await apply("tower-a", REVIEWER)).json()) as {
       credential: string;
     };
-    await subscribe(call, credential, [MOVED]);
+    await subscribe(call, { token: credential, types: [MOVED] });
     await apply("tower-a", { ...REVIEWER, tasks: "all" });
 
     await hub.publish({ type: MOVED, subject: "ABC-123", data: { vehicle: "ABC-123" } });
@@ -305,7 +331,9 @@ describe("grants, applied twice at once", () => {
     const [one, two] = await Promise.all([apply("tower-a", REVIEWER), apply("tower-a", REVIEWER)]);
     expect([one.status, two.status].sort()).toEqual([201, 503]);
     const winner = (await (one.status === 201 ? one : two).json()) as { credential: string };
-    expect((await call(winner.credential, "/.well-known/worker-protocol")).status).toBe(200);
+    expect((await call(winner.credential, { path: "/.well-known/worker-protocol" })).status).toBe(
+      200,
+    );
   });
 });
 
@@ -334,29 +362,27 @@ describe("grants, and the Worker's own covers", () => {
       },
       grants,
     });
-    const send = (token: string, path: string, method = "GET", body?: unknown) =>
-      app.fetch(
-        new Request(`http://worker.invalid${path}`, {
-          method,
-          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        }),
-      );
+    const send = requester(app);
     const { credential } = (await (
-      await send("tower", "/grants", "POST", {
-        id: "c-1",
-        tasks: "all",
-        actions: "all",
-        events: [],
+      await send("tower", {
+        path: "/grants",
+        method: "POST",
+        body: { id: "c-1", tasks: "all", actions: "all", events: [] },
       })
     ).json()) as { credential: string };
 
-    const page = (await (await send(credential, "/tasks")).json()) as {
+    const page = (await (await send(credential, { path: "/tasks" })).json()) as {
       items: { id: string; available?: string[] }[];
     };
     expect(page.items).toEqual([expect.objectContaining({ id: "D-1", available: ["approve"] })]);
-    expect((await send(credential, "/actions?action=inspect", "POST", {})).status).toBe(403);
-    expect((await send(credential, "/actions?action=approve", "POST", {})).status).toBe(204);
+    expect(
+      (await send(credential, { path: "/actions?action=inspect", method: "POST", body: {} }))
+        .status,
+    ).toBe(403);
+    expect(
+      (await send(credential, { path: "/actions?action=approve", method: "POST", body: {} }))
+        .status,
+    ).toBe(204);
   });
 });
 
@@ -451,22 +477,7 @@ describe("contract, for the applicant only", () => {
       grants,
     };
     const app = mount(worker);
-    const send = (
-      token: string,
-      path: string,
-      init: { method?: string; body?: unknown; task?: string } = {},
-    ) =>
-      app.fetch(
-        new Request(`http://worker.invalid${path}`, {
-          method: init.method ?? "GET",
-          headers: {
-            authorization: `Bearer ${token}`,
-            "content-type": "application/json",
-            ...(init.task === undefined ? {} : { "worker-protocol-task": init.task }),
-          },
-          ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-        }),
-      );
+    const send = requester(app);
     return { send, queue, posted };
   };
 
@@ -476,15 +487,14 @@ describe("contract, for the applicant only", () => {
   })();
   const total = async (
     send: ReturnType<typeof setup>["send"],
-    token: string,
-    contract?: string,
+    asked: { token: string; contract?: string },
   ) => {
+    const { token, contract } = asked;
     const page = (await (
-      await send(
-        token,
+      await send(token, {
         // MET-11: whole buckets only, so a whole year.
-        `/metrics?metric=answers&${YEAR}${contract === undefined ? "" : `&contract=${contract}`}`,
-      )
+        path: `/metrics?metric=answers&${YEAR}${contract === undefined ? "" : `&contract=${contract}`}`,
+      })
     ).json()) as { items: { value: number }[] };
     return page.items.reduce((sum, one) => sum + one.value, 0);
   };
@@ -492,35 +502,43 @@ describe("contract, for the applicant only", () => {
   it("counts under the applicant's own id, and under nobody else's (MET-23)", async () => {
     const { send } = setup();
     const { credential } = (await (
-      await send("tower-a", "/grants", { method: "POST", body: { ...REVIEWER, events: [] } })
+      await send("tower-a", { path: "/grants", method: "POST", body: { ...REVIEWER, events: [] } })
     ).json()) as { credential: string };
-    await send(credential, "/actions?action=approve", { method: "POST", body: {} });
-    await send("ops", "/actions?action=approve", { method: "POST", body: {} });
+    await send(credential, { path: "/actions?action=approve", method: "POST", body: {} });
+    await send("ops", { path: "/actions?action=approve", method: "POST", body: {} });
 
-    expect(await total(send, "tower-a", "c-42")).toBe(1);
-    expect(await total(send, "tower-b", "c-42")).toBe(0);
-    expect(await total(send, "ops", "c-42")).toBe(0);
+    expect(await total(send, { token: "tower-a", contract: "c-42" })).toBe(1);
+    expect(await total(send, { token: "tower-b", contract: "c-42" })).toBe(0);
+    expect(await total(send, { token: "ops", contract: "c-42" })).toBe(0);
     // MET-18: fixing nothing accumulates over every Contract and none.
-    expect(await total(send, "ops")).toBe(2);
+    expect(await total(send, { token: "ops" })).toBe(2);
     // MET-19: never broken down.
-    expect((await send("tower-a", `/metrics?metric=answers&${YEAR}&by=contract`)).status).toBe(400);
+    expect(
+      (await send("tower-a", { path: `/metrics?metric=answers&${YEAR}&by=contract` })).status,
+    ).toBe(400);
   });
 
   it("tells the applicant's subscription the `contract`, and no other subscriber (EVT-22)", async () => {
     const { send, queue, posted } = setup();
     const { credential } = (await (
-      await send("tower-a", "/grants", { method: "POST", body: { ...REVIEWER, events: [] } })
+      await send("tower-a", { path: "/grants", method: "POST", body: { ...REVIEWER, events: [] } })
     ).json()) as { credential: string };
     for (const [token, sinkCredential] of [
       ["tower-a", "for-a"],
       ["ops", "for-ops"],
     ]) {
-      await send(token as string, "/subscriptions", {
+      await send(token as string, {
+        path: "/subscriptions",
         method: "POST",
         body: { types: [ANSWERED], sink: "https://sink.example.com/events", sinkCredential },
       });
     }
-    await send(credential, "/actions?action=approve", { method: "POST", body: {}, task: "D-1" });
+    await send(credential, {
+      path: "/actions?action=approve",
+      method: "POST",
+      body: {},
+      task: "D-1",
+    });
     await queue.idle();
 
     const to = (sink: string) => posted.find((one) => one.auth === `Bearer ${sink}`)?.body.data;
@@ -543,13 +561,11 @@ describe("grants, an applicant is a named caller", () => {
         },
       },
     });
-    const answer = await app.fetch(
-      new Request("http://worker.invalid/grants", {
-        method: "POST",
-        headers: { authorization: "Bearer anyone", "content-type": "application/json" },
-        body: JSON.stringify({ id: "c-1", tasks: [], actions: [], events: [] }),
-      }),
-    );
+    const answer = await requester(app)("anyone", {
+      path: "/grants",
+      method: "POST",
+      body: { id: "c-1", tasks: [], actions: [], events: [] },
+    });
     expect(answer.status).toBe(403);
     expect(asked).toBe(false);
   });

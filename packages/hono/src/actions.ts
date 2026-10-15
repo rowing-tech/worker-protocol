@@ -19,7 +19,7 @@
 
 import * as z from "zod";
 import type { ErrorCode } from "./codes.ts";
-import { type Coverage, type GrantRef, covers as listCovers, within } from "./grants.ts";
+import { type Coverage, type GrantRef, listCovers, within } from "./grants.ts";
 import { availableFor, type OpenTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
 import type { Answer, Refusal } from "./worker.ts";
 

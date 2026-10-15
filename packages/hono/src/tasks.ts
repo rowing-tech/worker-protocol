@@ -18,7 +18,7 @@ import type { ActionCall, ActionDeclarations } from "./actions.ts";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { collection, type Page } from "./collection.ts";
-import { type Coverage, covers as listCovers, within } from "./grants.ts";
+import { type Coverage, listCovers, within } from "./grants.ts";
 import type { Refusal } from "./worker.ts";
 
 /** What a Worker says about a Task whose condition holds: the domain, and the whole of it. */
@@ -180,9 +180,13 @@ export function tasks(declared: {
       // TASK-6: only what this credential covers. Absent, it covers everything.
       // GRANT-8: a grant's credential covers Tasks by type and Actions by name, from its grant, and
       // the Worker's own `covers` may only narrow inside it.
-      const covers = await facts.covers?.(token, principal);
-      const covered = within(coverage?.actions, await actionsCover?.(token, principal));
-      const held = (await facts.current())
+      const [covers, ownActions, current] = await Promise.all([
+        facts.covers?.(token, principal),
+        actionsCover?.(token, principal),
+        facts.current(),
+      ]);
+      const covered = within(coverage?.actions, ownActions);
+      const held = current
         .filter((task) => coverage === undefined || listCovers(coverage.tasks, task.type))
         .filter((task) => covers === undefined || covers.includes(task.id))
         .filter((task) => type === null || task.type === type);

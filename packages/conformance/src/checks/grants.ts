@@ -83,6 +83,17 @@ export async function checkGrants(given: {
       ? null
       : (await transcript.send(descriptorUrl, intent, { headers: as(credential) })).status;
   const codeOf = (json: unknown) => (json as { code?: unknown } | null)?.code;
+  /** GRANT-4, GRANT-5: the credential an application answered, where it answered one. */
+  const credentialOf = (answer: { json: unknown }) => {
+    const receipt = grantReceipt.safeParse(answer.json);
+    return receipt.success ? receipt.data.credential : undefined;
+  };
+  /** GRANT-7: the verifier's grant revoked, as its applicant or as somebody else. */
+  const revoke = (intent: string, headers?: HeadersInit) =>
+    transcript.send(withParams(at, { grant: id }), intent, {
+      method: "DELETE",
+      ...(headers === undefined ? {} : { headers }),
+    });
 
   // GRANT-3: a name the Worker does not declare is refused, and nothing is applied.
   const unknown = await apply(
@@ -113,8 +124,7 @@ export async function checkGrants(given: {
       { id, tasks: [], actions: "all", events: [] },
       "a grant covering every Action and no Task type",
     );
-    const receipt = grantReceipt.safeParse(created.json);
-    const first = receipt.success ? receipt.data.credential : undefined;
+    const first = credentialOf(created);
     if (created.status !== 201 || first === undefined) {
       say("GRANT-4", "fails", `creating a grant answered ${created.status} without a credential`);
       allExcept("notExercised", "no grant could be created", ["GRANT-1", "GRANT-3", "GRANT-4"]);
@@ -194,11 +204,10 @@ export async function checkGrants(given: {
       { id, tasks: [], actions: [], events: [] },
       "the same grant, narrowed to no Action",
     );
-    const narrowedReceipt = grantReceipt.safeParse(narrowed.json);
     const replacedWell =
       narrowed.status === 200 &&
-      narrowedReceipt.success &&
-      narrowedReceipt.data.credential === undefined;
+      grantReceipt.safeParse(narrowed.json).success &&
+      credentialOf(narrowed) === undefined;
     const lost = await post(first, `${action}, after the grant was narrowed`);
 
     // GRANT-6: the applicant's own grant, without a credential; another caller's list without it.
@@ -223,8 +232,7 @@ export async function checkGrants(given: {
       { id, tasks: [], actions: [], events: [], rotate: true },
       "the same grant, rotated",
     );
-    const rotatedReceipt = grantReceipt.safeParse(rotated.json);
-    const second = rotatedReceipt.success ? rotatedReceipt.data.credential : undefined;
+    const second = credentialOf(rotated);
     const old = await readsDescriptor(first, "the Descriptor, with the credential rotated away");
     if (!replacedWell) {
       say("GRANT-5", "fails", `applying again answered ${narrowed.status}, or issued a credential`);
@@ -238,19 +246,10 @@ export async function checkGrants(given: {
 
     // GRANT-7: another caller cannot revoke it; its applicant can, once.
     const stranger =
-      other === undefined
-        ? null
-        : await transcript.send(withParams(at, { grant: id }), "revoking, as another caller", {
-            method: "DELETE",
-            headers: as(other),
-          });
-    const revoking = await transcript.send(withParams(at, { grant: id }), "revoking the grant", {
-      method: "DELETE",
-    });
+      other === undefined ? null : await revoke("revoking, as another caller", as(other));
+    const revoking = await revoke("revoking the grant");
     revoked = revoking.status === 204;
-    const again = await transcript.send(withParams(at, { grant: id }), "revoking it again", {
-      method: "DELETE",
-    });
+    const again = await revoke("revoking it again");
     if (stranger !== null && stranger.status !== 404 && stranger.status !== 403) {
       say("GRANT-7", "fails", `another caller revoking it was answered ${stranger.status}`);
     } else if (!revoked) {
@@ -274,11 +273,7 @@ export async function checkGrants(given: {
       say("GRANT-9", "passes");
     }
   } finally {
-    if (!revoked) {
-      await transcript.send(withParams(at, { grant: id }), "revoking the grant, cleaning up", {
-        method: "DELETE",
-      });
-    }
+    if (!revoked) await revoke("revoking the grant, cleaning up");
   }
   return results;
 }

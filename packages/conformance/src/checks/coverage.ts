@@ -1,7 +1,7 @@
-import { taskPage } from "@worker-protocol/schemas";
 import type { Arrangement } from "../index.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
 import { type Transcript, withParams } from "../transcript.ts";
+import { allOpen } from "./answers.ts";
 
 /**
  * ACT-22 and TASK-44: what a credential may do, and what a Task read with it says it may.
@@ -72,22 +72,13 @@ export async function checkCoverage(given: {
     say("TASK-44", "notExercised", "the Worker declares no `tasks`");
     return results;
   }
-  const named: { id: string; available?: string[] }[] = [];
-  let cursor: string | undefined;
-  for (let pages = 0; pages < 20; pages += 1) {
-    const read = await transcript.send(
-      cursor === undefined ? tasksUrl : withParams(tasksUrl, { cursor }),
-      `Tasks, with a credential that does not cover ${uncovered.name}`,
-      { headers },
-    );
-    const page = taskPage.safeParse(read.json);
-    if (!page.success) break;
-    for (const task of page.data.items) {
-      if ((raises[task.type]?.answeredBy ?? []).includes(uncovered.name)) named.push(task);
-    }
-    cursor = page.data.nextCursor;
-    if (cursor === undefined) break;
-  }
+  const named = (
+    await allOpen(transcript, {
+      url: tasksUrl,
+      intent: `Tasks, with a credential that does not cover ${uncovered.name}`,
+      headers,
+    })
+  ).filter((task) => (raises[task.type]?.answeredBy ?? []).includes(uncovered.name));
   const offered = named.find((task) => task.available?.includes(uncovered.name) !== false);
   if (named.length === 0) {
     say("TASK-44", "notExercised", `the credential reads no Task that ${uncovered.name} answers`);

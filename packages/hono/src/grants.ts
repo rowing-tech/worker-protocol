@@ -17,7 +17,6 @@
  */
 
 import { grantRequest } from "@worker-protocol/schemas";
-import type * as z from "zod";
 import { readJson, schemaMismatch } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
 import type { Answer, Refusal } from "./worker.ts";
@@ -125,6 +124,14 @@ export const digestOf = async (credential: string): Promise<string> => {
 /** A fresh credential: 32 random bytes, which is more than anybody guesses. */
 const mint = (): string => base64url(crypto.getRandomValues(new Uint8Array(32)));
 
+/**
+ * Whether a token has the shape `mint()` gives: 43 base64url characters. Anything else — a JWT, a
+ * prefixed API key, the Tower's own secret — was never issued for a grant, and `mount()` asks the
+ * grant store nothing about it, so a poll does not pay a store read for a credential that cannot
+ * match.
+ */
+export const mayBeIssued = (token: string): boolean => /^[A-Za-z0-9_-]{43}$/.test(token);
+
 const base64url = (bytes: Uint8Array): string =>
   btoa(String.fromCharCode(...bytes))
     .replaceAll("+", "-")
@@ -164,7 +171,7 @@ export const contractKey = (grant: GrantRef): string =>
   JSON.stringify(["contract", grant.applicant, grant.id]);
 
 /** Whether a list covers one name. */
-export const covers = (list: Covered, name: string): boolean =>
+export const listCovers = (list: Covered, name: string): boolean =>
   list === "all" || list.includes(name);
 
 /**
@@ -172,9 +179,8 @@ export const covers = (list: Covered, name: string): boolean =>
  * narrow. `undefined` is every name: no grant list and no hook, or `all` and no hook.
  */
 export const within = (granted: Covered | undefined, own: string[] | undefined) => {
-  const bound = granted === undefined || granted === "all" ? undefined : granted;
-  if (bound === undefined) return own;
-  return own === undefined ? bound : bound.filter((name) => own.includes(name));
+  if (granted === undefined || granted === "all") return own;
+  return own === undefined ? granted : granted.filter((name) => own.includes(name));
 };
 
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
@@ -213,7 +219,7 @@ export function grantsSurface(config: {
       if ("code" in read) return read;
       const request = grantRequest.safeParse(read.parsed);
       if (!request.success) return schemaMismatch(request.error);
-      const { id, rotate, ...lists } = request.data as z.infer<typeof grantRequest>;
+      const { id, rotate, ...lists } = request.data;
 
       // GRANT-3: a name the Worker does not declare is refused rather than quietly dropped.
       for (const which of ["tasks", "actions", "events"] as const) {
@@ -226,16 +232,20 @@ export function grantsSurface(config: {
 
       const existing = await facts.store.get(asked.applicant, id);
       // GRANT-4: creating issues a credential. GRANT-5: replacing does not, unless asked to rotate.
-      const issues = existing === undefined || rotate === true;
-      const credential = issues ? mint() : undefined;
-      const stored: StoredGrant = {
-        applicant: asked.applicant,
-        id,
-        ...lists,
-        digest:
-          credential === undefined ? (existing as StoredGrant).digest : await digestOf(credential),
-        serial: (existing?.serial ?? 0) + (issues ? 1 : 0),
-      };
+      let credential: string | undefined;
+      let stored: StoredGrant;
+      if (existing !== undefined && rotate !== true) {
+        stored = { ...existing, ...lists };
+      } else {
+        credential = mint();
+        stored = {
+          applicant: asked.applicant,
+          id,
+          ...lists,
+          digest: await digestOf(credential),
+          serial: (existing?.serial ?? 0) + 1,
+        };
+      }
       // Another application of the same grant wrote between the read and this write: nothing is
       // written, no credential is handed out, and the applicant tries again (ENDP-40's `retry`).
       if (!(await facts.store.put(stored, existing?.serial ?? null))) {

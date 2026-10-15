@@ -32,7 +32,8 @@ import {
   type GrantFacts,
   type GrantRef,
   grantOf,
-  covers as listCovers,
+  listCovers,
+  type StoredGrant,
 } from "./grants.ts";
 import type { OpenTask } from "./tasks.ts";
 import type { Alert, Answer, EventTypeDeclaration, Refusal, Worker } from "./worker.ts";
@@ -492,15 +493,31 @@ export function eventHub(worker: Publisher) {
   const { id: source, events, subscriptions: facts, grants } = worker;
 
   /**
-   * GRANT-9: whether a subscription made with a grant's credential still stands — its grant not
-   * revoked, its credential not rotated away, and every type it names still covered. Asked before
-   * every delivery, so a subscription the change ended receives nothing from its response on.
+   * SUB-14, GRANT-9: whether a subscription still stands — its caller still accepted and, where a
+   * grant's credential made it, that grant not revoked, its credential not rotated away, and every
+   * type it names still covered. Asked before every delivery, so a subscription a change ended
+   * receives nothing from its response on; `asked` holds each caller's answers for one batch.
    */
-  const stillGranted = async (subscription: StoredSubscription): Promise<boolean> => {
-    const named = grantOf(subscription.caller);
-    if (named === undefined || grants === undefined) return true;
-    const grant = await grants.store.get(named.applicant, named.id);
+  const standing = async (
+    subscription: StoredSubscription,
+    asked: Map<string | null, Promise<{ accepted: boolean; grant?: StoredGrant }>>,
+  ): Promise<boolean> => {
+    const { caller } = subscription;
+    const named = grants === undefined ? undefined : grantOf(caller);
+    let held = asked.get(caller);
+    if (held === undefined) {
+      held = (async () => ({
+        accepted: facts.accepts === undefined || (await facts.accepts(caller)),
+        ...(named === undefined
+          ? {}
+          : { grant: await grants?.store.get(named.applicant, named.id) }),
+      }))();
+      asked.set(caller, held);
+    }
+    const { accepted, grant } = await held;
+    if (named === undefined) return accepted;
     return (
+      accepted &&
       grant !== undefined &&
       grant.serial === named.serial &&
       subscription.types.every((type) => listCovers(grant.events, type))
@@ -658,7 +675,7 @@ export function eventHub(worker: Publisher) {
           );
     const held = new Map(read.map((one) => [one.id, { ...one }]));
     const patches = new Map<string, Partial<StoredSubscription>>();
-    const accepted = new Map<string | null, Promise<boolean>>();
+    const standings = new Map<string | null, Promise<{ accepted: boolean; grant?: StoredGrant }>>();
     const patch = (id: string, change: Partial<StoredSubscription>) =>
       patches.set(id, { ...patches.get(id), ...change });
 
@@ -666,26 +683,14 @@ export function eventHub(worker: Publisher) {
       const subscription = held.get(delivery.subscription);
       if (subscription === undefined || subscription.endedAt !== undefined) return done;
 
-      // GRANT-9: a subscription whose grant changed under it ends as `revoked`, as SUB-14 has it.
-      if (!(await stillGranted(subscription))) {
+      // SUB-14, GRANT-9: a caller the Worker no longer accepts, or whose grant changed under it,
+      // has no subscription, whatever its sink says.
+      if (!(await standing(subscription, standings))) {
         if (subscription.endedAt === undefined) {
           subscription.endedAt = Date.now();
           await end(subscription, "revoked");
         }
         return done;
-      }
-
-      // SUB-14: a caller the Worker no longer accepts has no subscription, whatever its sink says.
-      if (facts.accepts !== undefined) {
-        const asked = accepted.get(subscription.caller) ?? facts.accepts(subscription.caller);
-        accepted.set(subscription.caller, Promise.resolve(asked));
-        if (!(await asked)) {
-          if (subscription.endedAt === undefined) {
-            subscription.endedAt = Date.now();
-            await end(subscription, "revoked");
-          }
-          return done;
-        }
       }
 
       const now = Date.now();
