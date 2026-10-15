@@ -27,6 +27,7 @@ import * as z from "zod";
 import { readJson, schemaMismatch } from "./actions.ts";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
+import { type Covered, type GrantFacts, grantOf, covers as listCovers } from "./grants.ts";
 import type { OpenTask } from "./tasks.ts";
 import type { Alert, Answer, EventTypeDeclaration, Refusal, Worker } from "./worker.ts";
 
@@ -125,6 +126,8 @@ type SubscriptionCall = {
   caller: string | null;
   token: string | undefined;
   principal: unknown;
+  /** GRANT-8: the event types the grant this credential was issued for covers, where it was. */
+  events?: Covered;
 };
 
 /**
@@ -462,6 +465,8 @@ export type Publisher = {
   id: Worker["id"];
   events: Pick<NonNullable<Worker["events"]>, "publishes"> & { republishWindowSeconds: number };
   subscriptions: SubscriptionFacts;
+  /** GRANT-9: where a subscription made with a grant's credential is checked before a delivery. */
+  grants?: Pick<GrantFacts, "store">;
 };
 
 /**
@@ -469,7 +474,23 @@ export type Publisher = {
  * when a Fact changes, and whatever consumes its `DeliveryQueue` calls `deliver` on each delivery.
  */
 export function eventHub(worker: Publisher) {
-  const { id: source, events, subscriptions: facts } = worker;
+  const { id: source, events, subscriptions: facts, grants } = worker;
+
+  /**
+   * GRANT-9: whether a subscription made with a grant's credential still stands — its grant not
+   * revoked, its credential not rotated away, and every type it names still covered. Asked before
+   * every delivery, so a subscription the change ended receives nothing from its response on.
+   */
+  const stillGranted = async (subscription: StoredSubscription): Promise<boolean> => {
+    const named = grantOf(subscription.caller);
+    if (named === undefined || grants === undefined) return true;
+    const grant = await grants.store.get(named.applicant, named.id);
+    return (
+      grant !== undefined &&
+      grant.serial === named.serial &&
+      subscription.types.every((type) => listCovers(grant.events, type))
+    );
+  };
   const { republishWindowSeconds } = events;
   const declared = new Set(Object.keys(events.publishes));
 
@@ -619,6 +640,15 @@ export function eventHub(worker: Publisher) {
     const attempt = async (delivery: Delivery): Promise<DeliveryOutcome> => {
       const subscription = held.get(delivery.subscription);
       if (subscription === undefined || subscription.endedAt !== undefined) return done;
+
+      // GRANT-9: a subscription whose grant changed under it ends as `revoked`, as SUB-14 has it.
+      if (!(await stillGranted(subscription))) {
+        if (subscription.endedAt === undefined) {
+          subscription.endedAt = Date.now();
+          await end(subscription, "revoked");
+        }
+        return done;
+      }
 
       // SUB-14: a caller the Worker no longer accepts has no subscription, whatever its sink says.
       if (facts.accepts !== undefined) {
@@ -945,7 +975,12 @@ export function subscriptionsSurface(config: {
       if (unknown !== undefined) {
         return refuse("unprocessable_content", `This Worker does not publish ${unknown}.`);
       }
-      // SUB-4: the Contract speaks, and the type is refused rather than quietly dropped.
+      // SUB-4: the Contract speaks, and the type is refused rather than quietly dropped. GRANT-8:
+      // for a grant's credential the grant bounds, and `allows` may only narrow inside it.
+      const granted = asked.call.events;
+      if (granted !== undefined && !types.every((type) => listCovers(granted, type))) {
+        return refuse("forbidden", "No.");
+      }
       const allows = facts.allows;
       if (allows !== undefined) {
         const verdicts = await Promise.all(types.map((type) => allows({ type, ...asked.call })));

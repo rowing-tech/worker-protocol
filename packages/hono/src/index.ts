@@ -29,6 +29,14 @@ export { action, jsonSchema, memoryOutcomes } from "./actions.ts";
 export { bucketsIn, endOf, type Granularity, rfc3339, startOf } from "./buckets.ts";
 export { CODES, type ErrorCode } from "./codes.ts";
 export {
+  type Coverage,
+  type Covered,
+  type GrantFacts,
+  type GrantStore,
+  memoryGrants,
+  type StoredGrant,
+} from "./grants.ts";
+export {
   LEVELS,
   type LogFacts,
   type LogLevel,
@@ -74,7 +82,9 @@ export {
   wantedBy,
 } from "./subscriptions.ts";
 export {
+  applyGrant,
   endSubscription,
+  listGrants,
   listSubscriptions,
   performAction,
   pollHealth,
@@ -84,6 +94,7 @@ export {
   readLogs,
   readMetric,
   readTasks,
+  revokeGrant,
   subscribe,
 } from "./surfaces.ts";
 export type { OpenTask, TaskFacts, TaskTypes } from "./tasks.ts";

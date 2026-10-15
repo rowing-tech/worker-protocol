@@ -4,6 +4,7 @@ import {
   eventHub,
   LIFECYCLE,
   memoryDeliveries,
+  memoryGrants,
   memorySubscriptions,
   mount,
   type Worker,
@@ -67,6 +68,14 @@ export type WorkerOptions = {
    */
   unprivilegedCredential?: string;
   /**
+   * A credential issued under a Contract that withholds Actions (ACT-22, TASK-44).
+   *
+   * It authenticates as a caller of its own and covers only what `coveredActions` says it covers,
+   * so a call to any other Action is `403` and a Task read with it leaves that Action out of
+   * `available`.
+   */
+  narrowCredential?: string;
+  /**
    * How long before this Worker has established its state (HLTH-4).
    *
    * A process that has just started has checked nothing, and `healthy` is a claim it has no basis
@@ -76,6 +85,8 @@ export type WorkerOptions = {
   readyAfterMs?: number;
   /** Which Tasks each credential covers, for TASK-6. A credential absent from it covers all. */
   visibleTasks?: Record<string, string[]>;
+  /** Which Actions each credential covers, for ACT-22. A credential absent from it covers all. */
+  coveredActions?: Record<string, string[]>;
   /**
    * Sink origins exempted from SUB-5 and SUB-6, so a test can receive deliveries on a loopback
    * socket in plaintext. The Worker breaks both rules for these origins on purpose, and for no
@@ -137,11 +148,15 @@ export function createFacts(id: string = DEFAULT_ID) {
   };
   // The same declaration the Worker hands `mount()`, so an event's `source` is this Worker's id
   // and its window is the one the Descriptor states — whatever id the Worker was started with.
-  const hub = eventHub({ id, events: EVENTS, subscriptions });
+  // GRANT-9: the grants outlive a request too, and the hub asks them before every delivery to a
+  // subscription a grant's credential made.
+  const grants = memoryGrants();
+  const hub = eventHub({ id, events: EVENTS, subscriptions, grants: { store: grants } });
   deliveries.consume(hub.deliver);
   return {
     tasks,
     subscriptions,
+    grants,
     ...createActions({ verify: tasks.verify, publish: hub.publish }),
     // LOG-2: the records, and the one thing that writes them. `logs.ts` says why a Worker that
     // records a line per request is what puts LOG-3 and ENDP-33 within reach of a check.
@@ -197,6 +212,9 @@ export function referenceWorker(
       if (token !== undefined && token === options.consumerCredential) {
         return { verdict: "accepted", caller: "consumer" };
       }
+      if (token !== undefined && token === options.narrowCredential) {
+        return { verdict: "accepted", caller: "narrow" };
+      }
       return token !== undefined && recorded.has(token)
         ? { verdict: "accepted", caller: "operator" }
         : "unauthenticated";
@@ -222,7 +240,14 @@ export function referenceWorker(
     // Schema from the Zod object beside it and writes `configure`'s reading address (ACT-21).
     // ENDP-16: `outcomes` travels with them, because `record-verification` declares a key and a
     // Worker that declares one and names nowhere to record it is refused at construction.
-    actions: { accepts: actions, settings, outcomes },
+    // ACT-22: only the Actions the credential covers, because a Contract that withholds one could
+    // not otherwise be promised.
+    actions: {
+      accepts: actions,
+      settings,
+      outcomes,
+      covers: (token: string | undefined) => options.coveredActions?.[token ?? ""],
+    },
 
     // TASK-6: only what the credential covers, because a list showing every Task to every holder
     // of any Contract is a disclosure the owner cannot take back.
@@ -257,6 +282,9 @@ export function referenceWorker(
 
     // SUB-1 to SUB-16: the same store and queue on every request, and the origins a test exempts.
     subscriptions: { ...facts.subscriptions, insecureSinkOrigins: options.insecureSinkOrigins },
+
+    // GRANT-1 to GRANT-9: the operator brokers Contracts here, as a Tower would; nobody else does.
+    grants: { store: facts.grants, applicants: (caller) => caller === "operator" },
   };
 }
 

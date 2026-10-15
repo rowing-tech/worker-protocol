@@ -358,15 +358,6 @@ Contract is. The rule is about the call, not about the history.
 
 ## Still open here
 
-- Whether the rights a credential carries have any shape this protocol sees. Today they have none:
-  `403` is the entire vocabulary, and everything behind it — a scope, a Contract's list of Task
-  types, a wildcard — is the Worker's own. What a Contract carries is open in
-  [undecided](../docs/undecided.md).
-- Whether reading a Worker's Tasks and performing one of the Actions that answer them are
-  authorized by the same right. TASK-6 already divides what a credential may *see*; nothing divides
-  what it may *do*. A call may now name the Task it answers (TASK-39), but it need not, and a
-  Contract that granted the reading and withheld the Action would still be expressing something a
-  call that names no Task does not carry.
 - Whether a Tower exposes an enrollment surface at all. This protocol defines what a Worker serves;
   a Tower's own API is not in it.
 
@@ -414,7 +405,9 @@ than demoted.
   unobservable from outside — no verifier can know when a revocation was issued — and the second
   sentence, that this protocol defines no notification of revocation, was a statement about the
   protocol rather than an obligation on anyone. A holder learns by being refused; that remains
-  true and needs no rule.
+  true and needs no rule. A credential issued through [grants](grants.md) is the exception, and
+  GRANT-9 binds where REG-12 could not: that revocation goes through the protocol, so its response
+  is the instant a verifier needs.
 - **REG-1** — required that a Worker be enrolled by a person. Replaced by **REG-26**, the same
   sentence as a recommendation. No Worker can tell how it got into a registry.
 - **REG-9** — required a credential to be issued to one holder. Replaced by **REG-27**, as a

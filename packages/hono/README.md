@@ -111,6 +111,9 @@ and a Worker that reads them at module scope works in one place only.
 - The `subscriptions` address — who may subscribe to what, the sink rules, the webhook handshake,
   idempotence — and, through `eventHub()`, matching each event you publish against every
   subscription and delivering it with the retries SUB-12 fixes.
+- The `grants` address — who may apply, the three lists checked against what you declare, minting
+  the credential and keeping only its digest — and what that credential covers on Tasks, Actions
+  and subscriptions: the grant bounds it, and your own `covers` and `allows` may only narrow it.
 - Authentication, as `Authorization: Bearer <token>` on every address, answered by your
   `authenticate`; and the refusal of a Nudge for a Task type you declare no Skill for.
 

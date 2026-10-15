@@ -10,11 +10,14 @@ import {
 } from "./actions.ts";
 import { byCode } from "./codes.ts";
 import { collection, serializeSince } from "./collection.ts";
+import { type Coverage, digestOf, grantCaller, grantsSurface, type StoredGrant } from "./grants.ts";
 import { logs as logsSurface } from "./logs.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
 import { subscriptionsSurface } from "./subscriptions.ts";
 import {
+  applyGrant,
   endSubscription,
+  listGrants,
   listSubscriptions,
   performAction,
   pollHealth,
@@ -24,6 +27,7 @@ import {
   readLogs,
   readMetric,
   readTasks,
+  revokeGrant,
   SURFACES,
   subscribe,
   takeNudge,
@@ -179,7 +183,26 @@ const strayParameter = (c: Context): Response | undefined => {
  * What the guard settled about one request, and all a handler is handed beside the context: the
  * Worker it resolved, whom `authenticate` accepted, and the caller it named (ENDP-34).
  */
-type Resolved = { worker: Worker; principal: unknown; caller: string | undefined };
+type Resolved = {
+  worker: Worker;
+  principal: unknown;
+  caller: string | undefined;
+  /** GRANT-8: the grant the credential was issued for, where it was issued for one. */
+  grant?: StoredGrant;
+};
+
+/** GRANT-8: what a grant's credential covers, as the surfaces that divide coverage read it. */
+const coverageOf = (grant: StoredGrant | undefined): Coverage | undefined =>
+  grant === undefined
+    ? undefined
+    : { tasks: grant.tasks, actions: grant.actions, events: grant.events };
+
+/**
+ * The surfaces a grant's credential is refused outright: the relationship of enrollment, which no
+ * Contract names (`spec/grants.md`), and `grants` itself (GRANT-2). Refusing a surface whole is not
+ * varying it by caller (ALRT-6, REG-8).
+ */
+const ENROLLMENT = new Set(["health", "metrics", "alerts", "activity", "logs", "grants"]);
 
 /**
  * One Worker's surfaces.
@@ -197,6 +220,7 @@ function surfacesOf(worker: Worker) {
           raises: worker.tasks.raises,
           facts: worker.tasks,
           accepts: worker.actions?.accepts ?? {},
+          actionsCover: worker.actions?.covers,
         })
       : undefined,
     actions: worker.actions ? actionsSurface(worker.actions, worker.tasks) : undefined,
@@ -220,6 +244,19 @@ const complainer = () => {
     console.error(fault);
   };
 };
+
+/**
+ * A Worker that declares `grants` and does not say who may apply one. Nobody becomes an applicant
+ * by omission, so every caller is refused — which is safe, and a Capability that serves nobody.
+ */
+function unguarded(worker: Worker): string | null {
+  if (worker.grants === undefined || typeof worker.grants.applicants === "function") return null;
+  return (
+    "GRANT-2: this Worker declares `grants` and no `applicants`, so nobody may apply a grant and " +
+    "every caller is refused `403`. Name which callers may: `applicants: (caller) => caller === " +
+    '"tower"`, for the caller your `authenticate` names for the Tower.'
+  );
+}
 
 /**
  * A Worker that declares an idempotency key and names nowhere to record the outcome.
@@ -313,6 +350,9 @@ function descriptorOf(worker: Worker, edition: string): string {
     };
   }
 
+  // GRANT-1: the address this app serves, and nothing else.
+  if (worker.grants) capabilities.grants = { version: 1, address: "../grants" };
+
   // SUB-1: the address this app serves, and how long a sink may fail before its subscription ends.
   if (worker.subscriptions) {
     capabilities.subscriptions = {
@@ -390,6 +430,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     if (!checked) {
       checked = true;
       warn(unrecorded(worker));
+      warn(unguarded(worker));
       firstStore = worker.actions?.outcomes;
     } else {
       warn(forgetful(firstStore, worker.actions?.outcomes));
@@ -402,7 +443,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // `5xx` for a condition that will not change, and this one never will.
   if (typeof source !== "function") {
     checked = true;
-    const fault = unrecorded(source);
+    const fault = unrecorded(source) ?? unguarded(source);
     if (fault !== null) throw new Error(fault);
     firstStore = source.actions?.outcomes;
   }
@@ -505,7 +546,27 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     // REG-34: the Worker accepts the credential recorded for it on every address this protocol
     // defines, the Descriptor's route included. What makes one good is the Worker's (REG-3).
     // REG-32: the refusal distinguishes nothing — a refusal that explains itself is an oracle.
-    const answered = (await worker.authenticate?.(bearer(c))) ?? "accepted";
+    // GRANT-8: a credential issued for a grant is found by its digest before `authenticate` is
+    // asked, so it never reaches the Worker's identity provider. Revoked or rotated away, it is in
+    // neither, and is `401` (GRANT-9).
+    const token = bearer(c);
+    if (worker.grants !== undefined && token !== undefined) {
+      const grant = await worker.grants.store.byDigest(await digestOf(token));
+      if (grant !== undefined) {
+        resolved.set(c, { worker, principal: undefined, caller: grantCaller(grant), grant });
+        const asked = c.req.header("worker-protocol-capability-version");
+        if (asked !== undefined && asked !== "1") {
+          return envelope({
+            code: "unsupported_version",
+            message: "This Worker answers version 1.",
+          });
+        }
+        c.res.headers.set("worker-protocol-edition", worker.edition ?? EDITION);
+        await next();
+        return;
+      }
+    }
+    const answered = (await worker.authenticate?.(token)) ?? "accepted";
     // Not a verdict on the credential but on whether it could be judged, so it says nothing
     // REG-32 withholds. `Retry-After` is delay-seconds, a whole number, and a delay that is not one
     // above zero is left off rather than sent as something a caller would have to second-guess.
@@ -569,8 +630,14 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     // Per operation and not per address: one address may serve an operation that reads its own
     // parameters beside one that takes none, as `subscriptions` does.
     app.openapi({ ...route, path }, (async (c: Context) => {
+      const entry = held(c);
+      // A grant's credential covers what a Contract names and nothing of enrollment (GRANT-2,
+      // GRANT-8): refused whole, before anything about the call is read.
+      if (entry.grant !== undefined && capability !== null && ENROLLMENT.has(capability)) {
+        return envelope({ code: "forbidden", message: "Not covered by this credential." });
+      }
       const stray = ownParameters ? undefined : strayParameter(c);
-      return stray ?? handler(c, held(c));
+      return stray ?? handler(c, entry);
     }) as never);
   };
 
@@ -613,7 +680,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // ACT-5: the Action is named in the query and the body is the input, raw.
   serve(
     { capability: "actions", path: "/actions", route: performAction, ownParameters: true },
-    async (c, { worker, principal, caller }) => {
+    async (c, { worker, principal, caller, grant }) => {
       const perform = surfacesOf(worker).actions;
       if (!perform) return undeclared("actions");
       return reply(
@@ -626,6 +693,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           principal,
           caller,
           task: c.req.header("worker-protocol-task"),
+          coverage: coverageOf(grant),
         }),
       );
     },
@@ -638,7 +706,11 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   app.get("/settings", async (c) => {
     const stray = strayParameter(c);
     if (stray) return stray;
-    const { worker } = held(c);
+    const { worker, grant } = held(c);
+    // The settings are the operator's, which is enrollment and no Contract's (GRANT-8).
+    if (grant !== undefined) {
+      return envelope({ code: "forbidden", message: "Not covered by this credential." });
+    }
     const settings = worker.actions?.settings;
     const configure = worker.actions?.accepts.configure;
     if (!settings || !configure) return undeclared("configure");
@@ -721,10 +793,10 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers.
   serve(
     { capability: "tasks", path: "/tasks", route: readTasks, ownParameters: true },
-    async (c, { worker, principal }) => {
+    async (c, { worker, principal, grant }) => {
       const tasks = surfacesOf(worker).tasks;
       if (!tasks) return undeclared("tasks");
-      return page(c, await tasks.read(query(c), bearer(c), principal));
+      return page(c, await tasks.read(query(c), bearer(c), principal, coverageOf(grant)));
     },
   );
 
@@ -733,7 +805,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
    * DELETE that ends the subscription named in `subscription` (ENDP-36 lets this protocol fix that
    * verb). The list takes no parameter, and the POST and the DELETE check their own.
    */
-  const subscriptionsOf = (c: Context, { worker, caller, principal }: Resolved) =>
+  const subscriptionsOf = (c: Context, { worker, caller, principal, grant }: Resolved) =>
     worker.subscriptions
       ? {
           surface: subscriptionsSurface({
@@ -742,7 +814,12 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
             publishes: Object.keys(worker.events?.publishes ?? {}),
           }),
           // SUB-8: the caller ENDP-34 scopes a key to. Naming none, every caller is one.
-          call: { caller: caller ?? null, token: bearer(c), principal },
+          call: {
+            caller: caller ?? null,
+            token: bearer(c),
+            principal,
+            ...(grant === undefined ? {} : { events: grant.events }),
+          },
         }
       : undefined;
 
@@ -795,6 +872,81 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
         });
       }
       return reply(c, await found.surface.unsubscribe({ id, call: found.call }));
+    },
+  );
+
+  /**
+   * GRANT-1 to GRANT-7: one address, three operations, on `subscriptions`' pattern — a GET that
+   * lists, a POST that applies and a DELETE that revokes the grant named in `grant`. A grant's
+   * credential never reaches here (ENROLLMENT above), and a caller the Worker does not accept as an
+   * applicant is refused before anything is read (GRANT-2).
+   */
+  const grantsOf = async ({
+    worker,
+    caller,
+    principal,
+  }: Resolved): Promise<
+    { surface: ReturnType<typeof grantsSurface>; applicant: string | null } | Response
+  > => {
+    if (!worker.grants) return undeclared("grants");
+    const applicant = caller ?? null;
+    const { applicants } = worker.grants;
+    if (typeof applicants !== "function" || !(await applicants(applicant, principal))) {
+      return envelope({ code: "forbidden", message: "Not covered by this credential." });
+    }
+    return {
+      applicant,
+      surface: grantsSurface({
+        facts: worker.grants,
+        declared: {
+          tasks: Object.keys(worker.tasks?.raises ?? {}),
+          actions: Object.keys(worker.actions?.accepts ?? {}),
+          events: Object.keys(worker.events?.publishes ?? {}),
+        },
+      }),
+    };
+  };
+
+  serve({ capability: "grants", path: "/grants", route: listGrants }, async (c, resolved) => {
+    const found = await grantsOf(resolved);
+    if (found instanceof Response) return found;
+    return page(c, await found.surface.list(found.applicant));
+  });
+
+  serve(
+    { capability: "grants", path: "/grants", route: applyGrant, ownParameters: true },
+    async (c, resolved) => {
+      const found = await grantsOf(resolved);
+      if (found instanceof Response) return found;
+      const [stray] = Object.keys(c.req.query());
+      if (stray !== undefined) {
+        return envelope({
+          code: "invalid_parameter",
+          message: `Applying a grant takes no parameter named ${stray}.`,
+        });
+      }
+      return reply(
+        c,
+        await found.surface.apply({ applicant: found.applicant, raw: await c.req.text() }),
+      );
+    },
+  );
+
+  serve(
+    { capability: "grants", path: "/grants", route: revokeGrant, ownParameters: true },
+    async (c, resolved) => {
+      const found = await grantsOf(resolved);
+      if (found instanceof Response) return found;
+      const parameters = query(c);
+      const id = parameters.get("grant");
+      const stray = [...parameters.keys()].find((name) => name !== "grant");
+      if (id === null || id === "" || stray !== undefined) {
+        return envelope({
+          code: "invalid_parameter",
+          message: "Revoking a grant takes one parameter, `grant`.",
+        });
+      }
+      return reply(c, await found.surface.revoke({ applicant: found.applicant, id }));
     },
   );
 

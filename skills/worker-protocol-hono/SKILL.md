@@ -13,7 +13,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.7.0"
+  version: "2.8.0"
 ---
 
 # Workers on `@worker-protocol/hono`
@@ -64,8 +64,8 @@ Read `references/members.md` for the signature of each member, and
   environment to save a second one, because there is none.
 - **Hand what `authenticate` found to the handlers through `principal`**, never through the Worker
   object. Answer `{ verdict: "accepted", principal }`, and read it as `call.principal` in `run` and
-  as the second argument of `tasks.covers`. State stashed on the object is shared by every
-  concurrent request when the Worker is not a builder.
+  as the second argument of `tasks.covers` and `actions.covers`. State stashed on the object is
+  shared by every concurrent request when the Worker is not a builder.
 - **Name the caller in the verdict when the Worker serves more than one**: `{ verdict: "accepted",
   principal, caller }`, `caller` a stable string for whoever the lookup found — never the token,
   which changes on rotation. `mount()` scopes a header key to it (ENDP-34) and leaves an input key
@@ -128,6 +128,7 @@ Read `references/members.md` for the signature of each member, and
 | Key required, repeat replayed, key reused with another body, a header key scoped to its caller | Where outcomes are recorded (`actions.outcomes`), and who the caller is |
 | Nudge body shape, `404` for an undeclared Skill, `204` | What to do when told there is work |
 | `/subscriptions`: types, sink rules, handshake, idempotence, caller scope | Where subscriptions live and what delivers them; when to publish |
+| `/grants`: who may apply, names checked, credential minted, digest stored, coverage bounded by the grant | Where grants live (`grants.store`, an atomic `put`), which callers may apply (`applicants`, by a stable `caller`), and any narrowing of your own (`covers`, `allows`) |
 
 ## Reference
 

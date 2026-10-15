@@ -71,6 +71,8 @@ argument earns each of these in turn.
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
 | **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
 | **Contract** | An agreement between a consumer and a Service, brokered by the Tower: which of its Events, Task types and Actions the consumer may use, with credentials. Only the agreement and the credentials are stored; execution runs over it, not through the Tower. |
+| **Grant** | The part of a Contract one owner holds: which Task types, Actions and event types a credential covers on that Worker. Applied to the owner ahead of time, which issues the credential for it; the owner never reads the Contract itself. |
+| **Applicant** | The caller that applied a grant — in practice the Tower that brokered the Contract. It lists and revokes only its own grants. Not the Broker, which carries Events. |
 
 ## One kind of node, several platforms
 

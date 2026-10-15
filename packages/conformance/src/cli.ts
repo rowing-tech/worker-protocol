@@ -119,6 +119,8 @@ const arrangementFile = z.strictObject({
   secondCredential: z.string().optional(),
   consumerCredential: z.string().optional(),
   unprivilegedCredential: z.string().optional(),
+  uncoveredAction: z.strictObject({ credential: z.string(), name: z.string().min(1) }).optional(),
+  applyGrants: z.boolean().optional(),
   justStarted: z.boolean().optional(),
   replaceableSettings: z.boolean().optional(),
   recordsEveryRequest: z.boolean().optional(),

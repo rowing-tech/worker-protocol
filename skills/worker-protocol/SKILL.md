@@ -14,7 +14,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.7.0"
+  version: "2.8.0"
 ---
 
 # worker-protocol, in any language
@@ -123,6 +123,11 @@ whose reason is understood is one that survives a refactor.
   judges what arrives as always.
 - **Say which answers apply now** (TASK-38) with `available` on the Task, derived on the same read.
   Absent means all of them. Still refuse what the state does not allow with `409` (ACT-17).
+- **Perform only the Actions the credential covers** (ACT-22). Refuse any other declared Action
+  with `403 forbidden` right after `404` for an undeclared one, before reading the body, the key or
+  a recorded outcome. Then leave it out of `available` on every Task read with that credential, with
+  the member present even where the state narrows nothing, and `[]` where it covers none — the Task
+  stays listed (TASK-44). One static secret covers everything and needs neither.
 - **A call may name the Task it answers** in `Worker-Protocol-Task: <id>`, or
   `<id>; since=<instant>` to name one occurrence (TASK-39). As the owner, refuse a Task that is not
   open — never raised, ended, not covered by the credential, or not that `since` — with
@@ -192,6 +197,19 @@ whose reason is understood is one that survives a refactor.
   `sink()` in `@worker-protocol/client` does all three. Back its `SeenStore` with something that
   outlives a request — on Convex, a table claimed in a mutation, never `memorySeen()`, which forgets
   between invocations and handles a repeated delivery twice.
+- **`grants` tells an owner what a Contract's credential covers** (GRANT-1 to GRANT-9), and is
+  optional. One address: `POST { id, tasks, actions, events, rotate? }` applies — each list `all`
+  or names you declare, else `422` — `GET` lists the applicant's own, `DELETE ?grant=<id>` revokes,
+  `404` for an id the caller holds none under. The applicant is the caller your authentication
+  names, never the credential's bytes; refuse any caller you do not accept as one, and every
+  grant's credential, with `403`. Creating answers `201` with a credential; applying again answers
+  `200` and issues one only with `rotate: true`. Keep only a digest of what you issue. A grant's
+  credential covers nothing outside the Task types, Actions and event types it names — `all`
+  includes what you declare later — and you may narrow inside them by rules of your own, never
+  widen (GRANT-8). Refuse it health, metrics, alerts, activity, logs and settings with `403`:
+  watching is enrollment (GRANT-10). From the response on: revoked or rotated away is `401`
+  everywhere, narrowed is `403` for what it lost, and a subscription it made that is no longer
+  covered ends as `revoked` and receives nothing more.
 - **The lifecycle of Tasks and Alerts has fixed names** (EVT-15): `task-raised`, `task-ended`,
   `alert-raised`, `alert-ended` under `tech.rowing.worker-protocol`, with the id in `subject` and
   `tasktype` or `alertseverity` as an extension, declared under `extensions` like any other.

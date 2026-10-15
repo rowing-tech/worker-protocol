@@ -17,6 +17,73 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-15 — edition 0.8
+
+All five packages encode **edition 0.8**. A verifier on 0.7 meeting a 0.8 Worker says it is behind
+rather than judging it (DESC-33), so the release that carries it has to be a MINOR of the packages,
+which `^0.9.0` does not take. What it carries is the first two checkpoints of issue #10: what a
+credential may do is divided as what it may see already was, and an optional `grants` Capability
+through which whoever brokers a Contract tells an owner what its credential covers and receives
+the credential the owner issues.
+
+### Edition 0.8
+
+- **A Worker performs only the Actions the credential presented covers** (ACT-22). Any other
+  declared Action is `403 forbidden`, after ACT-6's `404` and before the body is read, the key is
+  reserved or a recorded outcome is answered, so a refused call records nothing and is answered no
+  outcome, not even one of its own. A Worker holding one static secret covers every Action with it
+  and changes nothing.
+- **`available` is for the caller** (TASK-44). A Task read with a credential that does not cover
+  every Action its type names carries `available` without those, even where its state narrows
+  nothing, and `available: []` where it covers none; the Task is still listed, because TASK-6 alone
+  decides what a credential reads.
+- **`grants`, an optional Capability** (GRANT-1 to GRANT-10). One address: a POST applies a grant —
+  its id, and the Task types, Actions and event types a credential issued for it covers, each `all`
+  or a list of names the Worker declares (`422` otherwise) — a GET lists the applicant's own and a
+  DELETE with `grant` revokes one, `404` for an id the caller holds none under. The applicant is the
+  caller that applied it, never the credential's bytes, and a grant's credential never applies one
+  (`403`). Creating answers `201` with the credential; applying again replaces what the grant covers
+  and issues a credential only with `rotate: true`. From the response on, a revoked or rotated
+  credential is `401` everywhere, a narrowed one `403` for what it lost, and a subscription it made
+  that is no longer covered ends as `revoked` and receives nothing more. A grant bounds what its
+  credential covers and the Worker may narrow inside it, never widen; `all` includes what the
+  Worker declares later. A grant's credential is `403` on health, metrics, alerts, activity, logs
+  and the settings: watching is enrollment, which no grant names.
+- spec: `spec/registration.md` no longer asks whether reading a Worker's Tasks and performing the
+  Actions that answer them are one right, nor how an owner learns what a credential covers. The
+  *permission model* non-goal of `spec/README.md` names what the protocol now divides — Tasks read,
+  Actions performed, event types consumed — and the *credential lifecycle* non-goal keeps the
+  identity provider's lifecycle except for a credential issued through `grants`; the note on the
+  withdrawn revocation rule says why that one is observable. `docs/undecided.md` keeps only what a
+  Contract carries beyond coverage: rate, retention and a consumer's time zone. The dictionary in
+  `docs/architecture.md` gains Grant and Applicant — not the Broker, which carries Events.
+- schemas: `available`'s description cites TASK-44. `grants-entry.json`, `grant-id.json`,
+  `grant-request.json`, `grant.json`, `grant-receipt.json` and `grant-page.json`;
+  `capability-name.json` gains `grants`.
+- hono: `actions.covers(token, principal)` names the Actions a credential covers; `mount()` answers
+  any other `403` before the body and the key, and leaves it out of `available` on every Task read
+  with that credential. The route declares `403` for ACT-22, and the Tasks read says TASK-44.
+- hono: `grants: { store, applicants }` serves the address. `mount()` mints each credential, answers
+  it once and hands the store only its SHA-256; a presented credential is looked up by digest before
+  `authenticate` is asked, and what it covers on `tasks`, `actions` and `subscriptions` is derived
+  from its grant, with the Worker's own `covers` and `allows` still asked and only narrowing it. It
+  refuses a grant's credential the surfaces of enrollment and `grants` itself with `403`, and
+  refuses to build a Worker that declares `grants` with no `applicants`. `GrantStore.put(grant,
+  expected)` compares and sets on the grant's serial, so two applications racing answer one
+  credential and `503` for the other. `eventHub` takes
+  `grants: { store }` and ends a subscription whose grant changed under it as `revoked` before its
+  next delivery. `memoryGrants()` for one process; `openapi/grants.json`.
+- client: `consume(...).grants` with `apply`, `list` and `revoke`.
+- conformance: ACT-22 and TASK-44, with `uncoveredAction` — a credential and a declared Action it
+  does not cover — in the arrangement and the CLI. ACT-22's call carries no key and a body that is
+  not JSON, so a conformant Worker performs nothing with it; it is still a POST, made only with
+  `mayPerform`. The reference worker takes `narrowCredential` and `coveredActions`.
+- conformance: GRANT-1 from the Descriptor, and GRANT-2 to GRANT-10 behind `applyGrants` and
+  `mayPerform`: the verifier applies one grant of its own, narrows, rotates and revokes it, and
+  cleans up whatever went wrong. The reference worker serves `grants`, with the operator as its one
+  applicant, and the Tower simulation reads it in the registry.
+- skills move to 2.8.0.
+
 ## [0.9.4] - 2026-10-13 — edition 0.7
 
 All five packages still encode **edition 0.7**, and none of them changes: this release carries the

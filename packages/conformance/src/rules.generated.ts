@@ -156,6 +156,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.4"
     },
     {
+      "id": "ACT-22",
+      "file": "actions.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
       "id": "ACTV-1",
       "file": "activity.md",
       "class": "required",
@@ -891,6 +898,76 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "H",
       "introducedIn": "0.7"
+    },
+    {
+      "id": "GRANT-1",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-2",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-3",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-4",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-5",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-6",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-7",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-8",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-9",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-10",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
     },
     {
       "id": "HLTH-1",
@@ -1647,6 +1724,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "H",
       "introducedIn": "0.7"
+    },
+    {
+      "id": "TASK-44",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.8"
     }
   ],
   "codes": [
@@ -1864,6 +1948,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "publishes/*/extensions": "EVT-17",
       "publishes/*/supersededBy": "NAME-7",
       "republishWindowSeconds": "EVT-8",
+      "version": "DESC-9"
+    },
+    "grant-page": {
+      "nextCursor": "ENDP-21"
+    },
+    "grants-entry": {
+      "address": "DESC-36",
       "version": "DESC-9"
     },
     "health-entry": {

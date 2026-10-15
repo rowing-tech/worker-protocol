@@ -97,6 +97,50 @@ Naming the Action costs a consumer one string it read out of the Descriptor. Whe
 genuinely wants the indirection it can declare an Action that takes a fact, which is the decoupled
 design available to anyone who wants it and imposed on nobody.
 
+## Who may perform one
+
+**ACT-22 (required). A Worker performs only the Actions the credential presented covers. A declared
+Action that credential does not cover is `403`, with the code `forbidden`, answered before the body
+is read and before ENDP-16, ENDP-17, ENDP-18 or ENDP-32 is asked, and it is not performed.**
+
+**Doing is divided as seeing is.** TASK-6 has a Worker answer only the Tasks a credential covers,
+and until this rule nothing divided what the same credential may *do*. A Contract that lets a
+consumer read a Worker's Tasks and withholds one of the Actions that answer them is an agreement
+only the owner can keep, because the owner is the one party that sees the call; a consumer told
+*you may verify vehicles and not price quotes* has no way to check that a second consumer was told
+the same. So the division binds rather than advises: a Contract excluding an Action could not
+otherwise be promised to anybody.
+
+**It costs nothing to a Worker that divides nothing.** A Worker holding one static secret covers
+every Action with it, and satisfies this rule without doing anything. What a credential covers, and
+how the Worker comes to know it, is the Worker's own, as everything behind `403` is
+([registration](registration.md)); this rule fixes only that the division exists and how a refusal
+of it is spelled.
+
+**After ACT-6, because which Actions exist is no secret.** The Descriptor is the same document for
+every caller (REG-8) and lists every Action, so a declared Action this credential may not perform
+is refused as such, and one that is not declared stays `404` (REG-7 forbids the substitution the
+other way).
+
+**Before the body, the key and the recorded outcome, so a refused call records nothing and learns
+nothing.** A refusal that came after ENDP-18 would tell an uncovered caller what the Action
+requires; one that came after ENDP-16 would answer it a recorded outcome — and an input key is
+global to the Action (ENDP-35), so the outcome could be another caller's, of a performance this one
+was never allowed to ask for. That holds for a credential's own outcome too: a credential whose
+coverage was withdrawn is not answered even a performance it once made, because a refusal that
+depended on whether a key had been used before would be a way to ask whether it had.
+
+`configure` is an Action like any other here. Reading its settings is a read, and who may read is
+REG-34's.
+
+**An Alert keeps offering what it offers, whoever reads it.** ALRT-3 lists the Actions that act on
+an Alert, and ALRT-6 forbids varying the Alerts by caller, because they are for whoever operates the
+Worker — a relationship of enrollment and not of Contract. So an Alert is not narrowed the way a
+Task is (TASK-44): its reader is the party the Worker accepts on every address (REG-34), and a
+Contract's credential reading one was never who it was for. Where such a credential does read it,
+an Action the Alert offers may still be refused under this rule, and that is the honest answer to a
+reader the Alert did not address.
+
 ## What a performance answers
 
 **ACT-8 (required). An input that does not match the Action's declared schema is `400`, with the

@@ -5,9 +5,11 @@ import { checkActivity } from "./checks/activity.ts";
 import { checkAlerts } from "./checks/alerts.ts";
 import { checkAnswers } from "./checks/answers.ts";
 import { checkArranged } from "./checks/arranged.ts";
+import { checkCoverage } from "./checks/coverage.ts";
 import { readDescriptor } from "./checks/descriptor.ts";
 import { type Code, judgeTranscript } from "./checks/endpoints.ts";
 import { checkEvents } from "./checks/events.ts";
+import { checkGrants } from "./checks/grants.ts";
 import { checkHealth } from "./checks/health.ts";
 import { checkLogs } from "./checks/logs.ts";
 import { checkMetrics } from "./checks/metrics.ts";
@@ -120,6 +122,25 @@ export type Arrangement = {
   consumerCredential?: string;
   /** A credential the Worker authenticates and that carries no right here (REG-32). */
   unprivilegedCredential?: string;
+  /**
+   * A credential the Worker authenticates, and a declared Action it does not cover (ACT-22,
+   * TASK-44).
+   *
+   * Nothing outside can tell which Actions a credential lacks, so it is told, as REG-32's is. The
+   * call ACT-22's check makes carries no key and a body that is not JSON, so a conformant Worker
+   * performs nothing with it — and it is still a POST, made only with `mayPerform`, because a Worker
+   * that checks no coverage and ignores the body of an Action without input would perform it.
+   */
+  uncoveredAction?: { credential: string; name: string };
+  /**
+   * That the operators will let the verifier apply grants on this Worker, with its own credential
+   * as the applicant (GRANT-2 to GRANT-9).
+   *
+   * Applying issues a real credential, so it is never done uninvited. The verifier applies one
+   * grant under an id of its own, covering no Task type and no event type, and revokes it before
+   * the run ends.
+   */
+  applyGrants?: boolean;
   /** That this Worker was started moments ago, so HLTH-4's window is still open. */
   justStarted?: boolean;
   /** That the operators will let the verifier write this Worker's settings back (ACT-20). */
@@ -531,6 +552,46 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           byId,
           tape,
         )),
+      );
+
+      // ACT-22 and TASK-44: what a credential the arrangement names may do. Nothing is performed,
+      // so it runs before the checks below change the Worker's Facts.
+      results.push(
+        ...(await checkCoverage({
+          raises:
+            (
+              descriptor.document.capabilities.tasks as
+                | { raises?: Record<string, { answeredBy?: string[] }> }
+                | undefined
+            )?.raises ?? {},
+          actionsUrl: surface("actions"),
+          tasksUrl: surface("tasks"),
+          mayPerform: options.mayPerform === true,
+          arrangement: options.arrangement ?? {},
+          rules: byId,
+          transcript: tape,
+        })),
+      );
+
+      // GRANT-1 to GRANT-9: a grant applied, narrowed, rotated and revoked under an id of the
+      // verifier's own. It touches no Task and no event type, so it may run before the checks below.
+      results.push(
+        ...(await checkGrants({
+          entry: descriptor.document.capabilities.grants,
+          url: surface("grants"),
+          descriptorUrl: descriptor.url,
+          healthUrl: surface("health"),
+          actionsUrl: surface("actions"),
+          tasksUrl: surface("tasks"),
+          actions: Object.keys(
+            (descriptor.document.capabilities.actions as { accepts?: Record<string, unknown> })
+              ?.accepts ?? {},
+          ),
+          mayPerform: options.mayPerform === true,
+          arrangement: options.arrangement ?? {},
+          rules: byId,
+          transcript: tape,
+        })),
       );
     }
 

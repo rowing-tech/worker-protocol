@@ -231,6 +231,30 @@ empty list is a Task nobody can answer right now — one waiting on a reply from
 it is still open, because TASK-15 closes a Task when its condition stops holding and not when its
 answers run out.
 
+**TASK-44 (required). A Task read with a credential that does not cover every Action TASK-35 names
+for its type carries `available`, and leaves out of it every Action that credential does not cover
+(ACT-22).**
+
+**`available` is what the owner would accept now from this caller**, and ACT-22 made the caller
+part of the answer. A console that offered a button the next call would refuse `403` would be
+offering what the owner already knew it would not accept, which is the one thing `available` exists
+to prevent. And *absent* means every answer applies, which to a credential that covers fewer is
+false — so the member has to be there, even where the Task's own state narrows nothing.
+
+**Seeing and doing stay two rights.** A Task this credential may read and none of whose Actions it
+covers is answered with `available: []`, and is not hidden: TASK-6 alone decides which Tasks a
+credential reads, and a Tower that watches a Worker's work without answering any of it still sees
+it. An empty list already meant *nobody here can answer this now*, and that is what it means to
+this caller.
+
+**`inputs` is not narrowed.** What the owner proposes for an Action (TASK-37) is about the Task,
+which this credential may already read, and it offers nothing: a console decides what to show from
+`available`, and a value for an Action it does not show is a value nobody posts. Requiring its
+removal would forbid something no argument here reaches.
+
+REG-8 holds, as TASK-6 already showed it does: what varies per caller is the Task, which is work,
+and never the Descriptor, which is a declaration.
+
 ## Answering one
 
 **TASK-15 (required). A Task closes when its condition stops holding, and no party declares that.**

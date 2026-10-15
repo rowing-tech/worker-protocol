@@ -34,6 +34,7 @@ a version of its own:
 | `events` | [events.md](events.md) | The envelope, the broker, deduplication, the lifecycle of Tasks and Alerts |
 | `logs` | [logs.md](logs.md) | What a Worker recorded while it was working, most recent first |
 | `subscriptions` | [subscriptions.md](subscriptions.md) | A consumer subscribing to a Worker, and the Worker pushing its events |
+| `grants` | [grants.md](grants.md) | What a Contract's credential covers, applied ahead of time, and the credential the owner issues |
 
 The Capability names in that table are a reading aid. The normative list is
 [schemas/capability-name.json](../schemas/capability-name.json), and where the two differ the
@@ -56,6 +57,7 @@ spread across four files each arguing from its own side.
 | What can I make it do? | `actions` | An operation with a declared input, performed on request |
 | What does it tell others about? | `events` | Pushed to a broker, for whoever contracted for it |
 | How do I say there is work? | `nudges` | Best effort, carries a Task type and nothing else (NDG-2) |
+| What may a Contract's credential do here? | `grants` | Applied ahead of time by whoever brokered the Contract; the owner issues the credential (GRANT-4) |
 
 **The two that are confused are `alerts` and `logs`, and they only overlap on failure.** *Twelve
 files compressed* is a record and is no kind of Alert: an Alert is never good news, and half of
@@ -117,7 +119,7 @@ the exception *had to stay small* and named two. The register, the first time an
 question to every rule in turn, found sixteen. Whether that is too many is worth arguing about, and
 the argument is now possible — which is the point of the count living somewhere gated rather than
 in a sentence here that would drift the moment a rule was written. It has drifted since: the
-specification is fourteen files rather than six; the register counts twenty-two, which is a larger
+specification is fifteen files rather than six; the register counts twenty-two, which is a larger
 number and the same proportion. Whether that is too many is still worth arguing about, and the
 argument is still there to be had.
 
@@ -129,11 +131,17 @@ Named non-goals, each settled by work already done rather than asserted in advan
 - **Credential lifecycle.** How a credential is *presented* binds. What it is made of, who issued
   it, how long it lives, how it is rotated and when a revocation takes effect belong to whatever
   identity provider a deployment already runs — fought out in [registration](registration.md),
-  which carries the argument.
+  which carries the argument. The one exception is a credential issued through
+  [grants](grants.md), whose issue, rotation and revocation go through this protocol and so can be
+  fixed by it (GRANT-4, GRANT-5, GRANT-9); everywhere else it stays the identity provider's.
 - **A security model.** A deployment's exposure, its threat model and how much an error message
   gives away are its own; this protocol has standing to advise and none to enforce.
-- **A permission model.** `403` is the entire vocabulary here for a right a caller lacks. A scope,
-  a role, a Contract's list — everything behind that status is the Worker's.
+- **A permission model.** `403` is the entire vocabulary here for a right a caller lacks. What this
+  protocol divides is what a credential covers — the Tasks it reads (TASK-6), the Actions it
+  performs (ACT-22), the event types it consumes (SUB-4) — because a Contract that names them could
+  not otherwise be promised. A Worker that declares [grants](grants.md) is told that division
+  through it (GRANT-8); everywhere else how a Worker comes to know it, and a scope, a role or
+  anything else behind it, is the Worker's.
 - **Style.** Beyond the one-convention-per-kind consistency NAME-3 *recommends* for the names this
   specification itself mints, how anything is spelled is not this protocol's business —
   [naming](naming.md) opens by saying so at length.
@@ -205,6 +213,7 @@ so that two files never race for the same one:
 | | | [nudges.md](nudges.md) | `NDG` |
 | | | [logs.md](logs.md) | `LOG` |
 | | | [subscriptions.md](subscriptions.md) | `SUB` |
+| | | [grants.md](grants.md) | `GRANT` |
 
 Numbers are issued in the order rules are written, not in the order they appear, so a file's ids
 need not read in sequence. **The number never restarts, and an id is never reused and never

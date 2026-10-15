@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — actions",
-    "version": "0.7",
+    "version": "0.8",
     "description": "Performing an operation a Worker accepts. The `configure` reading address of ACT-21 is not described here: its address is declared inside an Action rather than beside the Capability, and the document it answers is shaped by that Action's own input schema, which is the Worker's.",
     "license": {
       "name": "Apache-2.0",
@@ -31,7 +31,7 @@
             "name": "action",
             "in": "query",
             "required": true,
-            "description": "ACT-5. One of the Actions the entry declares. Naming none is `400`; naming one it does not declare is `404`.",
+            "description": "ACT-5. One of the Actions the entry declares. Naming none is `400`; naming one it does not declare is `404`; naming one the credential presented does not cover is `403` (ACT-22), before the body is read.",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -196,7 +196,7 @@
             }
           },
           "403": {
-            "description": "ENDP-39. The shared error envelope, carrying one of: `forbidden` (ENDP-40).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `forbidden` (ACT-22), `forbidden` (ENDP-40).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

@@ -18,6 +18,7 @@ import type { ActionCall, ActionDeclarations } from "./actions.ts";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { collection, type Page } from "./collection.ts";
+import { type Coverage, covers as listCovers, within } from "./grants.ts";
 import type { Refusal } from "./worker.ts";
 
 /** What a Worker says about a Task whose condition holds: the domain, and the whole of it. */
@@ -110,6 +111,8 @@ export type TaskSurface = {
     query: URLSearchParams,
     token: string | undefined,
     principal: unknown,
+    /** GRANT-8: what the grant this credential was issued for covers, where it was issued for one. */
+    coverage?: Coverage,
   ) => Promise<Refusal | Page>;
 };
 
@@ -135,17 +138,38 @@ export async function availableFor(
   return names.filter((_, at) => applies[at]);
 }
 
+/**
+ * TASK-44: `available` for this caller. Where the credential covers every Action the type names,
+ * what TASK-38 derived stands — absent included. Otherwise the member is there, without the
+ * Actions it does not cover, and `[]` where it covers none: the Task is still listed, because
+ * TASK-6 alone decides what a credential reads.
+ */
+const forCaller = (given: {
+  available: string[] | undefined;
+  names: string[];
+  covered: string[] | undefined;
+}): string[] | undefined => {
+  const { available, names, covered } = given;
+  if (covered === undefined || names.every((name) => covered.includes(name))) return available;
+  return (available ?? names).filter((name) => covered.includes(name));
+};
+
 export function tasks(declared: {
   raises: TaskTypes;
   facts: TaskFacts;
   /** The `actions` entry's own map, for the `refuses` TASK-38 is derived from. */
   accepts: ActionDeclarations;
+  /** ACT-22. Which Actions a credential covers, for TASK-44; absent, every credential covers all. */
+  actionsCover?: (
+    token: string | undefined,
+    principal?: unknown,
+  ) => string[] | undefined | Promise<string[] | undefined>;
 }): TaskSurface {
-  const { raises, facts, accepts } = declared;
+  const { raises, facts, accepts, actionsCover } = declared;
   const cap = facts.pageSize ?? 50;
 
   return {
-    async read(query, token, principal) {
+    async read(query, token, principal, coverage) {
       // TASK-8: a type the entry does not declare. The surface exists and the caller asked about
       // something this Worker never raises, which is a parameter whose VALUE it will not accept.
       const type = query.get("type");
@@ -154,16 +178,21 @@ export function tasks(declared: {
       }
 
       // TASK-6: only what this credential covers. Absent, it covers everything.
+      // GRANT-8: a grant's credential covers Tasks by type and Actions by name, from its grant, and
+      // the Worker's own `covers` may only narrow inside it.
       const covers = await facts.covers?.(token, principal);
+      const covered = within(coverage?.actions, await actionsCover?.(token, principal));
       const held = (await facts.current())
+        .filter((task) => coverage === undefined || listCovers(coverage.tasks, task.type))
         .filter((task) => covers === undefined || covers.includes(task.id))
         .filter((task) => type === null || task.type === type);
       const matching = await Promise.all(
         held.map(async (task) => {
-          const available = await availableFor(task, {
-            names: raises[task.type]?.answeredBy ?? [],
-            accepts,
-            call: { token, principal },
+          const names = raises[task.type]?.answeredBy ?? [];
+          const available = forCaller({
+            available: await availableFor(task, { names, accepts, call: { token, principal } }),
+            names,
+            covered,
           });
           return available === undefined ? task : { ...task, available };
         }),

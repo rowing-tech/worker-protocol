@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.7";
+export const EDITION = "0.8";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -68,6 +68,7 @@ export const capabilityName = z
     "events",
     "logs",
     "subscriptions",
+    "grants",
   ])
   .meta({
     title: "Capability name",
@@ -956,7 +957,9 @@ export const task = z
           "TASK-38. Which of the Actions TASK-35 names for this Task's type may answer it now, " +
           "derived from the Worker's Facts on the same read as the Task. Absent, every one may; " +
           "empty, none may yet and the Task is still open. A statement about now and not a " +
-          "promise: what the current state does not allow is still refused with `409` (ACT-17).",
+          "promise: what the current state does not allow is still refused with `409` (ACT-17). " +
+          "TASK-44: for this caller — present, without them, wherever the credential presented " +
+          "does not cover every one of those Actions (ACT-22).",
       }),
   })
   .meta({
@@ -1675,6 +1678,107 @@ export const logPage = page
       "six other surfaces share and none of them needs it.",
   });
 
+/** GRANT-1 — the `grants` Capability entry. The address is required: this is answered over HTTP. */
+export const grantsEntry = capabilityEntry.extend({ address }).meta({
+  title: "Grants capability entry",
+  description:
+    "GRANT-1. The shared Capability entry with the address required. Nothing else: how an owner " +
+    "stores a grant or checks a credential against it is its own.",
+});
+
+/**
+ * GRANT-4 — a grant's id, chosen by its applicant and unique only beside it.
+ *
+ * Unreserved URI characters, because it travels in GRANT-7's `grant` parameter and as the value of
+ * a `contract` dimension, and an id that needed escaping would be spelled two ways.
+ */
+export const grantId = z
+  .string()
+  .regex(/^[A-Za-z0-9._~-]{1,128}$/)
+  .meta({
+    title: "Grant id",
+    description:
+      "GRANT-4. What the applicant calls this grant, usually its own Contract's id: 1 to 128 " +
+      "unreserved URI characters. Unique only beside the applicant, so two applicants may hold " +
+      "grants under the same id.",
+  });
+
+/** GRANT-3 — `all`, or a list of names: what one of a grant's three lists may be. */
+const covered = (names: z.ZodType<string>, what: string, rule: string) =>
+  z.union([z.literal("all"), z.array(names)]).meta({
+    description:
+      `GRANT-3. \`all\`, or the ${what} a credential issued for this grant covers (${rule}), ` +
+      "each one the Worker declares. An empty list covers none.",
+  });
+
+const grantLists = {
+  tasks: covered(qualifiedName, "Task types the `tasks` entry raises whose Tasks", "TASK-6"),
+  actions: covered(z.string().min(1), "Actions the `actions` entry accepts that", "ACT-22"),
+  events: covered(qualifiedName, "event types the `events` entry publishes that", "SUB-4"),
+};
+
+/** GRANT-3 — what a POST to the address carries to apply a grant, and nothing else. */
+export const grantRequest = z
+  .strictObject({
+    id: grantId,
+    ...grantLists,
+    rotate: z
+      .boolean()
+      .optional()
+      .meta({
+        description:
+          "GRANT-5. Issue a new credential for a grant that already exists, after which every " +
+          "credential issued for it before is `401`. Ignored on creation, which always issues one.",
+      }),
+  })
+  .meta({
+    title: "Grant request",
+    description:
+      "GRANT-3. The body of a POST that applies a grant: its id and its three lists, and " +
+      "optionally `rotate`.",
+  });
+
+/** GRANT-6 — one grant as its applicant lists it. Never a credential. */
+export const grant = z.strictObject({ id: grantId, ...grantLists }).meta({
+  title: "Grant",
+  description:
+    "GRANT-6. One grant, as the applicant that applied it lists it: its id and what a " +
+    "credential issued for it covers. Never the credential.",
+});
+
+/** GRANT-4, GRANT-5 — what applying answers: the grant, and the credential where one was issued. */
+export const grantReceipt = grant
+  .extend({
+    credential: z
+      .string()
+      .min(1)
+      .optional()
+      .meta({
+        description:
+          "GRANT-4, GRANT-5. The credential the owner issued for this grant, presented by REG-3. " +
+          "Present on creation and on a rotation, and only then: the owner keeps no copy it could " +
+          "answer again.",
+      }),
+  })
+  .meta({
+    title: "Grant receipt",
+    description:
+      "GRANT-4, GRANT-5. What applying a grant answers: the grant as applied, and the credential " +
+      "issued for it where this call issued one.",
+  });
+
+/** GRANT-6 — what a GET answers: the page envelope with its items narrowed to grants. */
+export const grantPage = page
+  .extend({
+    items: z.array(grant).meta({ description: "GRANT-6. This applicant's grants." }),
+  })
+  .meta({
+    title: "Grant page",
+    description:
+      "GRANT-6. One page of the applicant's grants, in the envelope ENDP-20 fixes for every " +
+      "collection.",
+  });
+
 /** LOG-1 — the `logs` Capability entry. The address is required: this is answered over HTTP. */
 export const logsEntry = capabilityEntry.extend({ address }).meta({
   title: "Logs capability entry",
@@ -1731,6 +1835,12 @@ registry.add(subscriptionEndReason, { id: "subscription-end-reason" });
 registry.add(subscription, { id: "subscription" });
 registry.add(subscriptionPage, { id: "subscription-page" });
 registry.add(subscriptionEnded, { id: "subscription-ended" });
+registry.add(grantsEntry, { id: "grants-entry" });
+registry.add(grantId, { id: "grant-id" });
+registry.add(grantRequest, { id: "grant-request" });
+registry.add(grant, { id: "grant" });
+registry.add(grantReceipt, { id: "grant-receipt" });
+registry.add(grantPage, { id: "grant-page" });
 registry.add(logLevel, { id: "log-level" });
 registry.add(logRecord, { id: "log-record" });
 registry.add(logPage, { id: "log-page" });

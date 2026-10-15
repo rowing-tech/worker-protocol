@@ -19,6 +19,7 @@
 
 import * as z from "zod";
 import type { ErrorCode } from "./codes.ts";
+import { type Coverage, covers as listCovers, within } from "./grants.ts";
 import { availableFor, type OpenTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
 import type { Answer, Refusal } from "./worker.ts";
 
@@ -147,6 +148,18 @@ export type ActionFacts = {
   accepts: ActionDeclarations;
   /** ACT-21. The document `configure` would accept, where the Worker accepts settings. */
   settings?: () => unknown | Promise<unknown>;
+  /**
+   * ACT-22. Which Actions the credential presented covers, by name, or `undefined` for all of them.
+   *
+   * The same shape as the `covers` of Tasks, and asked the same way: once per call, with whom
+   * `authenticate` accepted. A declared Action left out is `403` before its body is read, and a
+   * Task read with this credential leaves it out of `available` (TASK-44). A Worker holding one
+   * static secret leaves this out and covers everything with it.
+   */
+  covers?: (
+    token: string | undefined,
+    principal?: unknown,
+  ) => string[] | undefined | Promise<string[] | undefined>;
   /**
    * ENDP-16. Where the recorded outcomes live. **Required as soon as any Action declares a key.**
    *
@@ -297,6 +310,8 @@ type Performance = {
   caller: string | undefined;
   /** TASK-39: the `Worker-Protocol-Task` header, unread, where one was sent. */
   task: string | undefined;
+  /** GRANT-8: what the grant this credential was issued for covers, where it was issued for one. */
+  coverage?: Coverage;
 };
 
 /** The `tasks` entry's declaration and facts, which a call naming a Task is checked against. */
@@ -333,22 +348,25 @@ async function answering(
     tasks: TasksDeclared | undefined;
     accepts: ActionDeclarations;
     call: Omit<ActionCall, "name" | "task">;
+    coverage: Coverage | undefined;
   },
 ): Promise<OpenTask | Refusal> {
   const named = readTaskHeader(header);
   if (named === undefined) {
     return refuse("invalid_parameter", "Worker-Protocol-Task is not a Task id, with `since`.");
   }
-  const { name, tasks, accepts, call } = given;
+  const { name, tasks, accepts, call, coverage } = given;
 
   // TASK-39: not open is one answer, whatever the reason — no Task under that id, one this
   // credential does not cover (TASK-6), or not the occurrence `since` named. A Task has no state
   // once its condition stops holding, so there is no telling *ended* from *never was*, and a
   // refusal that told *not yours* from *not there* would say which ids are real (REG-32).
+  // GRANT-8: a grant's credential covers Tasks by type, and `covers` may only narrow that.
   const covers = await tasks?.covers?.(call.token, call.principal);
   const task = (await tasks?.current())?.find((one) => one.id === named.id);
   const gone =
     task === undefined ||
+    (coverage !== undefined && !listCovers(coverage.tasks, task.type)) ||
     (covers !== undefined && !covers.includes(task.id)) ||
     (named.since !== undefined && task.since.getTime() !== named.since);
   if (gone || tasks === undefined) {
@@ -384,11 +402,23 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
     principal,
     caller,
     task: header,
+    coverage,
   }: Performance): Promise<Answer | Refusal> {
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
     const declaration = facts.accepts[name];
     if (declaration === undefined) {
       return refuse("not_found", `No Action named ${name} is declared.`);
+    }
+
+    // ACT-22: an Action this credential does not cover. After ACT-6, because the Descriptor lists
+    // every Action to everyone (REG-8); before the body, the key and the record, so a refused call
+    // records nothing and is answered no outcome — not even one of its own.
+    // GRANT-8: the grant bounds, and the Worker's own `covers` may only narrow inside it.
+    const covered = within(coverage?.actions, await facts.covers?.(token, principal));
+    if (covered !== undefined && !covered.includes(name)) {
+      // REG-32 (recommended): nothing the status at this address did not already say — the caller
+      // named the Action — and enough for an operator reading the refusal to know what is missing.
+      return refuse("forbidden", "Not covered by this credential.");
     }
 
     // ENDP-4: the body is JSON. ENDP-18: a required key absent is `400`, and it is asked before
@@ -495,7 +525,13 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
       // TASK-39, TASK-40, TASK-41: the Task the call names, asked after the key was taken (TASK-42)
       // and before anything is performed.
       if (header !== undefined) {
-        const task = await answering(header, { name, tasks, accepts: facts.accepts, call });
+        const task = await answering(header, {
+          name,
+          tasks,
+          accepts: facts.accepts,
+          call,
+          coverage,
+        });
         if (isRefusal(task)) {
           if (keyed !== undefined) await keyed.store.release(keyed.key);
           return task;

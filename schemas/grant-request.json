@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "grant-request.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "grant-id.json"
+    },
+    "tasks": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "all"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "qualified-name.json"
+          }
+        }
+      ],
+      "description": "GRANT-3. `all`, or the Task types the `tasks` entry raises whose Tasks a credential issued for this grant covers (TASK-6), each one the Worker declares. An empty list covers none."
+    },
+    "actions": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "all"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "description": "GRANT-3. `all`, or the Actions the `actions` entry accepts that a credential issued for this grant covers (ACT-22), each one the Worker declares. An empty list covers none."
+    },
+    "events": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "all"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "qualified-name.json"
+          }
+        }
+      ],
+      "description": "GRANT-3. `all`, or the event types the `events` entry publishes that a credential issued for this grant covers (SUB-4), each one the Worker declares. An empty list covers none."
+    },
+    "rotate": {
+      "description": "GRANT-5. Issue a new credential for a grant that already exists, after which every credential issued for it before is `401`. Ignored on creation, which always issues one.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "tasks",
+    "actions",
+    "events"
+  ],
+  "additionalProperties": false,
+  "title": "Grant request",
+  "description": "GRANT-3. The body of a POST that applies a grant: its id and its three lists, and optionally `rotate`."
+}

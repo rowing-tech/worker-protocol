@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "grant-id.json",
+  "type": "string",
+  "pattern": "^[A-Za-z0-9._~-]{1,128}$",
+  "title": "Grant id",
+  "description": "GRANT-4. What the applicant calls this grant, usually its own Contract's id: 1 to 128 unreserved URI characters. Unique only beside the applicant, so two applicants may hold grants under the same id."
+}

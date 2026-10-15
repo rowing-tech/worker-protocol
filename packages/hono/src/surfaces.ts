@@ -5,6 +5,8 @@ import {
   DIMENSION_NAME,
   descriptor,
   error,
+  grantPage,
+  grantReceipt,
   health,
   INSTANT,
   logLevel,
@@ -313,7 +315,7 @@ export const performAction = createRoute({
         .openapi({
           description: cite(
             "ACT-5",
-            "One of the Actions the entry declares. Naming none is `400`; naming one it does not declare is `404`.",
+            "One of the Actions the entry declares. Naming none is `400`; naming one it does not declare is `404`; naming one the credential presented does not cover is `403` (ACT-22), before the body is read.",
           ),
         }),
     }),
@@ -369,6 +371,7 @@ export const performAction = createRoute({
       ["invalid_parameter", "TASK-40"],
       ["schema_mismatch", "ACT-8"],
       ["idempotency_key_required", "ENDP-18"],
+      ["forbidden", "ACT-22"],
       ["not_found", "ACT-6"],
       ["not_found", "TASK-39"],
       ["conflict", "ACT-17"],
@@ -405,7 +408,11 @@ export const readTasks = createRoute({
     headers: versionHeader,
   },
   responses: {
-    200: answer("TASK-5", "Tasks whose conditions hold, in the shared page envelope.", taskPage),
+    200: answer(
+      "TASK-5",
+      "Tasks whose conditions hold, in the shared page envelope. Where the credential does not cover every Action a Task's type names, `available` leaves those out (TASK-44).",
+      taskPage,
+    ),
     ...refusals([["invalid_parameter", "TASK-8"], ["unknown_filter", "ENDP-24"], ...SHARED]),
   },
 });
@@ -599,6 +606,92 @@ export const endSubscription = createRoute({
   },
 });
 
+export const listGrants = createRoute({
+  method: "get",
+  path: "/",
+  summary: "List this applicant's grants",
+  description: cite(
+    "GRANT-6",
+    "A grant belongs to the caller that applied it, and this lists that caller's and no other's — never a credential, which the owner keeps only as a digest.",
+  ),
+  request: { headers: versionHeader },
+  responses: {
+    200: answer("GRANT-6", "This applicant's grants, in the shared page envelope.", grantPage),
+    ...refusals([["forbidden", "GRANT-2"], ["unknown_filter", "ENDP-24"], ...SHARED]),
+  },
+});
+
+export const applyGrant = createRoute({
+  method: "post",
+  path: "/",
+  summary: "Apply a grant",
+  description: cite(
+    "GRANT-3",
+    "The body is the grant's id and the Task types, Actions and event types a credential issued for it covers, each `all` or a list, and optionally `rotate`. Creating issues a credential (GRANT-4); applying again replaces what the grant covers and issues one only when asked to rotate (GRANT-5).",
+  ),
+  request: {
+    headers: versionHeader,
+    body: {
+      required: true,
+      description: cite("GRANT-3", "The grant, and whether to rotate its credential."),
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/grant-request" } as never,
+        },
+      },
+    },
+  },
+  responses: {
+    201: answer("GRANT-4", "A new grant, and the credential issued for it.", grantReceipt),
+    200: answer(
+      "GRANT-5",
+      "The grant replaced, with a new credential only where the request asked to rotate.",
+      grantReceipt,
+    ),
+    ...refusals([
+      ["schema_mismatch", "GRANT-3"],
+      ["malformed_request", "ENDP-4"],
+      ["invalid_parameter", "GRANT-3"],
+      ["unprocessable_content", "GRANT-3"],
+      ["forbidden", "GRANT-2"],
+      ...SHARED,
+    ]),
+  },
+});
+
+export const revokeGrant = createRoute({
+  method: "delete",
+  path: "/",
+  summary: "Revoke a grant",
+  description: cite(
+    "GRANT-7",
+    "A DELETE, as SUB-9's is (ENDP-36). From the response on, every credential issued for the grant is `401` and every subscription it created has ended (GRANT-9).",
+  ),
+  request: {
+    query: z.object({
+      grant: z
+        .string()
+        .min(1)
+        .openapi({
+          description: cite(
+            "GRANT-7",
+            "The id of a grant this caller applied. An id it holds no grant under is `404`: ids are unique only beside their applicant, so another's grant under the same id is not this caller's.",
+          ),
+        }),
+    }),
+    headers: versionHeader,
+  },
+  responses: {
+    204: answer("GRANT-7", "The grant is revoked. No body.", null),
+    ...refusals([
+      ["invalid_parameter", "GRANT-7"],
+      ["not_found", "GRANT-7"],
+      ["forbidden", "GRANT-2"],
+      ...SHARED,
+    ]),
+  },
+});
+
 // ---- the documents ------------------------------------------------------------------------------
 
 export type Surface = {
@@ -725,6 +818,15 @@ export const SURFACES: Surface[] = [
     description:
       "A consumer subscribing to this Worker's events, and ending a subscription. The deliveries themselves are not described here: they go to the subscriber's own sink, as CloudEvents in the HTTP binding's structured mode (SUB-11), validated first by the CloudEvents webhook handshake (SUB-10).",
     routes: [listSubscriptions, subscribe, endSubscription],
+  },
+  {
+    document: "grants",
+    capability: "grants",
+    server: address("grants", "GRANT-1"),
+    title: "worker-protocol — grants",
+    description:
+      "What a Contract's credential covers on this Worker, applied ahead of time by whoever brokered the Contract, and the credential the Worker issues for it. Optional: a Worker that declares no `grants` covers its credentials its own way.",
+    routes: [listGrants, applyGrant, revokeGrant],
   },
 ];
 

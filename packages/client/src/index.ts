@@ -4,6 +4,10 @@ import {
   type alert,
   alertPage,
   descriptor as descriptorSchema,
+  grantPage,
+  grantReceipt,
+  type grantRequest,
+  type grant as grantSchema,
   health as healthSchema,
   type logLevel,
   logPage,
@@ -61,6 +65,8 @@ type LogRecord = z.infer<typeof logRecord>;
 type LogLevel = z.infer<typeof logLevel>;
 type Subscription = z.infer<typeof subscriptionSchema>;
 type SubscriptionRequest = z.infer<typeof subscriptionRequest>;
+type Grant = z.infer<typeof grantSchema>;
+type GrantRequest = z.infer<typeof grantRequest>;
 
 /**
  * Where a reading resumes: exactly the `nextCursor` a page answered (ENDP-21), or absent for the
@@ -155,6 +161,21 @@ export type Consumed = {
     list: () => Promise<Subscription[]>;
     /** SUB-9. Ends one of this caller's subscriptions; one that is not is refused (`Refused`). */
     unsubscribe: (id: string) => Promise<void>;
+  };
+  /**
+   * GRANT-3 to GRANT-7. Tell this Worker, ahead of time, what a Contract's credential covers, and
+   * receive the credential it issues for it — for whoever brokers Contracts, usually a Tower.
+   *
+   * `apply` answers a `credential` on creation and on a rotation, and only then: the Worker keeps
+   * no copy, so a credential lost here is mended by applying again with `rotate: true`.
+   */
+  grants?: {
+    /** GRANT-4, GRANT-5. `created` tells a new grant (`201`) from one replaced (`200`). */
+    apply: (request: GrantRequest) => Promise<Grant & { credential?: string; created: boolean }>;
+    /** GRANT-6. This caller's grants, never a credential. */
+    list: () => Promise<Grant[]>;
+    /** GRANT-7. Revokes one of this caller's grants; one it does not hold is refused (`Refused`). */
+    revoke: (id: string) => Promise<void>;
   };
   tasks?: {
     /**
@@ -431,6 +452,31 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         // path built from the id, which ENDP-1 forbids a caller to assemble.
         const url = new URL(subscriptionsAddress);
         url.searchParams.set("subscription", id);
+        await call.call({ url: url.toString(), method: "DELETE" });
+      },
+    };
+  }
+
+  const grantsAddress = addressOf("grants");
+  if (grantsAddress !== undefined) {
+    consumed.grants = {
+      apply: async (request) => {
+        const answered = await call.call({
+          url: grantsAddress,
+          method: "POST",
+          body: JSON.stringify(request),
+        });
+        const receipt = grantReceipt.safeParse(answered.json);
+        if (!receipt.success) {
+          throw new Malformed("GRANT-4", grantsAddress, "the answer carried no grant");
+        }
+        return { ...receipt.data, created: answered.status === 201 };
+      },
+      list: () => collect<Grant>(call, grantsAddress, grantPage, "GRANT-6"),
+      revoke: async (id) => {
+        // GRANT-7: named in a parameter on the declared address, as SUB-9 names a subscription.
+        const url = new URL(grantsAddress);
+        url.searchParams.set("grant", id);
         await call.call({ url: url.toString(), method: "DELETE" });
       },
     };

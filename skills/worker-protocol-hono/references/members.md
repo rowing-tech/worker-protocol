@@ -28,7 +28,10 @@ and the rule each one cites.
   checks (HLTH-3).
 - `metrics: { timeZone, publishes, read({ metric, granularity, buckets, fixed, by }) }` — answer
   `{ start, value }` per bucket there is a number for, omitting the rest (MET-15).
-- `actions: { accepts, settings?, outcomes? }` — each entry of `accepts` is
+- `actions: { accepts, settings?, outcomes?, covers? }` — `covers(token, principal)` answers the
+  Action names the credential covers, or `undefined` for all: `mount()` answers any other declared
+  Action `403` before the body and the key, and leaves it out of `available` (ACT-22, TASK-44).
+  Each entry of `accepts` is
   `action({ input, result?, idempotency?, completesWithinCall?, supersededBy?, refuses?, run })`.
   `refuses(input, call)` answers why the current state does not allow it, or `undefined`:
   `mount()` asks it after a repeat is replayed and before `run`, answering `409 conflict`, and asks
@@ -83,6 +86,20 @@ and the rule each one cites.
   `wantedHere` inside the Durable Object that holds them),
   and `route`, `deliverAll` and `later` for a carrier that makes the first attempt itself, as
   `consumeQueues` does.
+- `grants: { store, applicants(caller, principal) }` — `store` a `GrantStore` (`memoryGrants()` in
+  one process); `applicants` which callers may apply, required, and `mount()` refuses to build
+  without it (GRANT-2). The applicant is the `caller` your `authenticate` names, so name a stable
+  identity there — never the id of a key: rotating that key would orphan every grant it applied.
+  `mount()` mints each credential, answers it once and keeps only its SHA-256; a presented
+  credential is looked up by digest before `authenticate`, on every request that carries one, so
+  index the digest and answer a miss cheaply. `put(grant, expected)` compares the serial it holds
+  with `expected` (`null` for none) and writes only on a match — make that one atomic write, as
+  `SubscriptionStore.ensure` is; a lost race is answered `503` and the applicant retries. What a
+  grant's credential covers is bounded by its grant, and your own `tasks.covers`, `actions.covers`
+  and `subscriptions.allows` are still asked and may only narrow inside it (GRANT-8). It is `403`
+  on health, metrics, alerts, activity, logs and settings (GRANT-10). Hand `eventHub` the same
+  store as `grants: { store }`, so a subscription a narrowed, rotated or revoked credential made
+  ends as `revoked` before its next delivery (GRANT-9).
 - `logs: { read({ levels, from, to, cursor, limit }), pageSize? }` — answer
   `{ records: [{ at, level, message, fields? }], nextCursor? }`, most recent first. `levels` arrives
   expanded and in order, lowest first, so the ladder never needs re-deriving.
@@ -90,6 +107,7 @@ and the rule each one cites.
 ## Also exported
 
 - `action()` — declares one Action and infers `run`'s parameter from the Zod object beside it.
+- `memoryGrants()` — a grant store for one long-lived process, on `memoryOutcomes()`'s terms.
 - `memoryOutcomes()` — an idempotency store for one long-lived process. Wrong anywhere that scales
   horizontally; back it with a durable object, KV or a table instead.
 - `jsonSchema()` — the JSON Schema for a Zod object, for a case that needs it in hand.

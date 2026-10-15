@@ -109,9 +109,21 @@ it — so it arrives the way the base URL and the credential do: out of band, fr
 
 `arrangement` takes `safeAction`, `secondSafeAction`, `refusedInput`, `asyncAction`,
 `secondCredential`, `otherCallerCredential`, `consumerCredential`, `unprivilegedCredential`,
-`justStarted`, `replaceableSettings`, `publishedEvent`, `sink`, `publishingAction`,
-`answeringAction`, `before`, `after` and `abandonment`. Anything not arranged reports `notExercised`
-naming what was missing.
+`uncoveredAction`, `applyGrants`, `justStarted`, `replaceableSettings`, `publishedEvent`, `sink`,
+`publishingAction`, `answeringAction`, `before`, `after` and `abandonment`. Anything not arranged
+reports `notExercised` naming what was missing.
+
+`uncoveredAction` is a credential and a declared Action it does not cover. ACT-22 posts that Action
+with it, carrying no key and a body that is not JSON, and expects `403` before anything else. A
+conformant Worker performs nothing with that call; one that checks no coverage and ignores the body
+of an Action without input would, so it is made only with `mayPerform`, like every other POST.
+TASK-44 reads the Tasks with it and expects every one that Action answers to carry `available`
+without it.
+
+`applyGrants: true`, with `mayPerform`, lets the verifier apply a grant with its own credential as
+the applicant: one grant under an id of its own, covering no Task type and no event type, which it
+narrows, rotates and revokes before the run ends. Applying issues a real credential on the Worker,
+which is why it is never done uninvited (GRANT-2 to GRANT-9).
 
 `before` and `after` are Actions the verifier performs around every check, in order and with
 `mayPerform`: what puts the Worker in a state where its rules can be exercised now — a source

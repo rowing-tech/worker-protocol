@@ -1190,3 +1190,130 @@ describe("mount(), a call that names the Task it answers", () => {
     });
   });
 });
+
+/**
+ * ACT-22 and TASK-44: doing is divided as seeing is. A credential performs only the Actions it
+ * covers, and a Task read with it says so in `available` — while the Task itself stays listed,
+ * because TASK-6 alone decides what a credential reads.
+ */
+describe("mount(), a credential that does not cover every Action", () => {
+  const REVIEW = "tech.rowing.test.review";
+  const SINCE = new Date("2026-10-15T09:00:00Z");
+  let runs = 0;
+  const run = () => {
+    runs += 1;
+    return undefined;
+  };
+  const app = mount({
+    id: "tech.rowing.worker-protocol.test",
+    authenticate: () => "accepted",
+    actions: {
+      outcomes: memoryOutcomes(),
+      accepts: {
+        approve: action({
+          input: z.object({ document: z.string() }),
+          idempotency: { required: true, from: "header", windowSeconds: 60 },
+          run,
+        }),
+        "send-back": action({ input: z.object({ document: z.string() }), run }),
+        // ENDP-35: a key read from the input is the Action's, so every caller names one record.
+        record: action({
+          input: z.object({ reading: z.string() }),
+          result: z.object({ recorded: z.string() }),
+          idempotency: { required: true, from: "input", members: ["reading"], windowSeconds: 60 },
+          run: (input) => {
+            runs += 1;
+            return { recorded: input.reading };
+          },
+        }),
+      },
+      // `watch` covers no Action, `send-back` only that one, and anything else every one.
+      covers: (token) =>
+        token === "watch" ? [] : token === "send-back" ? ["send-back"] : undefined,
+    },
+    tasks: {
+      raises: { [REVIEW]: { payload: z.object({}), answeredBy: ["approve", "send-back"] } },
+      current: () => [
+        { id: "D-1", type: REVIEW, payload: {}, since: SINCE },
+        { id: "D-2", type: REVIEW, payload: {}, since: SINCE, available: ["approve"] },
+      ],
+    },
+  });
+
+  const call = (token: string, init: { body?: string; key?: string } = {}) =>
+    app.fetch(
+      new Request("http://worker.invalid/actions?action=approve", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          ...(init.key === undefined ? {} : { "idempotency-key": init.key }),
+        },
+        body: init.body ?? JSON.stringify({ document: "d" }),
+      }),
+    );
+
+  const availability = async (token: string) => {
+    const response = await app.fetch(
+      new Request("http://worker.invalid/tasks", { headers: { authorization: `Bearer ${token}` } }),
+    );
+    const page = (await response.json()) as { items: { id: string; available?: string[] }[] };
+    return page.items.map((one) => [one.id, one.available]);
+  };
+
+  it("refuses an Action it does not cover with 403 before the key and the body (ACT-22)", async () => {
+    const before = runs;
+    const answer = await call("send-back", { body: "not json" });
+    expect(answer.status).toBe(403);
+    expect(await answer.json()).toMatchObject({ code: "forbidden" });
+    expect(runs).toBe(before);
+  });
+
+  it("answers no recorded outcome to a credential that does not cover the Action (ACT-22)", async () => {
+    const first = await call("wide", { key: "k-1" });
+    expect(first.status).toBe(204);
+    const before = runs;
+    expect((await call("send-back", { key: "k-1" })).status).toBe(403);
+    expect(runs).toBe(before);
+  });
+
+  it("answers no other caller's outcome under an input key to a credential that does not cover it (ACT-22)", async () => {
+    const post = (token: string) =>
+      app.fetch(
+        new Request("http://worker.invalid/actions?action=record", {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+          body: JSON.stringify({ reading: "r-1" }),
+        }),
+      );
+    const first = await post("wide");
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ recorded: "r-1" });
+    const before = runs;
+    const refused = await post("send-back");
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).not.toHaveProperty("recorded");
+    expect(runs).toBe(before);
+  });
+
+  it("leaves what a credential does not cover out of `available` (TASK-44)", async () => {
+    expect(await availability("send-back")).toEqual([
+      ["D-1", ["send-back"]],
+      ["D-2", []],
+    ]);
+  });
+
+  it("lists a Task whose Actions the credential covers none of, with `available: []` (TASK-44)", async () => {
+    expect(await availability("watch")).toEqual([
+      ["D-1", []],
+      ["D-2", []],
+    ]);
+  });
+
+  it("keeps `available` as TASK-38 derived it for a credential that covers every Action", async () => {
+    expect(await availability("wide")).toEqual([
+      ["D-1", undefined],
+      ["D-2", ["approve"]],
+    ]);
+  });
+});

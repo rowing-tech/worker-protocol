@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — tasks",
-    "version": "0.7",
+    "version": "0.8",
     "description": "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
     "license": {
       "name": "Apache-2.0",
@@ -59,7 +59,7 @@
         ],
         "responses": {
           "200": {
-            "description": "TASK-5. Tasks whose conditions hold, in the shared page envelope.",
+            "description": "TASK-5. Tasks whose conditions hold, in the shared page envelope. Where the credential does not cover every Action a Task's type names, `available` leaves those out (TASK-44).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the fourteen `draft` files — all of them — classified by what a check would observe.
+Every rule in the fifteen `draft` files — all of them — classified by what a check would observe.
 This is the audit [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place
 only if you can name what a conformance check would observe when it is broken* — run for the first
 time, and it is also the specification of what `packages/conformance` implements.
@@ -17,8 +17,8 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 107 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 45 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 108 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 56 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 28 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
@@ -145,7 +145,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | REG-33 | N | 0.1 | Who issued a credential is not in the credential |
 | REG-36 | P | 0.4 | Recommended. Binds a Tower, and needs two moments of one Worker that no verifier holds |
 
-## actions.md — 15
+## actions.md — 16
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -164,8 +164,9 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ACT-13 | N | 0.1 | A Worker that declares `configure` meaning something else is indistinguishable from one that means this. What a name is reserved FOR has no witness; what a Worker must then serve does, and that is ACT-21's |
 | ACT-20 | H | 0.4 | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
 | ACT-21 | W | 0.4 | `configure` has a reading address, and it answers a document its own input schema would accept, without the members marked `writeOnly` |
+| ACT-22 | H | 0.8 | A credential arranged not to cover a declared Action, posting it with no key and a body that is not JSON, is `403` + `forbidden`: not ENDP-18's `400` and not ENDP-4's. A conformant Worker performs nothing with that call, and a broken one that ignores the body of an Action without input might, so it is a POST like any other |
 
-## tasks.md — 17
+## tasks.md — 18
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -186,6 +187,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | TASK-41 | H | 0.7 | A call to the arranged safe Action naming an open Task whose type lists it and whose `available` leaves it out is `409` + `conflict`. A Worker with no such Task open is `not exercised` |
 | TASK-42 | H | 0.7 | The arranged safe Action whose key is read from the input, performed once naming no Task and repeated naming a Task the Worker never gave: the recorded outcome, and not `404` |
 | TASK-43 | H | 0.7 | The arranged safe Action whose key is read from the header, performed once naming no Task and repeated under the same key naming one: `409` + `idempotency_key_reused`, and not `404` |
+| TASK-44 | H | 0.8 | Every Task the same arranged credential reads, whose type names the Action it does not cover, carries `available` without that Action. A credential that reads no such Task is `not exercised` |
 
 **Sixteen rules of the Claim lifecycle were withdrawn**, and with them the only checks in this tool
 that changed a Worker: taking a lease, renewing it, closing it, and the fencing token that refused a
@@ -346,9 +348,29 @@ at all.
 | SUB-16 | H | 0.4 | After a delivery, the caller's list shows when it last succeeded; where the sink can be made fail, it shows since when while failing and clears it once the sink recovers |
 | SUB-17 | H | 0.4 | Recommended. Another caller ending a subscription it does not own is `404`, the same as one that does not exist |
 
+## grants.md — 10
+
+Every rule here but the first issues or revokes a real credential on the Worker, so each waits for
+an arrangement that permits it (`applyGrants`), as ACT-20 waits for settings its operators will let
+go of. The verifier's own credential is the applicant, and the grants it applies name an id of its
+own and are revoked before the run ends.
+
+| Rule | Class | Introduced in | What a check observes, or why nothing does |
+|---|---|---|---|
+| GRANT-1 | W | 0.8 | The `grants` entry carries an address |
+| GRANT-2 | H | 0.8 | A credential issued for a grant, applying one, is `403` + `forbidden`. That only some callers may apply has no witness without a caller arranged not to |
+| GRANT-3 | H | 0.8 | Applying a grant that names a Task type, an Action or an event type the Worker does not declare is `422` + `unprocessable_content`, and the list shows no such grant |
+| GRANT-4 | H | 0.8 | Applying under a fresh id is `201` with the grant and a credential, and the credential reads the Descriptor |
+| GRANT-5 | H | 0.8 | Applying again without `rotate` is `200` with no credential; with `rotate`, `200` with a new one, and the previous one is `401` |
+| GRANT-6 | H | 0.8 | The list carries the applied grant and no credential; with another caller's credential, where it may apply, it does not |
+| GRANT-7 | H | 0.8 | Revoking is `204`; revoking the same id again is `404` + `not_found`, and so is another caller revoking an id it never applied |
+| GRANT-8 | H | 0.8 | A credential whose grant names no Task type reads no Tasks, and one whose grant covers every Action is not refused `403` or `401` on a declared one. That the Worker narrows no further is not asked: GRANT-8 is a ceiling |
+| GRANT-10 | H | 0.8 | The applied grant's credential, on the `health` address where the Worker declares one, is `403` + `forbidden` |
+| GRANT-9 | H | 0.8 | After revoking, the credential is `401`; after narrowing a grant from every Action to none, a declared Action is `403` and not `401`. A subscription ending is not observed, which would need a sink and a grant credential subscribing |
+
 ## Where this stands
 
-202 rules across fourteen files, none of them `open`, under edition 0.4. Every rule the register
+214 rules across fifteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.

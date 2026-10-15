@@ -8,6 +8,7 @@ import type {
 import type * as z from "zod";
 import type { ActionFacts } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
+import type { GrantFacts } from "./grants.ts";
 import type { LogFacts } from "./logs.ts";
 import type { MetricFacts } from "./metrics.ts";
 import type { SubscriptionFacts } from "./subscriptions.ts";
@@ -145,6 +146,16 @@ export type Worker = {
    * changes; `spec/subscriptions.md` holds the argument.
    */
   subscriptions?: SubscriptionFacts;
+  /**
+   * `grants`: what a Contract's credential covers here, applied ahead of time by whoever brokered
+   * the Contract, and the credential this Worker issues for it.
+   *
+   * `mount()` serves the address, mints each credential and keeps only its digest in `store`, and
+   * derives what a grant's credential covers on `tasks`, `actions` and `subscriptions` itself — so a
+   * Worker that declares this writes no `covers` for those credentials. `applicants` says which
+   * callers may apply. `spec/grants.md` holds the argument.
+   */
+  grants?: GrantFacts;
   /** `tasks`: what the entry declares (TASK-27, TASK-2 to TASK-4), and which conditions hold. */
   tasks?: {
     /** TASK-2. Every Task type this Worker raises, with its payload schema and answering Actions. */

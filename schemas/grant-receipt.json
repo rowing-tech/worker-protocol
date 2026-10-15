@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "grant-receipt.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "grant-id.json"
+    },
+    "tasks": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "all"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "qualified-name.json"
+          }
+        }
+      ],
+      "description": "GRANT-3. `all`, or the Task types the `tasks` entry raises whose Tasks a credential issued for this grant covers (TASK-6), each one the Worker declares. An empty list covers none."
+    },
+    "actions": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "all"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "description": "GRANT-3. `all`, or the Actions the `actions` entry accepts that a credential issued for this grant covers (ACT-22), each one the Worker declares. An empty list covers none."
+    },
+    "events": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "all"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "qualified-name.json"
+          }
+        }
+      ],
+      "description": "GRANT-3. `all`, or the event types the `events` entry publishes that a credential issued for this grant covers (SUB-4), each one the Worker declares. An empty list covers none."
+    },
+    "credential": {
+      "description": "GRANT-4, GRANT-5. The credential the owner issued for this grant, presented by REG-3. Present on creation and on a rotation, and only then: the owner keeps no copy it could answer again.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "id",
+    "tasks",
+    "actions",
+    "events"
+  ],
+  "additionalProperties": false,
+  "title": "Grant receipt",
+  "description": "GRANT-4, GRANT-5. What applying a grant answers: the grant as applied, and the credential issued for it where this call issued one."
+}
