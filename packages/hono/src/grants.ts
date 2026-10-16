@@ -183,6 +183,45 @@ export const within = (granted: Covered | undefined, own: string[] | undefined) 
   return own === undefined ? granted : granted.filter((name) => own.includes(name));
 };
 
+/**
+ * What one request's credential covers, worked out in one place for every surface that divides it:
+ * the grant bounds (GRANT-8) and the Worker's own hooks narrow inside it (TASK-6, ACT-22). Each half
+ * asks its hook at most once, and only when a surface needs it.
+ */
+export type Covering = {
+  /** TASK-6, GRANT-8: whether this credential reads a Task. */
+  tasks: () => Promise<(task: { id: string; type: string }) => boolean>;
+  /** ACT-22, GRANT-8: the Actions it covers, by name, or `undefined` for all of them. */
+  actions: () => Promise<string[] | undefined>;
+};
+
+type Hook = () => string[] | undefined | Promise<string[] | undefined>;
+
+export const coveringOf = (given: {
+  /** What the grant names, where a grant issued the credential. */
+  grant: Coverage | undefined;
+  /** The Worker's own `tasks.covers` and `actions.covers`, bound to this request. */
+  own: { tasks?: Hook; actions?: Hook };
+}): Covering => {
+  const { grant, own } = given;
+  let tasks: Promise<(task: { id: string; type: string }) => boolean> | undefined;
+  let actions: Promise<string[] | undefined> | undefined;
+  return {
+    tasks: () => {
+      tasks ??= Promise.resolve(own.tasks?.()).then(
+        (ids) => (task) =>
+          (grant === undefined || listCovers(grant.tasks, task.type)) &&
+          (ids === undefined || ids.includes(task.id)),
+      );
+      return tasks;
+    },
+    actions: () => {
+      actions ??= Promise.resolve(own.actions?.()).then((names) => within(grant?.actions, names));
+      return actions;
+    },
+  };
+};
+
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
 
 const listed = (grant: StoredGrant) => ({

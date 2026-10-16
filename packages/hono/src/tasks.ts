@@ -18,7 +18,7 @@ import type { ActionCall, ActionDeclarations } from "./actions.ts";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { collection, type Page } from "./collection.ts";
-import { type Coverage, listCovers, within } from "./grants.ts";
+import type { Covering } from "./grants.ts";
 import type { Refusal } from "./worker.ts";
 
 /** What a Worker says about a Task whose condition holds: the domain, and the whole of it. */
@@ -109,10 +109,8 @@ const READ_PARAMETERS = ["type"] as const;
 export type TaskSurface = {
   read: (
     query: URLSearchParams,
-    token: string | undefined,
-    principal: unknown,
-    /** GRANT-8: what the grant this credential was issued for covers, where it was issued for one. */
-    coverage?: Coverage,
+    /** Who is reading, and what this request's credential covers (TASK-6, TASK-44, GRANT-8). */
+    call: { token: string | undefined; principal: unknown; covering: Covering },
   ) => Promise<Refusal | Page>;
 };
 
@@ -159,17 +157,13 @@ export function tasks(declared: {
   facts: TaskFacts;
   /** The `actions` entry's own map, for the `refuses` TASK-38 is derived from. */
   accepts: ActionDeclarations;
-  /** ACT-22. Which Actions a credential covers, for TASK-44; absent, every credential covers all. */
-  actionsCover?: (
-    token: string | undefined,
-    principal?: unknown,
-  ) => string[] | undefined | Promise<string[] | undefined>;
 }): TaskSurface {
-  const { raises, facts, accepts, actionsCover } = declared;
+  const { raises, facts, accepts } = declared;
   const cap = facts.pageSize ?? 50;
 
   return {
-    async read(query, token, principal, coverage) {
+    async read(query, call) {
+      const { token, principal, covering } = call;
       // TASK-8: a type the entry does not declare. The surface exists and the caller asked about
       // something this Worker never raises, which is a parameter whose VALUE it will not accept.
       const type = query.get("type");
@@ -177,19 +171,13 @@ export function tasks(declared: {
         return refuse("invalid_parameter", `No Task type named ${type} is declared.`);
       }
 
-      // TASK-6: only what this credential covers. Absent, it covers everything.
-      // GRANT-8: a grant's credential covers Tasks by type and Actions by name, from its grant, and
-      // the Worker's own `covers` may only narrow inside it.
-      const [covers, ownActions, current] = await Promise.all([
-        facts.covers?.(token, principal),
-        actionsCover?.(token, principal),
+      // TASK-6, TASK-44, GRANT-8: what this credential reads and performs is `covering`'s.
+      const [reads, covered, current] = await Promise.all([
+        covering.tasks(),
+        covering.actions(),
         facts.current(),
       ]);
-      const covered = within(coverage?.actions, ownActions);
-      const held = current
-        .filter((task) => coverage === undefined || listCovers(coverage.tasks, task.type))
-        .filter((task) => covers === undefined || covers.includes(task.id))
-        .filter((task) => type === null || task.type === type);
+      const held = current.filter((task) => reads(task) && (type === null || task.type === type));
       const matching = await Promise.all(
         held.map(async (task) => {
           const names = raises[task.type]?.answeredBy ?? [];

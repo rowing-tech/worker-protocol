@@ -17,6 +17,22 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-10-16 — edition 0.8
+
+All five packages still encode **edition 0.8**. Three changes inside `@worker-protocol/hono` left
+over from issue #10, none of them visible to a caller that is answered as the specification says.
+
+### Changed
+
+- hono: a hub handed no grant store ends a subscription a grant's credential made, as `revoked`,
+  and says why once, where it used to keep delivering to it: GRANT-9 fails closed when
+  `eventHub` is not given `grants: { store }`.
+- hono: a grant's credential is refused the surfaces of enrollment by one middleware on each of
+  their paths, `/settings` included, rather than by a check in each handler.
+- hono: what a request's credential covers is worked out once, in `mount()`, and handed to the
+  Tasks read and to an Action call alike, so the grant's bound and the Worker's own `covers` are
+  intersected in one place; each hook is asked at most once, and only where a surface needs it.
+
 ## [0.10.0] - 2026-10-15 — edition 0.8
 
 All five packages encode **edition 0.8**. A verifier on 0.7 meeting a 0.8 Worker says it is behind

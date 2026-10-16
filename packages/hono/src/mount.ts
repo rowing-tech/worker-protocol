@@ -10,7 +10,15 @@ import {
 } from "./actions.ts";
 import { byCode } from "./codes.ts";
 import { collection, serializeSince } from "./collection.ts";
-import { digestOf, grantCaller, grantsSurface, mayBeIssued, type StoredGrant } from "./grants.ts";
+import {
+  type Covering,
+  coveringOf,
+  digestOf,
+  grantCaller,
+  grantsSurface,
+  mayBeIssued,
+  type StoredGrant,
+} from "./grants.ts";
 import { logs as logsSurface } from "./logs.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
 import { subscriptionsSurface } from "./subscriptions.ts";
@@ -191,6 +199,25 @@ type Resolved = {
   grant?: StoredGrant;
 };
 
+/**
+ * TASK-6, ACT-22, GRANT-8: what this request's credential covers — its grant, where one issued it,
+ * narrowed by the Worker's own hooks — worked out in one place and handed to every surface that
+ * divides it.
+ */
+const coveringFor = (
+  c: Context,
+  { worker, principal, grant }: Pick<Resolved, "worker" | "principal" | "grant">,
+): Covering => {
+  const token = bearer(c);
+  return coveringOf({
+    grant,
+    own: {
+      tasks: worker.tasks?.covers && (() => worker.tasks?.covers?.(token, principal)),
+      actions: worker.actions?.covers && (() => worker.actions?.covers?.(token, principal)),
+    },
+  });
+};
+
 /** GRANT-2, GRANT-10: the refusal a credential gets on what it does not cover, said once. */
 const notCovered = () =>
   envelope({ code: "forbidden", message: "Not covered by this credential." });
@@ -218,7 +245,6 @@ function surfacesOf(worker: Worker) {
           raises: worker.tasks.raises,
           facts: worker.tasks,
           accepts: worker.actions?.accepts ?? {},
-          actionsCover: worker.actions?.covers,
         })
       : undefined,
     actions: worker.actions ? actionsSurface(worker.actions, worker.tasks) : undefined,
@@ -555,6 +581,16 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     return entry;
   };
 
+  /**
+   * GRANT-2, GRANT-10: a grant's credential covers what a Contract names and nothing of enrollment,
+   * so on these addresses it is refused whole, before anything about the call is read. One
+   * middleware on every such path, `/settings` included, so no address can forget it.
+   */
+  const enrolledOnly: MiddlewareHandler = async (c, next) => {
+    if (held(c).grant !== undefined) return notCovered();
+    await next();
+  };
+
   const guard: MiddlewareHandler = async (c, next) => {
     const worker = await audited(c);
     // REG-34: the Worker accepts the credential recorded for it on every address this protocol
@@ -633,18 +669,13 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       guarded.add(path);
       if (capability !== null) app.use(path, capabilityVersion);
       app.use(path, guard);
+      if (capability !== null && ENROLLMENT.has(capability)) app.use(path, enrolledOnly);
     }
     // Per operation and not per address: one address may serve an operation that reads its own
     // parameters beside one that takes none, as `subscriptions` does.
     app.openapi({ ...route, path }, (async (c: Context) => {
-      const entry = held(c);
-      // A grant's credential covers what a Contract names and nothing of enrollment (GRANT-2,
-      // GRANT-8): refused whole, before anything about the call is read.
-      if (entry.grant !== undefined && capability !== null && ENROLLMENT.has(capability)) {
-        return notCovered();
-      }
       const stray = ownParameters ? undefined : strayParameter(c);
-      return stray ?? handler(c, entry);
+      return stray ?? handler(c, held(c));
     }) as never);
   };
 
@@ -687,7 +718,8 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // ACT-5: the Action is named in the query and the body is the input, raw.
   serve(
     { capability: "actions", path: "/actions", route: performAction, ownParameters: true },
-    async (c, { worker, principal, caller, grant }) => {
+    async (c, resolved) => {
+      const { worker, principal, caller, grant } = resolved;
       const perform = surfacesOf(worker).actions;
       if (!perform) return undeclared("actions");
       return reply(
@@ -700,7 +732,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           principal,
           caller,
           task: c.req.header("worker-protocol-task"),
-          coverage: grant,
+          covering: coveringFor(c, resolved),
           ...(grant === undefined ? {} : { grant: { applicant: grant.applicant, id: grant.id } }),
         }),
       );
@@ -711,12 +743,11 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // why the declaration above points at it and the two cannot disagree.
   app.use("/settings", capabilityVersion);
   app.use("/settings", guard);
+  app.use("/settings", enrolledOnly);
   app.get("/settings", async (c) => {
     const stray = strayParameter(c);
     if (stray) return stray;
-    const { worker, grant } = held(c);
-    // GRANT-10: the settings are the operator's, which is enrollment and no Contract's.
-    if (grant !== undefined) return notCovered();
+    const { worker } = held(c);
     const settings = worker.actions?.settings;
     const configure = worker.actions?.accepts.configure;
     if (!settings || !configure) return undeclared("configure");
@@ -802,7 +833,14 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     async (c, { worker, principal, grant }) => {
       const tasks = surfacesOf(worker).tasks;
       if (!tasks) return undeclared("tasks");
-      return page(c, await tasks.read(query(c), bearer(c), principal, grant));
+      return page(
+        c,
+        await tasks.read(query(c), {
+          token: bearer(c),
+          principal,
+          covering: coveringFor(c, { worker, principal, grant }),
+        }),
+      );
     },
   );
 
@@ -884,7 +922,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   /**
    * GRANT-1 to GRANT-7: one address, three operations, on `subscriptions`' pattern — a GET that
    * lists, a POST that applies and a DELETE that revokes the grant named in `grant`. A grant's
-   * credential never reaches here (ENROLLMENT above), and a caller the Worker does not accept as an
+   * credential never reaches here (`enrolledOnly`), and a caller the Worker does not accept as an
    * applicant is refused before anything is read (GRANT-2).
    */
   const grantsOf = async ({

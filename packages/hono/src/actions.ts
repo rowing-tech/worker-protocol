@@ -19,7 +19,7 @@
 
 import * as z from "zod";
 import type { ErrorCode } from "./codes.ts";
-import { type Coverage, type GrantRef, listCovers, within } from "./grants.ts";
+import type { Covering, GrantRef } from "./grants.ts";
 import { availableFor, type OpenTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
 import type { Answer, Refusal } from "./worker.ts";
 
@@ -316,8 +316,8 @@ type Performance = {
   caller: string | undefined;
   /** TASK-39: the `Worker-Protocol-Task` header, unread, where one was sent. */
   task: string | undefined;
-  /** GRANT-8: what the grant this credential was issued for covers, where it was issued for one. */
-  coverage?: Coverage;
+  /** TASK-6, ACT-22, GRANT-8: what this request's credential covers, worked out once. */
+  covering: Covering;
   /** GRANT-4: that grant's applicant and id, for `call.grant`. */
   grant?: GrantRef;
 };
@@ -356,26 +356,25 @@ async function answering(
     tasks: TasksDeclared | undefined;
     accepts: ActionDeclarations;
     call: Omit<ActionCall, "name" | "task">;
-    coverage: Coverage | undefined;
+    covering: Covering;
   },
 ): Promise<OpenTask | Refusal> {
   const named = readTaskHeader(header);
   if (named === undefined) {
     return refuse("invalid_parameter", "Worker-Protocol-Task is not a Task id, with `since`.");
   }
-  const { name, tasks, accepts, call, coverage } = given;
+  const { name, tasks, accepts, call, covering } = given;
 
   // TASK-39: not open is one answer, whatever the reason — no Task under that id, one this
   // credential does not cover (TASK-6), or not the occurrence `since` named. A Task has no state
   // once its condition stops holding, so there is no telling *ended* from *never was*, and a
   // refusal that told *not yours* from *not there* would say which ids are real (REG-32).
-  // GRANT-8: a grant's credential covers Tasks by type, and `covers` may only narrow that.
-  const covers = await tasks?.covers?.(call.token, call.principal);
-  const task = (await tasks?.current())?.find((one) => one.id === named.id);
+  // GRANT-8: what the credential reads is `covering`'s, the same rule a read of Tasks applies.
+  const [reads, current] = await Promise.all([covering.tasks(), tasks?.current()]);
+  const task = current?.find((one) => one.id === named.id);
   const gone =
     task === undefined ||
-    (coverage !== undefined && !listCovers(coverage.tasks, task.type)) ||
-    (covers !== undefined && !covers.includes(task.id)) ||
+    !reads(task) ||
     (named.since !== undefined && task.since.getTime() !== named.since);
   if (gone || tasks === undefined) {
     return refuse("not_found", `No open Task ${named.id} is answered here.`);
@@ -410,7 +409,7 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
     principal,
     caller,
     task: header,
-    coverage,
+    covering,
     grant,
   }: Performance): Promise<Answer | Refusal> {
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
@@ -423,7 +422,7 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
     // every Action to everyone (REG-8); before the body, the key and the record, so a refused call
     // records nothing and is answered no outcome — not even one of its own.
     // GRANT-8: the grant bounds, and the Worker's own `covers` may only narrow inside it.
-    const covered = within(coverage?.actions, await facts.covers?.(token, principal));
+    const covered = await covering.actions();
     if (covered !== undefined && !covered.includes(name)) {
       // REG-32 (recommended): nothing the status at this address did not already say — the caller
       // named the Action — and enough for an operator reading the refusal to know what is missing.
@@ -546,7 +545,7 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
           tasks,
           accepts: facts.accepts,
           call,
-          coverage,
+          covering,
         });
         if (isRefusal(task)) {
           if (keyed !== undefined) await keyed.store.release(keyed.key);

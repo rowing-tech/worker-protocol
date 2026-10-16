@@ -118,7 +118,7 @@ const build = () => {
     (
       (await (await call(token, { path: "/tasks" })).json()) as { items: { id: string }[] }
     ).items.map((one) => one.id);
-  return { app, call, apply, taskIds, hub, queue, posted, runs: () => runs };
+  return { app, call, apply, taskIds, hub, queue, posted, subscriptions, runs: () => runs };
 };
 
 const REVIEWER = { id: "c-42", tasks: [REVIEW], actions: ["approve"], events: [MOVED] };
@@ -587,5 +587,34 @@ describe("grants, an applicant is a named caller", () => {
       },
     } as unknown as Worker;
     expect(() => mount(enumerated)).toThrow(/MET-23/);
+  });
+});
+
+describe("grants, and a hub that was not handed the store", () => {
+  it("ends a grant's subscription rather than keep delivering to it (GRANT-9)", async () => {
+    const { apply, call, queue, posted, subscriptions } = build();
+    const { credential } = (await (await apply("tower-a", REVIEWER)).json()) as {
+      credential: string;
+    };
+    await call(credential, {
+      path: "/subscriptions",
+      method: "POST",
+      body: { types: [MOVED], sink: "https://sink.example.com/events", sinkCredential: "s" },
+    });
+    // The same subscriptions and queue, and no `grants`: the wiring a Worker can forget.
+    const forgetful = eventHub({ id: ID, events: EVENTS, subscriptions });
+    const errors: unknown[] = [];
+    const error = console.error;
+    console.error = (...args: unknown[]) => errors.push(args);
+    try {
+      queue.consume(forgetful.deliver);
+      await forgetful.publish({ type: MOVED, subject: "ABC-123", data: { vehicle: "ABC-123" } });
+      await queue.idle();
+    } finally {
+      console.error = error;
+    }
+    expect(posted.map((one) => (one.body as { type: string }).type)).toContain(SUBSCRIPTION_ENDED);
+    expect(posted.map((one) => (one.body as { type: string }).type)).not.toContain(MOVED);
+    expect(errors).toHaveLength(1);
   });
 });

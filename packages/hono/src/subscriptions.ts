@@ -498,12 +498,26 @@ export function eventHub(worker: Publisher) {
    * type it names still covered. Asked before every delivery, so a subscription a change ended
    * receives nothing from its response on; `asked` holds each caller's answers for one batch.
    */
+  let unwired = false;
   const standing = async (
     subscription: StoredSubscription,
     asked: Map<string | null, Promise<{ accepted: boolean; grant?: StoredGrant }>>,
   ): Promise<boolean> => {
     const { caller } = subscription;
-    const named = grants === undefined ? undefined : grantOf(caller);
+    const named = grantOf(caller);
+    // GRANT-9 fails closed: a grant's credential made this subscription and this hub was handed no
+    // grant store to ask, so nothing can say the grant still stands. Ending it is the one answer
+    // that cannot leak a revoked Contract's events; saying so once is what makes it fixable.
+    if (named !== undefined && grants === undefined) {
+      if (!unwired) {
+        unwired = true;
+        console.error(
+          "GRANT-9: a subscription made with a grant's credential reached a hub given no grant " +
+            "store, so it was ended. Hand `eventHub` the store `mount()` has: `grants: { store }`.",
+        );
+      }
+      return false;
+    }
     let held = asked.get(caller);
     if (held === undefined) {
       held = (async () => ({
