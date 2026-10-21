@@ -127,7 +127,7 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
   return {
     id: ID,
 
-    // REG-3, REG-34. It may await, and a Worker reading a token from an identity provider would.
+    // REG-3, REG-37. It may await, and a Worker reading a token from an identity provider would.
     authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
 
     // HLTH-2: one status and named checks. HLTH-3 forbids `healthy` while a check is not, so the

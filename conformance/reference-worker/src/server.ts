@@ -83,6 +83,13 @@ export type WorkerOptions = {
    * otherwise report itself best in.
    */
   readyAfterMs?: number;
+  /**
+   * Whether the operator may apply grants (GRANT-2). Defaults to `true`.
+   *
+   * `false` is a Tower that watches this Worker and brokers nothing on it: the recorded credential
+   * is refused `grants` with `403`, which REG-37 leaves to GRANT-2 rather than counting against it.
+   */
+  operatorApplies?: boolean;
   /** Which Tasks each credential covers, for TASK-6. A credential absent from it covers all. */
   visibleTasks?: Record<string, string[]>;
   /** Which Actions each credential covers, for ACT-22. A credential absent from it covers all. */
@@ -200,7 +207,7 @@ export function referenceWorker(
     // at no address — it is what this Worker IS, and a Capability is what it serves.
     skills: SKILLS,
 
-    // REG-34 on every address. `403` for the credential this Worker reads and that carries no
+    // REG-37 on every address. `403` for the credential this Worker reads and that carries no
     // right, because ENDP-40 divides `401` from `403` at whether it could be READ.
     //
     // ENDP-34: two callers, named for who holds the credential and not for the credential itself.
@@ -283,8 +290,12 @@ export function referenceWorker(
     // SUB-1 to SUB-16: the same store and queue on every request, and the origins a test exempts.
     subscriptions: { ...facts.subscriptions, insecureSinkOrigins: options.insecureSinkOrigins },
 
-    // GRANT-1 to GRANT-9: the operator brokers Contracts here, as a Tower would; nobody else does.
-    grants: { store: facts.grants, applicants: (caller) => caller === "operator" },
+    // GRANT-1 to GRANT-9: the operator brokers Contracts here, as a Tower would, unless told it
+    // only watches; nobody else does.
+    grants: {
+      store: facts.grants,
+      applicants: (caller) => caller === "operator" && options.operatorApplies !== false,
+    },
   };
 }
 

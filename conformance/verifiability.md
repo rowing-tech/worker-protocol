@@ -133,7 +133,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | REG-14 | P | 0.1 | Binds a Tower |
 | REG-16 | P | 0.1 | Binds a Tower and an operator. The origin list is state outside the Worker |
 | REG-19 | P | 0.1 | Binds a Tower |
-| REG-34 | W | 0.4 | The recorded credential is accepted on the Descriptor route and on every declared reading address; a write may refuse it, with `403` and never `401` |
+| REG-37 | W | 0.9 | The recorded credential is accepted on the Descriptor route and on every declared reading address but `grants`, which GRANT-2 to GRANT-9 judge; a write may refuse it, with `403` and never `401` |
 | REG-24 | N | 0.1 | Nothing outside can see whether the owner called the Tower. Running with the Tower down is an arrangement of the whole deployment, not an observation of this Worker |
 | REG-26 | N | 0.1 | The file says it: no Worker can tell how it got into a registry |
 | REG-27 | N | 0.1 | The file says it: it binds an issuer who is party to no call |

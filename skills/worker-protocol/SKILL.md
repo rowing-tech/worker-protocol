@@ -14,7 +14,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.8.0"
+  version: "2.9.0"
 ---
 
 # worker-protocol, in any language

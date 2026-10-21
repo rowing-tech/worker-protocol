@@ -151,7 +151,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.8");
+    expect(report.edition).toBe("0.9");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -247,6 +247,29 @@ describe("the reference worker, verified", () => {
     // stays derived rather than deleted, because what it is now guarding is the opposite of what
     // it guarded before — not a debt to pay down, but a state to keep.
     expect(unexercised).toEqual([]);
+  });
+
+  it("passes REG-37 where the recorded credential watches and may not apply grants", async () => {
+    // GRANT-2 makes applying the Worker's to grant, apart from enrollment, so a Tower that watches
+    // this Worker and brokers nothing on it is refused `grants` — and REG-37 leaves that address
+    // out for exactly that reason. The `403` is asserted first, so the pass is not vacuous.
+    const watched = await start({ credential: "a-token", operatorApplies: false });
+    try {
+      const refused = await fetch(new URL("/grants", watched.url), {
+        headers: { authorization: "Bearer a-token" },
+      });
+      expect(refused.status).toBe(403);
+
+      const report = await verify({ baseUrl: watched.url, credential: "a-token" });
+      const of = (id: string) => report.results.find((r) => r.rule.id === id);
+      expect(of("REG-37")?.verdict).toBe("passes");
+      expect(of("REG-3")?.verdict).toBe("passes");
+      // Still read, so a `grants` that answered `404` would fail the Descriptor.
+      expect(of("DESC-18")?.verdict).toBe("passes");
+      expect(of("GRANT-1")?.verdict).toBe("passes");
+    } finally {
+      await watched.close();
+    }
   });
 
   it("resolves a declared address against the Descriptor's route, not the base URL", async () => {
@@ -441,9 +464,9 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.8");
+      expect(report.verifierEdition).toBe("0.9");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.8");
+      expect(report.results[0]?.detail).toContain("holds edition 0.9");
     } finally {
       await ahead.close();
     }
@@ -451,9 +474,9 @@ describe("the reference worker, verified", () => {
 
   it("verifies nothing against a later MINOR while the MAJOR is 0", async () => {
     // DESC-32 lets a MINOR break before 1.0, so DESC-33 has a verifier behind on MINOR treat it as
-    // it treats a later MAJOR: judging a 0.9 Worker by 0.8's rules could fail it for what 0.9
+    // it treats a later MAJOR: judging a 0.10 Worker by 0.9's rules could fail it for what 0.10
     // changed, and the honest sentence is that the verifier is the one behind.
-    const ahead = await start({ edition: "0.9" });
+    const ahead = await start({ edition: "0.10" });
     try {
       const report = await verify({ baseUrl: ahead.url });
       expect(report.older).toBe(true);

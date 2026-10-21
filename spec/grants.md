@@ -64,6 +64,10 @@ the other never sees. Tying applying to enrollment instead — the credential th
 would let an owner broker with only one Tower, and would make polling a Worker the same right as
 issuing credentials on it.
 
+**So the credential recorded at enrollment is an applicant only where the Worker names it one, and
+REG-37 leaves this address out for that reason.** A Worker that answers `403` here to a Tower
+enrolled to watch it, and brokering nothing on it, is conformant.
+
 **A credential issued for a grant never applies one.** It covers what its grant names, and applying
 is not among the things a grant can name; a consumer able to mint credentials on the owner would
 have been handed the Tower's role by a Contract.
@@ -154,7 +158,7 @@ is nothing left to cover; an applicant that applies the same lists again is told
 
 **Watching is enrollment, and no grant names it.** GRANT-10 closes the surfaces through which a
 Worker is operated, because they are the relationship between a Worker and whoever operates it,
-which REG-34 fixes and ALRT-6 keeps one document for every reader — not a Contract between a
+which REG-37 fixes and ALRT-6 keeps one document for every reader — not a Contract between a
 consumer and a Service. A grant that opened them would let a Contract hand out what enrollment
 withholds, and the one Worker with alerts to hide would have a second door to them. A party that
 should watch a Worker is enrolled with it, with a credential recorded for it, as any Tower is. A

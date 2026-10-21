@@ -114,7 +114,7 @@ surface outright, with `403`, is not varying it (REG-8).**
 **Reading Alerts needs no Contract, and that settles the second question this file was asked.** A
 Contract is made over a Service — its Events, its Task types, its Actions — and an Alert is none of
 those. The party an Alert is for is whoever operates the Worker, and that relationship is
-enrollment: REG-34 already has a Worker accept the recorded credential on every address this
+enrollment: REG-37 already has a Worker accept the recorded credential on every address this
 protocol defines, and this is one of them.
 
 ALRT-6 is REG-8's reasoning one surface along. A list filtered per reader is a different document to

@@ -66,9 +66,9 @@ lands. The receiver reads, and what it reads is true when it reads it.
 
 **Who may send one, which is not a rule here because it is already one elsewhere.** A nudge is
 answered under the credential the Worker was enrolled with, exactly as every other address this
-protocol defines is: REG-3 fixes how a credential is presented and REG-34 has a Worker accept the
+protocol defines is: REG-3 fixes how a credential is presented and REG-37 has a Worker accept the
 recorded one everywhere, and a nudge address is one of them. Writing that down again as an NDG rule
-would put a second copy of REG-34 in the register, to be checked twice and to disagree with itself
+would put a second copy of REG-37 in the register, to be checked twice and to disagree with itself
 the day one of them was edited. Which owners may nudge which consumer is a Contract's business,
 which is where every other *may this party call this address* question already lives.
 

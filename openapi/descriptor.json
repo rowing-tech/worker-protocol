@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — the Descriptor",
-    "version": "0.8",
+    "version": "0.9",
     "description": "The one route this protocol fixes, and the whole of what every Worker owes. Every other address is declared in the document this answers (ENDP-1).",
     "license": {
       "name": "Apache-2.0",
@@ -25,7 +25,7 @@
     "/.well-known/worker-protocol": {
       "get": {
         "summary": "Read the Descriptor",
-        "description": "DESC-5. Reading a Descriptor is a GET and changes nothing. REG-34 has the Worker accept the credential recorded for it here as on every other address.",
+        "description": "DESC-5. Reading a Descriptor is a GET and changes nothing. REG-37 has the Worker accept the credential recorded for it here as on every other reading address but `grants`.",
         "parameters": [
           {
             "name": "Worker-Protocol-Capability-Version",

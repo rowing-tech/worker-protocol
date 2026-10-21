@@ -131,12 +131,12 @@ coverage was withdrawn is not answered even a performance it once made, because 
 depended on whether a key had been used before would be a way to ask whether it had.
 
 `configure` is an Action like any other here. Reading its settings is a read, and who may read is
-REG-34's.
+REG-37's.
 
 **An Alert keeps offering what it offers, whoever reads it.** ALRT-3 lists the Actions that act on
 an Alert, and ALRT-6 forbids varying the Alerts by caller, because they are for whoever operates the
 Worker — a relationship of enrollment and not of Contract. So an Alert is not narrowed the way a
-Task is (TASK-44): its reader is the party the Worker accepts on every address (REG-34), and a
+Task is (TASK-44): its reader is the party the Worker accepts on every address (REG-37), and a
 Contract's credential reading one was never who it was for. Where such a credential does read it,
 an Action the Alert offers may still be refused under this rule, and that is the honest answer to a
 reader the Alert did not address.

@@ -196,7 +196,7 @@ export const readDescriptor = createRoute({
   summary: "Read the Descriptor",
   description: cite(
     "DESC-5",
-    "Reading a Descriptor is a GET and changes nothing. REG-34 has the Worker accept the credential recorded for it here as on every other address.",
+    "Reading a Descriptor is a GET and changes nothing. REG-37 has the Worker accept the credential recorded for it here as on every other reading address but `grants`.",
   ),
   request: { headers: versionHeader },
   responses: editionOnly({

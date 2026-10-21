@@ -52,9 +52,9 @@ with or without a path — and that half does bind, because it is where a reader
 **REG-3 (required). A credential is presented as `Authorization: Bearer <token>`. This protocol
 fixes nothing about the token's contents: to whoever presents it, it is an opaque string.**
 
-**REG-34 (required). A Worker accepts the credential recorded for it on the Descriptor's route and
-on every address this protocol defines for reading, and reads it on every other: a write it refuses
-that credential is `403`, never `401`.**
+**REG-37 (required). A Worker accepts the credential recorded for it on the Descriptor's route and
+on every address this protocol defines for reading but that of `grants`, and reads it on every
+other: an address that refuses that credential answers `403`, never `401`.**
 
 These two are the binding core of the file, and between them they are the whole of what a client
 and a Worker must agree on. A client that presents a token somewhere else, or a Worker that will
@@ -81,7 +81,16 @@ What a Worker answers a caller it cannot read is ENDP-40's — `401`, with the c
 `unauthenticated` — and what it answers one it reads that does not carry the right is `403`, with
 `forbidden`. Both are `reject`: ENDP-28 forbids the caller from retrying either.
 
-A Worker may answer more than REG-34 requires. Nothing here forbids serving a Descriptor, a health
+**`grants` is left out because who may call it is GRANT-2's, and GRANT-2 argues it apart from
+enrollment.** What this rule protects is the Tower being able to poll, and listing the grants a
+caller applied is not polling: it reads what that caller brokered, and nothing about how the Worker
+is doing. GRANT-2 keeps applying a right of its own so that a Worker can be watched by a Tower that
+does not broker Contracts on it, and a rule that made the recorded credential good on that address
+would have made every enrolled caller an applicant — the coupling GRANT-2 exists to refuse. The
+recorded credential is still read there, so a refusal is `403` and the caller learns that it was
+understood.
+
+A Worker may answer more than REG-37 requires. Nothing here forbids serving a Descriptor, a health
 answer or a set of metrics to a caller presenting nothing at all: a Worker that owns its origin
 root and serves the well-known URI of RFC 8615 openly is discoverable from a bare hostname, which
 DESC-35 makes possible and which is worth something, at the cost of publishing the address of every
@@ -362,6 +371,14 @@ Contract is. The rule is about the call, not about the history.
   a Tower's own API is not in it.
 
 ## Withdrawn
+
+- **REG-34** (required, W, 0.4–0.9) — required that a Worker accept the recorded credential on the
+  Descriptor's route and on every reading address, `grants` included. Replaced by **REG-37**, which
+  leaves `grants` to GRANT-2; a Worker whose recorded credential may watch it and not apply grants
+  failed REG-34 on that address, with GRANT-2's own `403`, and satisfies REG-37.
+
+  REG-34 and GRANT-2 could only both hold for a Worker that made every enrolled caller an
+  applicant, which GRANT-2's argument rejects, and a verifier was failing Workers for obeying it.
 
 - **REG-21** (required, W, 0.1–0.4) — required that a Worker accept the recorded credential on every
   address. Replaced by **REG-34**, which requires acceptance on the Descriptor and every reading

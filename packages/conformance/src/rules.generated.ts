@@ -1453,7 +1453,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "registration.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.4"
+      "introducedIn": "0.4",
+      "withdrawnIn": "0.9"
     },
     {
       "id": "REG-35",
@@ -1468,6 +1469,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "recommended",
       "reach": "P",
       "introducedIn": "0.4"
+    },
+    {
+      "id": "REG-37",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.9"
     },
     {
       "id": "SUB-1",

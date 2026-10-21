@@ -19,9 +19,10 @@ parsing the body.
 
 ## 3. The credential
 
-`Authorization: Bearer <token>` (REG-3), accepted on every address the protocol defines (REG-34).
-`401` when it cannot be read, `403` when it is understood and carries no right (ENDP-40). What makes
-a token good is the Worker's own business and may be a network call.
+`Authorization: Bearer <token>` (REG-3). The recorded one is accepted on the Descriptor and every
+reading address but `grants`, whose callers are the Worker's to choose (REG-37, GRANT-2). `401` when
+it cannot be read, `403` when it is understood and carries no right (ENDP-40). What makes a token
+good is the Worker's own business and may be a network call.
 
 **When that call cannot be made, the answer is `503` `unavailable`, not `401`.** An identity
 provider that is down, rate limited or silent has said nothing about the credential, and a `401`

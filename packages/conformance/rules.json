@@ -1444,7 +1444,8 @@
       "file": "registration.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.4"
+      "introducedIn": "0.4",
+      "withdrawnIn": "0.9"
     },
     {
       "id": "REG-35",
@@ -1459,6 +1460,13 @@
       "class": "recommended",
       "reach": "P",
       "introducedIn": "0.4"
+    },
+    {
+      "id": "REG-37",
+      "file": "registration.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.9"
     },
     {
       "id": "SUB-1",

@@ -67,7 +67,7 @@ import type { Answer, Refusal, Worker } from "./worker.ts";
  * ```
  *
  * What it carries, so that a Worker author does not: ENDP-37's two headers on every response;
- * REG-3 and REG-34; ENDP-6's whole refusal of a version it cannot answer; ENDP-24; ENDP-39 and
+ * REG-3 and REG-37; ENDP-6's whole refusal of a version it cannot answer; ENDP-24; ENDP-39 and
  * ENDP-26's envelope; ENDP-19 through ENDP-23's page and cursor; DESC-36's addresses; TASK-5's
  * filter and TASK-28's page; MET-7 through MET-22, the parameters and the boundaries; ACT-6 through
  * ACT-19 and ENDP-38 through ENDP-18; and ACT-2 and ACT-3's JSON Schema, generated from the Zod
@@ -593,8 +593,9 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
 
   const guard: MiddlewareHandler = async (c, next) => {
     const worker = await audited(c);
-    // REG-34: the Worker accepts the credential recorded for it on every address this protocol
-    // defines, the Descriptor's route included. What makes one good is the Worker's (REG-3).
+    // REG-37: the Worker accepts the credential recorded for it on every address this protocol
+    // defines, the Descriptor's route included, and `grants` then asks `applicants` (GRANT-2).
+    // What makes one good is the Worker's (REG-3).
     // REG-32: the refusal distinguishes nothing — a refusal that explains itself is an oracle.
     // GRANT-8: a credential issued for a grant is found by its digest before `authenticate` is
     // asked, so it never reaches the Worker's identity provider. Revoked or rotated away, it is in

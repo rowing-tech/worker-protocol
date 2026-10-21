@@ -17,6 +17,27 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-21 — edition 0.9
+
+All five packages encode **edition 0.9**, so the release that carries it is a MINOR of the
+packages, which `^0.10.0` does not take. What it carries is one contradiction between REG-34 and
+GRANT-2, found by a Worker that obeyed GRANT-2 and failed the verifier for it.
+
+### Edition 0.9
+
+- **The recorded credential may be refused `grants`** (REG-37, replacing REG-34). REG-34 had a
+  Worker accept the credential it was enrolled with on every reading address, and GRANT-2 lets it
+  refuse `grants` with `403` to any caller that is not an applicant. Both held only where every
+  enrolled caller was an applicant, which GRANT-2's own argument rejects: a Tower that watches a
+  Worker and brokers nothing on it is now conformant. Every other reading address, and the
+  Descriptor's route, still accept it, and an address that refuses it is still `403`, never `401`.
+
+### Fixed
+
+- conformance: REG-37 no longer counts a `403` from `grants` against the Worker. The address is
+  still read, so DESC-18 still fails a `grants` that answers `404`, and GRANT-2 to GRANT-9 still
+  judge it under `applyGrants`.
+
 ## [0.10.1] - 2026-10-16 — edition 0.8
 
 All five packages still encode **edition 0.8**. Three changes inside `@worker-protocol/hono` left

@@ -127,7 +127,7 @@ which of the three artifacts above is normative and what each is for, the surfac
 when no SDK exists for your language — both headers, the error envelope and its eighteen codes, the
 page envelope and its cursor, version negotiation, the idempotency window — the gotchas that hold
 whatever it is written in, and the verification loop. For C#, Python or Go that is the whole of what
-exists at edition 0.8, and it says so rather than implying otherwise.
+exists at edition 0.9, and it says so rather than implying otherwise.
 
 **[`worker-protocol-hono`](skills/worker-protocol-hono)** is the TypeScript layer on top:
 `defineWorker`, `action()`, the outcome store, what `mount()` carries against what a Worker still
@@ -139,17 +139,17 @@ each publishes its own second skill and refers back to the first rather than res
 
 ## Status
 
-**Edition 0.8**, which divides what a credential may do as what it may see already was — a Worker
-performs only the Actions the credential covers, and a Task's `available` says what this caller
-may answer now — and adds `grants`, through which whoever brokers a Contract tells an owner what
-its credential covers and receives the credential the owner issues. It follows 0.7, which let a
-call to an Action name the Task it answers and named the event that says a Task was answered, 0.6,
-which had an event type declare the extension attributes a subscriber filters on, 0.5, which let a
-Task type name every Action that answers it, and 0.4, which let a consumer subscribe to a Worker
-directly with no broker on either side and adopted SemVer's rule for `0.x`: until 1.0, a MINOR may
-break. Every rule carries an id, and from the edition that publishes it that id is fixed: a rewrite
-that could change a verdict takes a new one and withdraws the old, so a conformance report stays
-true however long after it was produced somebody reads it.
+**Edition 0.9**, which lets a Worker refuse `grants` to the credential it was enrolled with, so a
+Tower can watch a Worker without brokering Contracts on it (REG-37). It follows 0.8, which divided
+what a credential may do as what it may see already was and added `grants`, through which whoever
+brokers a Contract tells an owner what its credential covers and receives the credential the owner
+issues; 0.7, which let a call to an Action name the Task it answers and named the event that says a
+Task was answered; 0.6, which had an event type declare the extension attributes a subscriber
+filters on; 0.5, which let a Task type name every Action that answers it; and 0.4, which let a
+consumer subscribe to a Worker directly with no broker on either side and adopted SemVer's rule for
+`0.x`: until 1.0, a MINOR may break. Every rule carries an id, and from the edition that publishes
+it that id is fixed: a rewrite that could change a verdict takes a new one and withdraws the old, so
+a conformance report stays true however long after it was produced somebody reads it.
 
 Every file in `spec/` is `draft` rather than `stable`, and that is a statement about shape and not
 about trust. Each still carries a `Still open here` section, which is what `stable` would have to
@@ -168,7 +168,7 @@ The remaining 50 are reported rather than passed, and the two kinds are not the 
 party who is not a Worker, so this tool never contacted whoever they oblige, and 22 have no witness
 anywhere.
 
-**Of the ids this edition has issued, 81 are withdrawn, and sixteen of them went at once.** A Claim
+**Of the ids this edition has issued, 82 are withdrawn, and sixteen of them went at once.** A Claim
 was an exclusive lease a consumer took on a Task, and [spec/tasks.md](spec/tasks.md) says why it is
 gone: a lease over a unit of work is the primitive of a work queue, orchestration is a declared
 non-goal, and the cost fell on the owner while the consumer's half of it was optional all along.

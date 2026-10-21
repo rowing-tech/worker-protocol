@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — grants",
-    "version": "0.8",
+    "version": "0.9",
     "description": "What a Contract's credential covers on this Worker, applied ahead of time by whoever brokered the Contract, and the credential the Worker issues for it. Optional: a Worker that declares no `grants` covers its credentials its own way.",
     "license": {
       "name": "Apache-2.0",

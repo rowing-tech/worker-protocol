@@ -54,7 +54,7 @@ export type Worker = {
    */
   skills?: Record<string, SkillDeclaration>;
   /**
-   * Whether a presented credential is good, on every address this protocol defines (REG-34).
+   * Whether a presented credential is good, on every address this protocol defines (REG-37).
    *
    * `token` is what followed `Bearer ` (REG-3), or `undefined` where nothing readable was
    * presented. `unauthenticated` is `401`, `forbidden` is `403` (ENDP-40), and how the Worker
@@ -164,7 +164,7 @@ export type Worker = {
 };
 
 /**
- * What `authenticate` answers about one credential (REG-3, REG-34, ENDP-40).
+ * What `authenticate` answers about one credential (REG-3, REG-37, ENDP-40).
  *
  * **The object form carries what `mount()` reads**, and each bare word is the same verdict with
  * nothing to carry. A refusal still names nobody, because REG-32 gives a refusal nothing to say, and
