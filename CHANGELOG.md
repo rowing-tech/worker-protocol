@@ -17,6 +17,27 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-22 — edition 0.9
+
+All five packages still encode **edition 0.9**. One export, asked for by a Tower that shows whose
+each subscription is, and the two fixes that exporting it made worth having.
+
+### Added
+
+- hono: `grantOf` and `grantCaller` are exported. `grantOf(caller)` answers the applicant, id and
+  serial of the grant whose credential a caller is (SUB-8, GRANT-9), and `undefined` for any other
+  caller, `null` included; `grantCaller` is its inverse. The caller's string stays this package's
+  encoding, so read it with `grantOf` rather than parsing it.
+
+### Fixed
+
+- hono: a caller `authenticate` names in the form a grant's credential is named by is refused
+  `500`, and the Worker's log says why. It used to be taken for that grant's caller by
+  every check that asks, so a Worker naming callers after something a user chose could have its
+  grants' subscriptions listed and ended by that user (SUB-8, GRANT-9).
+- hono: `grantOf` answers only exactly what `grantCaller` writes. A string that merely started like
+  one was answered with an applicant, an id or a serial of the wrong type.
+
 ## [0.11.0] - 2026-10-21 — edition 0.9
 
 All five packages encode **edition 0.9**, so the release that carries it is a MINOR of the

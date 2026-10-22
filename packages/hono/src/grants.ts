@@ -141,21 +141,42 @@ const base64url = (bytes: Uint8Array): string =>
 /**
  * The caller a grant's credential is named by (ENDP-34, SUB-8). A JSON tuple, so no applicant or id
  * can forge another's, and carrying the serial, so a rotation is a new caller.
+ *
+ * The string is this package's encoding, not a format: read one back with `grantOf`, its inverse,
+ * rather than parsing it, so that a change to the encoding is a change to two functions here and to
+ * nothing downstream.
  */
 export const grantCaller = (grant: Pick<StoredGrant, "applicant" | "id" | "serial">): string =>
   JSON.stringify(["grant", grant.applicant, grant.id, grant.serial]);
 
-/** The grant a caller names, where it is a grant's credential's. */
+/**
+ * The grant a caller names, where it is a grant's credential's (SUB-8, GRANT-9): its applicant, its
+ * id, and the serial of the credential, which a rotation advances. `undefined` for every other caller
+ * — one `authenticate` named, and `null` where it named none — so this is how something holding a
+ * stored caller, a subscription's above all, tells a grant's credential's from anybody else's.
+ */
 export const grantOf = (
   caller: string | null,
 ): { applicant: string; id: string; serial: number } | undefined => {
   if (caller === null || !caller.startsWith('["grant",')) return undefined;
+  let named: unknown;
   try {
-    const [, applicant, id, serial] = JSON.parse(caller) as [string, string, string, number];
-    return { applicant, id, serial };
+    named = JSON.parse(caller);
   } catch {
     return undefined;
   }
+  // Exactly what `grantCaller` writes, or nothing: a string that merely starts like one is not a
+  // grant's, and answering it with an applicant that is not a string would lie about the type.
+  if (
+    !Array.isArray(named) ||
+    named.length !== 4 ||
+    typeof named[1] !== "string" ||
+    typeof named[2] !== "string" ||
+    !Number.isInteger(named[3])
+  ) {
+    return undefined;
+  }
+  return { applicant: named[1], id: named[2], serial: named[3] };
 };
 
 /** Which grant a performance came under: its applicant and its id, which is all `contract` needs. */

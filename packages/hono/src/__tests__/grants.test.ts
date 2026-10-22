@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
 import { action } from "../actions.ts";
-import { contractKey, memoryGrants } from "../grants.ts";
+import { contractKey, grantCaller, grantOf, memoryGrants } from "../grants.ts";
 import { mount } from "../mount.ts";
 import {
   eventHub,
@@ -615,6 +615,38 @@ describe("grants, and a hub that was not handed the store", () => {
     }
     expect(posted.map((one) => (one.body as { type: string }).type)).toContain(SUBSCRIPTION_ENDED);
     expect(posted.map((one) => (one.body as { type: string }).type)).not.toContain(MOVED);
+    expect(errors).toHaveLength(1);
+  });
+});
+
+describe("grantOf, the caller a grant's credential is named by", () => {
+  it("reads back what grantCaller wrote, and nothing else (SUB-8)", () => {
+    const grant = { applicant: "tower-a", id: "c-1", serial: 2 };
+    expect(grantOf(grantCaller(grant))).toEqual(grant);
+    expect(grantOf(null)).toBeUndefined();
+    expect(grantOf("tower-a")).toBeUndefined();
+    expect(grantOf('["grant",')).toBeUndefined();
+    expect(grantOf('["grant","tower-a"]')).toBeUndefined();
+    expect(grantOf('["grant","tower-a",1,2]')).toBeUndefined();
+    expect(grantOf('["grant","tower-a","c-1",2.5]')).toBeUndefined();
+  });
+
+  it("refuses a caller `authenticate` names in a grant's form, as the Worker's fault (SUB-8)", async () => {
+    const forged = grantCaller({ applicant: "tower-a", id: "c-1", serial: 1 });
+    const app = mount({
+      id: ID,
+      authenticate: () => ({ verdict: "accepted", caller: forged }),
+      health: () => ({ status: "healthy", checks: {} }),
+    });
+    const errors: unknown[] = [];
+    const error = console.error;
+    console.error = (...args: unknown[]) => errors.push(args);
+    try {
+      const answer = await requester(app)("anyone", { path: "/health" });
+      expect(answer.status).toBe(500);
+    } finally {
+      console.error = error;
+    }
     expect(errors).toHaveLength(1);
   });
 });

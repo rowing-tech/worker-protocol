@@ -35,6 +35,8 @@ export {
   type GrantFacts,
   type GrantRef,
   type GrantStore,
+  grantCaller,
+  grantOf,
   memoryGrants,
   type StoredGrant,
 } from "./grants.ts";

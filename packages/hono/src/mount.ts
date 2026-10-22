@@ -15,6 +15,7 @@ import {
   coveringOf,
   digestOf,
   grantCaller,
+  grantOf,
   grantsSurface,
   mayBeIssued,
   type StoredGrant,
@@ -624,10 +625,22 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       }
       const verdict = typeof answered === "string" ? answered : answered.verdict;
       if (verdict !== "accepted") return envelope({ code: verdict, message: "No." });
+      const caller = typeof answered === "string" ? undefined : answered.caller;
+      // SUB-8, GRANT-9: a caller `grantOf` reads as a grant's would be that grant's to every check
+      // that asks — its subscriptions listed, ended and kept standing — so a Worker naming callers
+      // after something a user chose could be impersonated through it. The fault is the Worker's
+      // and not the credential's, so it is `500` and says nothing to the caller (REG-32).
+      if (caller !== undefined && grantOf(caller) !== undefined) {
+        console.error(
+          "SUB-8: `authenticate` named a caller in the form a grant's credential is named by, so " +
+            "the request was refused. Name callers so that none of them parses as `grantCaller`'s.",
+        );
+        return envelope({ code: "internal_error", message: "The Worker failed." });
+      }
       resolved.set(c, {
         worker,
         principal: typeof answered === "string" ? undefined : answered.principal,
-        caller: typeof answered === "string" ? undefined : answered.caller,
+        caller,
       });
     }
 
