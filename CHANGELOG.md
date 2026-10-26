@@ -17,6 +17,21 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-10-26 — edition 0.11
+
+All five packages still encode **edition 0.11**. One hook, asked for by a Worker whose Tasks are
+rows in a store, so that answering a Task no longer derives every open one (issue #14).
+
+### Added
+
+- hono: `tasks.find(id)`, beside `current` and `read`. The TASK-39 lookup behind a call naming a
+  Task reads one id from the Worker's own index instead of scanning `current()`; TASK-6, `since`,
+  TASK-40 and TASK-41 are still applied by `mount()`. `find` answers the condition as it holds now
+  and the whole `OpenTask`. With `read` and `find` both given, `current` is optional, said by the
+  type and again by `mount()`, which refuses a `tasks` entry that gives neither.
+- examples: `minimal-worker` derives its Task in one function that `current` and `find` share;
+  `fleet-worker` finds a Task by reading two keys from the Durable Object, tested on workerd.
+
 ## [0.13.0] - 2026-10-26 — edition 0.11
 
 All five packages encode **edition 0.11**, so the release that carries it is a MINOR of the

@@ -303,6 +303,23 @@ function unguarded(worker: Worker): string | null {
 }
 
 /**
+ * A Worker whose `tasks` gives neither `current` nor `read` and `find` together: a read would
+ * answer nothing and every call naming a Task would be `404`, which tells a caller an open Task is
+ * not open (TASK-39).
+ */
+function unfound(worker: Worker): string | null {
+  const tasks = worker.tasks;
+  if (tasks === undefined || tasks.current !== undefined) return null;
+  if (tasks.read !== undefined && tasks.find !== undefined) return null;
+  const missing = tasks.read === undefined ? "`read`" : "`find`";
+  return (
+    `TASK-39: this Worker's \`tasks\` gives no \`current\` and no ${missing}, so it has no way to ` +
+    "list its open Tasks or to find the one a call names. Give `current`, which derives them all, " +
+    "or `read` and `find` together, which answer a page and one id from the Worker's own index."
+  );
+}
+
+/**
  * A Worker that declares an idempotency key and names nowhere to record the outcome.
  *
  * It cannot keep the promise the key is for: every repeat performs the Action again, and answers
@@ -480,6 +497,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       warn(unrecorded(worker));
       warn(unguarded(worker));
       warn(enumerated(worker));
+      warn(unfound(worker));
       firstStore = worker.actions?.outcomes;
     } else {
       warn(forgetful(firstStore, worker.actions?.outcomes));
@@ -492,7 +510,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // `5xx` for a condition that will not change, and this one never will.
   if (typeof source !== "function") {
     checked = true;
-    const fault = unrecorded(source) ?? unguarded(source) ?? enumerated(source);
+    const fault = unrecorded(source) ?? unguarded(source) ?? enumerated(source) ?? unfound(source);
     if (fault !== null) throw new Error(fault);
     firstStore = source.actions?.outcomes;
   }

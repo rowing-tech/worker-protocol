@@ -20,7 +20,7 @@
 import * as z from "zod";
 import type { ErrorCode } from "./codes.ts";
 import type { Covering, GrantRef } from "./grants.ts";
-import { availableFor, type OpenTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
+import { availableFor, type OpenTask, openTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
 import type { Trace } from "./trace.ts";
 import type { Answer, Refusal } from "./worker.ts";
 
@@ -106,7 +106,7 @@ export type ActionCall = {
    */
   caller?: string;
   /**
-   * TASK-39. The open Task this call says it answers, as `current()` gave it, and absent where the
+   * TASK-39. The open Task this call says it answers, as `find` or `current()` gave it, and absent where the
    * call names none. By the time `run` sees it, it was open, its type lists this Action (TASK-40)
    * and its `available` does not leave it out (TASK-41).
    *
@@ -380,8 +380,12 @@ async function answering(
   // once its condition stops holding, so there is no telling *ended* from *never was*, and a
   // refusal that told *not yours* from *not there* would say which ids are real (REG-32).
   // GRANT-8: what the credential reads is `covering`'s, the same rule a read of Tasks applies.
-  const [reads, current] = await Promise.all([covering.tasks(), tasks?.current()]);
-  const task = current?.find((one) => one.id === named.id);
+  // The lookup is `find`'s where the Worker gave it — one key from its own index — and a scan of
+  // `current()` only where it did not.
+  const [reads, task] = await Promise.all([
+    covering.tasks(),
+    tasks === undefined ? undefined : openTask(tasks, named.id),
+  ]);
   const gone =
     task === undefined ||
     !reads(task) ||

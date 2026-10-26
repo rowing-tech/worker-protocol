@@ -19,7 +19,7 @@ import * as z from "zod";
 import { configFromEnv } from "./config.ts";
 import type { Env } from "./env.ts";
 import type { Fleet } from "./fleet.ts";
-import { QUIET_VEHICLE, quietAfterMs, quietTask } from "./quiet.ts";
+import { QUIET_PREFIX, QUIET_VEHICLE, quietAfterMs, quietTask } from "./quiet.ts";
 
 /**
  * A Worker on Cloudflare whose Facts live in a Durable Object.
@@ -269,6 +269,18 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
       // TASK-15: the condition, read from the store rather than derived from a Map in a process.
       current: async (): Promise<OpenTask[]> =>
         (await fleet.quiet(Date.now(), quietAfterMs(env))).map(quietTask),
+      // TASK-39: the Task a call names, by its id — two keys in the object rather than every
+      // reading it holds, which is what an answer costs once the fleet is large. The id is the
+      // one `quietTask` writes, so anything else names no Task here.
+      find: async (id) => {
+        if (!id.startsWith(QUIET_PREFIX)) return undefined;
+        const one = await fleet.quietOne(
+          id.slice(QUIET_PREFIX.length),
+          Date.now(),
+          quietAfterMs(env),
+        );
+        return one === null ? undefined : quietTask(one);
+      },
     },
 
     events: EVENTS,

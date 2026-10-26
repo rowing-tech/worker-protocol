@@ -107,9 +107,15 @@ Read `references/members.md` for the signature of each member, and
   fixed dimension, and pages in memory — correct, and a scan. With it, the Worker is handed
   `{ type?, dimensions, cursor?, limit }`, already validated, and answers `{ tasks, nextCursor? }`
   from its own index and cursor, as `logs.read` does; `mount()` still refuses, applies `covers`
-  and `available`, wraps the cursor and serializes. Keep `current()` either way: a call naming a
-  Task (TASK-39) looks it up there. Declare dimension names as `dimensions: ["base"]` and put the
-  values on each Task as `dimensions: { base }` (TASK-45, TASK-47).
+  and `available`, wraps the cursor and serializes. Declare dimension names as
+  `dimensions: ["base"]` and put the values on each Task as `dimensions: { base }` (TASK-45,
+  TASK-47).
+- **`tasks.find(id)` is the same for the Task a call names (TASK-39).** Without it, `mount()`
+  derives every open Task with `current()` to keep one; with it, the Worker reads one key. It
+  answers the condition as it holds now — a row that exists is not an open Task — and the whole
+  `OpenTask`, `inputs` and `available` included. `mount()` still applies TASK-6, `since`, TASK-40
+  and TASK-41. Give `read` and `find` together and `current()` may be left out; give neither and
+  `mount()` refuses the Worker.
 - **`logs.read` is a read the Worker performs, not a list it hands over.** `alerts` and `activity`
   hand over everything they hold and `mount()` pages it; a feed is not bounded by what is happening
   now, so only the store holding it can filter and page it. `mount()` decodes the level floor into

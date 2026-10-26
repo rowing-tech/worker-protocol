@@ -109,15 +109,30 @@ export type TaskReadPage = {
   nextCursor?: string;
 };
 
-/** What a Worker author implements for `tasks`, beside the declaration itself. */
-export type TaskFacts = {
+/**
+ * What a Worker author implements for `tasks`, beside the declaration itself: `current`, or `read`
+ * and `find` together.
+ *
+ * `current()` has two callers here — a read without `read`, and the TASK-39 lookup without `find`
+ * — so a Worker that gives both of those never needs it, and writing one anyway would be either a
+ * scan nothing should call or a cap that tells a caller an open Task is not open. The union says it
+ * to the compiler; `mount()` says it again for a Worker built without types.
+ */
+export type TaskFacts = TaskHooks &
+  (
+    | { current: TaskHooks["current"] & {} }
+    | { read: TaskHooks["read"] & {}; find: TaskHooks["find"] & {} }
+  );
+
+type TaskHooks = {
   /**
    * TASK-15. The Tasks whose conditions hold, derived from this Worker's own Facts.
    *
    * It is called on every read, so it answers the present rather than a cache: a Task closes when
-   * its condition stops holding, and nothing else in this protocol closes one.
+   * its condition stops holding, and nothing else in this protocol closes one. Optional only where
+   * `read` and `find` are both given.
    */
-  current: () => OpenTask[] | Promise<OpenTask[]>;
+  current?: () => OpenTask[] | Promise<OpenTask[]>;
   /**
    * TASK-5, TASK-48. One page of the Tasks whose conditions hold, answered from the Worker's own
    * store. Optional, and beside `current` rather than instead of it.
@@ -127,9 +142,22 @@ export type TaskFacts = {
    * Worker answers the page from an index and a cursor of its own, as `logs` does, and this module
    * still refuses what the specification refuses, applies TASK-6 and TASK-44, and serializes. A
    * Task it answers that does not match the query, or that the credential does not read, is left
-   * out of the page rather than sent. `current()` is still what TASK-39 looks a named Task up in.
+   * out of the page rather than sent. A Task a call names is looked up by `find`, beside it.
    */
   read?: (query: TaskQuery) => TaskReadPage | Refusal | Promise<TaskReadPage | Refusal>;
+  /**
+   * TASK-39. The open Task under `id`, or `undefined` where none is open. Optional: without it,
+   * `mount()` finds the id in `current()`, which derives every open Task to keep one.
+   *
+   * It answers the present, as `current()` does (TASK-15): a row that exists is not an open Task,
+   * and the Worker re-evaluates the condition when it looks the id up — a table whose rows are
+   * never deleted would otherwise answer a Task that closed, and TASK-39 would accept an answer to
+   * it. What it returns is the whole `OpenTask` `current()` would have given, `inputs`, `available`
+   * and `dimensions` included: TASK-41 reads the first two off it, and it is the Task `run` is told.
+   * Everything after the lookup stays here — TASK-6, `since`, TASK-40 and TASK-41 — so a Task this
+   * answers that the credential does not cover is still `404`.
+   */
+  find?: (id: string) => OpenTask | undefined | Promise<OpenTask | undefined>;
   /**
    * TASK-6. Which Task ids the credential presented covers, or `undefined` for all of them.
    *
@@ -153,6 +181,16 @@ export type TaskFacts = {
 };
 
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
+
+/**
+ * TASK-39: the open Task under `id` — by `find` where the Worker gave it, and otherwise out of
+ * `current()`. A Worker that gave neither was said to be wrong when it was mounted (`unfound` in
+ * `mount.ts`), and has no Task to find.
+ */
+export async function openTask(facts: TaskFacts, id: string): Promise<OpenTask | undefined> {
+  if (facts.find !== undefined) return facts.find(id);
+  return (await facts.current?.())?.find((one) => one.id === id);
+}
 
 /** TASK-48: a Task matches when it carries every fixed value, and one it lacks matches nothing. */
 const matches = (task: OpenTask, fixed: Record<string, string>): boolean =>
@@ -269,8 +307,10 @@ export function tasks(declared: {
       const [reads, covered, answered] = await Promise.all([
         covering.tasks(),
         covering.actions(),
+        // Without `read` the union guarantees `current`; a Worker built without types that gave
+        // neither was refused when it was mounted, and is answered nothing rather than a throw.
         facts.read === undefined
-          ? facts.current()
+          ? (facts.current?.() ?? [])
           : facts.read({
               ...(type === null ? {} : { type }),
               dimensions: fixed,

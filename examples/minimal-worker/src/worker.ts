@@ -203,7 +203,35 @@ const record = (
 };
 
 /** The id a silent vehicle's Task carries: the condition, named, so one vehicle is one Task. */
-const taskOf = (vehicle: string) => `silent:${vehicle}`;
+const TASK_PREFIX = "silent:";
+const taskOf = (vehicle: string) => `${TASK_PREFIX}${vehicle}`;
+
+/**
+ * The condition, and the whole of what this Worker owes for `tasks`: a vehicle's Task while it is
+ * quiet and unchecked, and nothing once that stops being true. Nobody closes one and nobody is
+ * asked to — which is why `record-check` below needs to know nothing about Tasks at all, and why
+ * nothing here can be left open by a consumer that crashed.
+ */
+const silentTask = (vehicle: string): OpenTask | undefined => {
+  const since = silent.get(vehicle);
+  if (since === undefined || checked.has(vehicle)) return undefined;
+  const depot = depots.get(vehicle);
+  return {
+    id: taskOf(vehicle),
+    type: SILENT_VEHICLE,
+    payload: { vehicle },
+    // The instant the condition BEGAN, not the instant somebody asked. It is what lets a reader
+    // tell work that has been waiting an hour from work that has been waiting a week.
+    since,
+    // What this Worker already knows for each answer: which vehicle. A console opens either form
+    // with it filled in, and whoever answers never has to guess that the payload's `vehicle` is
+    // the input's `vehicle`. It binds nothing — what arrives is judged as usual.
+    inputs: { "record-check": { vehicle }, "report-missing": { vehicle } },
+    // The value for each declared dimension this Task is about, carried beside the payload. A
+    // vehicle kept nowhere carries none, and no read that fixes a depot answers it.
+    ...(depot === undefined ? {} : { dimensions: { depot } }),
+  };
+};
 
 /** What either answer to a silent vehicle changes: it has been looked at, found or not. */
 const check = async (vehicle: string, trace: Trace) => {
@@ -458,29 +486,14 @@ export const fleetWorker = defineWorker<Env>((env) => ({
     // refuses an undeclared name and a name fixed twice, and filters `current()` itself; a Worker
     // whose store can answer one page by an index implements `read` beside it.
     dimensions: ["depot"],
-    // The condition, and the whole of what this Worker owes. A Task exists while its vehicle is
-    // quiet and unchecked, and it stops existing when that stops being true. Nobody closes one and
-    // nobody is asked to — which is why `record-check` above needs to know nothing about Tasks at
-    // all, and why nothing here can be left open by a consumer that crashed.
-    //
-    // `since` is the instant the condition BEGAN, not the instant somebody asked. It is what lets a
-    // reader tell work that has been waiting an hour from work that has been waiting a week.
-    current: (): OpenTask[] =>
-      [...silent.entries()]
-        .filter(([vehicle]) => !checked.has(vehicle))
-        .map(([vehicle, since]) => ({
-          id: taskOf(vehicle),
-          type: SILENT_VEHICLE,
-          payload: { vehicle },
-          since,
-          // What this Worker already knows for each answer: which vehicle. A console opens either
-          // form with it filled in, and whoever answers never has to guess that the payload's
-          // `vehicle` is the input's `vehicle`. It binds nothing — what arrives is judged as usual.
-          inputs: { "record-check": { vehicle }, "report-missing": { vehicle } },
-          // The value for each declared dimension this Task is about, carried beside the payload.
-          // A vehicle kept nowhere carries none, and no read that fixes a depot answers it.
-          ...(depots.has(vehicle) ? { dimensions: { depot: depots.get(vehicle) as string } } : {}),
-        })),
+    // Every open Task, derived from the facts on every read: what a read pages when no `read` is
+    // given. `silentTask` above is the condition.
+    current: (): OpenTask[] => [...silent.keys()].flatMap((vehicle) => silentTask(vehicle) ?? []),
+    // The Task a call says it answers, looked up by its id rather than out of every open Task. It
+    // answers the condition as it holds NOW — a vehicle checked since is no Task — and the whole
+    // Task, as `current` would, because what `mount()` checks next reads its `inputs`. Here it is
+    // one `Map` lookup; over a table it is one read by key, which is why it exists.
+    find: (id) => silentTask(id.slice(TASK_PREFIX.length)),
   },
 
   // What this Worker publishes and where, declared above so that the hub reads the same thing.

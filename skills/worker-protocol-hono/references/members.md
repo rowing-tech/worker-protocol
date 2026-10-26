@@ -62,7 +62,7 @@ and the rule each one cites.
 - `nudges: (type) => void` — note the type and read the work sooner. Optional, and what it buys is
   latency alone (TASK-19).
 - `tasks: { raises: { [type]: { payload, answeredBy?: string[], supersededBy? } }, dimensions?:
-  string[], current(), read?, covers?, pageSize? }` — `answeredBy` names every Action of the
+  string[], current(), read?, find?, covers?, pageSize? }` — `answeredBy` names every Action of the
   Worker's own that answers the type, and is absent or empty for a type no Action answers, whose
   condition clears on a Fact (TASK-35); `current()` derives the open Tasks on every read, because
   nobody closes one (TASK-15). Each may carry `inputs` — per answering Action and member, what the
@@ -70,7 +70,9 @@ and the rule each one cites.
   `dimensions`, one string per declared dimension it is about (TASK-47). `dimensions` on the entry
   declares the names a read may fix (TASK-45, TASK-48).
   `read({ type?, dimensions, cursor?, limit })` answers `{ tasks, nextCursor? }` from the Worker's
-  own index, where it has one; without it `mount()` filters and pages `current()`.
+  own index, where it has one; without it `mount()` filters and pages `current()`. `find(id)`
+  answers the open Task under one id, or `undefined`, evaluated now and whole; without it the
+  TASK-39 lookup scans `current()`. With `read` and `find` both, `current()` is optional.
 - `events: { broker, protocolBinding, destination, publishes: { [type]: { data, extensions?,
   supersededBy? } }, republishWindowSeconds? }` — a declaration only. No address is served
   (EVT-13). `extensions` is a Zod schema per extension attribute its events carry (EVT-17); the hub

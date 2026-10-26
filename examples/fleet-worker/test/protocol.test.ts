@@ -118,6 +118,36 @@ describe("the Facts, read across isolates", () => {
   });
 });
 
+describe("TASK-39, a Task a call names, found by one key in the object", () => {
+  const answering = (vehicle: string, task: string) =>
+    at("/actions?action=record-inspection", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `find-${vehicle}-${task}`,
+        "worker-protocol-task": task,
+      },
+      body: JSON.stringify({ vehicle, reachable: true }),
+    });
+
+  it("answers a quiet vehicle's Task, and refuses one whose condition no longer holds", async () => {
+    const now = Date.now();
+    await fleet().ingest([{ vehicle: "FND-001", at: now - 20 * MINUTE }], now, QUIET_AFTER_MS);
+    // What `find` reads is the object's two keys for this vehicle, evaluated now.
+    expect(await fleet().quietOne("FND-001", now, QUIET_AFTER_MS)).toMatchObject({
+      vehicle: "FND-001",
+    });
+
+    expect((await answering("FND-001", "quiet:FND-001")).status).toBe(200);
+    // Inspected, so the condition stopped holding: the readings are still on record and the Task
+    // is gone, which is the difference between a row that exists and an open Task.
+    expect(await fleet().quietOne("FND-001", Date.now(), QUIET_AFTER_MS)).toBeNull();
+    expect((await answering("FND-001", "quiet:FND-001-again")).status).toBe(404);
+    expect((await answering("FND-002", "quiet:FND-002")).status).toBe(404);
+    expect((await answering("FND-001", "not-a-task-of-ours")).status).toBe(404);
+  });
+});
+
 describe("ENDP-16, over a store that outlives the request", () => {
   const key = "one-key";
   const inspection = (body: unknown, headers: Record<string, string> = {}) =>

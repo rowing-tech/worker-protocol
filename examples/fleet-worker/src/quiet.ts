@@ -34,6 +34,9 @@ export const quietAfterMs = (env: Pick<Env, "QUIET_AFTER_MINUTES">): number => {
 /** The one Task type this Worker raises: a quiet vehicle, for whoever can go and look. */
 export const QUIET_VEHICLE = "tech.rowing.fleet.inspect-quiet-vehicle";
 
+/** What every Task id this Worker raises begins with, before the vehicle it is about. */
+export const QUIET_PREFIX = "quiet:";
+
 /**
  * A quiet vehicle as the Task it is (TASK-28), written once for the two places that need it: what
  * `tasks` lists, and the `task-raised` and `task-ended` events this object enqueues at the moment
@@ -41,7 +44,7 @@ export const QUIET_VEHICLE = "tech.rowing.fleet.inspect-quiet-vehicle";
  * something the list never shows.
  */
 export const quietTask = (one: Quiet): OpenTask => ({
-  id: `quiet:${one.vehicle}`,
+  id: `${QUIET_PREFIX}${one.vehicle}`,
   type: QUIET_VEHICLE,
   payload: { vehicle: one.vehicle },
   since: new Date(one.since),

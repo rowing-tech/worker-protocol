@@ -138,6 +138,21 @@ export class Fleet extends withLogs(
   }
 
   /**
+   * TASK-15 for one vehicle: the same condition as `quiet`, read from two keys rather than from
+   * every reading the object holds. It is what `tasks.find` answers a call naming a Task with, so
+   * a fleet of any size costs one lookup per answer — and it evaluates the condition now, because a
+   * reading on record is not a quiet vehicle.
+   */
+  async quietOne(vehicle: string, now: number, quietAfterMs: number): Promise<Quiet | null> {
+    const [at, inspected] = await Promise.all([
+      this.ctx.storage.get<number>(`${READING}${vehicle}`),
+      this.ctx.storage.get<number>(`${INSPECTION}${vehicle}`),
+    ]);
+    if (at === undefined || inspected !== undefined || now - at < quietAfterMs) return null;
+    return { vehicle, since: at + quietAfterMs };
+  }
+
+  /**
    * What `record-inspection` does: somebody looked, so the condition stops holding — and the Task
    * with it, which is the other moment only this Worker knows. An inspection of a vehicle that was
    * not quiet ends nothing, so it raises nothing.
