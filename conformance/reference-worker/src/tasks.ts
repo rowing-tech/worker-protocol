@@ -31,6 +31,14 @@ export const RAISES: TaskTypes = {
 };
 
 /**
+ * TASK-45: the one dimension a Task here may carry — the depot a vehicle is kept at — so that the
+ * verifier can fix it on a read (TASK-48) and see what an uncarried value answers (TASK-49). The
+ * quote Task carries none, which is what keeps TASK-48's last clause exercised: a read fixing the
+ * depot never answers it.
+ */
+export const DIMENSIONS = ["depot"];
+
+/**
  * TASK-36: the Task types this Worker answers, each with the payload it needs to receive and what
  * it produces for each answering Action it can perform.
  *
@@ -64,6 +72,7 @@ const RAISED: (OpenTask & { vehicle?: string })[] = [
     since: new Date(Date.now() - HOUR),
     inputs: { "record-verification": { vehicle: "ABC-123" } },
     available: ["record-verification"],
+    dimensions: { depot: "north" },
   },
   {
     id: "task-2",
@@ -71,6 +80,7 @@ const RAISED: (OpenTask & { vehicle?: string })[] = [
     payload: { vehicle: "DEF-456" },
     vehicle: "DEF-456",
     since: new Date(Date.now() - 2 * HOUR),
+    dimensions: { depot: "north" },
   },
   // TASK-41: a vehicle whose verification waits on something from outside, so its one answer is
   // not offered now and a call naming it is refused `409` until the wait is over.
@@ -81,6 +91,7 @@ const RAISED: (OpenTask & { vehicle?: string })[] = [
     vehicle: "GHI-789",
     since: new Date(Date.now() - 3 * HOUR),
     available: [],
+    dimensions: { depot: "south" },
   },
   // EVT-20, EVT-21: the Task the verifier answers by name, so that `task-answered` is published
   // about a Task no other check needs open.
@@ -102,14 +113,7 @@ const RAISED: (OpenTask & { vehicle?: string })[] = [
 ];
 
 /** A raised Task as the protocol sees it, without the Fact this double keys its condition on. */
-const open = ({ id, type, payload, since, inputs, available }: OpenTask): OpenTask => ({
-  id,
-  type,
-  payload,
-  since,
-  ...(inputs === undefined ? {} : { inputs }),
-  ...(available === undefined ? {} : { available }),
-});
+const open = ({ vehicle: _vehicle, ...task }: (typeof RAISED)[number]): OpenTask => task;
 
 export function createTasks() {
   /** A Fact of this Worker's: the vehicles with a verification on record. */

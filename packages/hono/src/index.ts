@@ -101,7 +101,7 @@ export {
   revokeGrant,
   subscribe,
 } from "./surfaces.ts";
-export type { OpenTask, TaskFacts, TaskTypes } from "./tasks.ts";
+export type { OpenTask, TaskFacts, TaskQuery, TaskReadPage, TaskTypes } from "./tasks.ts";
 export type {
   Activity,
   Alert,

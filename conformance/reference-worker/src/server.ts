@@ -17,7 +17,7 @@ import { activity } from "./activity.ts";
 import { alerts } from "./alerts.ts";
 import { createLogs } from "./logs.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
-import { createTasks, RAISES, SKILLS } from "./tasks.ts";
+import { createTasks, DIMENSIONS, RAISES, SKILLS } from "./tasks.ts";
 
 /**
  * A Worker that conforms, built to be checked.
@@ -260,6 +260,7 @@ export function referenceWorker(
     // of any Contract is a disclosure the owner cannot take back.
     tasks: {
       raises: RAISES,
+      dimensions: DIMENSIONS,
       current: tasks.current,
       covers: (token: string | undefined) => options.visibleTasks?.[token ?? ""],
       // ENDP-19: a cap of two, so that this Worker's own three Tasks actually page — a cap nothing

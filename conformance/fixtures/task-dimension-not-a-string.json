@@ -1,0 +1,17 @@
+{
+  "schema": "task",
+  "valid": false,
+  "rule": "TASK-47",
+  "why": "A Task carrying two bases under one dimension. A dimension is fixed with one value per read (TASK-48, TASK-50), so a Task that is about two bases at once has no single value a read could match, and a list here would quietly invent the multiplicity convention TASK-50 refuses on the read.",
+  "document": {
+    "id": "trip-4711/escalate-store",
+    "type": "tech.rowing.trips.escalate-store",
+    "payload": {
+      "trip": "4711"
+    },
+    "since": "2026-10-26T08:12:00Z",
+    "dimensions": {
+      "base": ["MTY", "GDL"]
+    }
+  }
+}

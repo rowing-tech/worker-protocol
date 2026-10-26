@@ -14,7 +14,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.9.0"
+  version: "2.10.0"
 ---
 
 # worker-protocol, in any language
@@ -121,6 +121,15 @@ whose reason is understood is one that survives a refactor.
   by Action name and then by member of its input: `{ "resume-source": { source: "portal" } }`.
   Never rely on a consumer copying payload fields of the same name. It binds nothing; the Action
   judges what arrives as always.
+- **Declare what a Task is about that a consumer filters on as dimensions** (TASK-45 to TASK-50):
+  names under `dimensions` on the `tasks` entry, `{ "base": {} }`, never a list of values, and never
+  `type`, `cursor` or `dimensions`. A Task carries one string per dimension it is about,
+  `dimensions: { "base": "MTY" }`, and none where it is about none. A read fixes one with a
+  parameter of its name, `?base=MTY`, with or without `type`, and every fixed parameter holds at
+  once; a Task without that dimension never matches. Accept any value and answer one nothing carries
+  with an empty page; refuse one dimension fixed twice with `400 invalid_parameter`, and an
+  undeclared name with `400 unknown_filter` (ENDP-24). A filter narrows what the credential reads
+  and never widens it (TASK-6).
 - **Say which answers apply now** (TASK-38) with `available` on the Task, derived on the same read.
   Absent means all of them. Still refuse what the state does not allow with `409` (ACT-17).
 - **Perform only the Actions the credential covers** (ACT-22). Refuse any other declared Action

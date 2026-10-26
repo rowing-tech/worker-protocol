@@ -58,6 +58,11 @@ const silent = new Map<string, Date>([
   ["DEF-456", new Date(Date.now() - 7_200_000)],
 ]);
 const checked = new Set<string>();
+/** Where each vehicle is kept. A row of this Worker's domain; nothing declares which depots exist. */
+const depots = new Map([
+  ["ABC-123", "north"],
+  ["DEF-456", "south"],
+]);
 /** Task types somebody told us about, to be read before the next scheduled sweep. */
 const pending = new Set<string>();
 let configuration = { label: "fleet watcher", quietAfterMinutes: 15 };
@@ -330,6 +335,12 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         answeredBy: ["record-check", "report-missing"],
       },
     },
+    // What a Task may be about that a consumer filters on, by name: `GET /tasks?depot=north` is
+    // the Tasks of one depot, of any type. Names only — which depots exist is this Worker's
+    // business, so any value is accepted and one nothing carries is an empty page. `mount()`
+    // refuses an undeclared name and a name fixed twice, and filters `current()` itself; a Worker
+    // whose store can answer one page by an index implements `read` beside it.
+    dimensions: ["depot"],
     // The condition, and the whole of what this Worker owes. A Task exists while its vehicle is
     // quiet and unchecked, and it stops existing when that stops being true. Nobody closes one and
     // nobody is asked to — which is why `record-check` above needs to know nothing about Tasks at
@@ -349,6 +360,9 @@ export const fleetWorker = defineWorker<Env>((env) => ({
           // form with it filled in, and whoever answers never has to guess that the payload's
           // `vehicle` is the input's `vehicle`. It binds nothing — what arrives is judged as usual.
           inputs: { "record-check": { vehicle }, "report-missing": { vehicle } },
+          // The value for each declared dimension this Task is about, carried beside the payload.
+          // A vehicle kept nowhere carries none, and no read that fixes a depot answers it.
+          ...(depots.has(vehicle) ? { dimensions: { depot: depots.get(vehicle) as string } } : {}),
         })),
   },
 

@@ -403,6 +403,19 @@ export const readTasks = createRoute({
             "One of the Task types the entry declares. A type it does not declare is `400`.",
           ),
         }),
+      // TASK-48 spells a dimension into a parameter of its own NAME, as MET-16 does, and the names
+      // are the Worker's — so the same exploded object carries them, and `dimensions` is the
+      // parameter's name in this document and never on the wire (TASK-46 reserves it).
+      dimensions: z
+        .record(z.string(), z.string())
+        .optional()
+        .openapi({
+          description: cite(
+            "TASK-48",
+            "Each dimension the entry declares, fixed by a parameter named exactly as the dimension, and at most once (TASK-50). Every parameter fixed holds at once, `type` among them. The names are the Worker's own and are read from its Descriptor, so they are not enumerated here. Any string is accepted and may match nothing (TASK-49).",
+          ),
+          param: { style: "form", explode: true },
+        }),
       cursor,
     }),
     headers: versionHeader,
@@ -413,7 +426,12 @@ export const readTasks = createRoute({
       "Tasks whose conditions hold, in the shared page envelope. Where the credential does not cover every Action a Task's type names, `available` leaves those out (TASK-44).",
       taskPage,
     ),
-    ...refusals([["invalid_parameter", "TASK-8"], ["unknown_filter", "ENDP-24"], ...SHARED]),
+    ...refusals([
+      ["invalid_parameter", "TASK-8"],
+      ["invalid_parameter", "TASK-50"],
+      ["unknown_filter", "ENDP-24"],
+      ...SHARED,
+    ]),
   },
 });
 

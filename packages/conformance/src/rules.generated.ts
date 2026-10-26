@@ -1753,6 +1753,48 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "H",
       "introducedIn": "0.8"
+    },
+    {
+      "id": "TASK-45",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.10"
+    },
+    {
+      "id": "TASK-46",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.10"
+    },
+    {
+      "id": "TASK-47",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.10"
+    },
+    {
+      "id": "TASK-48",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.10"
+    },
+    {
+      "id": "TASK-49",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.10"
+    },
+    {
+      "id": "TASK-50",
+      "file": "tasks.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.10"
     }
   ],
   "codes": [
@@ -2130,6 +2172,9 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "id": "EVT-20",
       "type": "NAME-7"
     },
+    "task-dimension": {
+      "": "TASK-45"
+    },
     "task-ended": {
       "": "EVT-15",
       "id": "EVT-15",
@@ -2149,6 +2194,7 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     "task": {
       "": "TASK-28",
       "available": "TASK-38",
+      "dimensions": "TASK-47",
       "id": "TASK-28",
       "inputs": "TASK-37",
       "payload": "TASK-28",
@@ -2158,6 +2204,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     "tasks-entry": {
       "": "TASK-27",
       "address": "DESC-36",
+      "dimensions": "TASK-45",
+      "dimensions/*": "TASK-45",
       "raises": "TASK-35",
       "raises/*": "TASK-35",
       "raises/*/answeredBy": "TASK-35",

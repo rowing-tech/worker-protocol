@@ -17,7 +17,7 @@ import type * as z from "zod";
 import type { ActionCall, ActionDeclarations } from "./actions.ts";
 import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
-import { collection, type Page } from "./collection.ts";
+import { cursorAfter, encodeCursor, onlyKnown, type Page, pageOf } from "./collection.ts";
 import type { Covering } from "./grants.ts";
 import type { Refusal } from "./worker.ts";
 
@@ -50,6 +50,12 @@ export type OpenTask = {
    * state does not allow is still refused with `409`, whatever a read said.
    */
   available?: string[];
+  /**
+   * TASK-47. The value this Task carries for each dimension it is about — the base a trip departs
+   * from, the store a delivery waits at — under names the entry declares in `dimensions`, one
+   * string each. Left out, the Task is about none of them and no read that fixes one answers it.
+   */
+  dimensions?: Record<string, string>;
 };
 
 /**
@@ -70,6 +76,38 @@ export type TaskTypes = Record<
   }
 >;
 
+/**
+ * What a Worker is asked for when it answers a read itself: a page of its own store, over a query
+ * it did not have to decode.
+ *
+ * Everything here is already checked. `type` is one the entry declares (TASK-8), every name under
+ * `dimensions` is one it declares and was fixed once (TASK-48, TASK-50, ENDP-24), and `cursor` is
+ * exactly what this Worker last answered as `nextCursor`.
+ */
+export type TaskQuery = {
+  /** TASK-8. The one type the read fixes, where it fixed one. */
+  type?: string;
+  /** TASK-48. The value each fixed dimension must carry. Empty where the read fixed none. */
+  dimensions: Record<string, string>;
+  /** ENDP-21. The string this Worker last answered as `nextCursor`, or absent for the first page. */
+  cursor?: string;
+  /** ENDP-19. The most Tasks one page carries. */
+  limit: number;
+};
+
+/**
+ * One page, as the Worker answers it.
+ *
+ * The order and the cursor are the Worker's, because the position a cursor names is a position in
+ * the Worker's store. What it owes in return is ENDP-23 and ENDP-33: an order it holds, and a page
+ * reached through a cursor that carries nothing the page before it carried.
+ */
+export type TaskReadPage = {
+  tasks: OpenTask[];
+  /** ENDP-20. Absent at the end — absent, not null. */
+  nextCursor?: string;
+};
+
 /** What a Worker author implements for `tasks`, beside the declaration itself. */
 export type TaskFacts = {
   /**
@@ -79,6 +117,18 @@ export type TaskFacts = {
    * its condition stops holding, and nothing else in this protocol closes one.
    */
   current: () => OpenTask[] | Promise<OpenTask[]>;
+  /**
+   * TASK-5, TASK-48. One page of the Tasks whose conditions hold, answered from the Worker's own
+   * store. Optional, and beside `current` rather than instead of it.
+   *
+   * Without it, a read calls `current()`, filters by type and dimension here and pages in memory —
+   * correct, and a scan: the Worker derives every open Task to answer one base's page. With it, the
+   * Worker answers the page from an index and a cursor of its own, as `logs` does, and this module
+   * still refuses what the specification refuses, applies TASK-6 and TASK-44, and serializes. A
+   * Task it answers that does not match the query, or that the credential does not read, is left
+   * out of the page rather than sent. `current()` is still what TASK-39 looks a named Task up in.
+   */
+  read?: (query: TaskQuery) => TaskReadPage | Refusal | Promise<TaskReadPage | Refusal>;
   /**
    * TASK-6. Which Task ids the credential presented covers, or `undefined` for all of them.
    *
@@ -103,8 +153,9 @@ export type TaskFacts = {
 
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
 
-/** What TASK-5 defines on this read beyond the cursor; `collection` refuses everything else. */
-const READ_PARAMETERS = ["type"] as const;
+/** TASK-48: a Task matches when it carries every fixed value, and one it lacks matches nothing. */
+const matches = (task: OpenTask, fixed: Record<string, string>): boolean =>
+  Object.entries(fixed).every(([name, value]) => task.dimensions?.[name] === value);
 
 export type TaskSurface = {
   read: (
@@ -154,12 +205,28 @@ const forCaller = (given: {
 
 export function tasks(declared: {
   raises: TaskTypes;
+  /** TASK-45. The dimensions the entry declares, by name. */
+  dimensions?: string[];
   facts: TaskFacts;
   /** The `actions` entry's own map, for the `refuses` TASK-38 is derived from. */
   accepts: ActionDeclarations;
 }): TaskSurface {
   const { raises, facts, accepts } = declared;
+  const dimensionNames = declared.dimensions ?? [];
   const cap = facts.pageSize ?? 50;
+  // ENDP-24: the cursor, TASK-8's `type` and each dimension TASK-48 lets a read fix.
+  const known = new Set(["cursor", "type", ...dimensionNames]);
+
+  /** TASK-28, TASK-37, TASK-38, TASK-47: one Task as it travels. */
+  const serialize = (task: OpenTask) => ({
+    id: task.id,
+    type: task.type,
+    payload: task.payload,
+    since: rfc3339(task.since),
+    ...(task.inputs === undefined ? {} : { inputs: task.inputs }),
+    ...(task.available === undefined ? {} : { available: task.available }),
+    ...(task.dimensions === undefined ? {} : { dimensions: task.dimensions }),
+  });
 
   return {
     async read(query, call) {
@@ -171,42 +238,71 @@ export function tasks(declared: {
         return refuse("invalid_parameter", `No Task type named ${type} is declared.`);
       }
 
-      // TASK-6, TASK-44, GRANT-8: what this credential reads and performs is `covering`'s.
-      const [reads, covered, current] = await Promise.all([
+      // ENDP-24: a parameter that is neither TASK-8's, a declared dimension nor the cursor.
+      const unknown = onlyKnown(query, known);
+      if (unknown !== null) return unknown;
+
+      // TASK-48, TASK-50: each declared dimension fixed at most once. Any value is accepted
+      // (TASK-49): the Worker cannot tell a typo from a value about to exist.
+      const fixed: Record<string, string> = {};
+      for (const name of dimensionNames) {
+        const values = query.getAll(name);
+        if (values.length > 1) {
+          return refuse("invalid_parameter", `A read fixes ${name} once.`);
+        }
+        const [value] = values;
+        if (value !== undefined) fixed[name] = value;
+      }
+
+      // ENDP-21: the Worker's cursor travels wrapped, so one a caller made up is refused here
+      // rather than handed to the Worker's store as a position.
+      const resumed = cursorAfter(query);
+      if ("code" in resumed) return resumed;
+      const { after } = resumed;
+
+      // TASK-6, TASK-44, GRANT-8: what this credential reads and performs is `covering`'s, asked
+      // beside the Tasks themselves because neither needs the other.
+      const [reads, covered, answered] = await Promise.all([
         covering.tasks(),
         covering.actions(),
-        facts.current(),
+        facts.read === undefined
+          ? facts.current()
+          : facts.read({
+              ...(type === null ? {} : { type }),
+              dimensions: fixed,
+              ...(after === null ? {} : { cursor: after }),
+              limit: cap,
+            }),
       ]);
-      const held = current.filter((task) => reads(task) && (type === null || task.type === type));
-      const matching = await Promise.all(
-        held.map(async (task) => {
-          const names = raises[task.type]?.answeredBy ?? [];
-          const available = forCaller({
-            available: await availableFor(task, { names, accepts, call: { token, principal } }),
-            names,
-            covered,
-          });
-          return available === undefined ? task : { ...task, available };
-        }),
-      );
+      if ("code" in answered) return answered;
+      const wanted = (task: OpenTask) =>
+        reads(task) && (type === null || task.type === type) && matches(task, fixed);
+      const offered = (held: OpenTask[]) =>
+        Promise.all(
+          held.map(async (task) => {
+            const names = raises[task.type]?.answeredBy ?? [];
+            const available = forCaller({
+              available: await availableFor(task, { names, accepts, call: { token, principal } }),
+              names,
+              covered,
+            });
+            return available === undefined ? task : { ...task, available };
+          }),
+        );
 
-      // ENDP-19's cap, ENDP-20's envelope, ENDP-21's cursor and ENDP-23's order are the same for
-      // every collection in this protocol, and `collection.ts` carries them. What is left here is
-      // what only Tasks know: which ones this credential covers, and what a Task looks like.
-      return collection(
-        matching,
-        query,
-        (task) => ({
-          id: task.id,
-          type: task.type,
-          payload: task.payload,
-          since: rfc3339(task.since),
-          ...(task.inputs === undefined ? {} : { inputs: task.inputs }),
-          ...(task.available === undefined ? {} : { available: task.available }),
-        }),
-        cap,
-        READ_PARAMETERS,
-      );
+      if (Array.isArray(answered)) {
+        // ENDP-19's cap, ENDP-20's envelope and ENDP-23's order are the same for every collection
+        // in this protocol, and `collection.ts` carries them. What is left here is what only Tasks
+        // know: which ones this credential covers, and what a Task looks like.
+        const items = await offered(answered.filter(wanted));
+        return pageOf({ items, after, serialize, pageSize: cap });
+      }
+      // Not truncated to the cap, for `logs`' reason: the Worker's cursor names a position past
+      // everything it answered, so slicing would strand what was cut.
+      const items = (await offered(answered.tasks.filter(wanted))).map(serialize);
+      return answered.nextCursor === undefined
+        ? { items }
+        : { items, nextCursor: encodeCursor(answered.nextCursor) };
     },
   };
 }

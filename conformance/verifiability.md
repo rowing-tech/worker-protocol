@@ -17,7 +17,7 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 109 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 115 |
 | **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 57 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 28 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
@@ -166,7 +166,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ACT-21 | W | 0.4 | `configure` has a reading address, and it answers a document its own input schema would accept, without the members marked `writeOnly` |
 | ACT-22 | H | 0.8 | A credential arranged not to cover a declared Action, posting it with no key and a body that is not JSON, is `403` + `forbidden`: not ENDP-18's `400` and not ENDP-4's. A conformant Worker performs nothing with that call, and a broken one that ignores the body of an Action without input might, so it is a POST like any other |
 
-## tasks.md — 18
+## tasks.md — 24
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -177,6 +177,12 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | TASK-5 | W | 0.1 | A read answers the page envelope. A Worker with no condition holding exercises nothing, which is `not exercised` |
 | TASK-6 | H | 0.1 | Two credentials covering different Tasks must exist before two lists can be compared |
 | TASK-8 | W | 0.1 | A type the entry does not declare is `400` + `invalid_parameter` |
+| TASK-45 | W | 0.10 | The entry's `dimensions`, keyed by name, each an object declaring nothing about its values. An entry that declares none is `not exercised` |
+| TASK-46 | W | 0.10 | No declared dimension is named `type`, `cursor` or `dimensions`. An entry that declares none is `not exercised` |
+| TASK-47 | W | 0.10 | Each Task read that carries `dimensions` carries one string under each name, and only names the entry declares. A page where no Task carries it is `not exercised` |
+| TASK-48 | W | 0.10 | For a value a Task read carries, a read fixing it answers only Tasks carrying that value, and with `type` fixed too, only Tasks of that type as well. A page where no Task carries a dimension is `not exercised` |
+| TASK-49 | W | 0.10 | A read fixing a declared dimension to a value nothing would carry is `200` with an empty page. An entry that declares none is `not exercised` |
+| TASK-50 | W | 0.10 | A read fixing one declared dimension twice is `400` + `invalid_parameter`. An entry that declares none is `not exercised` |
 | TASK-15 | N | 0.1 | A Task that disappears may have had its condition stop holding at that moment for reasons of its own. Nothing outside can tell — which is exactly why the rule matters |
 | TASK-19 | N | 0.1 | Recommended. What a nudge IS has no witness: an owner notifying by some other means is indistinguishable from one that does not notify at all |
 | TASK-37 | W | 0.5 | Each Task read that carries `inputs` fills in only Actions its type names, members their inputs declare, and values those members accept. A page where no Task carries it is `not exercised`. The value is judged against what the member's schema fixes about one value — `type`, `const`, `enum`, `pattern`, string lengths and numeric bounds — and no further, as TASK-28's payload is not validated against its declared schema either |
@@ -372,7 +378,7 @@ own and are revoked before the run ends.
 
 ## Where this stands
 
-216 rules across fifteen files, none of them `open`, under edition 0.4. Every rule the register
+222 rules across fifteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.

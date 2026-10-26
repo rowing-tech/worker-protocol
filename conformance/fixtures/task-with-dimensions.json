@@ -1,0 +1,18 @@
+{
+  "schema": "task",
+  "valid": true,
+  "rule": "TASK-47",
+  "why": "A Task that carries the base and the store it is about, one string each, so that a read fixing either answers it (TASK-48). The values are carried beside the payload rather than pointed at inside it, so the dimension does not depend on this type's shape.",
+  "document": {
+    "id": "trip-4711/escalate-store",
+    "type": "tech.rowing.trips.escalate-store",
+    "payload": {
+      "trip": "4711"
+    },
+    "since": "2026-10-26T08:12:00Z",
+    "dimensions": {
+      "base": "MTY",
+      "store": "S001"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "tasks-entry",
+  "valid": false,
+  "rule": "TASK-45",
+  "why": "A dimension that lists the values it takes, as a metric's may (MET-4). Here it may not: nothing on a read of Tasks spends a set — there is no breakdown, and refusing a value outside it would refuse a base that is about to exist — and a Descriptor that enumerated the rows of a domain would be stale by the time a Tower stored it.",
+  "document": {
+    "version": 1,
+    "address": "../tasks",
+    "raises": {},
+    "dimensions": {
+      "base": {
+        "values": ["MTY", "GDL"]
+      }
+    }
+  }
+}

@@ -244,6 +244,7 @@ function surfacesOf(worker: Worker) {
     tasks: worker.tasks
       ? taskSurface({
           raises: worker.tasks.raises,
+          dimensions: worker.tasks.dimensions,
           facts: worker.tasks,
           accepts: worker.actions?.accepts ?? {},
         })
@@ -411,6 +412,10 @@ function descriptorOf(worker: Worker, edition: string): string {
         ...(declared.answeredBy === undefined ? {} : { answeredBy: declared.answeredBy }),
         ...(declared.supersededBy === undefined ? {} : { supersededBy: declared.supersededBy }),
       })),
+      // TASK-45: names, each an object that declares nothing about its values.
+      ...(worker.tasks.dimensions === undefined
+        ? {}
+        : { dimensions: Object.fromEntries(worker.tasks.dimensions.map((name) => [name, {}])) }),
     };
   }
 

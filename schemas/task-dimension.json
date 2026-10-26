@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task-dimension.json",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false,
+  "title": "Task dimension",
+  "description": "TASK-45. One dimension the Tasks of this entry may carry, declared under its name so that a reader knows every one before it calls. It declares nothing about its values, which are any string. TASK-48 fixes it with a query parameter of that same name."
+}

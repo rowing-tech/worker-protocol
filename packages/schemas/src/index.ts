@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.9";
+export const EDITION = "0.10";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -510,8 +510,9 @@ export const metricGranularity = z.enum(["hour", "day", "week", "month", "year"]
  * by — a free dimension is filtered and never grouped, because nothing would bound the answer.
  */
 /**
- * MET-5, MET-16 — the characters a dimension name may use: what a query parameter needs, and no
- * more. Shared between the declaration, the bucket and the `by` parameter so the three agree.
+ * MET-5, MET-16, TASK-45 — the characters a dimension name may use: what a query parameter needs,
+ * and no more. Shared between the metric declaration, the bucket, the `by` parameter and a Task's
+ * dimensions, so that every name spelled into a parameter is held to one pattern.
  */
 export const DIMENSION_NAME = /^[A-Za-z0-9_-]+$/;
 
@@ -886,6 +887,26 @@ export const taskTypeDeclaration = z
   });
 
 /**
+ * TASK-45 — one dimension a Task may carry, held under its name in the `tasks` entry.
+ *
+ * Empty and closed, and both on purpose. Empty because a dimension declares nothing about its
+ * values: they are rows of the Worker's domain that appear without a redeploy, so a set written
+ * here would be stale on arrival, and nothing on this read spends one — `metrics` declares a set
+ * because MET-17 refuses outside it and MET-19 breaks down by it, and a Task read does neither. An
+ * object rather than `true` so that an edition can say something about a dimension later without
+ * moving the shape of every Descriptor that declared one.
+ *
+ * Not `metricDimension`, whose one member is the set this surface declines.
+ */
+export const taskDimension = z.strictObject({}).meta({
+  title: "Task dimension",
+  description:
+    "TASK-45. One dimension the Tasks of this entry may carry, declared under its name so that a " +
+    "reader knows every one before it calls. It declares nothing about its values, which are any " +
+    "string. TASK-48 fixes it with a query parameter of that same name.",
+});
+
+/**
  * TASK-27, TASK-35 — the `tasks` Capability entry.
  *
  * One address, and a read. The entry carried a second one a claim was posted to until the Claim
@@ -904,6 +925,17 @@ export const tasksEntry = capabilityEntry
         "TASK-35. Every Task type this Worker raises. A Worker that raises none declares an empty " +
         "map rather than omitting it, so that every reader parses one shape.",
     }),
+    dimensions: z
+      .record(z.string().regex(DIMENSION_NAME), taskDimension)
+      .optional()
+      .meta({
+        description:
+          "TASK-45. The dimensions a Task of this entry may carry, keyed by name, which a read " +
+          "fixes with a parameter of the same name (TASK-48). The pattern asserts only what the " +
+          "transport needs, as MET-4's does. TASK-46 also forbids the names this protocol " +
+          "defines on the read, which no pattern here asserts, for MET-5's reason. Absent or " +
+          "empty, a Task carries none and a read fixes none.",
+      }),
   })
   .meta({
     title: "Tasks capability entry",
@@ -960,6 +992,17 @@ export const task = z
           "promise: what the current state does not allow is still refused with `409` (ACT-17). " +
           "TASK-44: for this caller — present, without them, wherever the credential presented " +
           "does not cover every one of those Actions (ACT-22).",
+      }),
+    dimensions: z
+      .record(z.string().regex(DIMENSION_NAME), z.string())
+      .optional()
+      .meta({
+        description:
+          "TASK-47. The value this Task carries for each dimension it is about, under names the " +
+          "entry declares, one string each. A read that fixes a dimension answers only the Tasks " +
+          "that carry its value (TASK-48). Absent, the Task is about none of them and matches no " +
+          "read that fixes one. Carried rather than pointed at inside the payload, so a dimension " +
+          "is independent of any type's shape.",
       }),
   })
   .meta({
@@ -1817,6 +1860,7 @@ registry.add(idempotencyDeclaration, { id: "idempotency-declaration" });
 registry.add(actionDeclaration, { id: "action-declaration" });
 registry.add(actionsEntry, { id: "actions-entry" });
 registry.add(taskTypeDeclaration, { id: "task-type-declaration" });
+registry.add(taskDimension, { id: "task-dimension" });
 registry.add(tasksEntry, { id: "tasks-entry" });
 registry.add(task, { id: "task" });
 registry.add(taskPage, { id: "task-page" });

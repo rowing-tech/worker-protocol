@@ -13,7 +13,7 @@ description: >-
 license: Apache-2.0
 metadata:
   workerProtocolEdition: "0.4"
-  version: "2.9.0"
+  version: "2.10.0"
 ---
 
 # Workers on `@worker-protocol/hono`
@@ -102,6 +102,14 @@ Read `references/members.md` for the signature of each member, and
 - **`metrics.read` is handed buckets already cut** in the declared time zone — do not cut them
   again. Answer `{ start, value }` for each bucket there is a number for, omitting the rest
   (MET-15).
+- **`tasks.read` is optional, beside `current()`, and only for a store that can page by an
+  index.** Without it, `mount()` calls `current()` on every read, filters by `type` and by each
+  fixed dimension, and pages in memory — correct, and a scan. With it, the Worker is handed
+  `{ type?, dimensions, cursor?, limit }`, already validated, and answers `{ tasks, nextCursor? }`
+  from its own index and cursor, as `logs.read` does; `mount()` still refuses, applies `covers`
+  and `available`, wraps the cursor and serializes. Keep `current()` either way: a call naming a
+  Task (TASK-39) looks it up there. Declare dimension names as `dimensions: ["base"]` and put the
+  values on each Task as `dimensions: { base }` (TASK-45, TASK-47).
 - **`logs.read` is a read the Worker performs, not a list it hands over.** `alerts` and `activity`
   hand over everything they hold and `mount()` pages it; a feed is not bounded by what is happening
   now, so only the store holding it can filter and page it. `mount()` decodes the level floor into

@@ -41,6 +41,17 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "dimensions": {
+      "description": "TASK-47. The value this Task carries for each dimension it is about, under names the entry declares, one string each. A read that fixes a dimension answers only the Tasks that carry its value (TASK-48). Absent, the Task is about none of them and matches no read that fixes one. Carried rather than pointed at inside the payload, so a dimension is independent of any type's shape.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
     }
   },
   "required": [

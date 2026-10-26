@@ -192,6 +192,86 @@ one nobody has answered. It is the same field ALRT-3 puts on an Alert and it is 
 it tells *this is new* from *this is the same thing as yesterday*, which is most of what anybody
 wanted a status for.
 
+## Fixing a dimension
+
+**TASK-45 (required). The entry may declare under `dimensions`, keyed by name, the dimensions its
+Tasks may carry. A dimension declares nothing about the values it takes, which are any string.**
+
+**TASK-46 (required). A dimension is not named after a parameter this protocol defines on this
+read.**
+
+**TASK-47 (required). A Task may carry under `dimensions` one string for each of any dimensions the
+entry declares, and under no other name.**
+
+**TASK-48 (required). A read fixes a dimension with a query parameter named exactly as the
+dimension, and answers only the Tasks that carry that value under it. Every parameter a read fixes
+holds at once, `type` among them, and a Task that carries no value for a fixed dimension does not
+match it.**
+
+**TASK-49 (required). A read accepts any string as the value of a dimension, and answers one that
+no Task carries with an empty page, never with a refusal.**
+
+**TASK-50 (required). A read that fixes one dimension more than once is `400`, with the code
+`invalid_parameter`.**
+
+**A dimension is what a Task is about that a consumer filters on: the base a trip departs from, the
+store a delivery waits at.** Until this section TASK-8 was the only filter, so *the Tasks of this
+base* was a question a consumer could not put to an owner. It read every Task and discarded the
+rest. TASK-6's own argument names that as the wrong side to filter on, because a consumer reading
+and discarding pages through work it does not want costs both sides and gets slower as the network
+grows. That argument was made about what a credential covers, and it holds word for word about a
+filter.
+
+The shape is `metrics`' (MET-4, MET-16), one surface along: declared once, carried per item, fixed
+per read. **What it leaves out of `metrics` is the set of values, and that is the argument of
+TASK-45.** A metric's dimension may declare its set because two rules spend it: MET-17 refuses a
+value outside it, and MET-19 breaks down only by a dimension whose set bounds the series. A read of
+Tasks breaks nothing down, so only the refusal is left, and the refusal would cost what it cannot
+pay for. A Descriptor is read at enrollment and is the same document for every caller (REG-8),
+while the values of a dimension are rows of the Worker's domain: there may be thousands of them,
+and they appear without anybody redeploying. A set written into the declaration would be stale by
+the time a Tower stored it, and would be the Worker speculating in public about what a value is.
+So a dimension is a name, and its declaration is an object with no member yet, which is the shape
+an edition can add to without moving anybody's Descriptor.
+
+TASK-46 is MET-5 on this surface and costs what MET-5 costs. `type`, the parameter a cursor
+returns in, and `dimensions`, which is the name `openapi/` gives the parameter that carries every
+dimension, are this protocol's, and a dimension that took one would be unreachable. The list may
+grow and strand a Worker that declared the name first. That is the price of a query a person can
+read, accepted knowingly here as it was there.
+
+**TASK-47 has a Task carry its value rather than the declaration point into its payload.** A
+pointer per type would keep one source of truth, and in exchange would tie every dimension to the
+payload's shape, force its value to be a scalar at a fixed place, and make a read without `type`
+resolve a different pointer per type. An owner that derives a dimension it never writes into the
+payload could not declare it at all. A Task carries none where it is about none of them: a
+dimension is something a Task *may* be about, not something every type is.
+
+**Dimensions are declared on the entry and not on each type, so that a read without `type` means
+something.** `GET /tasks?base=MTY` answers every open Task of that base whatever its type, which is
+the read a person at that base actually wants, since everything open where they work is not one
+type. A type that never sets a dimension never matches a read that fixes it, with no error and no
+special case, which is TASK-48's last clause.
+
+TASK-48 and TASK-49 are MET-16 and MET-17's free case. A value the Worker has never seen is an
+empty page, because the Worker cannot tell a typo from a base that is about to exist, and a refusal
+would say the second does not. ENDP-24 applies with nothing added here: a parameter that names a
+dimension the entry does not declare is an unrecognized filter, `400` with `unknown_filter`, and is
+never ignored.
+
+**TASK-50 refuses a repeated dimension because every other answer to it ignores something or
+invents something.** Taking one value drops the other, which is the silent widening ENDP-24 exists
+to prevent. Requiring both answers nothing, since a Task carries one value per dimension. Taking
+either is a multiplicity convention no other surface here has, which [logs](logs.md) declined for
+`level` on the same ground. A consumer that covers three bases makes three reads. Refused, the
+meaning stays free for an edition that has a case for one.
+
+**A fixed dimension narrows what TASK-6 already bounds, and never widens it.** The filter is
+applied to the Tasks the credential presented reads, so it adds no right and needs no rule of its
+own. If a person must not *see* another base's Tasks, that is coverage and not a filter, and a
+grant names Task types and nothing finer (GRANT-3). That is a larger question than this section
+answers, and it is open below.
+
 ## What a Task binds, and what it offers now
 
 **TASK-37 (required). A Task may carry under `inputs`, keyed by one of the Actions TASK-35 names
@@ -430,6 +510,12 @@ anybody did about it.
   field that is nearly one.
 - What a consumer reports about the cost and elapsed time of the work it did, and who consolidates
   it. Open in [undecided](../docs/undecided.md).
+- **Whether a grant may cover Tasks by dimension.** TASK-6 decides what a credential reads and
+  GRANT-3 names Task types and nothing finer, so a person who must not see another base's Tasks is
+  not served by a filter. Nothing has asked for it yet.
+- **Whether a Task type should list the dimensions its Tasks carry**, so that a console knows before
+  the first read that a type is about a base and a store. It would be one more place for a
+  declaration and the Tasks to disagree, and it waits until a reader needs it.
 
 ## Withdrawn
 

@@ -76,8 +76,18 @@ export const decodeCursor = (cursor: string): string | null => {
   }
 };
 
+/** The position a read's cursor names, `null` for the first page, or why it names none here. */
+export const cursorAfter = (query: URLSearchParams): Refusal | { after: string | null } => {
+  const sent = query.get("cursor");
+  if (sent === null) return { after: null };
+  const after = decodeCursor(sent);
+  return after === null
+    ? refuse("invalid_parameter", "That cursor was not produced by this Worker.")
+    : { after };
+};
+
 /**
- * One page of a collection, ordered, cut and serialized.
+ * One page of a collection that defines no parameter but the cursor: `alerts` and `activity`.
  *
  * ENDP-23's order is by `id` — minted by the Worker and the one field every collection here has
  * that nothing else reorders — so paging terminates, and ENDP-33 comes free from it: the cursor
@@ -87,19 +97,24 @@ export function collection<T extends { id: string; since: Date }>(
   items: T[],
   query: URLSearchParams,
   serialize: (one: T) => Record<string, unknown>,
-  pageSize = DEFAULT_PAGE_SIZE,
-  /** What this surface defines beyond the cursor — TASK-8's `type` is the only one today. */
-  filters: readonly string[] = [],
 ): Refusal | Page {
-  const unknown = onlyKnown(query, new Set(["cursor", ...filters]));
+  const unknown = onlyKnown(query, new Set(["cursor"]));
   if (unknown !== null) return unknown;
+  const position = cursorAfter(query);
+  return "code" in position ? position : pageOf({ items, after: position.after, serialize });
+}
 
-  const sent = query.get("cursor");
-  const after = sent === null ? null : decodeCursor(sent);
-  if (sent !== null && after === null) {
-    return refuse("invalid_parameter", "That cursor was not produced by this Worker.");
-  }
-
+/**
+ * The page after a position, ordered, cut and serialized — for a surface that read its own
+ * parameters first, as `tasks` does with TASK-8's `type` and TASK-48's dimensions.
+ */
+export function pageOf<T extends { id: string }>(given: {
+  items: T[];
+  after: string | null;
+  serialize: (one: T) => Record<string, unknown>;
+  pageSize?: number;
+}): Page {
+  const { items, after, serialize, pageSize = DEFAULT_PAGE_SIZE } = given;
   // Mapped before sorted, so the copy the ordering needs is the one the serialization already made
   // — `sort` mutates, and the array handed in is the Worker's own.
   const ordered = items

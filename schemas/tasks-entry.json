@@ -24,6 +24,17 @@
         "$ref": "task-type-declaration.json"
       },
       "description": "TASK-35. Every Task type this Worker raises. A Worker that raises none declares an empty map rather than omitting it, so that every reader parses one shape."
+    },
+    "dimensions": {
+      "description": "TASK-45. The dimensions a Task of this entry may carry, keyed by name, which a read fixes with a parameter of the same name (TASK-48). The pattern asserts only what the transport needs, as MET-4's does. TASK-46 also forbids the names this protocol defines on the read, which no pattern here asserts, for MET-5's reason. Absent or empty, a Task carries none and a read fixes none.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "$ref": "task-dimension.json"
+      }
     }
   },
   "required": [

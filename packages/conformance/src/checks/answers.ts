@@ -236,22 +236,39 @@ export async function allOpen(
   transcript: Transcript,
   read: { url: string; intent: string; headers?: HeadersInit },
 ): Promise<OpenTask[]> {
+  return (await taskPages(transcript, read)).items as OpenTask[];
+}
+
+type TaskItem = ReturnType<typeof taskPage.parse>["items"][number];
+
+/**
+ * Pages of Tasks followed through ENDP-21's cursor, up to a bound: what they held, whether the walk
+ * reached the end — past the bound, a Task not seen may be further on — and, where an answer was
+ * not a page, what it was instead.
+ */
+export async function taskPages(
+  transcript: Transcript,
+  read: { url: string; intent: string; headers?: HeadersInit },
+): Promise<{ items: TaskItem[]; ended: boolean; refused?: { status: number; code?: string } }> {
   const { url, intent, headers } = read;
-  const open: OpenTask[] = [];
+  const items: TaskItem[] = [];
   let cursor: string | undefined;
   for (let pages = 0; pages < 20; pages += 1) {
-    const read = await transcript.send(
+    const answered = await transcript.send(
       cursor === undefined ? url : withParams(url, { cursor }),
       pages === 0 ? intent : `${intent}, the next page`,
       headers === undefined ? {} : { headers },
     );
-    const page = taskPage.safeParse(read.json);
-    if (!page.success) break;
-    open.push(...(page.data.items as OpenTask[]));
+    const page = taskPage.safeParse(answered.json);
+    if (!page.success) {
+      const code = (answered.json as { code?: string } | null)?.code;
+      return { items, ended: false, refused: { status: answered.status, code } };
+    }
+    items.push(...page.data.items);
     cursor = page.data.nextCursor;
-    if (cursor === undefined) break;
+    if (cursor === undefined) return { items, ended: true };
   }
-  return open;
+  return { items, ended: false };
 }
 
 /**

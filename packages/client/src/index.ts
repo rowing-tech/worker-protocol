@@ -185,9 +185,9 @@ export type Consumed = {
      * as `task` so the owner knows which one it answers. There is nothing to claim and nothing to
      * close: the condition stops holding and the Task is gone.
      */
-    list: (type?: string) => Promise<Task[]>;
+    list: (read?: string | TaskRead) => Promise<Task[]>;
     /** One page of the same read, for a caller that keeps the cursor itself. */
-    page: (read?: { type?: string } & PageRead) => Promise<Page<Task>>;
+    page: (read?: TaskRead & PageRead) => Promise<Page<Task>>;
     /**
      * How to answer a Task of this type, or this Task: each Action that answers it, and the shape
      * each takes.
@@ -223,6 +223,23 @@ export type MetricRead = {
   /** MET-16. Dimensions to fix, each spelled as a parameter of its own name. */
   fixed?: Record<string, string>;
 };
+
+/**
+ * TASK-8 and TASK-48. What a read of `tasks` narrows to: one type, and a value for each dimension
+ * the entry declares that the read fixes. Every one fixed holds at once. A bare string is the type.
+ */
+export type TaskRead = {
+  /** TASK-8. One of the types the entry declares under `raises`. */
+  type?: string;
+  /** TASK-48. Dimensions to fix, each spelled as a parameter of its own name, once (TASK-50). */
+  fixed?: Record<string, string>;
+};
+
+/** TASK-8, TASK-48: a read's parameters — the type, and each fixed dimension under its own name. */
+const taskParameters = (read: TaskRead): Record<string, string> => ({
+  ...read.fixed,
+  ...(read.type === undefined ? {} : { type: read.type }),
+});
 
 /** LOG-7 and LOG-8. What a read of `logs` narrows to. */
 export type LogRead = {
@@ -485,19 +502,18 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
   const tasksAddress = addressOf("tasks");
   if (tasksAddress !== undefined) {
     consumed.tasks = {
-      list: (type) =>
-        // TASK-8 filters by type where one is asked for; absent, the read is unfiltered and a
-        // `404` from it would be DESC-38's rather than a resource's, which `pages` works out.
-        collect<Task>(call, tasksAddress, taskPage, "TASK-5", type === undefined ? {} : { type }),
-      page: ({ type, cursor } = {}) =>
-        page<Task>(
+      list: (read = {}) =>
+        // TASK-8 and TASK-48 filter where asked; absent, the read is unfiltered and a `404` from
+        // it would be DESC-38's rather than a resource's, which `pages` works out.
+        collect<Task>(
           call,
           tasksAddress,
           taskPage,
           "TASK-5",
-          type === undefined ? {} : { type },
-          cursor,
+          taskParameters(typeof read === "string" ? { type: read } : read),
         ),
+      page: ({ cursor, ...read } = {}) =>
+        page<Task>(call, tasksAddress, taskPage, "TASK-5", taskParameters(read), cursor),
 
       // TASK-35 names the Actions; ACT-2 declares each one's input. Both are already in the
       // document this consumer read, so this walks it rather than calling anything.

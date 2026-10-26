@@ -1,0 +1,27 @@
+{
+  "schema": "tasks-entry",
+  "valid": true,
+  "rule": "TASK-45",
+  "why": "Two dimensions a Task of this entry may carry, declared by name and nothing else. What a base or a store is, and which ones exist, is the Worker's: they are rows of its domain that appear without a redeploy, so a read accepts any string as a value (TASK-49).",
+  "document": {
+    "version": 1,
+    "address": "../tasks",
+    "raises": {
+      "tech.rowing.trips.escalate-store": {
+        "payload": {
+          "type": "object",
+          "properties": {
+            "trip": {
+              "type": "string"
+            }
+          }
+        },
+        "answeredBy": ["escalate"]
+      }
+    },
+    "dimensions": {
+      "base": {},
+      "store": {}
+    }
+  }
+}

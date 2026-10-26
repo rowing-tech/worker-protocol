@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — tasks",
-    "version": "0.9",
+    "version": "0.10",
     "description": "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
     "license": {
       "name": "Apache-2.0",
@@ -34,6 +34,20 @@
             "description": "TASK-8. One of the Task types the entry declares. A type it does not declare is `400`.",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "dimensions",
+            "in": "query",
+            "required": false,
+            "description": "TASK-48. Each dimension the entry declares, fixed by a parameter named exactly as the dimension, and at most once (TASK-50). Every parameter fixed holds at once, `type` among them. The names are the Worker's own and are read from its Descriptor, so they are not enumerated here. Any string is accepted and may match nothing (TASK-49).",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
             }
           },
           {
@@ -87,7 +101,7 @@
             }
           },
           "400": {
-            "description": "ENDP-39. The shared error envelope, carrying one of: `invalid_parameter` (TASK-8), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `invalid_parameter` (TASK-8), `invalid_parameter` (TASK-50), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

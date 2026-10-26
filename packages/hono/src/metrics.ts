@@ -12,7 +12,7 @@ import type { metricDeclaration, metricPage } from "@worker-protocol/schemas";
 import type * as z from "zod";
 import { bucketsIn, type Granularity, halfOpen, rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
-import { decodeCursor, encodeCursor } from "./collection.ts";
+import { cursorAfter, encodeCursor } from "./collection.ts";
 import { contractKey } from "./grants.ts";
 import type { Refusal } from "./worker.ts";
 
@@ -172,11 +172,9 @@ export function metrics(facts: MetricFacts) {
       .filter(({ at }) => endOf.has(at))
       .sort((a, b) => position(a).localeCompare(position(b)));
 
-    const sent = query.get("cursor");
-    const after = sent === null ? null : decodeCursor(sent);
-    if (sent !== null && after === null) {
-      return refuse("invalid_parameter", "That cursor was not produced by this Worker.");
-    }
+    const resumed = cursorAfter(query);
+    if ("code" in resumed) return resumed;
+    const { after } = resumed;
     const rest =
       after === null ? ordered : ordered.filter((one) => position(one).localeCompare(after) > 0);
     const page = rest.slice(0, cap);

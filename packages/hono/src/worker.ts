@@ -160,6 +160,12 @@ export type Worker = {
   tasks?: {
     /** TASK-2. Every Task type this Worker raises, with its payload schema and answering Actions. */
     raises: TaskTypes;
+    /**
+     * TASK-45. The dimensions a Task may carry, by name, which a read fixes with a parameter of the
+     * same name (TASK-48). Names only: what a value is stays the Worker's, and any string is one.
+     * TASK-46: never `type`, `cursor` or `dimensions`.
+     */
+    dimensions?: string[];
   } & TaskFacts;
 };
 

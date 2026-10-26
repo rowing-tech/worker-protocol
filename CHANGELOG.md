@@ -17,6 +17,38 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-26 — edition 0.10
+
+All five packages encode **edition 0.10**, so the release that carries it is a MINOR of the
+packages, which `^0.11.0` does not take. What it carries is a filter on the read of Tasks beyond
+`type`, asked for by a solution whose Tasks belong to a base (issue #11).
+
+### Edition 0.10
+
+- **A Task may carry dimensions, and a read fixes one** (TASK-45 to TASK-50). The `tasks` entry
+  declares under `dimensions` the names a Task may carry, each an object that says nothing about its
+  values; a Task carries one string under each it is about; a read fixes one with a parameter of the
+  same name, beside `type` or without it, and every fixed parameter holds at once. Any value is
+  accepted, and one no Task carries is an empty page. One dimension fixed twice is `400`
+  `invalid_parameter`. A dimension is never named `type`, `cursor` or `dimensions`. Additive: a
+  Worker that declares none is answered exactly as before.
+- **Consumers move first.** `task.json` admits no member it does not name, so a client on edition
+  0.9 refuses a page whose Tasks carry `dimensions`. Take this edition on the consuming side before
+  any owner declares one.
+
+### Added
+
+- schemas: `dimensions` on `tasks-entry` and on `task`, and `task-dimension`.
+- hono: `tasks.dimensions` declares the names; `OpenTask.dimensions` carries the values; the read
+  refuses an undeclared name and a repeated one and filters `current()` by what is fixed.
+  `tasks.read`, optional and beside `current()`, answers one page from the Worker's own index and
+  cursor, as `logs.read` does: `mount()` hands it `{ type?, dimensions, cursor?, limit }` already
+  validated, and still applies `covers` and `available`, wraps the cursor and serializes.
+  `TaskQuery` and `TaskReadPage` are exported.
+- client: `tasks.list` and `tasks.page` take `{ type?, fixed? }`; a bare string to `list` is still
+  the type.
+- conformance: checks for TASK-45 to TASK-50; the reference worker declares a `depot` dimension.
+
 ## [0.11.1] - 2026-10-22 — edition 0.9
 
 All five packages still encode **edition 0.9**. One export, asked for by a Tower that shows whose
