@@ -1,5 +1,5 @@
 /**
- * A conformant Worker that declares everything this protocol defines.
+ * A conformant Worker that declares nine of the eleven Capabilities this protocol defines.
  *
  * **Copy this file.** Every line in it is domain — what this Worker is, what it knows how to do,
  * what it depends on, what it counts, what it does, which conditions hold, what it is working on,
@@ -7,10 +7,10 @@
  * the page envelope with its cursor and its order, the bucket boundaries cut in a declared time
  * zone, the idempotency window: all of that is `mount()`'s, once, in `@worker-protocol/hono`.
  *
- * It declares all nine Capabilities, because seeing one written is worth more than reading that it
- * exists. A real Worker declares the ones it implements and leaves out the rest: any combination is
- * allowed, including none at all, and a Worker that serves only a Descriptor is already enrolled,
- * catalogued and reachable.
+ * It declares nine of the eleven Capabilities — all but `subscriptions` and `grants` — because
+ * seeing one written is worth more than reading that it exists. A real Worker declares the ones it
+ * implements and leaves out the rest: any combination is allowed, including none at all, and a
+ * Worker that serves only a Descriptor is already enrolled, catalogued and reachable.
  *
  * **It is written as a function of its environment, which is the form every platform admits.** A
  * Cloudflare Worker, a Vercel edge function and a Deno Deploy handler are handed their bindings and

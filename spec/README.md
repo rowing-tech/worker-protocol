@@ -55,7 +55,7 @@ spread across four files each arguing from its own side.
 | How much of something happened? | `metrics` | Accumulated over declared periods; a number, never an occurrence |
 | What happened, and is over? | `logs` | Written deliberately, past tense, acted on by nobody |
 | What can I make it do? | `actions` | An operation with a declared input, performed on request |
-| What does it tell others about? | `events` | Pushed to a broker, for whoever contracted for it |
+| What does it tell others about? | `events` | Pushed to a broker or to a subscriber's sink, for whoever contracted for it |
 | How do I say there is work? | `nudges` | Best effort, carries a Task type and nothing else (NDG-2) |
 | What may a Contract's credential do here? | `grants` | Applied ahead of time by whoever brokered the Contract; the owner issues the credential (GRANT-4) |
 

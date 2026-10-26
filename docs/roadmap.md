@@ -27,8 +27,8 @@ rather than in a repository of its own, are argued at the top of `surfaces.ts` a
 the verifier and the TypeScript SDK. Each other SDK is a repository — `worker-protocol-python`,
 `worker-protocol-dotnet`, and so on — that generates its models and clients from `openapi/` pinned
 to an edition, adds a thin hand-written layer (reading and resolving the Descriptor, the interface
-a Worker author implements and its server adapter, the claim → action → outcome flow for a
-consumer), ships its own reference Worker, and runs `@worker-protocol/conformance` against that
+a Worker author implements and its server adapter, the Task → Action flow for a consumer), ships
+its own reference Worker, and runs `@worker-protocol/conformance` against that
 Worker in its CI. The conformance report is what ties the repositories together: an SDK is right
 because its reference Worker passes, not because somebody read the prose carefully. What
 `packages/hono` carries for TypeScript is the model for that layer in every other language.

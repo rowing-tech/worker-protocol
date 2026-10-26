@@ -44,10 +44,10 @@ condition is, what an Action does, what a number means — is what `spec/` delib
 
 ## The measure
 
-`examples/minimal-worker` declares every Capability this protocol defines, and `pnpm dx:check`
-counts the domain lines it takes to do it. It exists because complying being cheap is a claim like
-any other here, and a claim nobody counts is a claim nobody verifies. When it grows, the question is
-which rule `mount()` failed to carry.
+`examples/minimal-worker` declares nine of the eleven Capabilities — all but `subscriptions` and
+`grants` — and `pnpm dx:check` counts the domain lines it takes to do it. It exists because
+complying being cheap is a claim like any other here, and a claim nobody counts is a claim nobody
+verifies. When it grows, the question is which rule `mount()` failed to carry.
 
 **The ceiling that script enforces is deliberately slack**, and the reason is worth having in
 writing: a limit tight enough to bind is one that can be met by showing less of the protocol or by

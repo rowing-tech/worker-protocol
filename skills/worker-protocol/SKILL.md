@@ -2,9 +2,10 @@
 name: worker-protocol
 description: >-
   Build, change or debug a worker-protocol Worker in any language: the Descriptor served at
-  /.well-known/worker-protocol, the nine Capabilities (health, metrics, actions, alerts, activity,
-  nudges, tasks, events, logs), the credential, the error and page envelopes, cursors, idempotency,
-  and verification with npx @worker-protocol/conformance. Use this skill whenever the work touches a
+  /.well-known/worker-protocol, the eleven Capabilities (health, metrics, actions, alerts,
+  activity, nudges, tasks, events, logs, subscriptions, grants), the credential, the error and page
+  envelopes, cursors, idempotency, and verification with npx @worker-protocol/conformance. Use this
+  skill whenever the work touches a
   Worker, a Descriptor, an Action, a Task type, a Skill, a metric, an Alert or a log record;
   whenever a conformance report or an error names a rule id such as DESC-35, ENDP-39 or LOG-7;
   whenever somebody is deciding which Capability a fact belongs on, or why a Worker is being refused
@@ -309,9 +310,9 @@ Load these when the task needs them, not before.
   Normative: where prose and a schema disagree, the schema wins. Validate against them.
 - **A verb, parameter, header or refusal on one address** — `openapi/`, one document per address.
   Normative for the surface. Generate from these rather than reading them by hand.
-- **A Worker to model on** — `examples/minimal-worker/src/worker.ts` declares all nine Capabilities
-  with a comment per line. It is TypeScript and the *declarations* are what to copy, not the syntax.
-  Do not model on `conformance/reference-worker`: it is a test double, deliberately arranged wrong
-  in places so the verifier can observe rules nothing else provokes.
+- **A Worker to model on** — `examples/minimal-worker/src/worker.ts` declares nine of the eleven
+  Capabilities with a comment per line. It is TypeScript and the *declarations* are what to copy,
+  not the syntax. Do not model on `conformance/reference-worker`: it is a test double, deliberately
+  arranged wrong in places so the verifier can observe rules nothing else provokes.
 - **What the model means** — `docs/architecture.md`: Workers, Tasks, Skills, Services, Contracts,
   the Control Tower, and why a Task has no assignee.
