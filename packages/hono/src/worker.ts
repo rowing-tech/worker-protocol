@@ -8,11 +8,44 @@ import type {
 import type * as z from "zod";
 import type { ActionFacts } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
-import type { GrantFacts } from "./grants.ts";
+import type { GrantFacts, GrantRef } from "./grants.ts";
 import type { LogFacts } from "./logs.ts";
 import type { MetricFacts } from "./metrics.ts";
 import type { SubscriptionFacts } from "./subscriptions.ts";
 import type { TaskFacts, TaskTypes } from "./tasks.ts";
+import type { Trace } from "./trace.ts";
+
+/**
+ * What every hook a Worker implements is told about the request it is answering, built once per
+ * request by `mount()` and handed whole — so a Worker that writes a record while answering `health`
+ * writes it under the call's trace (LOG-11) exactly as an Action's `run` does, and a field added
+ * here reaches every hook at once.
+ */
+export type CallContext = {
+  /** REG-3. The credential presented, for a Worker that splits its own facts by it. */
+  token: string | undefined;
+  /** REG-3. Whom `authenticate` accepted, where it said. Absent where it answered `"accepted"`. */
+  principal?: unknown;
+  /**
+   * ENDP-34. The caller `authenticate` named, where it named one — the scope a header key is
+   * reserved under. Absent where it named none, and then every caller shares one scope.
+   */
+  caller?: string;
+  /**
+   * GRANT-4. The grant whose credential made this call — its applicant and its id — and absent for
+   * any other credential. Hand it to `taskAnswered()` so its applicant's deliveries carry `contract`
+   * (EVT-22), and record `contractKey(call.grant)` under a `contract` dimension (MET-23).
+   */
+  grant?: GrantRef;
+  /**
+   * ENDP-42. The trace this call belongs to: the one its `traceparent` named, continued in a span
+   * of this Worker's own, or one `mount()` began. A record written while answering carries
+   * `trace.traceId` and `trace.spanId` (LOG-11); a call to another Worker sends
+   * `traceHeadersOf(trace)` so the trace crosses (ENDP-43); a Worker running its own tracer hands
+   * this to it as the parent.
+   */
+  trace: Trace;
+};
 
 /**
  * What a Worker author implements, and the whole of it.
@@ -80,13 +113,13 @@ export type Worker = {
    */
   authenticate?: (token: string | undefined) => Verdict | Promise<Verdict>;
   /** `health`: the answer to a poll (HLTH-2). HLTH-5 makes it `200` whatever it reports. */
-  health?: () => z.infer<typeof health> | Promise<z.infer<typeof health>>;
+  health?: (call: CallContext) => z.infer<typeof health> | Promise<z.infer<typeof health>>;
   /** `metrics`: what the entry declares (MET-1 to MET-6), and the Worker's own values. */
   metrics?: MetricFacts;
   /** `actions`: the Actions this Worker accepts, each with its input and what it does. */
   actions?: ActionFacts;
   /** `alerts`: the Alerts whose conditions hold (ALRT-2). `mount()` orders, serializes and pages. */
-  alerts?: () => Alert[] | Promise<Alert[]>;
+  alerts?: (call: CallContext) => Alert[] | Promise<Alert[]>;
   /**
    * `activity`: what this Worker is doing and has undertaken to do (ACTV-2).
    *
@@ -95,7 +128,7 @@ export type Worker = {
    * envelope. It is the consumer's own Fact about its work and not a Claim; `spec/activity.md`
    * holds the argument.
    */
-  activity?: () => Activity[] | Promise<Activity[]>;
+  activity?: (call: CallContext) => Activity[] | Promise<Activity[]>;
   /**
    * `logs`: what this Worker recorded while it was working (LOG-2).
    *
@@ -125,7 +158,7 @@ export type Worker = {
    * Declaring it is optional and what it buys is latency. Without it this Worker is told nothing and
    * works from its own schedule, which is slower and never wrong (TASK-19).
    */
-  nudges?: (type: string) => void | Promise<void>;
+  nudges?: (type: string, call: CallContext) => void | Promise<void>;
   /**
    * `events`: the entry and nothing else, because there is no address to serve (EVT-13).
    *

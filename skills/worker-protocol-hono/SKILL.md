@@ -63,9 +63,9 @@ Read `references/members.md` for the signature of each member, and
   the Worker it answers both authenticates and serves that request: do not memoize the build per
   environment to save a second one, because there is none.
 - **Hand what `authenticate` found to the handlers through `principal`**, never through the Worker
-  object. Answer `{ verdict: "accepted", principal }`, and read it as `call.principal` in `run` and
-  as the second argument of `tasks.covers` and `actions.covers`. State stashed on the object is
-  shared by every concurrent request when the Worker is not a builder.
+  object. Answer `{ verdict: "accepted", principal }`, and read it as `call.principal` in any hook:
+  every one is told the request's `CallContext` as its last argument. State stashed on the object
+  is shared by every concurrent request when the Worker is not a builder.
 - **Name the caller in the verdict when the Worker serves more than one**: `{ verdict: "accepted",
   principal, caller }`, `caller` a stable string for whoever the lookup found — never the token,
   which changes on rotation. `mount()` scopes a header key to it (ENDP-34) and leaves an input key
@@ -123,10 +123,10 @@ Read `references/members.md` for the signature of each member, and
   for (`trace`, validated — LOG-12), the refusals and the envelope. The order (LOG-3) and the cursor
   (ENDP-33) stay with the store — key the cursor on something that only grows and both are free.
 - **Record under `call.trace`.** `mount()` resolves the trace every request belongs to — continued
-  from `traceparent` or begun there (ENDP-42) — and hands it to `run` and `refuses`. A record
-  written in a call carries `call.trace.traceId` and `call.trace.spanId` (LOG-11); a call to another
-  Worker sends `traceparentOf(call.trace)`. A Worker that wraps `mount()` and records on its own
-  account reads the same header with `traceOf(request)`.
+  from `traceparent` or begun there (ENDP-42) — and hands it to every hook in its `CallContext`. A
+  record written while answering carries `call.trace.traceId` and `call.trace.spanId` (LOG-11); a
+  call to another Worker spreads `traceHeadersOf(call.trace)` into its headers, `tracestate`
+  included.
 - **Nothing `mount()` serves records why the Worker died**, because by then it is not running. On
   Cloudflare, add a Tail Worker: bind the producer's Durable Object with `script_name`, write an
   uncaught exception and a non-`ok` outcome into it, discard `event.logs`. It writes to the store,

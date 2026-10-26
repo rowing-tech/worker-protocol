@@ -19,7 +19,7 @@ import * as z from "zod";
 import { configFromEnv } from "./config.ts";
 import type { Env } from "./env.ts";
 import type { Fleet } from "./fleet.ts";
-import { QUIET_PREFIX, QUIET_VEHICLE, quietAfterMs, quietTask } from "./quiet.ts";
+import { QUIET_VEHICLE, quietAfterMs, quietTask, vehicleOf } from "./quiet.ts";
 
 /**
  * A Worker on Cloudflare whose Facts live in a Durable Object.
@@ -271,14 +271,11 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
         (await fleet.quiet(Date.now(), quietAfterMs(env))).map(quietTask),
       // TASK-39: the Task a call names, by its id — two keys in the object rather than every
       // reading it holds, which is what an answer costs once the fleet is large. The id is the
-      // one `quietTask` writes, so anything else names no Task here.
+      // one `quietTask` writes, and `vehicleOf` reads it back.
       find: async (id) => {
-        if (!id.startsWith(QUIET_PREFIX)) return undefined;
-        const one = await fleet.quietOne(
-          id.slice(QUIET_PREFIX.length),
-          Date.now(),
-          quietAfterMs(env),
-        );
+        const vehicle = vehicleOf(id);
+        if (vehicle === undefined) return undefined;
+        const one = await fleet.quietOne(vehicle, Date.now(), quietAfterMs(env));
         return one === null ? undefined : quietTask(one);
       },
     },
@@ -293,7 +290,7 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
     // that applying compares and sets in one place (GRANT-5) and a credential issued in one isolate
     // is found by its digest in any other. `mount()` serves the address, mints each credential and
     // derives what one covers; who may apply is the one caller `authenticate` names.
-    grants: { store: durableGrants(fleet), applicants: (caller) => caller === "operator" },
+    grants: { store: durableGrants(fleet), applicants: ({ caller }) => caller === "operator" },
 
     // LOG-2: what this Worker recorded while it was working, read from the durable object. A buffer
     // in the isolate would pass every local test and be wrong in production, because a read can

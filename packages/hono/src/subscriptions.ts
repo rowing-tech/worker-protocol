@@ -36,7 +36,14 @@ import {
   type StoredGrant,
 } from "./grants.ts";
 import type { OpenTask } from "./tasks.ts";
-import type { Alert, Answer, EventTypeDeclaration, Refusal, Worker } from "./worker.ts";
+import type {
+  Alert,
+  Answer,
+  CallContext,
+  EventTypeDeclaration,
+  Refusal,
+  Worker,
+} from "./worker.ts";
 
 /** SUB-15: why a subscription ended without its subscriber ending it. */
 export type EndReason = z.infer<typeof subscriptionEndReason>;
@@ -128,11 +135,12 @@ export type DeliveryQueue = {
   sendBatch?: (deliveries: Delivery[]) => Promise<void> | void;
 };
 
-/** What a call to the address knows about who is calling. */
-type SubscriptionCall = {
+/**
+ * What a call to the address knows about who is calling: the request's context, with SUB-8's
+ * caller as the store keeps it — `null` where `authenticate` named none.
+ */
+type SubscriptionCall = Omit<CallContext, "caller"> & {
   caller: string | null;
-  token: string | undefined;
-  principal: unknown;
   /** GRANT-8: the event types the grant this credential was issued for covers, where it was. */
   events?: Covered;
 };

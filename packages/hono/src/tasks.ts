@@ -19,8 +19,7 @@ import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { cursorAfter, encodeCursor, onlyKnown, type Page, pageOf } from "./collection.ts";
 import type { Covering } from "./grants.ts";
-import type { Trace } from "./trace.ts";
-import type { Refusal } from "./worker.ts";
+import type { CallContext, Refusal } from "./worker.ts";
 
 /** What a Worker says about a Task whose condition holds: the domain, and the whole of it. */
 export type OpenTask = {
@@ -119,10 +118,7 @@ export type TaskReadPage = {
  * to the compiler; `mount()` says it again for a Worker built without types.
  */
 export type TaskFacts = TaskHooks &
-  (
-    | { current: TaskHooks["current"] & {} }
-    | { read: TaskHooks["read"] & {}; find: TaskHooks["find"] & {} }
-  );
+  (Required<Pick<TaskHooks, "current">> | Required<Pick<TaskHooks, "read" | "find">>);
 
 type TaskHooks = {
   /**
@@ -132,7 +128,7 @@ type TaskHooks = {
    * its condition stops holding, and nothing else in this protocol closes one. Optional only where
    * `read` and `find` are both given.
    */
-  current?: () => OpenTask[] | Promise<OpenTask[]>;
+  current?: (call: CallContext) => OpenTask[] | Promise<OpenTask[]>;
   /**
    * TASK-5, TASK-48. One page of the Tasks whose conditions hold, answered from the Worker's own
    * store. Optional, and beside `current` rather than instead of it.
@@ -144,7 +140,10 @@ type TaskHooks = {
    * Task it answers that does not match the query, or that the credential does not read, is left
    * out of the page rather than sent. A Task a call names is looked up by `find`, beside it.
    */
-  read?: (query: TaskQuery) => TaskReadPage | Refusal | Promise<TaskReadPage | Refusal>;
+  read?: (
+    query: TaskQuery,
+    call: CallContext,
+  ) => TaskReadPage | Refusal | Promise<TaskReadPage | Refusal>;
   /**
    * TASK-39. The open Task under `id`, or `undefined` where none is open. Optional: without it,
    * `mount()` finds the id in `current()`, which derives every open Task to keep one.
@@ -157,7 +156,7 @@ type TaskHooks = {
    * Everything after the lookup stays here — TASK-6, `since`, TASK-40 and TASK-41 — so a Task this
    * answers that the credential does not cover is still `404`.
    */
-  find?: (id: string) => OpenTask | undefined | Promise<OpenTask | undefined>;
+  find?: (id: string, call: CallContext) => OpenTask | undefined | Promise<OpenTask | undefined>;
   /**
    * TASK-6. Which Task ids the credential presented covers, or `undefined` for all of them.
    *
@@ -169,13 +168,11 @@ type TaskHooks = {
    * than a thing it holds — the Tower brokered it, the Worker stored what it was told, and reading
    * that is a query like any other.
    *
-   * `principal` is whom `authenticate` accepted, where it said — absent where it answered the bare
-   * `"accepted"` — so a Contract kept against a holder is found without looking the token up again.
+   * `call.principal` is whom `authenticate` accepted, where it said — absent where it answered the
+   * bare `"accepted"` — so a Contract kept against a holder is found without looking the token up
+   * again.
    */
-  covers?: (
-    token: string | undefined,
-    principal?: unknown,
-  ) => string[] | undefined | Promise<string[] | undefined>;
+  covers?: (call: CallContext) => string[] | undefined | Promise<string[] | undefined>;
   /** ENDP-19 (recommended). The most Tasks one page carries. */
   pageSize?: number;
 };
@@ -187,9 +184,13 @@ const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message }
  * `current()`. A Worker that gave neither was said to be wrong when it was mounted (`unfound` in
  * `mount.ts`), and has no Task to find.
  */
-export async function openTask(facts: TaskFacts, id: string): Promise<OpenTask | undefined> {
-  if (facts.find !== undefined) return facts.find(id);
-  return (await facts.current?.())?.find((one) => one.id === id);
+export async function openTask(
+  facts: TaskFacts,
+  asked: { id: string; context: CallContext },
+): Promise<OpenTask | undefined> {
+  const { id, context } = asked;
+  if (facts.find !== undefined) return facts.find(id, context);
+  return (await facts.current?.(context))?.find((one) => one.id === id);
 }
 
 /** TASK-48: a Task matches when it carries every fixed value, and one it lacks matches nothing. */
@@ -200,10 +201,10 @@ export type TaskSurface = {
   read: (
     query: URLSearchParams,
     /**
-     * Who is reading, what this request's credential covers (TASK-6, TASK-44, GRANT-8), and the
-     * trace the read belongs to (ENDP-42), which `refuses` is told as any Action call is.
+     * Who is reading and in which trace, and what this request's credential covers (TASK-6,
+     * TASK-44, GRANT-8). `refuses` is told the same context as an Action call is.
      */
-    call: { token: string | undefined; principal: unknown; covering: Covering; trace: Trace },
+    call: { context: CallContext; covering: Covering },
   ) => Promise<Refusal | Page>;
 };
 
@@ -272,7 +273,7 @@ export function tasks(declared: {
 
   return {
     async read(query, call) {
-      const { token, principal, covering, trace } = call;
+      const { context, covering } = call;
       // TASK-8: a type the entry does not declare. The surface exists and the caller asked about
       // something this Worker never raises, which is a parameter whose VALUE it will not accept.
       const type = query.get("type");
@@ -310,13 +311,16 @@ export function tasks(declared: {
         // Without `read` the union guarantees `current`; a Worker built without types that gave
         // neither was refused when it was mounted, and is answered nothing rather than a throw.
         facts.read === undefined
-          ? (facts.current?.() ?? [])
-          : facts.read({
-              ...(type === null ? {} : { type }),
-              dimensions: fixed,
-              ...(after === null ? {} : { cursor: after }),
-              limit: cap,
-            }),
+          ? (facts.current?.(context) ?? [])
+          : facts.read(
+              {
+                ...(type === null ? {} : { type }),
+                dimensions: fixed,
+                ...(after === null ? {} : { cursor: after }),
+                limit: cap,
+              },
+              context,
+            ),
       ]);
       if ("code" in answered) return answered;
       const wanted = (task: OpenTask) =>
@@ -326,11 +330,7 @@ export function tasks(declared: {
           held.map(async (task) => {
             const names = raises[task.type]?.answeredBy ?? [];
             const available = forCaller({
-              available: await availableFor(task, {
-                names,
-                accepts,
-                call: { token, principal, trace },
-              }),
+              available: await availableFor(task, { names, accepts, call: context }),
               names,
               covered,
             });

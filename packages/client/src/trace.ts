@@ -8,6 +8,8 @@
  * `beginTrace()`, hands it to the call, and asks `logs` for it (LOG-12).
  */
 
+import { spanId, traceId, traceparent } from "@worker-protocol/schemas";
+
 /** A trace a consumer holds: the id, and the span it is in. */
 export type Trace = {
   /** Thirty-two lowercase hexadecimal digits. */
@@ -18,22 +20,16 @@ export type Trace = {
   sampled?: boolean;
 };
 
-/** `bytes` random bytes as lowercase hex, never all zeros — which both ids forbid. */
-const hex = (bytes: number): string => {
-  for (;;) {
-    const id = Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
-      b.toString(16).padStart(2, "0"),
-    ).join("");
-    if (!/^0+$/.test(id)) return id;
-  }
-};
-
 /** A trace of the consumer's own, to perform under and to ask `logs` for afterwards. */
-export const beginTrace = (): Trace => ({ traceId: hex(16), spanId: hex(8), sampled: true });
+export const beginTrace = (): Trace => ({ traceId: traceId(), spanId: spanId(), sampled: true });
 
 /**
  * The `traceparent` one call sends: in `parent`'s trace, or in one begun for this call alone, and
  * naming a fresh span either way — the span is this call's, not the caller's.
  */
 export const traceparentFor = (parent?: Pick<Trace, "traceId" | "sampled">): string =>
-  `00-${parent?.traceId ?? hex(16)}-${hex(8)}-${parent?.sampled === false ? "00" : "01"}`;
+  traceparent({
+    traceId: parent?.traceId ?? traceId(),
+    spanId: spanId(),
+    ...(parent?.sampled === undefined ? {} : { sampled: parent.sampled }),
+  });

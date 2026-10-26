@@ -16,6 +16,8 @@
  * call's lines and for an operator to find the trace in whatever backend the Worker's builders run.
  */
 
+import { spanId, traceId, traceparent } from "@worker-protocol/schemas";
+
 export type Trace = {
   /** Thirty-two lowercase hexadecimal digits: the trace this call belongs to. */
   traceId: string;
@@ -29,12 +31,7 @@ export type Trace = {
   tracestate?: string;
 };
 
-/** LOG-11, LOG-12: how a trace id is spelled. */
-export const TRACE_ID = /^[0-9a-f]{32}$/;
-
-/** LOG-11: how a span id is spelled. */
-export const SPAN_ID = /^[0-9a-f]{16}$/;
-
+// The two ids inside are `TRACE_ID` and `SPAN_ID` from `@worker-protocol/schemas`, unanchored.
 const TRACEPARENT = /^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})(?:-(.*))?$/;
 
 const allZeros = (id: string) => /^0+$/.test(id);
@@ -59,40 +56,6 @@ export const parseTraceparent = (
   return { traceId, parentSpanId, sampled: (Number.parseInt(flags, 16) & 1) === 1 };
 };
 
-/** `bytes` random bytes as lowercase hex, never all zeros — which both ids forbid. */
-const idOf = (bytes: number): string => {
-  for (;;) {
-    const id = Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
-      b.toString(16).padStart(2, "0"),
-    ).join("");
-    if (!allZeros(id)) return id;
-  }
-};
-
-/**
- * A span of this party's own: in the trace `parent` names, or in a trace begun here.
- *
- * What a server does for a call and what a client does for each call it makes, which is why it is
- * one function: the caller hands in what it holds, and gets back the ids to record under and to
- * send on.
- */
-export const spanIn = (parent?: {
-  traceId: string;
-  spanId?: string;
-  sampled?: boolean;
-  tracestate?: string;
-}): Trace => {
-  const spanId = idOf(8);
-  if (parent === undefined) return { traceId: idOf(16), spanId, sampled: true };
-  return {
-    traceId: parent.traceId,
-    spanId,
-    ...(parent.spanId === undefined ? {} : { parentSpanId: parent.spanId }),
-    sampled: parent.sampled ?? true,
-    ...(parent.tracestate === undefined ? {} : { tracestate: parent.tracestate }),
-  };
-};
-
 /**
  * ENDP-42: the trace a request belongs to — the one its `traceparent` names, continued in a span
  * of this Worker's own, or one begun here. For `mount()`, and for a Worker that wraps `mount()` and
@@ -100,21 +63,27 @@ export const spanIn = (parent?: {
  */
 export const traceOf = (source: Request | Headers): Trace => {
   const headers = source instanceof Headers ? source : source.headers;
+  const span = spanId();
   const named = parseTraceparent(headers.get("traceparent"));
+  if (named === undefined) return { traceId: traceId(), spanId: span, sampled: true };
   const tracestate = headers.get("tracestate");
-  return spanIn(
-    named === undefined
-      ? undefined
-      : {
-          traceId: named.traceId,
-          spanId: named.parentSpanId,
-          sampled: named.sampled,
-          ...(tracestate === null ? {} : { tracestate }),
-        },
-  );
+  return {
+    traceId: named.traceId,
+    spanId: span,
+    parentSpanId: named.parentSpanId,
+    sampled: named.sampled,
+    ...(tracestate === null ? {} : { tracestate }),
+  };
 };
 
-/** ENDP-43: the header that carries a trace to the next party, naming this span as the parent. */
-export const traceparentOf = (
-  trace: Pick<Trace, "traceId" | "spanId"> & { sampled?: boolean },
-): string => `00-${trace.traceId}-${trace.spanId}-${trace.sampled === false ? "00" : "01"}`;
+/**
+ * ENDP-42, ENDP-43: the headers that carry this trace to the next party — `traceparent` naming this
+ * span as the parent, and `tracestate` exactly as it arrived, so a vendor's state crosses a chain of
+ * Workers untouched. Spread into the headers of any call a Worker makes to another.
+ */
+export const traceHeadersOf = (
+  trace: Pick<Trace, "traceId" | "spanId" | "sampled" | "tracestate">,
+): { traceparent: string; tracestate?: string } => ({
+  traceparent: traceparent(trace),
+  ...(trace.tracestate === undefined ? {} : { tracestate: trace.tracestate }),
+});

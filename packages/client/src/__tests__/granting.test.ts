@@ -20,7 +20,7 @@ const app = mount({
     raises: { [REVIEW]: { payload: z.object({}), answeredBy: ["approve"] } },
     current: () => [{ id: "D-1", type: REVIEW, payload: {}, since: new Date() }],
   },
-  grants: { store: memoryGrants(), applicants: (caller) => caller === "tower" },
+  grants: { store: memoryGrants(), applicants: ({ caller }) => caller === "tower" },
 });
 
 const as = (credential: string) =>

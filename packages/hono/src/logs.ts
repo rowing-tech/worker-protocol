@@ -23,13 +23,12 @@
  * something that only grows.
  */
 
-import { logLevel, type logPage } from "@worker-protocol/schemas";
+import { logLevel, type logPage, TRACE_ID } from "@worker-protocol/schemas";
 import type * as z from "zod";
 import { halfOpen, rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { onlyKnown } from "./collection.ts";
-import { TRACE_ID } from "./trace.ts";
-import type { Refusal } from "./worker.ts";
+import type { CallContext, Refusal } from "./worker.ts";
 
 /** LOG-5. The four levels, in order. The ladder LOG-7's floor is read off. */
 export const LEVELS = logLevel.options;
@@ -92,7 +91,7 @@ export type LogPage = {
 
 export type LogFacts = {
   /** The Worker's own store. Everything around this call is the specification's. */
-  read: (query: LogQuery) => LogPage | Refusal | Promise<LogPage | Refusal>;
+  read: (query: LogQuery, call: CallContext) => LogPage | Refusal | Promise<LogPage | Refusal>;
   /** ENDP-19 (recommended). The most records one page carries. */
   pageSize?: number;
 };
@@ -105,7 +104,10 @@ const OWN_PARAMETERS = new Set(["level", "from", "to", "trace", "cursor"]);
 export function logs(facts: LogFacts) {
   const cap = facts.pageSize ?? 100;
 
-  return async function read(query: URLSearchParams): Promise<Refusal | z.infer<typeof logPage>> {
+  return async function read(
+    query: URLSearchParams,
+    context: CallContext,
+  ): Promise<Refusal | z.infer<typeof logPage>> {
     const unknown = onlyKnown(query, OWN_PARAMETERS);
     if (unknown !== null) return unknown;
 
@@ -131,14 +133,17 @@ export function logs(facts: LogFacts) {
       return refuse("invalid_parameter", "`trace` is a trace id: 32 lowercase hexadecimal digits.");
     }
 
-    const answered = await facts.read({
-      levels: LEVELS.slice(floor),
-      from: at(interval.from),
-      to: at(interval.to),
-      ...(trace === undefined ? {} : { trace }),
-      cursor: query.get("cursor") ?? undefined,
-      limit: cap,
-    });
+    const answered = await facts.read(
+      {
+        levels: LEVELS.slice(floor),
+        from: at(interval.from),
+        to: at(interval.to),
+        ...(trace === undefined ? {} : { trace }),
+        cursor: query.get("cursor") ?? undefined,
+        limit: cap,
+      },
+      context,
+    );
     if ("code" in answered) return answered;
 
     // The page is not truncated to the cap here, and that is deliberate. Slicing would strand every

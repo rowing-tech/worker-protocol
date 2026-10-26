@@ -641,6 +641,40 @@ export const metricsEntry = capabilityEntry
  * expression that ruled those out would be unreadable, and a Worker that emits one has a bug no
  * schema was going to find.
  */
+/**
+ * ENDP-42, LOG-11, LOG-12 — a trace id and a span id as W3C Trace Context spells them: lowercase
+ * hexadecimal, thirty-two and sixteen digits. One spelling for the record, the `trace` parameter
+ * and every party that reads or writes `traceparent`.
+ */
+export const TRACE_ID = /^[0-9a-f]{32}$/;
+export const SPAN_ID = /^[0-9a-f]{16}$/;
+
+/** `bytes` random bytes as lowercase hex, never all zeros — which W3C forbids of both ids. */
+const randomHex = (bytes: number): string => {
+  for (;;) {
+    const hex = Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
+    if (!/^0+$/.test(hex)) return hex;
+  }
+};
+
+/**
+ * ENDP-42 — a fresh trace id and a fresh span id, the only two values of W3C Trace Context a party
+ * mints. Functions rather than patterns, and the one runtime this package carries, because every
+ * party that speaks `traceparent` — a Worker, a consumer, the verifier — mints them, and the copy
+ * each kept of its own had already drifted once.
+ */
+export const traceId = (): string => randomHex(16);
+export const spanId = (): string => randomHex(8);
+
+/** ENDP-42, ENDP-43 — `traceparent` as version `00` writes it, naming `spanId` as the parent. */
+export const traceparent = (given: {
+  traceId: string;
+  spanId: string;
+  sampled?: boolean;
+}): string => `00-${given.traceId}-${given.spanId}-${given.sampled === false ? "00" : "01"}`;
+
 export const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 const instant = (description: string) =>
@@ -1708,7 +1742,7 @@ export const logRecord = z
       }),
     traceId: z
       .string()
-      .regex(/^[0-9a-f]{32}$/)
+      .regex(TRACE_ID)
       .optional()
       .meta({
         description:
@@ -1718,7 +1752,7 @@ export const logRecord = z
       }),
     spanId: z
       .string()
-      .regex(/^[0-9a-f]{16}$/)
+      .regex(SPAN_ID)
       .optional()
       .meta({
         description:

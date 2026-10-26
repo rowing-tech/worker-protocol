@@ -19,7 +19,7 @@
 import { grantRequest } from "@worker-protocol/schemas";
 import { readJson, schemaMismatch } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
-import type { Answer, Refusal } from "./worker.ts";
+import type { Answer, CallContext, Refusal } from "./worker.ts";
 
 /** GRANT-3: one of a grant's three lists — every name, or these. */
 export type Covered = "all" | string[];
@@ -77,11 +77,11 @@ export type GrantStore = {
 export type GrantFacts = {
   store: GrantStore;
   /**
-   * GRANT-2. Whether this caller may apply grants here — by the identity `authenticate` names, and
-   * with whom it accepted. Required, so nobody becomes an applicant by omission; a credential
+   * GRANT-2. Whether this caller may apply grants here — by `call.caller`, the identity
+   * `authenticate` named, and `call.principal`, whom it accepted. Required, so nobody becomes an applicant by omission; a credential
    * issued for a grant is refused before this is asked.
    */
-  applicants: (caller: string, principal: unknown) => boolean | Promise<boolean>;
+  applicants: (call: CallContext & { caller: string }) => boolean | Promise<boolean>;
 };
 
 /** A store in memory: right in one long-lived process, on `memoryOutcomes()`'s terms. */

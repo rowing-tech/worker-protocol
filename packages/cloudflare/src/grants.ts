@@ -105,9 +105,10 @@ export function withGrants<B extends DurableObjectClass>(Base: B): Mixed<B, Gran
     /** GRANT-7: whether there was a grant to revoke. */
     removeGrant(applicant: string, id: string): boolean {
       const sql = migrate(this.ctx.storage, SCHEMA);
-      const held = this.getGrant(applicant, id) !== null;
-      if (held) sql.exec("DELETE FROM wp_grant WHERE applicant = ? AND id = ?", applicant, id);
-      return held;
+      return (
+        sql.exec("DELETE FROM wp_grant WHERE applicant = ? AND id = ?", applicant, id).rowsWritten >
+        0
+      );
     }
 
     /** GRANT-6: one applicant's grants, and nobody else's. */

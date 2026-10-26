@@ -52,6 +52,7 @@ export type { Bucket, MetricFacts, MetricQuery, MetricSample } from "./metrics.t
 export {
   defineWorker,
   type ExecutionCtx,
+  type MountOptions,
   mount,
   type WorkerBuilder,
   type WorkerSource,
@@ -102,19 +103,12 @@ export {
   subscribe,
 } from "./surfaces.ts";
 export type { OpenTask, TaskFacts, TaskQuery, TaskReadPage, TaskTypes } from "./tasks.ts";
-export {
-  parseTraceparent,
-  SPAN_ID,
-  spanIn,
-  TRACE_ID,
-  type Trace,
-  traceOf,
-  traceparentOf,
-} from "./trace.ts";
+export { type Trace, traceHeadersOf, traceOf } from "./trace.ts";
 export type {
   Activity,
   Alert,
   Answer,
+  CallContext,
   EventTypeDeclaration,
   Refusal,
   SkillDeclaration,

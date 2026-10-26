@@ -7,7 +7,6 @@ import {
   memoryGrants,
   memorySubscriptions,
   mount,
-  traceOf,
   type Worker,
 } from "@worker-protocol/hono";
 import { qualifiedName, taskAnswered, taskEnded } from "@worker-protocol/schemas";
@@ -254,7 +253,7 @@ export function referenceWorker(
       accepts: actions,
       settings,
       outcomes,
-      covers: (token: string | undefined) => options.coveredActions?.[token ?? ""],
+      covers: ({ token }) => options.coveredActions?.[token ?? ""],
     },
 
     // TASK-6: only what the credential covers, because a list showing every Task to every holder
@@ -263,7 +262,7 @@ export function referenceWorker(
       raises: RAISES,
       dimensions: DIMENSIONS,
       current: tasks.current,
-      covers: (token: string | undefined) => options.visibleTasks?.[token ?? ""],
+      covers: ({ token }) => options.visibleTasks?.[token ?? ""],
       // ENDP-19: a cap of two, so that this Worker's own three Tasks actually page — a cap nothing
       // ever reaches is a cap nobody has seen work.
       pageSize: 2,
@@ -296,7 +295,7 @@ export function referenceWorker(
     // only watches; nobody else does.
     grants: {
       store: facts.grants,
-      applicants: (caller) => caller === "operator" && options.operatorApplies !== false,
+      applicants: ({ caller }) => caller === "operator" && options.operatorApplies !== false,
     },
   };
 }
@@ -314,7 +313,6 @@ export function referenceWorker(
 export function createWorker(options: WorkerOptions = {}): Server {
   // The Facts are built once, here, and the Worker is answered from them on every request.
   const facts = createFacts(options.id);
-  const mounted = mount<WorkerOptions>((env) => referenceWorker(env, facts));
   // LOG-3, ENDP-33: the arrangement, and the whole of it. A verifier holding no knowledge of this
   // Worker's domain still has a way to make a record exist — read anything — which is what lets it
   // see that a newer record reaches the top of the feed and that a cursor never carries it back.
@@ -325,23 +323,23 @@ export function createWorker(options: WorkerOptions = {}): Server {
   // because it is the arrangement itself — a double that could be run without it could not be
   // checked against LOG-3 or ENDP-33 at all.
   let served = 0;
-  const serve = async (request: Request): Promise<Response> => {
-    const answer = await mounted.fetch(request, options);
+  const mounted = mount<WorkerOptions>((env) => referenceWorker(env, facts), {
     // The count is in the record because two requests for one address inside one millisecond would
     // otherwise be byte-identical, and a verifier comparing records has nothing else to tell them
     // apart — LOG-4 gives a record no identity. A Worker whose every line is identical makes ENDP-33
     // unobservable, which is a property of that Worker; this one does not make the check guess.
-    // LOG-11: under the trace the request belongs to — the one its `traceparent` named, or one
-    // begun here. `traceOf` is what `mount()` reads the header with, so a verifier that sent a
-    // trace finds this record by it; the span is this wrapper's own, as a Worker's tracer's would be.
-    facts.logs.record(
-      answer.status >= 500 ? "error" : "info",
-      `${request.method} ${request.url}`,
-      { status: answer.status, served: ++served },
-      traceOf(request.headers),
-    );
-    return answer;
-  };
+    // LOG-11: under the trace `mount()` resolved for the request, which is the one every hook that
+    // answered it was told, so this line and theirs are one call's lines.
+    onAnswered: ({ request, response, trace }) =>
+      facts.logs.record({
+        level: response.status >= 500 ? "error" : "info",
+        message: `${request.method} ${request.url}`,
+        fields: { status: response.status, served: ++served },
+        trace,
+      }),
+  });
+  const serve = (request: Request): Promise<Response> =>
+    Promise.resolve(mounted.fetch(request, options));
   const base = (options.basePath ?? "").replace(/\/*$/, "");
   if (base === "") return createServer(getRequestListener(serve));
 

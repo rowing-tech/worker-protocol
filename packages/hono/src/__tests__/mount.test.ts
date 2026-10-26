@@ -709,7 +709,7 @@ describe("mount(), telling a performance about its call", () => {
     tasks: {
       raises: {},
       current: () => [],
-      covers: (_token, principal) => {
+      covers: ({ principal }) => {
         covered.push(principal);
         return undefined;
       },
@@ -1042,7 +1042,7 @@ describe("mount(), a call that names the Task it answers", () => {
         { id: "D-2", type: REVIEW, payload: {}, since: SINCE, available: ["send-back"] },
         { id: "V-1", type: INSPECT, payload: {}, since: SINCE },
       ],
-      covers: (token) => (token === "narrow" ? ["D-1"] : undefined),
+      covers: ({ token }) => (token === "narrow" ? ["D-1"] : undefined),
     },
   });
 
@@ -1228,7 +1228,7 @@ describe("mount(), a credential that does not cover every Action", () => {
         }),
       },
       // `watch` covers no Action, `send-back` only that one, and anything else every one.
-      covers: (token) =>
+      covers: ({ token }) =>
         token === "watch" ? [] : token === "send-back" ? ["send-back"] : undefined,
     },
     tasks: {

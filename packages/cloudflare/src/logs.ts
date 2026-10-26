@@ -51,6 +51,10 @@ const SCHEMA: Schema = {
       "ALTER TABLE wp_log ADD COLUMN span TEXT",
       "CREATE INDEX IF NOT EXISTS wp_log_trace ON wp_log (trace)",
     ],
+    // 3. The index step 2 made, dropped: the one query that filters by trace walks `seq` backwards
+    // under `ORDER BY seq DESC LIMIT` and never reads it, so it only cost a write on every insert
+    // and every trim. The window is capped at `keep`, which already bounds that walk.
+    ["DROP INDEX IF EXISTS wp_log_trace"],
   ],
 };
 
@@ -141,9 +145,8 @@ export function withLogs<B extends DurableObjectClass>(
         level: row.level,
         message: row.message,
         ...(row.fields === null ? {} : { fields: JSON.parse(row.fields) as LogRow["fields"] }),
-        ...(row.trace === null || row.span === null
-          ? {}
-          : { traceId: row.trace, spanId: row.span }),
+        traceId: row.trace ?? undefined,
+        spanId: row.span ?? undefined,
       }));
       // ENDP-20: the cursor exists exactly when the query found a row beyond the cap.
       const last = found.length > query.limit ? page.at(-1) : undefined;
@@ -178,9 +181,8 @@ export const durableLogs = (stub: LogsRpc, options: { pageSize: number }): LogFa
         level: row.level,
         message: row.message,
         ...(row.fields === undefined ? {} : { fields: row.fields }),
-        ...(row.traceId === undefined || row.spanId === undefined
-          ? {}
-          : { traceId: row.traceId, spanId: row.spanId }),
+        traceId: row.traceId,
+        spanId: row.spanId,
       })),
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     };

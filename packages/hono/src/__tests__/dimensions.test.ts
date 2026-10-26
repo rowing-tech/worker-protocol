@@ -100,7 +100,7 @@ describe("mount(), Tasks read by dimension through the Worker's own `read`", () 
       dimensions: ["base", "store"],
       current: () => OPEN,
       // TASK-6: the credential `narrow` reads every Task but t-3.
-      covers: (token) => (token === "narrow" ? ["t-1", "t-2", "t-4"] : undefined),
+      covers: ({ token }) => (token === "narrow" ? ["t-1", "t-2", "t-4"] : undefined),
       pageSize: 1,
       read: (query) => {
         asked.push(query);

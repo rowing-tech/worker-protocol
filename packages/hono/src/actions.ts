@@ -19,10 +19,9 @@
 
 import * as z from "zod";
 import type { ErrorCode } from "./codes.ts";
-import type { Covering, GrantRef } from "./grants.ts";
+import type { Covering } from "./grants.ts";
 import { availableFor, type OpenTask, openTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
-import type { Trace } from "./trace.ts";
-import type { Answer, Refusal } from "./worker.ts";
+import type { Answer, CallContext, Refusal } from "./worker.ts";
 
 /**
  * What a Worker declares about one Action, and what it does.
@@ -68,11 +67,9 @@ export type Action = {
 };
 
 /** What a performance knows about the call it arrived on, beyond its input. */
-export type ActionCall = {
+export type ActionCall = CallContext & {
   /** The Action's own name, for a handler shared between several. */
   name: string;
-  /** REG-3. The credential presented, for a Worker that splits its own facts by it. */
-  token: string | undefined;
   /**
    * ENDP-38. The key this call arrived under, as the caller sent it — from the header or from the
    * declared member of the input — and absent where the Action takes no key or none was sent.
@@ -92,23 +89,9 @@ export type ActionCall = {
    */
   idempotencyKey?: string;
   /**
-   * ENDP-42. The trace this call belongs to: the one its `traceparent` named, continued in a span
-   * of this Worker's own, or one `mount()` began. A record `run` writes carries `trace.traceId` and
-   * `trace.spanId` (LOG-11); a call to another Worker sends `traceparentOf(trace)` so the trace
-   * crosses (ENDP-43); a Worker running its own tracer hands this to it as the parent.
-   */
-  trace: Trace;
-  /** REG-3. Whom `authenticate` accepted, where it said. Absent where it answered `"accepted"`. */
-  principal?: unknown;
-  /**
-   * ENDP-34. The caller `authenticate` named, where it named one — the scope a header key is
-   * reserved under. Absent where it named none, and then every caller shares one scope.
-   */
-  caller?: string;
-  /**
-   * TASK-39. The open Task this call says it answers, as `find` or `current()` gave it, and absent where the
-   * call names none. By the time `run` sees it, it was open, its type lists this Action (TASK-40)
-   * and its `available` does not leave it out (TASK-41).
+   * TASK-39. The open Task this call says it answers, as `find` or `current()` gave it, and absent
+   * where the call names none. By the time `run` sees it, it was open, its type lists this Action
+   * (TASK-40) and its `available` does not leave it out (TASK-41).
    *
    * **This is where `task-answered` is published from (EVT-20), and only here.** `run` is reached
    * once per performance and never for a repeat ENDP-16 answers from the record, which is exactly
@@ -116,12 +99,6 @@ export type ActionCall = {
    * the answer in the same one. `taskAnswered()` builds the event.
    */
   task?: OpenTask;
-  /**
-   * GRANT-4. The grant whose credential made this call — its applicant and its id — and absent for
-   * any other credential. Hand it to `taskAnswered()` so its applicant's deliveries carry `contract`
-   * (EVT-22), and record `contractKey(call.grant)` under a `contract` dimension (MET-23).
-   */
-  grant?: GrantRef;
 };
 
 export type ActionDeclarations = Record<string, Action>;
@@ -161,19 +138,16 @@ export type ActionFacts = {
   /** ACT-16. Every Action this Worker accepts, keyed by name. */
   accepts: ActionDeclarations;
   /** ACT-21. The document `configure` would accept, where the Worker accepts settings. */
-  settings?: () => unknown | Promise<unknown>;
+  settings?: (call: CallContext) => unknown | Promise<unknown>;
   /**
    * ACT-22. Which Actions the credential presented covers, by name, or `undefined` for all of them.
    *
-   * The same shape as the `covers` of Tasks, and asked the same way: once per call, with whom
-   * `authenticate` accepted. A declared Action left out is `403` before its body is read, and a
+   * The same shape as the `covers` of Tasks, and asked the same way: once per call, with the
+   * call's context — whom `authenticate` accepted among it. A declared Action left out is `403` before its body is read, and a
    * Task read with this credential leaves it out of `available` (TASK-44). A Worker holding one
    * static secret leaves this out and covers everything with it.
    */
-  covers?: (
-    token: string | undefined,
-    principal?: unknown,
-  ) => string[] | undefined | Promise<string[] | undefined>;
+  covers?: (call: CallContext) => string[] | undefined | Promise<string[] | undefined>;
   /**
    * ENDP-16. Where the recorded outcomes live. **Required as soon as any Action declares a key.**
    *
@@ -316,20 +290,12 @@ type Performance = {
   raw: string;
   /** The `Idempotency-Key` header, where one was sent. */
   key: string | undefined;
-  /** REG-3: the credential presented. */
-  token: string | undefined;
-  /** Whom `authenticate` accepted, where it said. */
-  principal: unknown;
-  /** ENDP-34: the caller `authenticate` named, where it named one. */
-  caller: string | undefined;
   /** TASK-39: the `Worker-Protocol-Task` header, unread, where one was sent. */
   task: string | undefined;
-  /** ENDP-42: the trace `mount()` resolved for this request. */
-  trace: Trace;
+  /** Who is calling and in which trace, as `mount()` resolved it once for this request. */
+  context: CallContext;
   /** TASK-6, ACT-22, GRANT-8: what this request's credential covers, worked out once. */
   covering: Covering;
-  /** GRANT-4: that grant's applicant and id, for `call.grant`. */
-  grant?: GrantRef;
 };
 
 /** The `tasks` entry's declaration and facts, which a call naming a Task is checked against. */
@@ -384,7 +350,7 @@ async function answering(
   // `current()` only where it did not.
   const [reads, task] = await Promise.all([
     covering.tasks(),
-    tasks === undefined ? undefined : openTask(tasks, named.id),
+    tasks === undefined ? undefined : openTask(tasks, { id: named.id, context: call }),
   ]);
   const gone =
     task === undefined ||
@@ -419,14 +385,11 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
     name,
     raw,
     key,
-    token,
-    principal,
-    caller,
     task: header,
-    trace,
+    context,
     covering,
-    grant,
   }: Performance): Promise<Answer | Refusal> {
+    const { caller } = context;
     // ACT-6: an Action the entry does not declare is a resource that does not exist.
     const declaration = facts.accepts[name];
     if (declaration === undefined) {
@@ -463,7 +426,7 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
       const hidden = writeOnlyMembers(declaration.input);
       const omitted = [...hidden].filter((member) => !(member in parsed));
       if (omitted.length > 0) {
-        const current = await facts.settings();
+        const current = await facts.settings(context);
         if (isRecord(current)) {
           for (const member of omitted) if (member in current) parsed[member] = current[member];
         }
@@ -542,15 +505,7 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
       }
     }
 
-    const call: ActionCall = {
-      name,
-      token,
-      idempotencyKey: recordedKey,
-      trace,
-      principal,
-      caller,
-      ...(grant === undefined ? {} : { grant }),
-    };
+    const call: ActionCall = { ...context, name, idempotencyKey: recordedKey };
     let produced: unknown;
     try {
       // TASK-39, TASK-40, TASK-41: the Task the call names, asked after the key was taken (TASK-42)

@@ -17,6 +17,47 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-26 — edition 0.11
+
+All five packages still encode **edition 0.11**. A MINOR because every hook a Worker writes now
+receives the request it is answering, which changes the shape of three of them, and because trace
+helpers 0.13.0 exported from hono are withdrawn.
+
+### Changed
+
+- hono: **every hook is told one `CallContext`** — `{ token, principal?, caller?, grant?, trace }`,
+  built once per request by `mount()` — as its last argument: `health`, `alerts`, `activity`,
+  `nudges`, `settings`, `metrics.read`, `logs.read`, `tasks.current`, `tasks.find`, `tasks.read`
+  and `subscriptions.allows`. For hooks that took nothing this is additive. A Worker that writes a
+  record while answering any of them can now carry the call's trace (LOG-11), which only an
+  Action's `run` could before. `ActionCall` is the same context with `name`, `idempotencyKey` and
+  `task` beside it, so `refuses` sees one shape whether a read or a perform asks.
+- hono, **breaking**: `tasks.covers` and `actions.covers` take the context —
+  `({ token, principal })` where they took `(token, principal)` — and `grants.applicants` takes it
+  too, as `({ caller, principal })` where it took `(caller, principal)`.
+- hono, **breaking**: `traceparentOf(trace)` is replaced by `traceHeadersOf(trace)`, which answers
+  `{ traceparent, tracestate? }` to spread into a call to another Worker. `tracestate` now crosses
+  a chain of Workers untouched, as ENDP-42 says it does; `traceparentOf` dropped it.
+
+### Added
+
+- hono: `mount(worker, { onAnswered })`, told after every request with the response, the trace
+  `mount()` resolved and the `CallContext` where the credential was accepted. A host that records
+  around the Worker records under the same trace its hooks did; `conformance/reference-worker`
+  does, where it used to read `traceparent` again and land in a sibling span or a new trace.
+- schemas: `TRACE_ID` and `SPAN_ID`, the one home of how W3C Trace Context spells both ids, beside
+  `INSTANT`; and `traceId()`, `spanId()` and `traceparent()`, the one place either id is minted.
+  hono, client and the verifier each kept a copy, and the verifier's had lost the guard against an
+  id of all zeros.
+
+### Removed
+
+- cloudflare: the `wp_log_trace` index 0.13.0 created, by a migration step: the trace read walks the
+  window by `seq` and never used it, so every insert and trim paid for nothing.
+- hono: `spanIn`, `parseTraceparent`, `TRACE_ID`, `SPAN_ID` and `traceparentOf` are no longer
+  exported. Import the two patterns from `@worker-protocol/schemas`. `traceOf`, `traceHeadersOf`,
+  `Trace` and `CallContext` are what hono exports for a trace.
+
 ## [0.13.1] - 2026-10-26 — edition 0.11
 
 All five packages still encode **edition 0.11**. One hook, asked for by a Worker whose Tasks are

@@ -1,9 +1,10 @@
+import { SPAN_ID, TRACE_ID } from "@worker-protocol/schemas";
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
 import { action } from "../actions.ts";
 import type { LogRecord } from "../logs.ts";
 import { mount } from "../mount.ts";
-import { parseTraceparent, SPAN_ID, TRACE_ID, type Trace, traceparentOf } from "../trace.ts";
+import { parseTraceparent, type Trace, traceHeadersOf } from "../trace.ts";
 
 /**
  * ENDP-42, LOG-11 and LOG-12 as `mount()` serves them: the trace a call belongs to, continued
@@ -95,7 +96,7 @@ describe("mount(), the trace a call belongs to (ENDP-42, LOG-11, LOG-12)", () =>
     expect(trace.spanId).not.toBe(PARENT);
     expect(trace.sampled).toBe(true);
     // ENDP-43: what this Worker sends on to the next one names its own span as the parent.
-    expect(traceparentOf(trace)).toBe(`00-${TRACE}-${trace.spanId}-01`);
+    expect(traceHeadersOf(trace)).toEqual({ traceparent: `00-${TRACE}-${trace.spanId}-01` });
   });
 
   it("begins one where no header came, and where the one that came cannot be read", async () => {
@@ -114,7 +115,13 @@ describe("mount(), the trace a call belongs to (ENDP-42, LOG-11, LOG-12)", () =>
       traceparent: `00-${TRACE}-${PARENT}-01`,
       tracestate: "vendor=opaque",
     });
-    expect(((await answer.json()) as Trace).tracestate).toBe("vendor=opaque");
+    const trace = (await answer.json()) as Trace;
+    expect(trace.tracestate).toBe("vendor=opaque");
+    // ENDP-42: what this Worker sends on carries it, untouched, beside its own span.
+    expect(traceHeadersOf(trace)).toEqual({
+      traceparent: `00-${TRACE}-${trace.spanId}-01`,
+      tracestate: "vendor=opaque",
+    });
   });
 
   it("answers the records of one trace, and refuses a `trace` of another form", async () => {
@@ -132,5 +139,50 @@ describe("mount(), the trace a call belongs to (ENDP-42, LOG-11, LOG-12)", () =>
     const refused = await read(`?trace=${TRACE.toUpperCase()}`);
     expect(refused.status).toBe(400);
     expect(((await refused.json()) as { code: string }).code).toBe("invalid_parameter");
+  });
+});
+
+describe("mount(), one trace per request for every hook and for `onAnswered`", () => {
+  it("tells `health` and `onAnswered` the same trace, and `onAnswered` the call it resolved", async () => {
+    const seen: { hook?: Trace; answered?: Trace; caller?: string } = {};
+    const app = mount(
+      {
+        id: "tech.rowing.worker-protocol.context",
+        authenticate: () => ({ verdict: "accepted", caller: "operator" }),
+        health: (call) => {
+          seen.hook = call.trace;
+          return { status: "healthy", checks: {} };
+        },
+      },
+      {
+        onAnswered: ({ trace, call }) => {
+          seen.answered = trace;
+          seen.caller = call?.caller;
+        },
+      },
+    );
+    const answer = await app.fetch(
+      new Request("http://worker.invalid/health", {
+        headers: { traceparent: `00-${TRACE}-${PARENT}-01` },
+      }),
+    );
+    expect(answer.status).toBe(200);
+    expect(seen.hook?.traceId).toBe(TRACE);
+    expect(seen.answered).toEqual(seen.hook);
+    expect(seen.caller).toBe("operator");
+  });
+
+  it("tells `onAnswered` about a request refused before any hook, with no call", async () => {
+    let answered: { status: number; call?: unknown } | undefined;
+    const app = mount(
+      { id: "tech.rowing.worker-protocol.context", authenticate: () => "unauthenticated" },
+      {
+        onAnswered: ({ response, call }) => {
+          answered = { status: response.status, call };
+        },
+      },
+    );
+    await app.fetch(new Request("http://worker.invalid/.well-known/worker-protocol"));
+    expect(answered).toEqual({ status: 401, call: undefined });
   });
 });

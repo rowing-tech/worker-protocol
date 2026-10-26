@@ -16,6 +16,7 @@ import {
   registry,
   subscriptionPage,
   subscriptionReceipt,
+  TRACE_ID,
   taskPage,
 } from "@worker-protocol/schemas";
 import { byCode, type ErrorCode } from "./codes.ts";
@@ -128,7 +129,6 @@ const expectedVersion = z.coerce
     minimum: 1,
   });
 
-/** The one header every operation takes. */
 /** ENDP-42 — every request may name the trace it belongs to, and none is refused for how it did. */
 const traceparent = z
   .string()
@@ -141,6 +141,7 @@ const traceparent = z
     example: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
   });
 
+/** The headers every operation takes. */
 const versionHeader = z.object({
   "Worker-Protocol-Capability-Version": expectedVersion,
   traceparent,
@@ -546,7 +547,7 @@ export const readLogs = createRoute({
       ),
       trace: z
         .string()
-        .regex(/^[0-9a-f]{32}$/)
+        .regex(TRACE_ID)
         .optional()
         .openapi({
           description: cite(

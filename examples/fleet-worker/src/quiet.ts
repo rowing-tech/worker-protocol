@@ -35,7 +35,11 @@ export const quietAfterMs = (env: Pick<Env, "QUIET_AFTER_MINUTES">): number => {
 export const QUIET_VEHICLE = "tech.rowing.fleet.inspect-quiet-vehicle";
 
 /** What every Task id this Worker raises begins with, before the vehicle it is about. */
-export const QUIET_PREFIX = "quiet:";
+const QUIET_PREFIX = "quiet:";
+
+/** The vehicle a Task id names, or `undefined` for an id this Worker never raised. */
+export const vehicleOf = (id: string): string | undefined =>
+  id.startsWith(QUIET_PREFIX) ? id.slice(QUIET_PREFIX.length) : undefined;
 
 /**
  * A quiet vehicle as the Task it is (TASK-28), written once for the two places that need it: what

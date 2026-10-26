@@ -32,7 +32,6 @@ import {
   defineWorker,
   eventHub,
   LIFECYCLE,
-  type LogLevel,
   type LogRecord,
   memoryDeliveries,
   memoryGrants,
@@ -188,17 +187,18 @@ deliveries.consume(hub.deliver);
 const KEEP = 200;
 const recorded: (LogRecord & { seq: number })[] = [];
 let nextSeq = 1;
-const record = (
-  level: LogLevel,
-  message: string,
-  fields: LogRecord["fields"],
-  trace?: Trace,
-): void => {
+const record = (line: Omit<LogRecord, "at" | "traceId" | "spanId"> & { trace?: Trace }): void => {
   // The call this line was written in, where it was written in one: a console asks for a call's
   // lines by it, and an operator finds the same trace in whatever backend this Worker's builders
   // run. `mount()` read it off the call's `traceparent`, or began one; a cron would pass none.
-  const ids = trace === undefined ? {} : { traceId: trace.traceId, spanId: trace.spanId };
-  recorded.push({ seq: nextSeq++, at: new Date(), level, message, fields, ...ids });
+  const { trace, ...rest } = line;
+  recorded.push({
+    seq: nextSeq++,
+    at: new Date(),
+    ...rest,
+    traceId: trace?.traceId,
+    spanId: trace?.spanId,
+  });
   if (recorded.length > KEEP) recorded.splice(0, recorded.length - KEEP);
 };
 
@@ -238,7 +238,12 @@ const check = async (vehicle: string, trace: Trace) => {
   checked.add(vehicle);
   // One line for a person, and a flat map of scalars beside it for a console to render as key and
   // value rather than as a sentence somebody has to parse back out.
-  record("info", "check recorded", { vehicle, outstanding: silent.size - checked.size }, trace);
+  record({
+    level: "info",
+    message: "check recorded",
+    fields: { vehicle, outstanding: silent.size - checked.size },
+    trace,
+  });
   // The Task is gone at the next read because its condition no longer holds, and this is the one
   // moment anybody can say so: the Worker publishes it, and nobody closes anything.
   await hub.publish(taskEnded({ id: taskOf(vehicle), type: SILENT_VEHICLE }));
@@ -369,12 +374,12 @@ export const fleetWorker = defineWorker<Env>((env) => ({
       configure: action({
         input: z.object({ label: z.string().min(1), quietAfterMinutes: z.number().int().min(1) }),
         run: (replacement, { trace }) => {
-          record(
-            "warn",
-            "settings replaced",
-            { from: configuration.label, to: replacement.label },
+          record({
+            level: "warn",
+            message: "settings replaced",
+            fields: { from: configuration.label, to: replacement.label },
             trace,
-          );
+          });
           configuration = replacement;
           return null;
         },
@@ -519,7 +524,7 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   // how this Worker validates that credential without calling anybody. `mount()` serves the
   // address, mints each credential and derives what one covers, so nothing else in this file
   // checks one. Who may apply is this Worker's own: here, the one caller `authenticate` names.
-  grants: { store: grants, applicants: (caller) => caller === "operator" },
+  grants: { store: grants, applicants: ({ caller }) => caller === "operator" },
 }));
 
 /**

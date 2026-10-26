@@ -123,33 +123,22 @@ export async function readDescriptor(
 
   // ENDP-42: a header nobody could parse is treated as absent, and a well-formed one continues the
   // trace; neither changes the answer, because a tracing fault upstream is not a reason to refuse.
-  const garbled = await transcript.send(
-    url,
-    "the Descriptor route, under a `traceparent` nobody could parse",
-    { headers: { traceparent: "not-a-traceparent" } },
-  );
-  const traced = await transcript.send(
-    url,
-    "the Descriptor route, under a trace of the verifier's",
-    {
-      headers: { traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" },
-    },
-  );
-  if (garbled.status !== first.status) {
-    say(
-      "ENDP-42",
-      "fails",
-      `a \`traceparent\` that cannot be read changed the answer from ${first.status} to ${garbled.status}`,
-    );
-  } else if (traced.status !== first.status) {
-    say(
-      "ENDP-42",
-      "fails",
-      `a well-formed \`traceparent\` changed the answer from ${first.status} to ${traced.status}`,
-    );
-  } else {
-    say("ENDP-42", "passes");
+  const probes = [
+    ["not-a-traceparent", "a `traceparent` that cannot be read"],
+    ["00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", "a well-formed `traceparent`"],
+  ] as const;
+  let changed: string | undefined;
+  for (const [traceparent, which] of probes) {
+    const probed = await transcript.send(url, `the Descriptor route, under ${which}`, {
+      headers: { traceparent },
+    });
+    if (probed.status !== first.status) {
+      changed = `${which} changed the answer from ${first.status} to ${probed.status}`;
+      break;
+    }
   }
+  if (changed === undefined) say("ENDP-42", "passes");
+  else say("ENDP-42", "fails", changed);
 
   const validation = descriptorSchema.safeParse(first.json);
 

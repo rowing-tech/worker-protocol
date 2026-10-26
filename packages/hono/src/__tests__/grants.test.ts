@@ -74,7 +74,10 @@ const build = () => {
     queue,
     fetch,
   };
-  const grants = { store: memoryGrants(), applicants: (caller: string | null) => caller !== "ops" };
+  const grants = {
+    store: memoryGrants(),
+    applicants: ({ caller }: { caller: string }) => caller !== "ops",
+  };
   let runs = 0;
   const run = () => {
     runs += 1;
@@ -418,7 +421,7 @@ describe("contract, for the applicant only", () => {
     };
     const grants = {
       store: memoryGrants(),
-      applicants: (caller: string | null) => caller !== "ops",
+      applicants: ({ caller }: { caller: string }) => caller !== "ops",
     };
     const hub = eventHub({ id: ID, events, subscriptions, grants });
     queue.consume(hub.deliver);

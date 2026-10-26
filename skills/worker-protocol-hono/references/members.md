@@ -10,25 +10,32 @@ and the rule each one cites.
 - `authenticate: (token) => "accepted" | "unauthenticated" | "forbidden" | "unavailable"`, or a
   promise of one. It may await: validating a token against an identity provider is a network call
   (REG-3). Accepting may answer `{ verdict: "accepted", principal, caller }` instead, both optional:
-  `principal` reaches an Action's `run` and `tasks.covers(token, principal)`, so neither looks the
-  holder up again, and `caller` is the stable string a header idempotency key is scoped to
-  (ENDP-34). `"unavailable"` means the check could not run — the provider is down, rate limited or
-  silent — and `mount()` answers `503`, `retry`; `{ verdict: "unavailable", retryAfter }`, whole
-  seconds, adds `Retry-After`. A throw from it, or from the builder, is answered `500`
-  `internal_error` in the envelope; an `onError` set on the app after `mount()` replaces that.
+  `principal` reaches every hook through its `CallContext`, so none looks the holder up again, and
+  `caller` is the stable string a header idempotency key is scoped to (ENDP-34). `"unavailable"`
+  means the check could not run — the provider is down, rate limited or silent — and `mount()`
+  answers `503`, `retry`; `{ verdict: "unavailable", retryAfter }`, whole seconds, adds
+  `Retry-After`. A throw from it, or from the builder, is answered `500` `internal_error` in the
+  envelope; an `onError` set on the app after `mount()` replaces that.
+- **Every hook below is told one `CallContext`** — `{ token, principal?, caller?, grant?, trace }`,
+  built once per request by `mount()` — as its last argument: `health(call)`, `alerts(call)`,
+  `activity(call)`, `nudges(type, call)`, `settings(call)`, `metrics.read(query, call)`,
+  `logs.read(query, call)`, `tasks.current(call)`, `tasks.find(id, call)`,
+  `tasks.read(query, call)`, `tasks.covers(call)`, `actions.covers(call)` and
+  `grants.applicants(call)`. A record written in any of them carries `call.trace.traceId` and
+  `call.trace.spanId` (LOG-11).
 - `skills: { [type]: { payload?, produces?: { [action]: schema } } }` — the Task types this Worker
   answers: what it needs to receive, and what it hands back for each of the owner's answering
   Actions it can perform, by that Action's name (TASK-36). It sits at the root because a Skill is
   served at no address — it is what the Worker *is*, where a Capability is what it *serves*.
 - `edition?: string` — only to pin the edition verified against. Otherwise the package's.
 
-## The nine Capabilities
+## The eleven Capabilities
 
-- `health: () => ({ status, checks })` — one status, named checks beneath it. Never better than its
-  checks (HLTH-3).
+- `health: (call) => ({ status, checks })` — one status, named checks beneath it. Never better
+  than its checks (HLTH-3).
 - `metrics: { timeZone, publishes, read({ metric, granularity, buckets, fixed, by }) }` — answer
   `{ start, value }` per bucket there is a number for, omitting the rest (MET-15).
-- `actions: { accepts, settings?, outcomes?, covers? }` — `covers(token, principal)` answers the
+- `actions: { accepts, settings?, outcomes?, covers? }` — `covers(call)` answers the
   Action names the credential covers, or `undefined` for all: `mount()` answers any other declared
   Action `403` before the body and the key, and leaves it out of `available` (ACT-22, TASK-44).
   Each entry of `accepts` is
@@ -37,10 +44,11 @@ and the rule each one cites.
   `mount()` asks it after a repeat is replayed and before `run`, answering `409 conflict`, and asks
   it of every open Task the Action answers with that Task's `inputs`, leaving refused answers out
   of `available` (ACT-17, TASK-38). The input it gets may be partial.
-  `run(input, call)` is told `call.name`, `call.token`, `call.idempotencyKey` — the key as the
-  caller sent it — `call.principal`, `call.caller`, `call.trace` — the trace the call belongs to,
+  `run(input, call)` is told the `CallContext` and beside it `call.name`, `call.idempotencyKey` —
+  the key as the caller sent it — and `call.task`. `call.trace` is the trace the call belongs to,
   continued from `traceparent` or begun by `mount()` (ENDP-42): record under `traceId` and `spanId`,
-  send `traceparentOf(call.trace)` to any Worker this one calls — and `call.task`, the open Task a
+  and spread `traceHeadersOf(call.trace)` into any call this Worker makes to another, which carries
+  `tracestate` on untouched (ENDP-43). `call.task` is the open Task a
   call named in `Worker-Protocol-Task`. `mount()` has already refused one that is not open (`404`,
   TASK-39), whose type does not list the Action (`400`, TASK-40) or that does not offer it now
   (`409`, TASK-41), after the key, so a repeat is replayed first (TASK-42), and a header key naming
@@ -95,7 +103,7 @@ and the rule each one cites.
   `wantedHere` inside the Durable Object that holds them),
   and `route`, `deliverAll` and `later` for a carrier that makes the first attempt itself, as
   `consumeQueues` does.
-- `grants: { store, applicants(caller, principal) }` — `store` a `GrantStore` (`memoryGrants()` in
+- `grants: { store, applicants(call) }` — `store` a `GrantStore` (`memoryGrants()` in
   one process); `applicants` which callers may apply, required, and `mount()` refuses to build
   without it (GRANT-2). The applicant is the `caller` your `authenticate` names, and a caller it
   names nothing for is refused `403` without `applicants` being asked — a Worker holding one static

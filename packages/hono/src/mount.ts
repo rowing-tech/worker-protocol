@@ -43,7 +43,7 @@ import {
 } from "./surfaces.ts";
 import { tasks as taskSurface } from "./tasks.ts";
 import { type Trace, traceOf } from "./trace.ts";
-import type { Answer, Refusal, Worker } from "./worker.ts";
+import type { Answer, CallContext, Refusal, Worker } from "./worker.ts";
 
 /**
  * Everything a conformant Worker owes and nobody should write twice, as one Hono app.
@@ -190,17 +190,15 @@ const strayParameter = (c: Context): Response | undefined => {
 };
 
 /**
- * What the guard settled about one request, and all a handler is handed beside the context: the
- * Worker it resolved, whom `authenticate` accepted, and the caller it named (ENDP-34).
+ * What the guard settled about one request, and all a handler is handed beside Hono's context: the
+ * Worker it resolved, and the `CallContext` every hook of that Worker is told — built here once,
+ * so no route assembles its own subset of it.
  */
 type Resolved = {
   worker: Worker;
-  principal: unknown;
-  caller: string | undefined;
-  /** GRANT-8: the grant the credential was issued for, where it was issued for one. */
+  context: CallContext;
+  /** GRANT-8: the grant the credential was issued for, where it was issued for one, whole. */
   grant?: StoredGrant;
-  /** ENDP-42: the trace this request belongs to, continued from `traceparent` or begun here. */
-  trace: Trace;
 };
 
 /**
@@ -208,19 +206,14 @@ type Resolved = {
  * narrowed by the Worker's own hooks — worked out in one place and handed to every surface that
  * divides it.
  */
-const coveringFor = (
-  c: Context,
-  { worker, principal, grant }: Pick<Resolved, "worker" | "principal" | "grant">,
-): Covering => {
-  const token = bearer(c);
-  return coveringOf({
+const coveringFor = ({ worker, context, grant }: Resolved): Covering =>
+  coveringOf({
     grant,
     own: {
-      tasks: worker.tasks?.covers && (() => worker.tasks?.covers?.(token, principal)),
-      actions: worker.actions?.covers && (() => worker.actions?.covers?.(token, principal)),
+      tasks: worker.tasks?.covers && (() => worker.tasks?.covers?.(context)),
+      actions: worker.actions?.covers && (() => worker.actions?.covers?.(context)),
     },
   });
-};
 
 /** GRANT-2, GRANT-10: the refusal a credential gets on what it does not cover, said once. */
 const notCovered = () =>
@@ -297,7 +290,7 @@ function unguarded(worker: Worker): string | null {
   if (worker.grants === undefined || typeof worker.grants.applicants === "function") return null;
   return (
     "GRANT-2: this Worker declares `grants` and no `applicants`, so nobody may apply a grant and " +
-    "every caller is refused `403`. Name which callers may: `applicants: (caller) => caller === " +
+    "every caller is refused `403`. Name which callers may: `applicants: ({ caller }) => caller === " +
     '"tower"`, for the caller your `authenticate` names for the Tower.'
   );
 }
@@ -453,7 +446,31 @@ function descriptorOf(worker: Worker, edition: string): string {
   return JSON.stringify(document);
 }
 
-export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
+/** What a host may hand `mount()` beside the Worker. */
+export type MountOptions = {
+  /**
+   * Told after every request this app answers, with the response and the trace that request
+   * belongs to — the one `mount()` resolved and every hook was told (ENDP-42), not a second one.
+   * `call` is the request's `CallContext` where the credential was accepted, and absent for a
+   * request refused before that, or one to an address nobody serves.
+   *
+   * It is for a host that records on its own account around the Worker, as
+   * `conformance/reference-worker` records every request: a record written here carries the same
+   * trace as the records the Worker's hooks wrote for that call (LOG-11). What it answers never
+   * reaches the caller; a throw is written to the log and the response is sent as it was.
+   */
+  onAnswered?: (answered: {
+    request: Request;
+    response: Response;
+    trace: Trace;
+    call?: CallContext;
+  }) => void | Promise<void>;
+};
+
+export function mount<E = unknown>(
+  source: WorkerSource<E>,
+  options: MountOptions = {},
+): OpenAPIHono {
   /**
    * What the runtime gave this request, where it gave one.
    *
@@ -552,6 +569,36 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     }
   });
 
+  // ENDP-42: every request belongs to a trace, the caller's or one begun here, resolved once and
+  // before anything can refuse the request — so the guard, every hook and `onAnswered` see one.
+  const traces = new WeakMap<Context, Trace>();
+  const traceFor = (c: Context): Trace => {
+    let trace = traces.get(c);
+    if (trace === undefined) {
+      trace = traceOf(c.req.raw.headers);
+      traces.set(c, trace);
+    }
+    return trace;
+  };
+  const { onAnswered } = options;
+  if (onAnswered !== undefined) {
+    app.use(async (c, next) => {
+      const trace = traceFor(c);
+      await next();
+      const entry = resolved.get(c);
+      try {
+        await onAnswered({
+          request: c.req.raw,
+          response: c.res,
+          trace,
+          ...(entry === undefined ? {} : { call: entry.context }),
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  }
+
   /** ENDP-37: every response from an address a Capability entry declares states its version. */
   const capabilityVersion: MiddlewareHandler = async (c, next) => {
     await next();
@@ -628,15 +675,22 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     // asked, so it never reaches the Worker's identity provider. Revoked or rotated away, it is in
     // neither, and is `401` (GRANT-9).
     const token = bearer(c);
-    // ENDP-42: every request belongs to a trace, the caller's or one begun here, and nothing about
-    // the header it carried can refuse it.
-    const trace = traceOf(c.req.raw.headers);
+    const trace = traceFor(c);
     const grant =
       worker.grants !== undefined && token !== undefined && mayBeIssued(token)
         ? await worker.grants.store.byDigest(await digestOf(token))
         : undefined;
     if (grant !== undefined) {
-      resolved.set(c, { worker, principal: undefined, caller: grantCaller(grant), grant, trace });
+      resolved.set(c, {
+        worker,
+        context: {
+          token,
+          caller: grantCaller(grant),
+          grant: { applicant: grant.applicant, id: grant.id },
+          trace,
+        },
+        grant,
+      });
     } else {
       const answered = (await worker.authenticate?.(token)) ?? "accepted";
       // Not a verdict on the credential but on whether it could be judged, so it says nothing
@@ -666,11 +720,15 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
         );
         return envelope({ code: "internal_error", message: "The Worker failed." });
       }
+      const principal = typeof answered === "string" ? undefined : answered.principal;
       resolved.set(c, {
         worker,
-        principal: typeof answered === "string" ? undefined : answered.principal,
-        caller,
-        trace,
+        context: {
+          token,
+          ...(principal === undefined ? {} : { principal }),
+          ...(caller === undefined ? {} : { caller }),
+          trace,
+        },
       });
     }
 
@@ -746,16 +804,18 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   );
 
   // HLTH-5: `200` whatever it reports. The status is read from the body.
-  serve({ capability: "health", path: "/health", route: pollHealth }, async (c, { worker }) =>
-    worker.health ? c.json(await worker.health(), 200) : undeclared("health"),
+  serve(
+    { capability: "health", path: "/health", route: pollHealth },
+    async (c, { worker, context }) =>
+      worker.health ? c.json(await worker.health(context), 200) : undeclared("health"),
   );
 
   serve(
     { capability: "metrics", path: "/metrics", route: readMetric, ownParameters: true },
-    async (c, { worker, caller }) => {
+    async (c, { worker, context }) => {
       const read = surfacesOf(worker).metrics;
       if (!read) return undeclared("metrics");
-      return page(c, await read(query(c), caller ?? null));
+      return page(c, await read(query(c), context));
     },
   );
 
@@ -763,8 +823,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   serve(
     { capability: "actions", path: "/actions", route: performAction, ownParameters: true },
     async (c, resolved) => {
-      const { worker, principal, caller, grant, trace } = resolved;
-      const perform = surfacesOf(worker).actions;
+      const perform = surfacesOf(resolved.worker).actions;
       if (!perform) return undeclared("actions");
       return reply(
         c,
@@ -772,13 +831,9 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           name: query(c).get("action") ?? "",
           raw: await c.req.text(),
           key: c.req.header("idempotency-key"),
-          token: bearer(c),
-          principal,
-          caller,
           task: c.req.header("worker-protocol-task"),
-          trace,
-          covering: coveringFor(c, resolved),
-          ...(grant === undefined ? {} : { grant: { applicant: grant.applicant, id: grant.id } }),
+          context: resolved.context,
+          covering: coveringFor(resolved),
         }),
       );
     },
@@ -792,13 +847,13 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   app.get("/settings", async (c) => {
     const stray = strayParameter(c);
     if (stray) return stray;
-    const { worker } = held(c);
+    const { worker, context } = held(c);
     const settings = worker.actions?.settings;
     const configure = worker.actions?.accepts.configure;
     if (!settings || !configure) return undeclared("configure");
     // ACT-21: what `configure` would accept, without what its schema marks `writeOnly` — a value
     // that is sent and never read back, which is how an operator rotates a key nobody can read.
-    const current = (await settings()) as Record<string, unknown>;
+    const current = (await settings(context)) as Record<string, unknown>;
     const hidden = writeOnlyMembers(configure.input);
     return c.json(
       Object.fromEntries(Object.entries(current).filter(([name]) => !hidden.has(name))),
@@ -808,9 +863,9 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // ALRT-2, ENDP-20: the Alerts whose conditions hold, in the page envelope this app builds.
   serve(
     { capability: "alerts", path: "/alerts", route: readAlerts, ownParameters: true },
-    async (c, { worker }) =>
+    async (c, { worker, context }) =>
       worker.alerts
-        ? page(c, collection(await worker.alerts(), query(c), serializeSince))
+        ? page(c, collection(await worker.alerts(context), query(c), serializeSince))
         : undeclared("alerts"),
   );
 
@@ -819,9 +874,9 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // else here reorders — the same order the Tasks surface declares, for the same reason.
   serve(
     { capability: "activity", path: "/activity", route: readActivity, ownParameters: true },
-    async (c, { worker }) =>
+    async (c, { worker, context }) =>
       worker.activity
-        ? page(c, collection(await worker.activity(), query(c), serializeSince))
+        ? page(c, collection(await worker.activity(context), query(c), serializeSince))
         : undeclared("activity"),
   );
 
@@ -830,10 +885,10 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // so only the store holding it can filter and page it.
   serve(
     { capability: "logs", path: "/logs", route: readLogs, ownParameters: true },
-    async (c, { worker }) => {
+    async (c, { worker, context }) => {
       const read = surfacesOf(worker).logs;
       if (!read) return undeclared("logs");
-      return page(c, await read(query(c)));
+      return page(c, await read(query(c), context));
     },
   );
 
@@ -845,7 +900,8 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
    * owes exactly these answers, and a library's own `400` for a body it could not parse is not one
    * of them (ENDP-39).
    */
-  serve({ capability: "nudges", path: "/nudges", route: takeNudge }, async (c, { worker }) => {
+  serve({ capability: "nudges", path: "/nudges", route: takeNudge }, async (c, resolved) => {
+    const { worker, context } = resolved;
     if (!worker.nudges) return undeclared("nudges");
     let body: unknown;
     try {
@@ -868,24 +924,19 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
         message: `This Worker declares no Skill for ${told.data.type}.`,
       });
     }
-    await worker.nudges(told.data.type);
+    await worker.nudges(told.data.type, context);
     return c.body(null, 204);
   });
 
   // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers.
   serve(
     { capability: "tasks", path: "/tasks", route: readTasks, ownParameters: true },
-    async (c, { worker, principal, grant, trace }) => {
-      const tasks = surfacesOf(worker).tasks;
+    async (c, resolved) => {
+      const tasks = surfacesOf(resolved.worker).tasks;
       if (!tasks) return undeclared("tasks");
       return page(
         c,
-        await tasks.read(query(c), {
-          token: bearer(c),
-          principal,
-          trace,
-          covering: coveringFor(c, { worker, principal, grant }),
-        }),
+        await tasks.read(query(c), { context: resolved.context, covering: coveringFor(resolved) }),
       );
     },
   );
@@ -895,7 +946,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
    * DELETE that ends the subscription named in `subscription` (ENDP-36 lets this protocol fix that
    * verb). The list takes no parameter, and the POST and the DELETE check their own.
    */
-  const subscriptionsOf = (c: Context, { worker, caller, principal, grant }: Resolved) =>
+  const subscriptionsOf = ({ worker, context, grant }: Resolved) =>
     worker.subscriptions
       ? {
           surface: subscriptionsSurface({
@@ -905,9 +956,8 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           }),
           // SUB-8: the caller ENDP-34 scopes a key to. Naming none, every caller is one.
           call: {
-            caller: caller ?? null,
-            token: bearer(c),
-            principal,
+            ...context,
+            caller: context.caller ?? null,
             ...(grant === undefined ? {} : { events: grant.events }),
           },
         }
@@ -920,7 +970,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       route: listSubscriptions,
     },
     async (c, resolved) => {
-      const found = subscriptionsOf(c, resolved);
+      const found = subscriptionsOf(resolved);
       if (!found) return undeclared("subscriptions");
       return page(c, await found.surface.list(found.call));
     },
@@ -929,7 +979,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   serve(
     { capability: "subscriptions", path: "/subscriptions", route: subscribe, ownParameters: true },
     async (c, resolved) => {
-      const found = subscriptionsOf(c, resolved);
+      const found = subscriptionsOf(resolved);
       if (!found) return undeclared("subscriptions");
       const [stray] = Object.keys(c.req.query());
       if (stray !== undefined) {
@@ -950,7 +1000,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
       ownParameters: true,
     },
     async (c, resolved) => {
-      const found = subscriptionsOf(c, resolved);
+      const found = subscriptionsOf(resolved);
       if (!found) return undeclared("subscriptions");
       const parameters = query(c);
       const id = parameters.get("subscription");
@@ -973,8 +1023,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
    */
   const grantsOf = async ({
     worker,
-    caller,
-    principal,
+    context,
   }: Resolved): Promise<
     { surface: ReturnType<typeof grantsSurface>; applicant: string } | Response
   > => {
@@ -982,13 +1031,13 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     // GRANT-2: an applicant is a caller `authenticate` named. One it named nothing for is refused
     // without asking `applicants`, because `contract` would reach every unnamed reader (MET-23,
     // EVT-22) — a grant applied by nobody in particular is one everybody would be told about.
-    const applicant = caller;
+    const applicant = context.caller;
     const { applicants } = worker.grants;
     if (
       applicant === undefined ||
       applicant === "" ||
       typeof applicants !== "function" ||
-      !(await applicants(applicant, principal))
+      !(await applicants({ ...context, caller: applicant }))
     ) {
       return notCovered();
     }

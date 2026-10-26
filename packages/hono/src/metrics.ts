@@ -14,7 +14,7 @@ import { bucketsIn, type Granularity, halfOpen, rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { cursorAfter, encodeCursor } from "./collection.ts";
 import { contractKey } from "./grants.ts";
-import type { Refusal } from "./worker.ts";
+import type { CallContext, Refusal } from "./worker.ts";
 
 export type MetricDeclarations = Record<string, z.infer<typeof metricDeclaration>>;
 
@@ -53,7 +53,10 @@ export type MetricFacts = {
   /** MET-21. Every metric this Worker publishes, keyed by name. */
   publishes: MetricDeclarations;
   /** The Worker's own facts. Everything around this call is the specification's. */
-  read: (query: MetricQuery) => MetricSample[] | Refusal | Promise<MetricSample[] | Refusal>;
+  read: (
+    query: MetricQuery,
+    call: CallContext,
+  ) => MetricSample[] | Refusal | Promise<MetricSample[] | Refusal>;
   /** ENDP-19 (recommended). The most buckets one page carries. */
   pageSize?: number;
 };
@@ -70,9 +73,13 @@ export function metrics(facts: MetricFacts) {
 
   return async function read(
     query: URLSearchParams,
-    /** MET-23: who is asking, so a fixed `contract` means that caller's own grant of that id. */
-    caller: string | null = null,
+    /**
+     * Who is asking and in which trace. MET-23: the caller, so a fixed `contract` means that
+     * caller's own grant of that id.
+     */
+    context: CallContext,
   ): Promise<Refusal | MetricPage> {
+    const { caller } = context;
     // MET-8: a read names one metric. MET-9: one the entry does not declare is a resource that
     // does not exist, which is MET-10's division — the name is wrong, not the parameter.
     const name = query.get("metric");
@@ -146,13 +153,19 @@ export function metrics(facts: MetricFacts) {
     }
 
     const cut = bucketsIn(start, end, granularity, facts.timeZone);
-    const samples = await facts.read({
-      metric: name,
-      granularity,
-      buckets: cut.map((bucket) => ({ start: new Date(bucket.start), end: new Date(bucket.end) })),
-      fixed,
-      by,
-    });
+    const samples = await facts.read(
+      {
+        metric: name,
+        granularity,
+        buckets: cut.map((bucket) => ({
+          start: new Date(bucket.start),
+          end: new Date(bucket.end),
+        })),
+        fixed,
+        by,
+      },
+      context,
+    );
     if (!Array.isArray(samples)) return samples;
 
     const endOf = new Map(cut.map((bucket) => [bucket.start, bucket.end]));

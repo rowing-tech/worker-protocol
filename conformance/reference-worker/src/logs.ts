@@ -1,11 +1,4 @@
-import type {
-  LogFacts,
-  LogLevel,
-  LogPage,
-  LogQuery,
-  LogRecord,
-  Trace,
-} from "@worker-protocol/hono";
+import type { LogFacts, LogPage, LogQuery, LogRecord, Trace } from "@worker-protocol/hono";
 
 /**
  * The `logs` Capability, arranged to be checked.
@@ -38,21 +31,11 @@ export function createLogs() {
 
   // LOG-11: a record written while handling a call carries the call's trace, which is the one
   // thing about a request `server.ts` hands in beside what it is recording.
-  const record = (
-    level: LogLevel,
-    message: string,
-    fields?: LogRecord["fields"],
-    trace?: Pick<Trace, "traceId" | "spanId">,
-  ): void => {
+  const record = (line: Omit<LogRecord, "at" | "traceId" | "spanId"> & { trace?: Trace }): void => {
+    const { trace, ...rest } = line;
     held.push({
       seq: next++,
-      record: {
-        at: new Date(),
-        level,
-        message,
-        ...(fields === undefined ? {} : { fields }),
-        ...(trace === undefined ? {} : { traceId: trace.traceId, spanId: trace.spanId }),
-      },
+      record: { at: new Date(), ...rest, traceId: trace?.traceId, spanId: trace?.spanId },
     });
     // The oldest go first, which is what makes the end of this collection mean *the end of what I
     // still hold*. A cursor into what has been dropped answers an empty page, and `spec/logs.md`
