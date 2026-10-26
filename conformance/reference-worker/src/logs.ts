@@ -1,4 +1,11 @@
-import type { LogFacts, LogLevel, LogPage, LogQuery, LogRecord } from "@worker-protocol/hono";
+import type {
+  LogFacts,
+  LogLevel,
+  LogPage,
+  LogQuery,
+  LogRecord,
+  Trace,
+} from "@worker-protocol/hono";
 
 /**
  * The `logs` Capability, arranged to be checked.
@@ -29,10 +36,23 @@ export function createLogs() {
   const held: Held[] = [];
   let next = 1;
 
-  const record = (level: LogLevel, message: string, fields?: LogRecord["fields"]): void => {
+  // LOG-11: a record written while handling a call carries the call's trace, which is the one
+  // thing about a request `server.ts` hands in beside what it is recording.
+  const record = (
+    level: LogLevel,
+    message: string,
+    fields?: LogRecord["fields"],
+    trace?: Pick<Trace, "traceId" | "spanId">,
+  ): void => {
     held.push({
       seq: next++,
-      record: { at: new Date(), level, message, ...(fields === undefined ? {} : { fields }) },
+      record: {
+        at: new Date(),
+        level,
+        message,
+        ...(fields === undefined ? {} : { fields }),
+        ...(trace === undefined ? {} : { traceId: trace.traceId, spanId: trace.spanId }),
+      },
     });
     // The oldest go first, which is what makes the end of this collection mean *the end of what I
     // still hold*. A cursor into what has been dropped answers an empty page, and `spec/logs.md`
@@ -56,7 +76,9 @@ export function createLogs() {
             one.seq < before &&
             query.levels.includes(one.record.level) &&
             (query.from === undefined || one.record.at >= query.from) &&
-            (query.to === undefined || one.record.at < query.to),
+            (query.to === undefined || one.record.at < query.to) &&
+            // LOG-12: one trace, already validated by `mount()`.
+            (query.trace === undefined || one.record.traceId === query.trace),
         )
         .reverse();
 

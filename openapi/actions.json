@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — actions",
-    "version": "0.10",
+    "version": "0.11",
     "description": "Performing an operation a Worker accepts. The `configure` reading address of ACT-21 is not described here: its address is declared inside an Action rather than beside the Capability, and the document it answers is shaped by that Action's own input schema, which is the Worker's.",
     "license": {
       "name": "Apache-2.0",
@@ -45,6 +45,16 @@
             "schema": {
               "type": "string",
               "minLength": 1
+            }
+          },
+          {
+            "name": "traceparent",
+            "in": "header",
+            "required": false,
+            "description": "ENDP-42. W3C Trace Context. The Worker continues the trace this names, in a span of its own, or begins one where the header is absent or cannot be read — and never refuses a request for it. LOG-11: a record written while handling the call carries that trace.",
+            "schema": {
+              "type": "string",
+              "example": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
             }
           },
           {

@@ -40,6 +40,7 @@ import {
   memorySubscriptions,
   mount,
   type OpenTask,
+  type Trace,
   taskEnded,
   type Worker,
 } from "@worker-protocol/hono";
@@ -187,8 +188,17 @@ deliveries.consume(hub.deliver);
 const KEEP = 200;
 const recorded: (LogRecord & { seq: number })[] = [];
 let nextSeq = 1;
-const record = (level: LogLevel, message: string, fields?: LogRecord["fields"]): void => {
-  recorded.push({ seq: nextSeq++, at: new Date(), level, message, fields });
+const record = (
+  level: LogLevel,
+  message: string,
+  fields: LogRecord["fields"],
+  trace?: Trace,
+): void => {
+  // The call this line was written in, where it was written in one: a console asks for a call's
+  // lines by it, and an operator finds the same trace in whatever backend this Worker's builders
+  // run. `mount()` read it off the call's `traceparent`, or began one; a cron would pass none.
+  const ids = trace === undefined ? {} : { traceId: trace.traceId, spanId: trace.spanId };
+  recorded.push({ seq: nextSeq++, at: new Date(), level, message, fields, ...ids });
   if (recorded.length > KEEP) recorded.splice(0, recorded.length - KEEP);
 };
 
@@ -196,11 +206,11 @@ const record = (level: LogLevel, message: string, fields?: LogRecord["fields"]):
 const taskOf = (vehicle: string) => `silent:${vehicle}`;
 
 /** What either answer to a silent vehicle changes: it has been looked at, found or not. */
-const check = async (vehicle: string) => {
+const check = async (vehicle: string, trace: Trace) => {
   checked.add(vehicle);
   // One line for a person, and a flat map of scalars beside it for a console to render as key and
   // value rather than as a sentence somebody has to parse back out.
-  record("info", "check recorded", { vehicle, outstanding: silent.size - checked.size });
+  record("info", "check recorded", { vehicle, outstanding: silent.size - checked.size }, trace);
   // The Task is gone at the next read because its condition no longer holds, and this is the one
   // moment anybody can say so: the Worker publishes it, and nobody closes anything.
   await hub.publish(taskEnded({ id: taskOf(vehicle), type: SILENT_VEHICLE }));
@@ -315,7 +325,7 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         // the call before this runs if that Task is not open, its type does not list this
         // operation, or it does not offer it now. Where one was named it arrives as the second
         // argument's `task`, which is where a Worker that publishes `task-answered` publishes it.
-        run: ({ vehicle }) => check(vehicle),
+        run: ({ vehicle }, { trace }) => check(vehicle, trace),
       }),
       "report-missing": action({
         input: z.object({ vehicle: z.string().min(1), lastSeen: z.string() }),
@@ -323,18 +333,20 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         idempotency: { required: true, from: "header", windowSeconds: 3600 },
         refuses: ({ vehicle }) =>
           vehicle !== undefined && !silent.has(vehicle) ? "not quiet" : undefined,
-        run: ({ vehicle }) => check(vehicle),
+        run: ({ vehicle }, { trace }) => check(vehicle, trace),
       }),
       // `configure` is the one operation name this protocol reserves, so that an operator looking
       // at a Worker they have never seen knows which one changes its settings. It takes the WHOLE
       // document: what the operator saw in the form is what they send back.
       configure: action({
         input: z.object({ label: z.string().min(1), quietAfterMinutes: z.number().int().min(1) }),
-        run: (replacement) => {
-          record("warn", "settings replaced", {
-            from: configuration.label,
-            to: replacement.label,
-          });
+        run: (replacement, { trace }) => {
+          record(
+            "warn",
+            "settings replaced",
+            { from: configuration.label, to: replacement.label },
+            trace,
+          );
           configuration = replacement;
           return null;
         },
@@ -398,11 +410,11 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   // What this Worker recorded while it was working, most recent first. The order is this Worker's
   // and the instant does not establish it — two records written inside one request share a
   // millisecond, so a console reads the order the page arrives in and never sorts by `at`.
-  // `mount()` decodes the level floor, the half-open interval and the envelope; what is left here
-  // is the store, because only a store can filter a feed without loading it.
+  // `mount()` decodes the level floor, the half-open interval, the trace and the envelope; what is
+  // left here is the store, because only a store can filter a feed without loading it.
   logs: {
     pageSize: 25,
-    read: ({ levels, from, to, cursor, limit }) => {
+    read: ({ levels, from, to, trace, cursor, limit }) => {
       const below = cursor === undefined ? Number.POSITIVE_INFINITY : Number(cursor);
       // `reverse` and not a sort: `recorded` only ever grows at the end, so it is already in order
       // and saying so is what makes paging a feed cheap.
@@ -412,7 +424,8 @@ export const fleetWorker = defineWorker<Env>((env) => ({
             one.seq < below &&
             levels.includes(one.level) &&
             (from === undefined || one.at >= from) &&
-            (to === undefined || one.at < to),
+            (to === undefined || one.at < to) &&
+            (trace === undefined || one.traceId === trace),
         )
         .reverse();
       const page = matching.slice(0, limit);

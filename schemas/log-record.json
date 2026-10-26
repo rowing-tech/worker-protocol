@@ -31,6 +31,16 @@
           "null"
         ]
       }
+    },
+    "traceId": {
+      "description": "LOG-11. The trace of the call this record was written in — the one its `traceparent` named, or the one the Worker began (ENDP-42) — as W3C Trace Context spells a trace id: 32 lowercase hexadecimal digits. Absent for a record written outside any call.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "spanId": {
+      "description": "LOG-11. The span the Worker was in when it wrote this record: 16 lowercase hexadecimal digits. Present exactly where `traceId` is.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
     }
   },
   "required": [

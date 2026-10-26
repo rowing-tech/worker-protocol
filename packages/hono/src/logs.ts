@@ -28,6 +28,7 @@ import type * as z from "zod";
 import { halfOpen, rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { onlyKnown } from "./collection.ts";
+import { TRACE_ID } from "./trace.ts";
 import type { Refusal } from "./worker.ts";
 
 /** LOG-5. The four levels, in order. The ladder LOG-7's floor is read off. */
@@ -44,6 +45,14 @@ export type LogRecord = {
   message: string;
   /** LOG-9. One level deep, values scalar. Absent is the ordinary case. */
   fields?: Record<string, string | number | boolean | null>;
+  /**
+   * LOG-11. The trace of the call this record was written in: `call.trace.traceId` from an
+   * Action's `run`, or what the Worker's own tracer holds. Absent for a record written outside any
+   * call — a cron, a queue consumer — unless the Worker began a trace there.
+   */
+  traceId?: string;
+  /** LOG-11. The span the Worker was in when it wrote it. Present exactly where `traceId` is. */
+  spanId?: string;
 };
 
 /** What a Worker is asked for: a page of its own store, over a query it did not have to decode. */
@@ -58,6 +67,8 @@ export type LogQuery = {
   from?: Date;
   /** LOG-8. Exclusive, where the caller sent one — so two adjacent reads add up and overlap in none. */
   to?: Date;
+  /** LOG-12. The one trace the caller asked for, already validated, where it asked for one. */
+  trace?: string;
   /** ENDP-21. Exactly the string this Worker last answered as `nextCursor`, or absent for the first page. */
   cursor?: string;
   /** ENDP-19. The most records one page carries. */
@@ -88,8 +99,8 @@ export type LogFacts = {
 
 const refuse = (code: ErrorCode, message: string): Refusal => ({ code, message });
 
-/** LOG-7, LOG-8, ENDP-20 — what this read defines. Anything else is ENDP-24's. */
-const OWN_PARAMETERS = new Set(["level", "from", "to", "cursor"]);
+/** LOG-7, LOG-8, LOG-12, ENDP-20 — what this read defines. Anything else is ENDP-24's. */
+const OWN_PARAMETERS = new Set(["level", "from", "to", "trace", "cursor"]);
 
 export function logs(facts: LogFacts) {
   const cap = facts.pageSize ?? 100;
@@ -113,10 +124,18 @@ export function logs(facts: LogFacts) {
     }
     const at = (ms: number | null) => (ms === null ? undefined : new Date(ms));
 
+    // LOG-12: one trace, spelled as W3C Trace Context spells a trace id. A value of another form is
+    // a request this read defines and refuses on its content, as LOG-7 refuses a fifth level.
+    const trace = query.get("trace") ?? undefined;
+    if (trace !== undefined && !TRACE_ID.test(trace)) {
+      return refuse("invalid_parameter", "`trace` is a trace id: 32 lowercase hexadecimal digits.");
+    }
+
     const answered = await facts.read({
       levels: LEVELS.slice(floor),
       from: at(interval.from),
       to: at(interval.to),
+      ...(trace === undefined ? {} : { trace }),
       cursor: query.get("cursor") ?? undefined,
       limit: cap,
     });
@@ -133,6 +152,9 @@ export function logs(facts: LogFacts) {
       message: record.message,
       // Absent rather than `undefined` on the wire: `JSON.stringify` drops the key either way.
       fields: record.fields,
+      // LOG-11: the two ids travel together, and a record written outside any call carries none.
+      traceId: record.traceId,
+      spanId: record.spanId,
     }));
 
     // ENDP-20: absent at the end of the collection — absent, not null.

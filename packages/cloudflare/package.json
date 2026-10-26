@@ -1,7 +1,7 @@
 {
   "name": "@worker-protocol/cloudflare",
-  "version": "0.12.1",
-  "workerProtocolEdition": "0.10",
+  "version": "0.13.0",
+  "workerProtocolEdition": "0.11",
   "description": "The protocol's stores in Durable Objects, and the Queues between an outbox and a sink: mixins for ENDP-16, SUB-7, GRANT-4, LOG-2 and an outbox, for Workers on Cloudflare",
   "keywords": [
     "worker-protocol",

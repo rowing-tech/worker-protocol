@@ -11,8 +11,9 @@ Two shapes are shared by every surface and have schemas of their own: the error 
 else, because a JSON Schema describes a body and not a header:
 `Worker-Protocol-Edition`, `Worker-Protocol-Capability-Version` and `Idempotency-Key`. A fourth,
 `Worker-Protocol-Task`, which names the Task a call to an Action answers, is fixed by
-[tasks](tasks.md) (TASK-39). What follows is what no schema can state. Rules carry ids; the
-convention is in [spec/README.md](README.md).
+[tasks](tasks.md) (TASK-39). A fifth is not this protocol's own: `traceparent` is W3C Trace
+Context's, and ENDP-42 says what a Worker does with it. What follows is what no schema can state.
+Rules carry ids; the convention is in [spec/README.md](README.md).
 
 ## One fixed route, and no fixed prefix
 
@@ -104,6 +105,32 @@ The refusal is whole for the same reason. A client that guesses at a shape it do
 worse than one that says so, and a Worker that silently answers its own version instead has
 arranged for the guess and left the caller to notice. The refusal is permanent — `reject`, below —
 and the caller's recourse is to re-read the Descriptor, which is where the answer was all along.
+
+## The trace a call belongs to
+
+**ENDP-42 (required). A request may carry `traceparent`, as W3C Trace Context defines it. A Worker
+continues the trace it names, in a span of its own, or begins one where the header is absent or
+cannot be read — and never refuses a request for the header it carried.**
+
+**ENDP-43 (recommended). A caller that holds a trace propagates it: every request it sends carries
+`traceparent` naming that trace, with a span of the caller's own as the parent.**
+
+This is the one header this file fixes that is not this protocol's own. It is W3C Trace Context's,
+adopted whole, and the behaviour is the one an HTTP server instrumented with OpenTelemetry already
+has — *extract or start* — so a Worker that runs a tracer does nothing it was not doing, and one
+that does not gets the two ids [logs](logs.md) needs (LOG-11) from the call it is handed. What the
+ids buy is in that file: a console reads the lines one call wrote, and an operator carries a record
+into the backend the Worker's builders run and finds the same trace there.
+
+`tracestate` travels beside it and is passed on untouched. Nothing here reads a vendor's state, and
+dropping it would cut a trace a caller's backend was keeping. A header that cannot be read is
+treated as absent, which is what the specification means by *restart the trace*, and is never
+refused: a tracing bug upstream is not a reason to refuse work, and a `400` here would turn one into
+an outage.
+
+ENDP-43 is recommended because it binds a caller, and no Worker can tell a caller that holds no
+trace from one that dropped it. `packages/client` sends the header on every call, minted where
+nothing was propagated, so a Tower built on it always knows the id to ask [logs](logs.md) for.
 
 ## Errors: which responses mean stop, and which mean try again
 

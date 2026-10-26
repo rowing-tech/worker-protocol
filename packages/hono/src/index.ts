@@ -102,6 +102,15 @@ export {
   subscribe,
 } from "./surfaces.ts";
 export type { OpenTask, TaskFacts, TaskQuery, TaskReadPage, TaskTypes } from "./tasks.ts";
+export {
+  parseTraceparent,
+  SPAN_ID,
+  spanIn,
+  TRACE_ID,
+  type Trace,
+  traceOf,
+  traceparentOf,
+} from "./trace.ts";
 export type {
   Activity,
   Alert,

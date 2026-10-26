@@ -27,7 +27,9 @@ const silentFor = (minutes: number) => new Date(Date.now() - minutes * MINUTE).t
 
 /** What the object recorded, oldest first. */
 const records = async (fleet: ReturnType<typeof fresh>) =>
-  (await fleet.logs({ minRank: 0, before: null, from: null, to: null, limit: 50 })).rows.reverse();
+  (
+    await fleet.logs({ minRank: 0, before: null, from: null, to: null, trace: null, limit: 50 })
+  ).rows.reverse();
 
 describe("a cycle", () => {
   it("reads the source outside the object and enters it once, with what it read", async () => {

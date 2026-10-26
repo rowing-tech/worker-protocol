@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — logs",
-    "version": "0.10",
+    "version": "0.11",
     "description": "What a Worker recorded while it was working, most recent first. A window rather than an archive: nothing here fixes how far back a Worker keeps, and the end of the collection means the end of what it still holds.",
     "license": {
       "name": "Apache-2.0",
@@ -65,6 +65,16 @@
             }
           },
           {
+            "name": "trace",
+            "in": "query",
+            "required": false,
+            "description": "LOG-12. One trace, as W3C Trace Context spells a trace id: the records written while handling the calls that belong to it. A value of another form is `400` `invalid_parameter`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "required": false,
@@ -82,6 +92,16 @@
             "schema": {
               "type": "integer",
               "minimum": 1
+            }
+          },
+          {
+            "name": "traceparent",
+            "in": "header",
+            "required": false,
+            "description": "ENDP-42. W3C Trace Context. The Worker continues the trace this names, in a span of its own, or begins one where the header is absent or cannot be read — and never refuses a request for it. LOG-11: a record written while handling the call carries that trace.",
+            "schema": {
+              "type": "string",
+              "example": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
             }
           }
         ],

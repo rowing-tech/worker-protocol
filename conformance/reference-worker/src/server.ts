@@ -7,6 +7,7 @@ import {
   memoryGrants,
   memorySubscriptions,
   mount,
+  traceOf,
   type Worker,
 } from "@worker-protocol/hono";
 import { qualifiedName, taskAnswered, taskEnded } from "@worker-protocol/schemas";
@@ -330,10 +331,15 @@ export function createWorker(options: WorkerOptions = {}): Server {
     // otherwise be byte-identical, and a verifier comparing records has nothing else to tell them
     // apart — LOG-4 gives a record no identity. A Worker whose every line is identical makes ENDP-33
     // unobservable, which is a property of that Worker; this one does not make the check guess.
-    facts.logs.record(answer.status >= 500 ? "error" : "info", `${request.method} ${request.url}`, {
-      status: answer.status,
-      served: ++served,
-    });
+    // LOG-11: under the trace the request belongs to — the one its `traceparent` named, or one
+    // begun here. `traceOf` is what `mount()` reads the header with, so a verifier that sent a
+    // trace finds this record by it; the span is this wrapper's own, as a Worker's tracer's would be.
+    facts.logs.record(
+      answer.status >= 500 ? "error" : "info",
+      `${request.method} ${request.url}`,
+      { status: answer.status, served: ++served },
+      traceOf(request.headers),
+    );
     return answer;
   };
   const base = (options.basePath ?? "").replace(/\/*$/, "");

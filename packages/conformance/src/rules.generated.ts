@@ -772,6 +772,20 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "introducedIn": "0.4"
     },
     {
+      "id": "ENDP-42",
+      "file": "endpoints.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.11"
+    },
+    {
+      "id": "ENDP-43",
+      "file": "endpoints.md",
+      "class": "recommended",
+      "reach": "P",
+      "introducedIn": "0.11"
+    },
+    {
       "id": "EVT-1",
       "file": "events.md",
       "class": "required",
@@ -1080,6 +1094,20 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "H",
       "introducedIn": "0.2"
+    },
+    {
+      "id": "LOG-11",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.11"
+    },
+    {
+      "id": "LOG-12",
+      "file": "logs.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.11"
     },
     {
       "id": "MET-1",
@@ -2054,7 +2082,9 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "at": "LOG-4",
       "fields": "LOG-9",
       "level": "LOG-5",
-      "message": "LOG-4"
+      "message": "LOG-4",
+      "spanId": "LOG-11",
+      "traceId": "LOG-11"
     },
     "logs-entry": {
       "": "LOG-1",

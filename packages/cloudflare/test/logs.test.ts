@@ -75,3 +75,29 @@ describe("tailRecords", () => {
     ]);
   });
 });
+
+describe("withLogs, the trace a record was written in (LOG-11, LOG-12)", () => {
+  const EVERY: LogRow["level"][] = ["debug", "info", "warn", "error"];
+
+  it("keeps both ids where a record has them, and answers the records of one trace", async () => {
+    const stub = fresh();
+    const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+    await stub.record([
+      { ...row(1), traceId, spanId: "00f067aa0ba902b7" },
+      // Written outside any call: a cron's line, carrying neither.
+      row(2),
+      { ...row(3), traceId: "a".repeat(32), spanId: "b".repeat(16) },
+    ]);
+    const logs = durableLogs(stub, { pageSize: 10 });
+
+    const all = await logs.read({ levels: EVERY, limit: 10 });
+    if ("code" in all) throw new Error("refused");
+    expect(all.records.map((one) => one.traceId)).toEqual(["a".repeat(32), undefined, traceId]);
+
+    const ofTrace = await logs.read({ levels: EVERY, trace: traceId, limit: 10 });
+    if ("code" in ofTrace) throw new Error("refused");
+    expect(ofTrace.records.map((one) => [one.at.getTime(), one.spanId])).toEqual([
+      [1, "00f067aa0ba902b7"],
+    ]);
+  });
+});

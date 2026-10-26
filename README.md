@@ -33,10 +33,10 @@ already known, catalogued and reachable. What it adds afterwards, it adds at its
 It is not observability, a tool protocol for models, a work queue or a service catalog, and it
 replaces none of them. OpenTelemetry tells the people who built a process what happens inside it;
 this tells somebody who did not build it how it is doing and lets them act, and a worker serves
-both. Where a neighbour already had the right answer it is adopted — events are CloudEvents, logs
-borrow OpenTelemetry's level names — and where it answers a different reader's question it is left
-where it is. [docs/neighbours.md](docs/neighbours.md) takes each one in turn and points at where
-`spec/` had the argument.
+both. Where a neighbour already had the right answer it is adopted — events are CloudEvents, a
+call's trace is W3C Trace Context, logs borrow OpenTelemetry's level names — and where it answers a
+different reader's question it is left where it is. [docs/neighbours.md](docs/neighbours.md) takes
+each one in turn and points at where `spec/` had the argument.
 
 ## Normative and explanatory
 
@@ -137,7 +137,7 @@ which of the three artifacts above is normative and what each is for, the surfac
 when no SDK exists for your language — both headers, the error envelope and its eighteen codes, the
 page envelope and its cursor, version negotiation, the idempotency window — the gotchas that hold
 whatever it is written in, and the verification loop. For C#, Python or Go that is the whole of what
-exists at edition 0.10, and it says so rather than implying otherwise.
+exists at edition 0.11, and it says so rather than implying otherwise.
 
 **[`worker-protocol-hono`](skills/worker-protocol-hono)** is the TypeScript layer on top:
 `defineWorker`, `action()`, the outcome store, what `mount()` carries against what a Worker still
@@ -149,9 +149,12 @@ each publishes its own second skill and refers back to the first rather than res
 
 ## Status
 
-**Edition 0.10**, which lets a Task carry dimensions the `tasks` entry declares by name, so a
-consumer reads the Tasks of one base or one store with a parameter beside `type` rather than reading
-everything and discarding (TASK-45 to TASK-50). It follows 0.9, which let a Worker refuse `grants`
+**Edition 0.11**, which adopts W3C Trace Context: a call may carry `traceparent`, a Worker continues
+the trace it names or begins one, and a record names the trace and span it was written in, so a
+console reads the lines of one call and an operator finds the same trace in the backend the
+Worker's builders run (ENDP-42, ENDP-43, LOG-11, LOG-12). It follows 0.10, which lets a Task carry
+dimensions the `tasks` entry declares by name, so a consumer reads the Tasks of one base or one
+store with a parameter beside `type` (TASK-45 to TASK-50); 0.9, which let a Worker refuse `grants`
 to the credential it was enrolled with, so a Tower can watch a Worker without brokering Contracts on
 it (REG-37); 0.8, which divided what a credential may do as what it may see already was and added
 `grants`, through which whoever brokers a Contract tells an owner what its credential covers and
@@ -169,15 +172,15 @@ about trust. Each still carries a `Still open here` section, which is what `stab
 be empty of. What `draft` means here is what the table above says: shaped and implementable, still
 moving — and moving now costs a withdrawal rather than a silent edit.
 
-What stands behind that: 222 rules, every one classified in
+What stands behind that: 226 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
-is broken, and every one of the 115 a tool can observe against an ordinary Worker checked by
-[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 57 need a
+is broken, and every one of the 117 a tool can observe against an ordinary Worker checked by
+[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 58 need a
 Worker *arranged* to be observed — a second credential, a boot window, an Action safe to perform, a
 Worker that records something when it is read — and pass when that arrangement is handed to the
 verifier out of band, as the base URL and the credential already are.
 
-The remaining 50 are reported rather than passed, and the two kinds are not the same: 28 bind a
+The remaining 51 are reported rather than passed, and the two kinds are not the same: 29 bind a
 party who is not a Worker, so this tool never contacted whoever they oblige, and 22 have no witness
 anywhere.
 

@@ -23,12 +23,19 @@ export const CLAIMS = [
   "ACTV-6",
   "LOG-10",
   "LOG-3",
+  "LOG-11",
   "ENDP-33",
   "TASK-6",
   "HLTH-4",
   "ACT-20",
   "EVT-1",
 ] as const;
+
+/** `bytes` random bytes as lowercase hex: a trace id at sixteen, a span id at eight (LOG-11). */
+const hex = (bytes: number): string =>
+  Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
 
 /**
  * The surfaces where two credentials must be served one list, and the rule each one is.
@@ -293,7 +300,7 @@ export async function checkArranged(
       arrangement.recordsEveryRequest === true
         ? "the Worker declares no `logs`"
         : "the verifier was not told this Worker records when it is read";
-    for (const id of ["LOG-3", "ENDP-33"]) say(id, "notExercised", why);
+    for (const id of ["LOG-3", "LOG-11", "ENDP-33"]) say(id, "notExercised", why);
   } else {
     const read = async (intent: string, cursor?: string) => {
       const at = cursor === undefined ? url : withParams(url, { cursor });
@@ -341,6 +348,25 @@ export async function checkArranged(
       } else {
         say("ENDP-33", "passes");
       }
+    }
+
+    // LOG-11: a read sent under a trace of the verifier's own is itself a request this Worker
+    // records, so the record it wrote is found by asking for that trace — carrying the id the
+    // header named and a span of the Worker's own, whose identity nobody outside it knows.
+    const traceId = hex(16);
+    await transcript.send(url, "a read under a trace of the verifier's own", {
+      headers: { traceparent: `00-${traceId}-${hex(8)}-01` },
+    });
+    const under = await transcript.send(withParams(url, { trace: traceId }), "the records of it");
+    const underPage = logPage.safeParse(under.json);
+    if (under.status !== 200 || !underPage.success) {
+      say("LOG-11", "notExercised", `a read naming the trace answered ${under.status}`);
+    } else if (underPage.data.items.length === 0) {
+      say("LOG-11", "fails", "no record carried the trace the read was sent under");
+    } else if (underPage.data.items.some((item) => !/^[0-9a-f]{16}$/.test(item.spanId ?? ""))) {
+      say("LOG-11", "fails", "a record carried the trace and no span of the Worker's own");
+    } else {
+      say("LOG-11", "passes");
     }
   }
 

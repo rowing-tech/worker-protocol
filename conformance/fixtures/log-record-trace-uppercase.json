@@ -1,0 +1,13 @@
+{
+  "schema": "log-record",
+  "valid": false,
+  "rule": "LOG-11",
+  "why": "A trace id in uppercase. W3C Trace Context spells both ids in lowercase hexadecimal and says a receiver treats anything else as invalid, and a console that matched case-insensitively here would find a record under an id no `traceparent` could have carried. The same string, lowercased, is the fixture beside this one.",
+  "document": {
+    "at": "2026-10-26T14:03:00Z",
+    "level": "info",
+    "message": "check recorded",
+    "traceId": "4BF92F3577B34DA6A3CE929D0E0E4736",
+    "spanId": "00f067aa0ba902b7"
+  }
+}

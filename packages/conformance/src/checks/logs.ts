@@ -15,7 +15,16 @@ import { iso, type Transcript, withParams } from "../transcript.ts";
  * LOG-6 binds a caller and is `P` — a tool pointed at a Worker never contacted one. LOG-10 is `H`
  * beside ALRT-6 and ACTV-6, because two credentials have to exist before two lists can be compared.
  */
-export const CLAIMS = ["LOG-1", "LOG-2", "LOG-4", "LOG-5", "LOG-7", "LOG-8", "LOG-9"] as const;
+export const CLAIMS = [
+  "LOG-1",
+  "LOG-2",
+  "LOG-4",
+  "LOG-5",
+  "LOG-7",
+  "LOG-8",
+  "LOG-9",
+  "LOG-12",
+] as const;
 
 /** LOG-5's ladder, which LOG-7 reads a floor off. The top of it is the sharpest filter to ask for. */
 const HIGHEST = logLevel.options[logLevel.options.length - 1];
@@ -136,6 +145,32 @@ export async function checkLogs(
     say("LOG-8", "fails", "`to` answered a record at or after it, so the bound is not exclusive");
   } else {
     say("LOG-8", "passes");
+  }
+
+  // LOG-12: one trace, or `400`. A value that is not a trace id is refused on its content, as LOG-7
+  // refuses a fifth level; a well-formed id answers only the records carrying it — vacuously against
+  // a Worker holding none under it, which `arranged.ts` turns into a real observation under LOG-11.
+  const unparseable = await transcript.send(
+    readUrl({ trace: "not-a-trace-id" }),
+    "the records of a trace, named in a form no trace id has",
+    { permanent: true },
+  );
+  const unparseableCode = (unparseable.json as { code?: string } | null)?.code;
+  const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+  const ofTrace = await transcript.send(readUrl({ trace: traceId }), "the records of one trace");
+  const ofTracePage = logPage.safeParse(ofTrace.json);
+  if (unparseable.status !== 400 || unparseableCode !== "invalid_parameter") {
+    say(
+      "LOG-12",
+      "fails",
+      `\`trace=not-a-trace-id\` answered ${unparseable.status} with \`${unparseableCode ?? "no code"}\``,
+    );
+  } else if (ofTrace.status !== 200 || !ofTracePage.success) {
+    say("LOG-12", "fails", `a read naming a trace answered ${ofTrace.status}`);
+  } else if (ofTracePage.data.items.some((record) => record.traceId !== traceId)) {
+    say("LOG-12", "fails", "a read naming a trace answered a record of another trace, or of none");
+  } else {
+    say("LOG-12", "passes");
   }
 
   return results;

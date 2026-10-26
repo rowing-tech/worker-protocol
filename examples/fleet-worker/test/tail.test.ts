@@ -38,7 +38,8 @@ const traced = (over: Partial<TraceItem>): TraceItem =>
   }) as TraceItem;
 
 const recorded = async (fleet: ReturnType<typeof fresh>) =>
-  (await fleet.logs({ minRank: 0, before: null, from: null, to: null, limit: 50 })).rows;
+  (await fleet.logs({ minRank: 0, before: null, from: null, to: null, trace: null, limit: 50 }))
+    .rows;
 
 describe("what the producer could not record about itself", () => {
   it("records an exception nobody caught, with the outcome beside it", async () => {

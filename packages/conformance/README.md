@@ -109,9 +109,15 @@ it — so it arrives the way the base URL and the credential do: out of band, fr
 
 `arrangement` takes `safeAction`, `secondSafeAction`, `refusedInput`, `asyncAction`,
 `secondCredential`, `otherCallerCredential`, `consumerCredential`, `unprivilegedCredential`,
-`uncoveredAction`, `applyGrants`, `justStarted`, `replaceableSettings`, `publishedEvent`, `sink`,
-`publishingAction`, `answeringAction`, `before`, `after` and `abandonment`. Anything not arranged
-reports `notExercised` naming what was missing.
+`uncoveredAction`, `applyGrants`, `justStarted`, `replaceableSettings`, `recordsEveryRequest`,
+`publishedEvent`, `sink`, `publishingAction`, `answeringAction`, `before`, `after` and
+`abandonment`. Anything not arranged reports `notExercised` naming what was missing.
+
+`recordsEveryRequest: true` says the Worker writes a record for every request it serves, which is
+what lets the verifier make a record exist without knowing the Worker's domain: reading the feed is
+itself a write. LOG-3 and ENDP-33 need it to see a newer record reach the top and a cursor never
+carry one back, and LOG-11 needs it to send a read under a trace of its own and find the record it
+caused by asking for that trace.
 
 `uncoveredAction` is a credential and a declared Action it does not cover. ACT-22 posts that Action
 with it, carrying no key and a body that is not JSON, and expects `403` before anything else. A

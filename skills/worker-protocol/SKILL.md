@@ -246,6 +246,13 @@ whose reason is understood is one that survives a refactor.
   written inside one request share a millisecond, so page order belongs to the Worker and a caller
   never sorts by `at`. `level=warn` answers `warn` and `error` (LOG-7); `fields` is one level deep
   with scalar values (LOG-9); the end of the collection is the end of what is still held.
+- **A record names the call it was written in** (LOG-11): `traceId` and `spanId`, as W3C Trace
+  Context spells them — the trace the call's `traceparent` named or the one the Worker began, and
+  the Worker's own span. A record a cron writes carries neither. `trace=<id>` reads one call's
+  lines (LOG-12), and a value that is not 32 lowercase hex digits is `400` `invalid_parameter`.
+- **Every request belongs to a trace** (ENDP-42): continue the one `traceparent` names in a span of
+  your own, or begin one when the header is absent or unreadable, and never refuse a request for
+  it. Pass `tracestate` on untouched. Send `traceparent` on every call you make (ENDP-43).
 - **Write records on purpose.** Patching a runtime's `console` into this surface produces one feed
   per process, blind to whose work produced each line. Write a record where the store already keeps
   the work it is about. LOG-10 answers one feed to every caller authenticated, so records belonging

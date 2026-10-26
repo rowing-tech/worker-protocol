@@ -151,7 +151,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.10");
+    expect(report.edition).toBe("0.11");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -305,7 +305,7 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(28);
+    expect(counts.otherSubject).toBe(29);
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(22);
     // How many of the rules that need a Worker ARRANGED to be observed this double actually buys.
@@ -316,7 +316,7 @@ describe("the reference worker, verified", () => {
     const arranged = report.results.filter(
       (r) => r.rule.reach === "H" && (r.verdict === "passes" || r.verdict === "fails"),
     );
-    expect(arranged.length).toBe(51);
+    expect(arranged.length).toBe(52);
     const readme = await readFile(join(ROOT, "conformance", "README.md"), "utf8");
     const claimed = /buys is ([\w-]+) of the [\w-]+ rules the register marks/.exec(readme)?.[1];
     expect(claimed, "conformance/README.md: what the reference worker buys").toBe(
@@ -324,7 +324,7 @@ describe("the reference worker, verified", () => {
     );
 
     // And the rest is the honest measure of how far this verifier has got.
-    expect(counts.passes).toBe(166);
+    expect(counts.passes).toBe(169);
     expect(counts.fails).toBe(0);
     expect(counts.passes + counts.fails + counts.notExercised).toBe(
       report.results.length - counts.otherSubject - counts.unverified,
@@ -464,9 +464,9 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.10");
+      expect(report.verifierEdition).toBe("0.11");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.10");
+      expect(report.results[0]?.detail).toContain("holds edition 0.11");
     } finally {
       await ahead.close();
     }
@@ -474,9 +474,9 @@ describe("the reference worker, verified", () => {
 
   it("verifies nothing against a later MINOR while the MAJOR is 0", async () => {
     // DESC-32 lets a MINOR break before 1.0, so DESC-33 has a verifier behind on MINOR treat it as
-    // it treats a later MAJOR: judging a 0.11 Worker by 0.10's rules could fail it for what 0.11
+    // it treats a later MAJOR: judging a 0.12 Worker by 0.11's rules could fail it for what 0.12
     // changed, and the honest sentence is that the verifier is the one behind.
-    const ahead = await start({ edition: "0.11" });
+    const ahead = await start({ edition: "0.12" });
     try {
       const report = await verify({ baseUrl: ahead.url });
       expect(report.older).toBe(true);

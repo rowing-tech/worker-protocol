@@ -17,6 +17,40 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-26 — edition 0.11
+
+All five packages encode **edition 0.11**, so the release that carries it is a MINOR of the
+packages, which `^0.12.0` does not take. What it carries is the one identifier `logs.md` had left
+open since its first edition: the call a record was written in, spelled as W3C Trace Context spells
+it rather than as anything of this protocol's own (issue #12).
+
+### Edition 0.11
+
+- **A call belongs to a trace, and a record names it** (ENDP-42, ENDP-43, LOG-11, LOG-12). A
+  request may carry `traceparent`; a Worker continues the trace it names in a span of its own, or
+  begins one where the header is absent or cannot be read, and never refuses a request for it —
+  *extract or start*, as an HTTP server instrumented with OpenTelemetry does. A record written while
+  handling a call carries `traceId` and `spanId`, and a read narrows to one trace with `trace=`. A
+  caller that holds a trace propagates it (recommended). `tracestate` passes through untouched.
+- **Consumers move first.** `log-record.json` admits no member it does not name, so a client on
+  edition 0.10 refuses a page whose records carry `traceId`. Take this edition on the consuming
+  side before any Worker does.
+
+### Added
+
+- hono: `mount()` resolves the trace on every request and hands it to an Action's `run` and
+  `refuses` as `call.trace` — `traceId`, `spanId`, `parentSpanId`, `sampled`, `tracestate` — and
+  to `tasks.read`'s call. `LogRecord` carries `traceId` and `spanId`; `LogQuery` carries `trace`,
+  validated. `traceOf`, `spanIn`, `parseTraceparent`, `traceparentOf`, `TRACE_ID` and `SPAN_ID` are
+  exported, for a Worker that wraps `mount()` or calls another Worker.
+- client: every call sends `traceparent`, in the trace `PerformOptions.trace` names or in one begun
+  for the call alone. `beginTrace()` mints one to perform under and to ask `logs` for;
+  `LogRead.trace` asks for it.
+- cloudflare: `withLogs` keeps the two ids and filters by trace, one migration step on `wp_log`.
+- conformance: checks for ENDP-42, LOG-11 (under `recordsEveryRequest`) and LOG-12; the reference
+  worker records every request under its trace. Fixtures for a record with a trace and one spelled
+  in uppercase.
+
 ## [0.12.1] - 2026-10-26 — edition 0.10
 
 All five packages still encode **edition 0.10**. One export, so that a Worker on Cloudflare can

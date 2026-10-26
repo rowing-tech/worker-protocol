@@ -129,7 +129,22 @@ const expectedVersion = z.coerce
   });
 
 /** The one header every operation takes. */
-const versionHeader = z.object({ "Worker-Protocol-Capability-Version": expectedVersion });
+/** ENDP-42 — every request may name the trace it belongs to, and none is refused for how it did. */
+const traceparent = z
+  .string()
+  .optional()
+  .openapi({
+    description: cite(
+      "ENDP-42",
+      "W3C Trace Context. The Worker continues the trace this names, in a span of its own, or begins one where the header is absent or cannot be read — and never refuses a request for it. LOG-11: a record written while handling the call carries that trace.",
+    ),
+    example: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  });
+
+const versionHeader = z.object({
+  "Worker-Protocol-Capability-Version": expectedVersion,
+  traceparent,
+});
 
 /** ENDP-20 — every collection pages the same way. */
 const cursor = z
@@ -330,6 +345,7 @@ export const performAction = createRoute({
             "Where the Action declares it reads a key from the header. Within the declared window a repeat under the same key is not a second performance; the same key with a different body is `409`.",
           ),
         }),
+      traceparent,
       "Worker-Protocol-Task": z
         .string()
         .min(1)
@@ -528,6 +544,16 @@ export const readLogs = createRoute({
           "Exclusive — the interval is half-open, so two adjacent reads carry no record twice.",
         ),
       ),
+      trace: z
+        .string()
+        .regex(/^[0-9a-f]{32}$/)
+        .optional()
+        .openapi({
+          description: cite(
+            "LOG-12",
+            "One trace, as W3C Trace Context spells a trace id: the records written while handling the calls that belong to it. A value of another form is `400` `invalid_parameter`.",
+          ),
+        }),
       cursor,
     }),
     headers: versionHeader,

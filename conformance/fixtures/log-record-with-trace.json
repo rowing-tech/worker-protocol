@@ -1,0 +1,16 @@
+{
+  "schema": "log-record",
+  "valid": true,
+  "rule": "LOG-11",
+  "why": "A record written while the Worker was handling a call, carrying the trace that call belongs to and the span the Worker was in: both as W3C Trace Context spells them, 32 and 16 lowercase hexadecimal digits. An operator takes `traceId` into whatever backend the Worker's builders run and finds the same trace there; a console asks `/logs?trace=` for the lines of one call.",
+  "document": {
+    "at": "2026-10-26T14:03:00Z",
+    "level": "info",
+    "message": "check recorded",
+    "fields": {
+      "vehicle": "ABC-123"
+    },
+    "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "spanId": "00f067aa0ba902b7"
+  }
+}

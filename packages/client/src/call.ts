@@ -1,5 +1,6 @@
 import { error as errorSchema } from "@worker-protocol/schemas";
 import type * as z from "zod";
+import { type Trace, traceparentFor } from "./trace.ts";
 
 /**
  * One call to a Worker, and every rule in `spec/` that binds the party making it.
@@ -82,6 +83,8 @@ export type Call = {
   idempotencyKey?: string;
   /** TASK-39. The `Worker-Protocol-Task` header: the Task this call to an Action answers. */
   task?: string;
+  /** ENDP-43. The trace this call is made in. Absent, one is begun for the call alone. */
+  trace?: Pick<Trace, "traceId" | "sampled">;
   /**
    * Whether a `404` here means the ADDRESS serves nothing (DESC-38) or that a resource is gone.
    *
@@ -127,6 +130,9 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
       headers.set("idempotency-key", call.idempotencyKey);
     }
     if (call.task !== undefined) headers.set("worker-protocol-task", call.task);
+    // ENDP-43: every call names its trace, in a span of its own; a retry is a new span in the
+    // same trace, which is what a retry is.
+    headers.set("traceparent", traceparentFor(call.trace));
     return send(call.url, {
       method: call.method ?? "GET",
       headers,

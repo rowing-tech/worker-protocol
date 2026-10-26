@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — tasks",
-    "version": "0.10",
+    "version": "0.11",
     "description": "The Tasks whose conditions hold. TASK-6 answers only those the credential presented covers.",
     "license": {
       "name": "Apache-2.0",
@@ -68,6 +68,16 @@
             "schema": {
               "type": "integer",
               "minimum": 1
+            }
+          },
+          {
+            "name": "traceparent",
+            "in": "header",
+            "required": false,
+            "description": "ENDP-42. W3C Trace Context. The Worker continues the trace this names, in a span of its own, or begins one where the header is absent or cannot be read — and never refuses a request for it. LOG-11: a record written while handling the call carries that trace.",
+            "schema": {
+              "type": "string",
+              "example": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
             }
           }
         ],

@@ -23,6 +23,10 @@ export type LogRow = {
   level: LogLevel;
   message: string;
   fields?: Record<string, string | number | boolean>;
+  /** LOG-11. The trace of the call the record was written in, where it was written in one. */
+  traceId?: string;
+  /** LOG-11. The span the Worker was in. Present with `traceId`. */
+  spanId?: string;
 };
 
 /** `migrate` applies these; a new step goes at the end, and a published one is never edited. */
@@ -40,6 +44,13 @@ const SCHEMA: Schema = {
         fields TEXT
       )`,
     ],
+    // 2. LOG-11, LOG-12 (edition 0.11): the trace and span a record was written in, and the index a
+    // read naming one trace filters by.
+    [
+      "ALTER TABLE wp_log ADD COLUMN trace TEXT",
+      "ALTER TABLE wp_log ADD COLUMN span TEXT",
+      "CREATE INDEX IF NOT EXISTS wp_log_trace ON wp_log (trace)",
+    ],
   ],
 };
 
@@ -54,6 +65,8 @@ export type LogsQuery = {
   before: number | null;
   from: number | null;
   to: number | null;
+  /** LOG-12. The one trace asked for, already validated, or `null`. */
+  trace: string | null;
   limit: number;
 };
 
@@ -76,13 +89,15 @@ export function withLogs<B extends DurableObjectClass>(
       const sql = migrate(this.ctx.storage, SCHEMA);
       for (const row of rows) {
         sql.exec(
-          "INSERT INTO wp_log (at, level, rank, message, fields) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO wp_log (at, level, rank, message, fields, trace, span) VALUES (?, ?, ?, ?, ?, ?, ?)",
           row.at,
           row.level,
           // LOG-5's ladder as a number, so that LOG-7's floor is a comparison the store can make.
           LEVELS.indexOf(row.level),
           row.message,
           row.fields === undefined ? null : JSON.stringify(row.fields),
+          row.traceId ?? null,
+          row.spanId ?? null,
         );
       }
       // A window rather than an archive, which is what makes the end of the collection mean *the
@@ -90,7 +105,7 @@ export function withLogs<B extends DurableObjectClass>(
       sql.exec("DELETE FROM wp_log WHERE seq <= (SELECT MAX(seq) FROM wp_log) - ?", options.keep);
     }
 
-    /** LOG-3, LOG-7, LOG-8, ENDP-33 — one page, most recent first, in one query. */
+    /** LOG-3, LOG-7, LOG-8, LOG-12, ENDP-33 — one page, most recent first, in one query. */
     logs(query: LogsQuery): LogRows {
       const sql = migrate(this.ctx.storage, SCHEMA);
       const found = sql
@@ -100,12 +115,15 @@ export function withLogs<B extends DurableObjectClass>(
           level: LogLevel;
           message: string;
           fields: string | null;
+          trace: string | null;
+          span: string | null;
         }>(
-          `SELECT seq, at, level, message, fields FROM wp_log
+          `SELECT seq, at, level, message, fields, trace, span FROM wp_log
             WHERE rank >= ?1
               AND (?2 IS NULL OR seq < ?2)
               AND (?3 IS NULL OR at >= ?3)
               AND (?4 IS NULL OR at < ?4)
+              AND (?6 IS NULL OR trace = ?6)
             ORDER BY seq DESC
             LIMIT ?5`,
           query.minRank,
@@ -114,6 +132,7 @@ export function withLogs<B extends DurableObjectClass>(
           query.to,
           // One more than asked for, which is how the cursor knows whether there IS a next page.
           query.limit + 1,
+          query.trace,
         )
         .toArray();
       const page = found.slice(0, query.limit);
@@ -122,6 +141,9 @@ export function withLogs<B extends DurableObjectClass>(
         level: row.level,
         message: row.message,
         ...(row.fields === null ? {} : { fields: JSON.parse(row.fields) as LogRow["fields"] }),
+        ...(row.trace === null || row.span === null
+          ? {}
+          : { traceId: row.trace, spanId: row.span }),
       }));
       // ENDP-20: the cursor exists exactly when the query found a row beyond the cap.
       const last = found.length > query.limit ? page.at(-1) : undefined;
@@ -140,13 +162,14 @@ export type LogsRpc = Pick<Rpc<LogMethods>, "logs"> | Pick<LogMethods, "logs">;
  */
 export const durableLogs = (stub: LogsRpc, options: { pageSize: number }): LogFacts => ({
   pageSize: options.pageSize,
-  read: async ({ levels, from, to, cursor, limit }) => {
+  read: async ({ levels, from, to, trace, cursor, limit }) => {
     const page = await stub.logs({
       // LOG-7's floor: the levels arrive in order, so the first is the lowest asked for.
       minRank: LEVELS.indexOf(levels[0] ?? "debug"),
       before: cursor === undefined ? null : Number(cursor),
       from: from?.getTime() ?? null,
       to: to?.getTime() ?? null,
+      trace: trace ?? null,
       limit,
     });
     return {
@@ -155,6 +178,9 @@ export const durableLogs = (stub: LogsRpc, options: { pageSize: number }): LogFa
         level: row.level,
         message: row.message,
         ...(row.fields === undefined ? {} : { fields: row.fields }),
+        ...(row.traceId === undefined || row.spanId === undefined
+          ? {}
+          : { traceId: row.traceId, spanId: row.spanId }),
       })),
       ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
     };

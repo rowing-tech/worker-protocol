@@ -113,9 +113,14 @@ Read `references/members.md` for the signature of each member, and
 - **`logs.read` is a read the Worker performs, not a list it hands over.** `alerts` and `activity`
   hand over everything they hold and `mount()` pages it; a feed is not bounded by what is happening
   now, so only the store holding it can filter and page it. `mount()` decodes the level floor into
-  `levels` (in order, lowest first), the half-open interval, the instant's format, the refusals and
-  the envelope. The order (LOG-3) and the cursor (ENDP-33) stay with the store — key the cursor on
-  something that only grows and both are free.
+  `levels` (in order, lowest first), the half-open interval, the instant's format, the trace asked
+  for (`trace`, validated — LOG-12), the refusals and the envelope. The order (LOG-3) and the cursor
+  (ENDP-33) stay with the store — key the cursor on something that only grows and both are free.
+- **Record under `call.trace`.** `mount()` resolves the trace every request belongs to — continued
+  from `traceparent` or begun there (ENDP-42) — and hands it to `run` and `refuses`. A record
+  written in a call carries `call.trace.traceId` and `call.trace.spanId` (LOG-11); a call to another
+  Worker sends `traceparentOf(call.trace)`. A Worker that wraps `mount()` and records on its own
+  account reads the same header with `traceOf(request)`.
 - **Nothing `mount()` serves records why the Worker died**, because by then it is not running. On
   Cloudflare, add a Tail Worker: bind the producer's Durable Object with `script_name`, write an
   uncaught exception and a non-`ok` outcome into it, discard `event.logs`. It writes to the store,

@@ -100,6 +100,7 @@ OpenTelemetry's short names with what a runtime's `console` actually emits.
 | `level` | `SeverityText`, and `SeverityNumber` 5, 9, 13, 17 | The four a `console` emits, named rather than numbered |
 | `message` | `Body` | A string, where OpenTelemetry admits structure — see below |
 | `fields` | `Attributes` | Flat, which is what syslog allows and what a console renders |
+| `traceId`, `spanId` | `TraceId`, `SpanId` | The same, as W3C Trace Context spells them — lowercase hexadecimal, and nothing of this protocol's own |
 
 **What it does not take is OTLP as the wire format, and the reason is that nothing would consume
 it.** An OpenTelemetry collector receives a push; it does not page an HTTP surface with a cursor. So
@@ -252,21 +253,62 @@ feed per process, blind to whose work produced each line, and this file does not
 A Worker whose records belong to its customers rather than to whoever runs it wants a different
 surface from this one, and this edition does not define it.
 
+## The call a record was written in
+
+**LOG-11 (required). A record written while the Worker was handling a call carries `traceId`, the
+trace that call belongs to — the one its `traceparent` named, or the one the Worker began
+(ENDP-42) — and `spanId`, the span the Worker was in when it wrote the record. Both are spelled as
+W3C Trace Context spells them: thirty-two and sixteen lowercase hexadecimal digits. A record written
+outside any call carries neither, unless the Worker holds a trace of its own there.**
+
+**LOG-12 (required). A read narrows to one trace with `trace`, a trace id, and answers the records
+carrying it. A value of another form is `400`, with the code `invalid_parameter`.**
+
+This is the identifier the first open question below said a record would arrive with or not at all,
+and it is W3C's rather than this protocol's for the reason EVT-1 adopted CloudEvents: a way of
+naming the call a line was written in already exists, every tracer emits and reads it, and
+inventing one would have been this protocol writing Trace Context badly. The behaviour a Worker
+owes is the one an HTTP server instrumented with OpenTelemetry already has — *extract or start* —
+so a Worker that runs a tracer does nothing new, and one that does not gets the two ids from the
+call `mount()` hands it, or from twenty lines.
+
+**What a record gains is two things at once, and they are for two readers.** A console that
+performed an Action under a trace it minted asks `trace=` for that trace and reads the lines the
+call wrote, which is the grouping the open question asked for and the sharper form of what LOG-8
+does for an interval. And an operator who sees a record can take its `traceId` into whatever
+backend the Worker's builders run — the one place this protocol declines to be — and find the trace
+there, because the id is the same id. Until now the level names were the whole of what `logs` and
+OpenTelemetry shared; this is the second thing, and it is still a spelling rather than a transport.
+
+**The span is the Worker's and not the caller's.** `traceparent` names the caller's span, and a
+record stamped with it would say the line was written by the caller. What a record carries is the
+span the Worker was in: the one opened for the call where the Worker runs no tracer, or the
+innermost one its tracer opened. A verifier reads the trace id and the span's form, and never the
+span's identity, because no party outside the Worker knows which span it was in.
+
+**Outside any call** is a cron, a queue consumer, an alarm: nothing named a trace, and a record
+written there carries none. A Worker that begins one there has a tracer and records under it, and
+nothing here asks a Worker to begin traces on its own schedule.
+
+**A filter and not only a field**, because without it a console reaches the lines of one call by
+paging the window and discarding — which LOG-8 exists to avoid for an interval, and the lines of
+one call are the sharper version of the same request. A Worker whose store cannot index a trace id
+filters the page it would otherwise have answered. This is what `fields` does not get and `trace`
+does: an undeclared filter is ENDP-24's to refuse, and a declared one is a promise.
+
 ## What this file does not fix
 
-**A record names no request, no Task and no trace.** Correlating a line with the call that produced
-it is the obvious next thing to want, and it is genuinely useful; it is also a second identifier on
-every record, a way to carry it through whatever the runtime uses for context, and a question about
-whether this protocol recognizes traces at all. Nothing needs it yet.
+**A record names the trace it was written in, and nothing else about the call.** Not the request's
+own id, which the trace id is for, and not the Task a call answered, which `task-answered` publishes
+(EVT-20) for whoever contracted to know.
 
 **A record carries no source, module or logger name.** Every logging library has one and no two
 agree on what it means. Until something reads it, it is a string beside a string.
 
 ## Still open here
 
-- Whether a record may name the request, Task or trace it belongs to, so that a console can group a
-  page of lines by the call that wrote them. It is the single most-requested thing this file leaves
-  out, and it arrives with an identifier or not at all.
+- Whether a record may carry the parent span beside its own, so that a console holding no backend
+  can draw a call's tree from a page. It is a third id on every line, and nothing draws it yet.
 - Whether the entry declares the window it keeps — a duration, a count, or neither. It would let a
   console say *the last two hours* honestly instead of leaving a caller to infer a window's edge
   from an empty page. What stops it today is that the two bounds are not interchangeable: a Worker

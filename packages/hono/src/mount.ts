@@ -42,6 +42,7 @@ import {
   takeNudge,
 } from "./surfaces.ts";
 import { tasks as taskSurface } from "./tasks.ts";
+import { type Trace, traceOf } from "./trace.ts";
 import type { Answer, Refusal, Worker } from "./worker.ts";
 
 /**
@@ -198,6 +199,8 @@ type Resolved = {
   caller: string | undefined;
   /** GRANT-8: the grant the credential was issued for, where it was issued for one. */
   grant?: StoredGrant;
+  /** ENDP-42: the trace this request belongs to, continued from `traceparent` or begun here. */
+  trace: Trace;
 };
 
 /**
@@ -607,12 +610,15 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
     // asked, so it never reaches the Worker's identity provider. Revoked or rotated away, it is in
     // neither, and is `401` (GRANT-9).
     const token = bearer(c);
+    // ENDP-42: every request belongs to a trace, the caller's or one begun here, and nothing about
+    // the header it carried can refuse it.
+    const trace = traceOf(c.req.raw.headers);
     const grant =
       worker.grants !== undefined && token !== undefined && mayBeIssued(token)
         ? await worker.grants.store.byDigest(await digestOf(token))
         : undefined;
     if (grant !== undefined) {
-      resolved.set(c, { worker, principal: undefined, caller: grantCaller(grant), grant });
+      resolved.set(c, { worker, principal: undefined, caller: grantCaller(grant), grant, trace });
     } else {
       const answered = (await worker.authenticate?.(token)) ?? "accepted";
       // Not a verdict on the credential but on whether it could be judged, so it says nothing
@@ -646,6 +652,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
         worker,
         principal: typeof answered === "string" ? undefined : answered.principal,
         caller,
+        trace,
       });
     }
 
@@ -738,7 +745,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   serve(
     { capability: "actions", path: "/actions", route: performAction, ownParameters: true },
     async (c, resolved) => {
-      const { worker, principal, caller, grant } = resolved;
+      const { worker, principal, caller, grant, trace } = resolved;
       const perform = surfacesOf(worker).actions;
       if (!perform) return undeclared("actions");
       return reply(
@@ -751,6 +758,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
           principal,
           caller,
           task: c.req.header("worker-protocol-task"),
+          trace,
           covering: coveringFor(c, resolved),
           ...(grant === undefined ? {} : { grant: { applicant: grant.applicant, id: grant.id } }),
         }),
@@ -849,7 +857,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
   // TASK-5, TASK-6: the Tasks whose conditions hold, and only those the credential covers.
   serve(
     { capability: "tasks", path: "/tasks", route: readTasks, ownParameters: true },
-    async (c, { worker, principal, grant }) => {
+    async (c, { worker, principal, grant, trace }) => {
       const tasks = surfacesOf(worker).tasks;
       if (!tasks) return undeclared("tasks");
       return page(
@@ -857,6 +865,7 @@ export function mount<E = unknown>(source: WorkerSource<E>): OpenAPIHono {
         await tasks.read(query(c), {
           token: bearer(c),
           principal,
+          trace,
           covering: coveringFor(c, { worker, principal, grant }),
         }),
       );

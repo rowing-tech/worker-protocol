@@ -38,13 +38,16 @@ and the rule each one cites.
   it of every open Task the Action answers with that Task's `inputs`, leaving refused answers out
   of `available` (ACT-17, TASK-38). The input it gets may be partial.
   `run(input, call)` is told `call.name`, `call.token`, `call.idempotencyKey` — the key as the
-  caller sent it — `call.principal`, `call.caller` and `call.task`, the open Task a call named in
-  `Worker-Protocol-Task`. `mount()` has already refused one that is not open (`404`, TASK-39), whose
-  type does not list the Action (`400`, TASK-40) or that does not offer it now (`409`, TASK-41),
-  after the key, so a repeat is replayed first (TASK-42), and a header key naming another Task is
-  `409` (TASK-43). Publish `taskAnswered({ task: call.task, action: call.name, at })` from `run`,
-  which a repeat never reaches (EVT-20, EVT-21). A Worker forwarding to another derives its
-  downstream key from the key and the caller together. `idempotency` is `{ from: "header" }` or
+  caller sent it — `call.principal`, `call.caller`, `call.trace` — the trace the call belongs to,
+  continued from `traceparent` or begun by `mount()` (ENDP-42): record under `traceId` and `spanId`,
+  send `traceparentOf(call.trace)` to any Worker this one calls — and `call.task`, the open Task a
+  call named in `Worker-Protocol-Task`. `mount()` has already refused one that is not open (`404`,
+  TASK-39), whose type does not list the Action (`400`, TASK-40) or that does not offer it now
+  (`409`, TASK-41), after the key, so a repeat is replayed first (TASK-42), and a header key naming
+  another Task is `409` (TASK-43). Publish `taskAnswered({ task: call.task, action: call.name,
+  at })` from `run`, which a repeat never reaches (EVT-20, EVT-21). A Worker forwarding to another
+  derives its downstream key from the key and the caller together. `idempotency` is
+  `{ from: "header" }` or
   `{ from: "input", members: [...] }`, several members making one key in order (ENDP-38). An
   asynchronous Action's declared `result` is the body of its `202` (ACT-18). Mark a `configure`
   secret with `.meta({ writeOnly: true })`: `mount()` leaves it out of the reading address and
@@ -115,9 +118,12 @@ and the rule each one cites.
   `call.grant` with the row and hands it back to `taskAnswered`, or the applicant's delivery loses
   `contract` without a word. What goes to a broker never carries it — `envelopeOf` leaves it out,
   and a Worker publishing to one by hand must too (EVT-22).
-- `logs: { read({ levels, from, to, cursor, limit }), pageSize? }` — answer
-  `{ records: [{ at, level, message, fields? }], nextCursor? }`, most recent first. `levels` arrives
-  expanded and in order, lowest first, so the ladder never needs re-deriving.
+- `logs: { read({ levels, from, to, trace?, cursor, limit }), pageSize? }` — answer
+  `{ records: [{ at, level, message, fields?, traceId?, spanId? }], nextCursor? }`, most recent
+  first. `levels` arrives expanded and in order, lowest first, so the ladder never needs
+  re-deriving; `trace` arrives validated, and a page asked for one carries only records of it
+  (LOG-12). A record written in a call carries `call.trace.traceId` and `call.trace.spanId`
+  (LOG-11); one written by a cron carries neither.
 
 ## Also exported
 

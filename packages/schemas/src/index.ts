@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.10";
+export const EDITION = "0.11";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -1705,6 +1705,25 @@ export const logRecord = z
           "widget and what tempts a reader to reach into it; a flat map can be shown, scanned and " +
           "copied into a ticket, and offers nothing to build a contract on. This protocol defines " +
           "no filter over it.",
+      }),
+    traceId: z
+      .string()
+      .regex(/^[0-9a-f]{32}$/)
+      .optional()
+      .meta({
+        description:
+          "LOG-11. The trace of the call this record was written in — the one its `traceparent` " +
+          "named, or the one the Worker began (ENDP-42) — as W3C Trace Context spells a trace " +
+          "id: 32 lowercase hexadecimal digits. Absent for a record written outside any call.",
+      }),
+    spanId: z
+      .string()
+      .regex(/^[0-9a-f]{16}$/)
+      .optional()
+      .meta({
+        description:
+          "LOG-11. The span the Worker was in when it wrote this record: 16 lowercase " +
+          "hexadecimal digits. Present exactly where `traceId` is.",
       }),
   })
   .meta({

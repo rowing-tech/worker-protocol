@@ -21,6 +21,9 @@ export const CLAIMS = [
   "DESC-1",
   "DESC-35",
   "DESC-5",
+  // ENDP-42 is observed on the Descriptor route because every Worker has one: a request is never
+  // refused for the `traceparent` it carried, readable or not.
+  "ENDP-42",
   "DESC-6",
   "DESC-8",
   "DESC-9",
@@ -117,6 +120,36 @@ export async function readDescriptor(
   const second = await transcript.send(url, "the Descriptor route, a second time");
   if (second.status === first.status && second.body === first.body) say("DESC-5", "passes");
   else say("DESC-5", "fails", "a second GET of the Descriptor answered something else");
+
+  // ENDP-42: a header nobody could parse is treated as absent, and a well-formed one continues the
+  // trace; neither changes the answer, because a tracing fault upstream is not a reason to refuse.
+  const garbled = await transcript.send(
+    url,
+    "the Descriptor route, under a `traceparent` nobody could parse",
+    { headers: { traceparent: "not-a-traceparent" } },
+  );
+  const traced = await transcript.send(
+    url,
+    "the Descriptor route, under a trace of the verifier's",
+    {
+      headers: { traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" },
+    },
+  );
+  if (garbled.status !== first.status) {
+    say(
+      "ENDP-42",
+      "fails",
+      `a \`traceparent\` that cannot be read changed the answer from ${first.status} to ${garbled.status}`,
+    );
+  } else if (traced.status !== first.status) {
+    say(
+      "ENDP-42",
+      "fails",
+      `a well-formed \`traceparent\` changed the answer from ${first.status} to ${traced.status}`,
+    );
+  } else {
+    say("ENDP-42", "passes");
+  }
 
   const validation = descriptorSchema.safeParse(first.json);
 

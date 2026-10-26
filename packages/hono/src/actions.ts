@@ -21,6 +21,7 @@ import * as z from "zod";
 import type { ErrorCode } from "./codes.ts";
 import type { Covering, GrantRef } from "./grants.ts";
 import { availableFor, type OpenTask, type TaskFacts, type TaskTypes } from "./tasks.ts";
+import type { Trace } from "./trace.ts";
 import type { Answer, Refusal } from "./worker.ts";
 
 /**
@@ -90,6 +91,13 @@ export type ActionCall = {
    * deriving from it did not see its downstream key move when the scope arrived.
    */
   idempotencyKey?: string;
+  /**
+   * ENDP-42. The trace this call belongs to: the one its `traceparent` named, continued in a span
+   * of this Worker's own, or one `mount()` began. A record `run` writes carries `trace.traceId` and
+   * `trace.spanId` (LOG-11); a call to another Worker sends `traceparentOf(trace)` so the trace
+   * crosses (ENDP-43); a Worker running its own tracer hands this to it as the parent.
+   */
+  trace: Trace;
   /** REG-3. Whom `authenticate` accepted, where it said. Absent where it answered `"accepted"`. */
   principal?: unknown;
   /**
@@ -316,6 +324,8 @@ type Performance = {
   caller: string | undefined;
   /** TASK-39: the `Worker-Protocol-Task` header, unread, where one was sent. */
   task: string | undefined;
+  /** ENDP-42: the trace `mount()` resolved for this request. */
+  trace: Trace;
   /** TASK-6, ACT-22, GRANT-8: what this request's credential covers, worked out once. */
   covering: Covering;
   /** GRANT-4: that grant's applicant and id, for `call.grant`. */
@@ -409,6 +419,7 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
     principal,
     caller,
     task: header,
+    trace,
     covering,
     grant,
   }: Performance): Promise<Answer | Refusal> {
@@ -531,6 +542,7 @@ export function actions(facts: ActionFacts, tasks?: TasksDeclared) {
       name,
       token,
       idempotencyKey: recordedKey,
+      trace,
       principal,
       caller,
       ...(grant === undefined ? {} : { grant }),

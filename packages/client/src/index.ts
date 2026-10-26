@@ -23,6 +23,7 @@ import {
 } from "@worker-protocol/schemas";
 import type * as z from "zod";
 import { type CallerOptions, caller, collect, Malformed, type Page, page } from "./call.ts";
+import type { Trace } from "./trace.ts";
 
 /**
  * `@worker-protocol/client` — read a Worker, and take work from it.
@@ -241,7 +242,7 @@ const taskParameters = (read: TaskRead): Record<string, string> => ({
   ...(read.type === undefined ? {} : { type: read.type }),
 });
 
-/** LOG-7 and LOG-8. What a read of `logs` narrows to. */
+/** LOG-7, LOG-8 and LOG-12. What a read of `logs` narrows to. */
 export type LogRead = {
   /** LOG-7. A floor: this level and every level above it. */
   level?: LogLevel;
@@ -249,6 +250,8 @@ export type LogRead = {
   from?: Date;
   /** LOG-8. Exclusive. */
   to?: Date;
+  /** LOG-12. One trace: the records written while handling the calls that belong to it. */
+  trace?: string;
 };
 
 export type PerformOptions = {
@@ -264,6 +267,12 @@ export type PerformOptions = {
    * does not list (`400`) or the Task does not offer now (`409`), and nothing is performed.
    */
   task?: Task | string;
+  /**
+   * ENDP-43. The trace to perform under, from `beginTrace()` or from whatever tracer the caller
+   * runs. Absent, the call is made under a trace begun for it alone. A caller that wants the
+   * records the Worker wrote while performing hands one in and asks `logs` for it (LOG-12).
+   */
+  trace?: Trace;
 };
 
 /** TASK-39: the header's value, naming the occurrence where the caller holds the Task itself. */
@@ -281,6 +290,7 @@ export {
   sink,
 } from "./sink.ts";
 export { type Compatibility, canAnswer } from "./skills.ts";
+export { beginTrace, type Trace, traceparentFor } from "./trace.ts";
 
 export async function consume(baseUrl: string, options: CallerOptions = {}): Promise<Consumed> {
   // DESC-35: the one route this protocol fixes, and the only address a consumer ever assembles.
@@ -370,6 +380,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         body: JSON.stringify(input),
         idempotencyKey: perform.idempotencyKey,
         ...(perform.task === undefined ? {} : { task: taskHeader(perform.task) }),
+        ...(perform.trace === undefined ? {} : { trace: perform.trace }),
       });
       // ACT-10, ACT-18: `200` with the Action's own result, `204` with none, `202` where it does
       // not complete within the call. The result is the Worker's shape and is not validated.
@@ -422,6 +433,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
       if (query.level !== undefined) parameters.level = query.level;
       if (query.from !== undefined) parameters.from = rfc3339(query.from);
       if (query.to !== undefined) parameters.to = rfc3339(query.to);
+      if (query.trace !== undefined) parameters.trace = query.trace;
       return parameters;
     };
     consumed.logs = {

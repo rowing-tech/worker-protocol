@@ -19,6 +19,7 @@ import { rfc3339 } from "./buckets.ts";
 import type { ErrorCode } from "./codes.ts";
 import { cursorAfter, encodeCursor, onlyKnown, type Page, pageOf } from "./collection.ts";
 import type { Covering } from "./grants.ts";
+import type { Trace } from "./trace.ts";
 import type { Refusal } from "./worker.ts";
 
 /** What a Worker says about a Task whose condition holds: the domain, and the whole of it. */
@@ -160,8 +161,11 @@ const matches = (task: OpenTask, fixed: Record<string, string>): boolean =>
 export type TaskSurface = {
   read: (
     query: URLSearchParams,
-    /** Who is reading, and what this request's credential covers (TASK-6, TASK-44, GRANT-8). */
-    call: { token: string | undefined; principal: unknown; covering: Covering },
+    /**
+     * Who is reading, what this request's credential covers (TASK-6, TASK-44, GRANT-8), and the
+     * trace the read belongs to (ENDP-42), which `refuses` is told as any Action call is.
+     */
+    call: { token: string | undefined; principal: unknown; covering: Covering; trace: Trace },
   ) => Promise<Refusal | Page>;
 };
 
@@ -230,7 +234,7 @@ export function tasks(declared: {
 
   return {
     async read(query, call) {
-      const { token, principal, covering } = call;
+      const { token, principal, covering, trace } = call;
       // TASK-8: a type the entry does not declare. The surface exists and the caller asked about
       // something this Worker never raises, which is a parameter whose VALUE it will not accept.
       const type = query.get("type");
@@ -282,7 +286,11 @@ export function tasks(declared: {
           held.map(async (task) => {
             const names = raises[task.type]?.answeredBy ?? [];
             const available = forCaller({
-              available: await availableFor(task, { names, accepts, call: { token, principal } }),
+              available: await availableFor(task, {
+                names,
+                accepts,
+                call: { token, principal, trace },
+              }),
               names,
               covered,
             });
