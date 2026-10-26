@@ -1,6 +1,6 @@
 {
   "name": "@worker-protocol/client",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "workerProtocolEdition": "0.10",
   "description": "Read a Worker, and take work from it. The consumer half of worker-protocol",
   "keywords": [

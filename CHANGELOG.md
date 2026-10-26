@@ -17,6 +17,12 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-26 — edition 0.10
+
+All five packages still encode **edition 0.10**. One export, so that a Worker on Cloudflare can
+declare `grants` over the Durable Object it already keeps its subscriptions in, and the two examples
+brought up to every Capability.
+
 ### Added
 
 - cloudflare: `withGrants` and `durableGrants`, the grant store in a Durable Object on
