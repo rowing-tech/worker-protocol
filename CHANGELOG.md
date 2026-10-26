@@ -17,6 +17,17 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+### Added
+
+- cloudflare: `withGrants` and `durableGrants`, the grant store in a Durable Object on
+  `withSubscriptions`' pattern. `putGrant` compares and sets inside one method, so two applications
+  racing cannot both answer a credential (GRANT-5), and a grant is found by the digest of its
+  current credential and by nothing a rotation replaced (GRANT-8, GRANT-9). `examples/fleet-worker`
+  composes it and declares `grants`.
+- examples: `minimal-worker` declares `subscriptions` and `grants`, so it declares every Capability
+  the edition defines (issue #13), names its one caller so that caller may apply a grant, and
+  publishes `task-ended` through `eventHub()` when a check closes a Task.
+
 ## [0.12.0] - 2026-10-26 — edition 0.10
 
 All five packages encode **edition 0.10**, so the release that carries it is a MINOR of the

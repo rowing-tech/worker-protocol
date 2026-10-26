@@ -22,9 +22,8 @@ metadata:
 the error envelope, the page envelope with its cursor and cap, the refusals, the bucket boundaries
 cut in a declared time zone, the idempotency window, and the JSON Schema the Descriptor carries.
 
-What is left is what only the Worker knows. Declaring nine of the eleven Capabilities is about
-175 lines of domain; growing much past that means a rule `mount()` already carries is being
-re-derived.
+What is left is what only the Worker knows. Declaring all eleven Capabilities is about 220 lines
+of domain; growing much past that means a rule `mount()` already carries is being re-derived.
 
 **Load the `worker-protocol` skill first** for the rules, the ids and the Capability-choosing table.
 Deciding which Capability a fact belongs on comes before writing the member for it, because consoles
@@ -151,7 +150,7 @@ Read `references/members.md` for the signature of each member, and
 - **The consumer half** — `@worker-protocol/client`: `consume()` reads a Worker and takes work from
   it, with no web framework. A Tower, a console, or a Worker that answers another's Tasks is built
   on it. `canAnswer` and `compare` judge two Descriptors without calling anybody.
-- **Worked examples** — `examples/minimal-worker/src/worker.ts` for nine of the eleven Capabilities
+- **Worked examples** — `examples/minimal-worker/src/worker.ts` for all eleven Capabilities
   explained line by line, and `examples/fleet-worker` for the same Worker on Cloudflare with a
   Durable Object, an outbox and a Tail Worker. Both at
   https://github.com/rowing-tech/worker-protocol.

@@ -5,9 +5,9 @@ mixin per piece, for Workers on Cloudflare.
 
 **worker-protocol is an open specification for Workers that can be seen, operated and given work by
 people who did not build them.** `@worker-protocol/hono` carries everything the protocol fixes and
-leaves to the platform what depends on it: where ENDP-16's outcomes, SUB-7's subscriptions and
-LOG-2's records live, and what carries a delivery. On Cloudflare that is a Durable Object and a
-Queue, and this package is the one way of writing both.
+leaves to the platform what depends on it: where ENDP-16's outcomes, SUB-7's subscriptions,
+GRANT-4's grants and LOG-2's records live, and what carries a delivery. On Cloudflare that is a
+Durable Object and a Queue, and this package is the one way of writing both.
 
 ## Install
 
@@ -32,6 +32,7 @@ to watch in a first deployment.
 |---|---|---|
 | `withOutcomes` | ENDP-16's reservations and recorded outcomes | the object `actions.outcomes` reads |
 | `withSubscriptions` | SUB-7's subscriptions, found and ensured in one step | **one** object, never one per shard |
+| `withGrants` | GRANT-4's grants, compared and set in one step, found by the digest of their credential | **one** object, as the subscriptions |
 | `withOutbox` | an outbox, drained when a call ends and retried by the alarm | every object whose changes raise events |
 | `withLogs` | LOG-2's window, filtered and paged in SQL | the object `/logs` reads, and a Tail Worker writes |
 | `withLifecycle` | EVT-15's births and endings of Tasks and Alerts, found by comparing snapshots | over `withOutbox`, in the object whose Facts the Tasks and Alerts derive from |
@@ -41,14 +42,20 @@ one for the fleet: the subscriptions belong in the one, an outbox in every other
 carried everything would put subscription tables in thousands of objects. Plain functions over
 `SqlStorage` would compose with any base class as well, at the price of a dozen one-line RPC
 wrappers per Worker per piece — the boilerplate this package exists to remove. A Worker with a
-single object composes all four in it:
+single object composes all five in it:
 
 ```ts
 import { DurableObject } from "cloudflare:workers";
-import { withLogs, withOutbox, withOutcomes, withSubscriptions } from "@worker-protocol/cloudflare";
+import {
+  withGrants,
+  withLogs,
+  withOutbox,
+  withOutcomes,
+  withSubscriptions,
+} from "@worker-protocol/cloudflare";
 
 export class Fleet extends withLogs(
-  withOutbox(withSubscriptions(withOutcomes(DurableObject<Env>)), {
+  withOutbox(withGrants(withSubscriptions(withOutcomes(DurableObject<Env>))), {
     events: (env) => env.EVENTS,
   }),
   { keep: 500 },
@@ -213,10 +220,11 @@ the rest out inside the transaction of the write that raised them.
 
 ## Also exported
 
-`durableOutcomes`, `durableSubscriptions` and `durableLogs` turn the object into the store `mount()`
-takes: a stub, from a Worker in front of it, or the object itself, from inside. A subscription
-crosses the RPC boundary as JSON — its filters nest, and a stub's types do not survive a recursive
-one — and these do the parsing, so a Worker never sees the strings.
+`durableOutcomes`, `durableSubscriptions`, `durableGrants` and `durableLogs` turn the object into
+the store `mount()` takes: a stub, from a Worker in front of it, or the object itself, from inside.
+A subscription crosses the RPC boundary as JSON — its filters nest, and a stub's types do not
+survive a recursive one — and these do the parsing, so a Worker never sees the strings. A grant
+crosses the same way, so the two adapters read alike.
 
 ## Serve `mount()` from inside the object
 
@@ -231,7 +239,7 @@ one round trip. `mount()` needs nothing for it — it answers wherever it is ask
 take the object itself:
 
 ```ts
-export class Fleet extends withOutbox(withSubscriptions(withOutcomes(DurableObject<Env>)), {
+export class Fleet extends withOutbox(withGrants(withSubscriptions(withOutcomes(DurableObject<Env>))), {
   events: (env) => env.EVENTS,
 }) {
   private served: ReturnType<typeof mount> | undefined;

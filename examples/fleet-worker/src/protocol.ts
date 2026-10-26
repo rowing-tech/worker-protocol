@@ -1,8 +1,10 @@
 import {
   deliveryQueue,
+  durableGrants,
   durableLogs,
   durableOutcomes,
   durableSubscriptions,
+  type GrantsRpc,
   type SubscriptionsRpc,
 } from "@worker-protocol/cloudflare";
 import {
@@ -108,10 +110,17 @@ export const EVENTS = {
 
 /**
  * The push, built from the declaration `mount()` serves: the id is every event's `source`, and the
- * `events` entry is what may be published and how long a delivery may be retried.
+ * `events` entry is what may be published and how long a delivery may be retried. The grants are
+ * handed over too (GRANT-9): a subscription a Contract's credential made stops receiving from the
+ * response that revokes or rotates its grant, and the hub asks the store before every delivery.
  */
-export const hubOver = (fleet: SubscriptionsRpc, env: Env) =>
-  eventHub({ id: ID, events: EVENTS, subscriptions: subscriptionsOver(fleet, env) });
+export const hubOver = (fleet: SubscriptionsRpc & GrantsRpc, env: Env) =>
+  eventHub({
+    id: ID,
+    events: EVENTS,
+    subscriptions: subscriptionsOver(fleet, env),
+    grants: { store: durableGrants(fleet) },
+  });
 
 /**
  * The Worker, declared over the object that keeps its Facts — and served from inside it.
@@ -128,7 +137,10 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
     id: ID,
 
     // REG-3, REG-37. It may await, and a Worker reading a token from an identity provider would.
-    authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
+    // GRANT-2: accepting names WHO is calling, because a grant belongs to its applicant and an
+    // applicant has to have a name. One static secret, so it names the one caller that secret is.
+    authenticate: (token) =>
+      token === env.CREDENTIAL ? { verdict: "accepted", caller: "operator" } : "unauthenticated",
 
     // HLTH-2: one status and named checks. HLTH-3 forbids `healthy` while a check is not, so the
     // outbox backing up takes the whole Worker to `degraded` and says which check said so — and a
@@ -264,6 +276,12 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
     // SUB-1 to SUB-17: who subscribed, kept in the durable object, and a Queue to carry each push.
     // `mount()` serves the address; the object's outbox publishes and `queue` below delivers.
     subscriptions: subscriptionsOver(fleet, env),
+
+    // GRANT-1 to GRANT-9: what a Contract's credential covers here, kept in the durable object so
+    // that applying compares and sets in one place (GRANT-5) and a credential issued in one isolate
+    // is found by its digest in any other. `mount()` serves the address, mints each credential and
+    // derives what one covers; who may apply is the one caller `authenticate` names.
+    grants: { store: durableGrants(fleet), applicants: (caller) => caller === "operator" },
 
     // LOG-2: what this Worker recorded while it was working, read from the durable object. A buffer
     // in the isolate would pass every local test and be wrong in production, because a read can

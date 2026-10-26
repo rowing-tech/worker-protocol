@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { cycle } from "../src/cycle.ts";
 import { fleetOf } from "../src/fleet.ts";
-import { QUIET_AFTER_MS } from "../src/quiet.ts";
+import { QUIET_AFTER_MS, QUIET_VEHICLE } from "../src/quiet.ts";
 import { captureEvents } from "./outbound.ts";
 import { NOW, source } from "./source.ts";
 
@@ -44,6 +44,7 @@ describe("what a Tower reads first", () => {
       "actions",
       "alerts",
       "events",
+      "grants",
       "health",
       "logs",
       "metrics",
@@ -224,5 +225,46 @@ describe("what the Worker recorded while it was working", () => {
     const unknown = await at("/logs?vehicle=ABC-123");
     expect(unknown.status).toBe(400);
     expect(((await unknown.json()) as { code: string }).code).toBe("unknown_filter");
+  });
+});
+
+describe("grants, kept in the durable object", () => {
+  const under = (credential: string, path: string) =>
+    SELF.fetch(`https://fleet.invalid${path}`, {
+      headers: { authorization: `Bearer ${credential}` },
+    });
+
+  it("applies a grant, issues a credential that covers what it names and nothing else, and revokes it", async () => {
+    // GRANT-3, GRANT-4: the applicant is the caller `authenticate` named, and the receipt carries
+    // the one credential the Worker will ever answer for this grant.
+    const applied = await at("/grants", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: "contract-1", tasks: [QUIET_VEHICLE], actions: [], events: [] }),
+    });
+    expect(applied.status).toBe(201);
+    const receipt = (await applied.json()) as { id: string; credential?: string };
+    expect(receipt.id).toBe("contract-1");
+    expect(receipt.credential).toBeTruthy();
+    const credential = receipt.credential as string;
+
+    // GRANT-8: the credential was minted in one isolate and is found by its digest in another,
+    // which is the claim the durable object is here to make. It reads the Tasks the grant names.
+    expect((await under(credential, "/tasks")).status).toBe(200);
+    // GRANT-10: and is refused on the addresses that are the operator's.
+    expect((await under(credential, "/health")).status).toBe(403);
+
+    // GRANT-6: listed to its applicant, and the credential is never listed back.
+    const listed = (await (await at("/grants")).json()) as {
+      items: { id: string; credential?: string }[];
+    };
+    const one = listed.items.find((grant) => grant.id === "contract-1");
+    expect(one).toBeDefined();
+    expect(one?.credential).toBeUndefined();
+
+    // GRANT-7, GRANT-9: revoked with `204`, and the credential is `401` from that response on.
+    expect((await at("/grants?grant=contract-1", { method: "DELETE" })).status).toBe(204);
+    expect((await under(credential, "/tasks")).status).toBe(401);
+    expect((await at("/grants?grant=contract-1", { method: "DELETE" })).status).toBe(404);
   });
 });

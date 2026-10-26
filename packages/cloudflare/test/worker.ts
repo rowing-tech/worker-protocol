@@ -3,6 +3,7 @@ import type { OpenTask } from "@worker-protocol/hono";
 import {
   type Flushed,
   type LifecycleSnapshot,
+  withGrants,
   withLifecycle,
   withLogs,
   withOutbox,
@@ -26,7 +27,7 @@ export type TestEnv = {
 };
 
 export class Whole extends withLogs(
-  withOutbox(withSubscriptions(withOutcomes(DurableObject<TestEnv>)), {
+  withOutbox(withGrants(withSubscriptions(withOutcomes(DurableObject<TestEnv>))), {
     events: () => outbound.queue,
   }),
   { keep: 5 },

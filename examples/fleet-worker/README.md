@@ -6,20 +6,21 @@ A conformant Worker on Cloudflare, whose Facts live in a Durable Object.
 memory, written out and explained. This one exists for the question that file cannot answer, which
 is **where a Worker keeps what a rule needs between two requests**.
 
-Five things here have to outlive a request: the condition a Task is derived from (TASK-15), the
+Six things here have to outlive a request: the condition a Task is derived from (TASK-15), the
 counters a metric is read from (MET-21), the outcome ENDP-16 promised to replay, an outbox of events
-not yet published, and who subscribed to them (SUB-7). Every example in this repository kept them in
+not yet published, who subscribed to them (SUB-7), and what each Contract's credential covers
+(GRANT-4). Every example in this repository kept them in
 a `Map` in a process, which is correct in one long-lived process and silently wrong across isolates
 — a repeat under an idempotency key reaches a process that recorded nothing, the Action runs a
 second time *while the caller believes it is protected*, and both calls answer `200` so nobody sees
 two.
 
-[src/fleet.ts](src/fleet.ts) is the Durable Object all five live in, and it answers the protocol
+[src/fleet.ts](src/fleet.ts) is the Durable Object all six live in, and it answers the protocol
 from its own `fetch`. [src/protocol.ts](src/protocol.ts) is the Worker it answers with, and is the
 file to read beside `minimal-worker` to see what changed: the declarations are identical and the
 Facts come from somewhere else. [src/worker.ts](src/worker.ts) is the entrypoint, which forwards
 every request to the object and keeps the cron and the Queues. What is the protocol's in that object
-— the outcomes, the subscriptions, the outbox and the records — comes from
+— the outcomes, the subscriptions, the grants, the outbox and the records — comes from
 [`@worker-protocol/cloudflare`](../../packages/cloudflare), one mixin per piece, and what is left in
 the file is the domain. [src/quiet.ts](src/quiet.ts) is the domain apart from where it is kept.
 

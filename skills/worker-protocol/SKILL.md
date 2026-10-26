@@ -310,7 +310,7 @@ Load these when the task needs them, not before.
   Normative: where prose and a schema disagree, the schema wins. Validate against them.
 - **A verb, parameter, header or refusal on one address** — `openapi/`, one document per address.
   Normative for the surface. Generate from these rather than reading them by hand.
-- **A Worker to model on** — `examples/minimal-worker/src/worker.ts` declares nine of the eleven
+- **A Worker to model on** — `examples/minimal-worker/src/worker.ts` declares all eleven
   Capabilities with a comment per line. It is TypeScript and the *declarations* are what to copy,
   not the syntax. Do not model on `conformance/reference-worker`: it is a test double, deliberately
   arranged wrong in places so the verifier can observe rules nothing else provokes.

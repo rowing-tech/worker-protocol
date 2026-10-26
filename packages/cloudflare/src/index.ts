@@ -3,9 +3,9 @@
  * between an outbox and a sink.
  *
  * `@worker-protocol/hono` leaves to the platform what depends on it: where ENDP-16's outcomes,
- * SUB-7's subscriptions and LOG-2's records live, and what carries a delivery. On Cloudflare that is
- * a Durable Object and a Queue, and this package is the one way of writing both, so that each Worker
- * on the platform does not write it again with its own mistakes.
+ * SUB-7's subscriptions, GRANT-4's grants and LOG-2's records live, and what carries a delivery. On
+ * Cloudflare that is a Durable Object and a Queue, and this package is the one way of writing both,
+ * so that each Worker on the platform does not write it again with its own mistakes.
  *
  * **One mixin per piece**, because a Worker in production keeps one object per vehicle and one for
  * the fleet, and each object should carry only what it holds: the subscriptions in the one, an
@@ -16,6 +16,7 @@
 
 export type { DurableObjectClass, EnvOf, Mixed } from "./durable.ts";
 export { forward } from "./forward.ts";
+export { durableGrants, type GrantMethods, type GrantsRpc, withGrants } from "./grants.ts";
 export {
   type Advanced,
   type LifecycleMethods,

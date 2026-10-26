@@ -1,5 +1,5 @@
 /**
- * A conformant Worker that declares nine of the eleven Capabilities this protocol defines.
+ * A conformant Worker that declares everything this protocol defines.
  *
  * **Copy this file.** Every line in it is domain — what this Worker is, what it knows how to do,
  * what it depends on, what it counts, what it does, which conditions hold, what it is working on,
@@ -7,10 +7,10 @@
  * the page envelope with its cursor and its order, the bucket boundaries cut in a declared time
  * zone, the idempotency window: all of that is `mount()`'s, once, in `@worker-protocol/hono`.
  *
- * It declares nine of the eleven Capabilities — all but `subscriptions` and `grants` — because
- * seeing one written is worth more than reading that it exists. A real Worker declares the ones it
- * implements and leaves out the rest: any combination is allowed, including none at all, and a
- * Worker that serves only a Descriptor is already enrolled, catalogued and reachable.
+ * It declares all eleven Capabilities, because seeing one written is worth more than reading that
+ * it exists. A real Worker declares the ones it implements and leaves out the rest: any
+ * combination is allowed, including none at all, and a Worker that serves only a Descriptor is
+ * already enrolled, catalogued and reachable.
  *
  * **It is written as a function of its environment, which is the form every platform admits.** A
  * Cloudflare Worker, a Vercel edge function and a Deno Deploy handler are handed their bindings and
@@ -30,11 +30,18 @@ import {
   type Activity,
   action,
   defineWorker,
+  eventHub,
+  LIFECYCLE,
   type LogLevel,
   type LogRecord,
+  memoryDeliveries,
+  memoryGrants,
   memoryOutcomes,
+  memorySubscriptions,
   mount,
   type OpenTask,
+  taskEnded,
+  type Worker,
 } from "@worker-protocol/hono";
 import * as z from "zod";
 
@@ -49,8 +56,24 @@ const SILENT_VEHICLE = "tech.rowing.fleet.check-silent-vehicle";
 /** What this Worker CAN do for somebody else: it holds the readings, so it knows where one is. */
 const LOCATE_VEHICLE = "tech.rowing.dispatch.locate-vehicle";
 
+/**
+ * The Worker's own id: a name it is deployed with, never the URL it is served from and never
+ * anything read off the address at boot. Moving it to another host must not make it another
+ * Worker. A constant rather than a line inside the Worker because two things read it: `mount()`,
+ * which serves it, and the hub below, which makes it every event's `source`.
+ */
+const ID = "tech.rowing.fleet.watcher";
+
 /** What this Worker is deployed with. On Cloudflare these are bindings; on Node, `process.env`. */
-export type Env = { CREDENTIAL?: string };
+export type Env = {
+  CREDENTIAL?: string;
+  /**
+   * Sink origins held to neither the `https` rule nor the private-address rule, comma-separated:
+   * a local backend a development Worker pushes to over `http://127.0.0.1`. Set while developing
+   * and nowhere else, so a deployed Worker holds every sink to both.
+   */
+  DEV_SINK_ORIGINS?: string;
+};
 
 /** This Worker's own facts. A real one reads them from the store its environment gives it. */
 const silent = new Map<string, Date>([
@@ -78,6 +101,78 @@ let configuration = { label: "fleet watcher", quietAfterMinutes: 15 };
 const outcomes = memoryOutcomes();
 
 /**
+ * What this Worker publishes, the broker it publishes on, how an event's attributes sit on it, and
+ * where on it they land. Nothing in this protocol parses the first three: an event travels over a
+ * broker rather than over this API, and naming which broker is not this specification's business.
+ *
+ * A constant rather than a line inside the Worker because two things read it: `mount()`, which
+ * writes the Descriptor from it, and the hub below, which publishes by it. One declaration is the
+ * only way the two cannot disagree about what this Worker publishes.
+ */
+const EVENTS = {
+  broker: "kafka",
+  protocolBinding: "cloudevents/kafka-1.0",
+  destination: { bootstrapServers: "kafka.rowing.invalid:9092", topic: "fleet.telemetry" },
+  publishes: {
+    "tech.rowing.fleet.vehicle-went-quiet": {
+      data: z.object({ vehicle: z.string(), since: z.string() }),
+      // What a subscriber can filter on without opening the data: which depot the vehicle
+      // belongs to. Declared, so a console offers it as a filter before anybody subscribes.
+      extensions: { depot: z.enum(["north", "south"]) },
+    },
+    // What this event was before it carried an instant. A subscriber built on it would break on
+    // the shape above, so that shape took a new name rather than this one — and this one stays
+    // declared, exactly as it was, saying which name replaced it, until nobody reads it any more.
+    // Removing it from here is the announcement that it is gone.
+    "tech.rowing.fleet.vehicle-quiet": {
+      data: z.object({ vehicle: z.string(), quietForMinutes: z.number() }),
+      supersededBy: "tech.rowing.fleet.vehicle-went-quiet",
+    },
+    // The specification's own name and shape for a Task that ended, which is a moment only this
+    // Worker knows: `check` below publishes it when a check closes one. Narrowed to the one type
+    // this Worker raises, so a subscriber reading the Descriptor knows what `type` holds, and
+    // `tasktype` is what a subscriber filters them by.
+    [LIFECYCLE.taskEnded]: {
+      data: z.object({ id: z.string(), type: z.literal(SILENT_VEHICLE) }),
+      extensions: { tasktype: z.literal(SILENT_VEHICLE) },
+    },
+  },
+  // How far back this Worker may republish the same event, which is what a subscriber sizes its
+  // deduplication store against. Declared rather than assumed, because `remember forever` is not
+  // implementable and a subscriber that forgot too early would process one event twice.
+  republishWindowSeconds: 3600,
+} satisfies NonNullable<Worker["events"]>;
+
+/**
+ * Who subscribed to those events, and what carries each push to a sink. Both outlive a request
+ * for the reason `outcomes` does, and both are the memory kind because this is one process: on
+ * Cloudflare the store is a durable object and the carrier a Queue, which `examples/fleet-worker`
+ * shows. A day is how long a sink may fail without interruption before its subscription ends.
+ */
+const deliveries = memoryDeliveries();
+const subscriptions = {
+  abandonAfterSeconds: 86_400,
+  store: memorySubscriptions(),
+  queue: deliveries,
+};
+
+/**
+ * What a Contract's credential covers here, applied ahead of time by whoever brokered the
+ * Contract. The store holds a digest per credential and never a credential: `mount()` mints each
+ * one, answers it once, and looks a later call up by its SHA-256.
+ */
+const grants = memoryGrants();
+
+/**
+ * The push: an event `check` publishes goes to every subscription that names its type and matches
+ * its filters, with the retries and the giving-up the specification fixes. Built from the same
+ * declarations `mount()` serves, and handed the grants so a subscription a Contract's credential
+ * made stops receiving the moment that grant is revoked.
+ */
+const hub = eventHub({ id: ID, events: EVENTS, subscriptions, grants: { store: grants } });
+deliveries.consume(hub.deliver);
+
+/**
  * What this Worker has recorded, newest last, as a window rather than an archive.
  *
  * An array in the process is right HERE and wrong on Cloudflare, and the difference is worth
@@ -97,20 +192,23 @@ const record = (level: LogLevel, message: string, fields?: LogRecord["fields"]):
   if (recorded.length > KEEP) recorded.splice(0, recorded.length - KEEP);
 };
 
+/** The id a silent vehicle's Task carries: the condition, named, so one vehicle is one Task. */
+const taskOf = (vehicle: string) => `silent:${vehicle}`;
+
 /** What either answer to a silent vehicle changes: it has been looked at, found or not. */
-const check = (vehicle: string) => {
+const check = async (vehicle: string) => {
   checked.add(vehicle);
   // One line for a person, and a flat map of scalars beside it for a console to render as key and
   // value rather than as a sentence somebody has to parse back out.
   record("info", "check recorded", { vehicle, outstanding: silent.size - checked.size });
+  // The Task is gone at the next read because its condition no longer holds, and this is the one
+  // moment anybody can say so: the Worker publishes it, and nobody closes anything.
+  await hub.publish(taskEnded({ id: taskOf(vehicle), type: SILENT_VEHICLE }));
   return { recordedAt: new Date().toISOString() };
 };
 
 export const fleetWorker = defineWorker<Env>((env) => ({
-  // The Worker's own id: a name it is deployed with, never the URL it is served from and never
-  // anything read off the address at boot. Moving it to another host must not make it another
-  // Worker.
-  id: "tech.rowing.fleet.watcher",
+  id: ID,
 
   // The Task types this Worker ANSWERS, which is what it can do for somebody else. It sits beside
   // the id rather than inside `tasks` because it is served at no address: `tasks` is what this
@@ -141,7 +239,13 @@ export const fleetWorker = defineWorker<Env>((env) => ({
   // `Authorization: Bearer <token>` on every address, this one answers yes or no, and a real Worker
   // validates it against whatever identity provider it already runs — which may be a network call,
   // so this may return a promise.
-  authenticate: (token) => (token === env.CREDENTIAL ? "accepted" : "unauthenticated"),
+  //
+  // Accepting names WHO is calling, as a stable string that is not the credential: a caller that
+  // rotates its token is the same caller. This Worker holds one static secret, so it names the one
+  // caller that secret is — which is what lets that caller apply grants below, because a grant
+  // belongs to its applicant and an applicant has to have a name.
+  authenticate: (token) =>
+    token === env.CREDENTIAL ? { verdict: "accepted", caller: "operator" } : "unauthenticated",
 
   // One status for the Worker and a map of named checks beneath it. `healthy` while one of those
   // checks is not healthy is forbidden — the summary may never be better than its parts, which is
@@ -352,7 +456,7 @@ export const fleetWorker = defineWorker<Env>((env) => ({
       [...silent.entries()]
         .filter(([vehicle]) => !checked.has(vehicle))
         .map(([vehicle, since]) => ({
-          id: `silent:${vehicle}`,
+          id: taskOf(vehicle),
           type: SILENT_VEHICLE,
           payload: { vehicle },
           since,
@@ -366,36 +470,30 @@ export const fleetWorker = defineWorker<Env>((env) => ({
         })),
   },
 
-  // The broker, how an event's attributes sit on it, where on it these land, and what this Worker
-  // publishes. Nothing in this protocol parses the first three: an event travels over a broker
-  // rather than over this API, and naming which broker is not this specification's business. This
-  // is the one Capability with no address at all — there is no call to make, only a declaration of
-  // what a subscriber will find and where.
-  events: {
-    broker: "kafka",
-    protocolBinding: "cloudevents/kafka-1.0",
-    destination: { bootstrapServers: "kafka.rowing.invalid:9092", topic: "fleet.telemetry" },
-    publishes: {
-      "tech.rowing.fleet.vehicle-went-quiet": {
-        data: z.object({ vehicle: z.string(), since: z.string() }),
-        // What a subscriber can filter on without opening the data: which depot the vehicle
-        // belongs to. Declared, so a console offers it as a filter before anybody subscribes.
-        extensions: { depot: z.enum(["north", "south"]) },
-      },
-      // What this event was before it carried an instant. A subscriber built on it would break on
-      // the shape above, so that shape took a new name rather than this one — and this one stays
-      // declared, exactly as it was, saying which name replaced it, until nobody reads it any more.
-      // Removing it from here is the announcement that it is gone.
-      "tech.rowing.fleet.vehicle-quiet": {
-        data: z.object({ vehicle: z.string(), quietForMinutes: z.number() }),
-        supersededBy: "tech.rowing.fleet.vehicle-went-quiet",
-      },
-    },
-    // How far back this Worker may republish the same event, which is what a subscriber sizes its
-    // deduplication store against. Declared rather than assumed, because `remember forever` is not
-    // implementable and a subscriber that forgot too early would process one event twice.
-    republishWindowSeconds: 3600,
+  // What this Worker publishes and where, declared above so that the hub reads the same thing.
+  // This is the one Capability with no address at all — there is no call to make, only a
+  // declaration of what a subscriber will find and where.
+  events: EVENTS,
+
+  // Who may subscribe to those events over this API, and the push to their sinks. `mount()` serves
+  // the address — who may subscribe to what, the sink rules, the handshake that stops a caller
+  // aiming this Worker at somebody else's URL, the idempotence — and the hub above delivers. What
+  // is left to declare is where the subscriptions live and what carries a delivery, because both
+  // depend on the platform. Nothing here names a subscriber: `check` publishes a Fact, and the list
+  // of who wanted it belongs to the delivery machinery, which is what a broker is. The one thing
+  // about them that is the environment's: the sink origins a development run exempts from the
+  // `https` and private-address rules, which a deployment leaves empty.
+  subscriptions: {
+    ...subscriptions,
+    insecureSinkOrigins: (env.DEV_SINK_ORIGINS ?? "").split(",").filter((one) => one.length > 0),
   },
+
+  // What a Contract's credential covers here — the Task types it reads, the Actions it performs,
+  // the event types it consumes — applied ahead of time by whoever brokered the Contract, which is
+  // how this Worker validates that credential without calling anybody. `mount()` serves the
+  // address, mints each credential and derives what one covers, so nothing else in this file
+  // checks one. Who may apply is this Worker's own: here, the one caller `authenticate` names.
+  grants: { store: grants, applicants: (caller) => caller === "operator" },
 }));
 
 /**

@@ -1,5 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
-import { withLogs, withOutbox, withOutcomes, withSubscriptions } from "@worker-protocol/cloudflare";
+import {
+  withGrants,
+  withLogs,
+  withOutbox,
+  withOutcomes,
+  withSubscriptions,
+} from "@worker-protocol/cloudflare";
 import { mount, type OpenTask, taskAnswered, taskEnded, taskRaised } from "@worker-protocol/hono";
 import type { Env } from "./env.ts";
 import { fleetWorker } from "./protocol.ts";
@@ -46,7 +52,7 @@ const COUNTER = "counter:";
 const KEEP_RECORDS = 500;
 
 export class Fleet extends withLogs(
-  withOutbox(withSubscriptions(withOutcomes(DurableObject<Env>)), {
+  withOutbox(withGrants(withSubscriptions(withOutcomes(DurableObject<Env>))), {
     events: (env) => env.EVENTS,
   }),
   { keep: KEEP_RECORDS },

@@ -82,7 +82,7 @@ packages/
   client/        consume(): read a Worker and take work from it — the consumer half
   conformance/   the verifier: point it at a worker, get a report of what it complies with
 examples/          two Workers, and both are templates
-  minimal-worker/    nine of eleven Capabilities, explained line by line. Copy this one
+  minimal-worker/    all eleven Capabilities, explained line by line. Copy this one
   fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, a Tail Worker
 CHANGELOG.md     every release, and the edition each one encodes — the two are not the same number
 skills/          what a coding agent reads before writing a Worker
@@ -105,12 +105,11 @@ from the surface declaration beside it, and `@worker-protocol/conformance` runni
 built on it is what vouches for it.
 
 **How much a Worker author writes is a number this repository measures**, because it is the one
-that decides whether any of the rest gets used. `examples/minimal-worker` declares nine of the
-eleven Capabilities — all but `subscriptions` and `grants` — in a little over a hundred lines of
-domain, and `pnpm dx:check` counts them. The ceiling it enforces sits far above that on purpose: a
-count tight enough to bind would be satisfied by declaring one Capability less, and the example is
-worth more than the number. What grows the file is a rule `mount()` should have carried, and that
-is the question a rise asks.
+that decides whether any of the rest gets used. `examples/minimal-worker` declares every Capability
+this protocol defines in a little over two hundred lines of domain, and `pnpm dx:check` counts
+them. The ceiling it enforces sits far above that on purpose: a count tight enough to bind would be
+satisfied by declaring one Capability less, and the example is worth more than the number. What
+grows the file is a rule `mount()` should have carried, and that is the question a rise asks.
 
 **`examples/fleet-worker` is the same Worker with its `Map`s taken away.** Every piece of state a
 rule here needs to outlive a request — the Tasks whose conditions hold, the counters a metric is
