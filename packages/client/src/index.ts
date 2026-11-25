@@ -24,6 +24,7 @@ import {
 } from "@worker-protocol/schemas";
 import type * as z from "zod";
 import { type CallerOptions, caller, collect, Malformed, type Page, page } from "./call.ts";
+import { readTolerantly } from "./tolerant.ts";
 import type { Trace } from "./trace.ts";
 
 /**
@@ -97,6 +98,13 @@ export type Consumed = {
   descriptor: Descriptor;
   /** DESC-23. The edition this Worker declares it speaks. */
   edition: string;
+  /**
+   * DESC-39. What this client ignored in the Descriptor, as dotted paths — `capabilities.frobs`
+   * for a Capability its edition does not define, or a member it does not know. Empty when the
+   * Worker declared nothing this client could not read. Ignored is not unread: everything else in
+   * the Descriptor was read and is offered below.
+   */
+  ignored: string[];
   health?: () => Promise<z.infer<typeof healthSchema>>;
   metrics?: {
     /** MET-8. One metric, every bucket in the interval, paged through (ENDP-20, ENDP-31). */
@@ -313,6 +321,7 @@ export {
   sink,
 } from "./sink.ts";
 export { type Compatibility, canAnswer } from "./skills.ts";
+export { type Ignored, readTolerantly, type TolerantRead } from "./tolerant.ts";
 export { beginTrace, type Trace, traceparentFor } from "./trace.ts";
 
 export async function consume(baseUrl: string, options: CallerOptions = {}): Promise<Consumed> {
@@ -322,7 +331,16 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
     ".well-known/worker-protocol",
     baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`,
   ).toString();
-  const call = caller(descriptorUrl, options);
+  // DESC-39: what the Descriptor carried that this edition does not define, kept for `ignored`
+  // and still told to the caller's own listener.
+  const ignoredInDescriptor: string[] = [];
+  const call = caller(descriptorUrl, {
+    ...options,
+    onIgnored: (found) => {
+      if (found.url === descriptorUrl) ignoredInDescriptor.push(...found.paths);
+      options.onIgnored?.(found);
+    },
+  });
 
   const descriptor = await call.validated(
     { url: descriptorUrl, addressLevel: true },
@@ -352,7 +370,11 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
     });
   };
 
-  const consumed: Consumed = { descriptor, edition: descriptor.edition };
+  const consumed: Consumed = {
+    descriptor,
+    edition: descriptor.edition,
+    ignored: ignoredInDescriptor,
+  };
 
   const healthAddress = addressOf("health");
   if (healthAddress !== undefined) {
@@ -535,7 +557,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
           method: "POST",
           body: JSON.stringify(request),
         });
-        const receipt = subscriptionReceipt.safeParse(answered.json);
+        const receipt = readTolerantly(subscriptionReceipt, answered.json);
         if (!receipt.success) {
           throw new Malformed(
             "SUB-2",
@@ -565,7 +587,7 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
           method: "POST",
           body: JSON.stringify(request),
         });
-        const receipt = grantReceipt.safeParse(answered.json);
+        const receipt = readTolerantly(grantReceipt, answered.json);
         if (!receipt.success) {
           throw new Malformed("GRANT-4", grantsAddress, "the answer carried no grant");
         }

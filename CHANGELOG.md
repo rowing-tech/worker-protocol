@@ -17,6 +17,45 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-25 — edition 0.13
+
+All five packages encode **edition 0.13**, which binds no Worker to anything new: DESC-39 is about
+how a consumer reads and DESC-40 about how a verifier does. A Worker built to 0.12 is still correct
+in 0.12 (DESC-31). This is the last edition a deployed verifier goes silent for: one that holds
+0.12 still stops at a 0.13 Worker, as DESC-33 had it, and one that holds 0.13 keeps judging.
+
+### Added
+
+- spec: **DESC-39** — a consumer reads what its edition defines of a document a Worker sends and
+  ignores what it does not: a Capability name, or a member of an object. A value its edition does
+  not admit, of a member it does define, is still refused. Until now an addition to the protocol
+  broke every reader already deployed: a client holding 0.11 refused the whole Descriptor of a
+  Worker that declared `queries`, and any client refused a Task, a page or a `health` answer that
+  carried one member more. The schemas stay closed, because they describe what a Worker of an
+  edition sends and a verifier still judges a Worker by them.
+- client: every answer is read that way. `consumed.ignored` lists what was ignored in the
+  Descriptor and `onIgnored` is told for every answer; `readTolerantly(schema, value)` reads a
+  document a caller holds itself, such as a stored Descriptor.
+
+- spec: **DESC-40** replaces DESC-33 — a verifier behind on MINOR no longer verifies nothing. It
+  judges what its edition defines of what the Worker declares, Capability by Capability: a name it
+  does not hold, or a version it does not hold, is ignored and said, and every other is judged. It
+  fails nothing, because from behind an addition and a fault look the same; what it saw broken is
+  reported as not exercised, with what was seen. Behind on MAJOR it still verifies nothing.
+- conformance: `verify()` obeys it. A report from an older verifier carries `older`, `ignored` (the
+  Capabilities set aside) and `inDoubt` (the rules seen broken and not failed). The command exits 0
+  where such a run found nothing broken, and 2 where it judged nothing or left something in doubt.
+
+### Changed
+
+- spec: the argument under DESC-32 no longer says a reader treats a later MINOR as a later MAJOR
+  before 1.0, and NAME-6's argument no longer says a closed schema decides whether a reader can
+  ignore an added member.
+
+### Withdrawn
+
+- spec: **DESC-33**, for DESC-40.
+
 ## [0.15.0] - 2026-11-25 — edition 0.12
 
 All five packages encode **edition 0.12**, which adds one Capability and widens one rule: a grant
@@ -1163,7 +1202,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.13.0...v0.13.1

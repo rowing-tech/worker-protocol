@@ -19,7 +19,7 @@ this document, and separating them moved six rules.
 |---|---|---|
 | **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 126 |
 | **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 60 |
-| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 29 |
+| **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 30 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
 
@@ -33,9 +33,9 @@ with a party has somewhere to be true.
 
 | Subject | Rules | Where they are checked |
 |---|---|---|
-| A consumer or a caller | DESC-13, DESC-38, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31, ENDP-43 | `packages/client`, one test per id, against a Worker made to misbehave |
+| A consumer or a caller | DESC-13, DESC-38, DESC-39, ENDP-13, ENDP-14, ENDP-21, ENDP-27, ENDP-28, ENDP-30, ENDP-31, ENDP-43 | `packages/client`, one test per id, against a Worker made to misbehave |
 | A Control Tower | DESC-19, DESC-20, REG-35, REG-14, REG-16, REG-19, REG-29, REG-30, REG-36 | `packages/conformance/src/__tests__/tower.test.ts`, a Tower simulated over the example Workers; REG-36's comparison is `compare` in `packages/client` |
-| A verifier | DESC-34, DESC-15, DESC-16, DESC-19, DESC-33 | `packages/conformance` itself, which is the verifier they bind |
+| A verifier | DESC-34, DESC-15, DESC-16, DESC-19, DESC-40 | `packages/conformance` itself, which is the verifier they bind |
 | An issuer, a subscriber, this specification | REG-27, REG-33, EVT-5, EVT-6, EVT-7, NAME-3 | Nowhere, and the subject is the reason: no party here issues a credential or subscribes to a broker |
 
 The nine consumer rules had no witness anywhere until `@worker-protocol/client` existed, which is
@@ -55,7 +55,7 @@ what was pushed where. The first load was derived once from the published tags: 
 0.2 added are ENDP-33 and the ten of `logs.md`, and every other rule that was in force at 0.2 dates
 from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both of its editions.
 
-## descriptor.md — 26
+## descriptor.md — 27
 
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
@@ -75,11 +75,12 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | DESC-19 | P | 0.1 | Binds a verifier |
 | DESC-20 | P | 0.1 | Binds a Tower. It is also unobservable, as every Tower rule is, and the class goes to the SUBJECT: `unverified` is what a report says about a rule whose subject is the Worker, and saying it here would vouch for a party the tool never contacted |
 | DESC-38 | P | 0.4 | Binds a consumer |
+| DESC-39 | P | 0.13 | Binds a consumer — checkable, against the consumer: `packages/client` reads a Worker that adds a Capability and members its edition does not define, and reads past them |
 | DESC-22 | W | 0.1 | `capabilities` is a map, each entry carries a version |
 | DESC-23 | W | 0.1 | Exactly one edition, `MAJOR.MINOR`, parses and orders |
 | DESC-31 | P | 0.3 | Binds a verifier, and `packages/conformance` obeys it: against a Worker that declares an earlier MINOR it judges only the rules that edition contains, and reports every later one as not exercised, naming the edition that introduced it |
 | DESC-32 | N | 0.4 | Binds whoever edits this specification across editions, including the `0.x` clause. No single-Worker witness |
-| DESC-33 | P | 0.4 | Binds a verifier, and `packages/conformance` obeys it: it stops the run and reports itself older when it does not hold the declared MAJOR, or, while the MAJOR is 0, when the Worker declares a later MINOR |
+| DESC-40 | P | 0.13 | Binds a verifier, and `packages/conformance` obeys it: it stops the run and reports itself older when it does not hold the declared MAJOR; behind on MINOR it judges every Capability it holds at the version it holds, sets aside the others and says which, and reports what it saw broken as not exercised rather than failed |
 | DESC-34 | P | 0.4 | Binds a verifier and a Tower: neither may require a Capability. No Worker witness — a Worker declaring none is the passing case |
 | DESC-26 | N | 0.1 | Admitted exception. A second Descriptor at an address nobody enumerated |
 | DESC-27 | N | 0.1 | Derivation is invisible from outside, and a move is two deployments. Split from DESC-6 so that the clause with a witness can be reported on its own |
@@ -398,12 +399,12 @@ own and are revoked before the run ends.
 
 ## Where this stands
 
-237 rules across sixteen files, none of them `open`, under edition 0.4. Every rule the register
+238 rules across sixteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.
 
-What no tool reaches is 51 rules, and the two kinds are not the same thing. There are 29 that bind
+What no tool reaches is 52 rules, and the two kinds are not the same thing. There are 30 that bind
 a party who is not a Worker — a verifier, a Tower, a consumer, an issuer, a subscriber, or this
 specification — and a report calls those *another subject's* because it never contacted whoever
 they oblige. The other 22 have the Worker as their subject and no witness anywhere, and a report

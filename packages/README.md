@@ -144,14 +144,17 @@ From 1.0, within a MAJOR that is safe by construction, and DESC-32 is why: a MIN
 reader holding an earlier MINOR of the same MAJOR may ignore and still be correct. Declaring a later
 MINOR while implementing nothing it introduced costs nothing, because everything it introduced is
 ignorable and everything already implemented still means what it meant. While the MAJOR is 0,
-DESC-32 lets a MINOR break as a MAJOR does, and the next paragraph is the one that applies.
+DESC-32 lets a MINOR break as a MAJOR does — and a break to a Capability's surface moves that
+Capability's version (DESC-29), which is what a reader behind on MINOR goes by.
 
-A MAJOR is the one that is not safe — and before 1.0, every MINOR — and the protocol makes it
-visible rather than quiet. DESC-33 has a verifier compare the edition it holds against the one a
-Worker declares and report *itself* older, judging nothing — so a Worker that moves a MAJOR ahead of
-the tooling around it stops being verifiable until that tooling follows. That is the cost of an
-edition change, and it is why the release rule above will not let one arrive in a release somebody's
-caret would take on its own.
+A MAJOR is the one that is not safe, and the protocol makes it visible rather than quiet. DESC-40
+has a verifier compare the edition it holds against the one a Worker declares and report *itself*
+older. Behind on MAJOR it judges nothing — so a Worker that moves a MAJOR ahead of the tooling
+around it stops being verifiable until that tooling follows. Behind on MINOR it judges every
+Capability it holds at the version it holds, says what it set aside, and fails nothing: what it saw
+broken is reported as in doubt, to be repeated with a newer verifier. That is the cost of an edition
+change, and it is why the release rule above will not let one arrive in a release somebody's caret
+would take on its own.
 
 **`Worker.edition` is the way out, and there is one good reason to reach for it**: you want the
 Descriptor to keep asserting the edition you actually verified against, rather than whatever the
@@ -177,8 +180,10 @@ operation somebody's operators chose to expose and a tool pointed at a Worker to
 not perform work on it uninvited. `--json` writes the report instead of rendering it.
 
 **The exit code is the part a CI reads, and it has three values rather than two.** Zero when no
-rule failed, 1 when one did, and 2 when no verdict was reached at all — which is this verifier
-being older than the edition the Worker declares (DESC-33), and almost nothing else. A Worker that
+rule failed, 1 when one did, and 2 when no verdict was reached — which is this verifier being
+older than the edition the Worker declares (DESC-40) and either judging nothing or seeing something
+broken it could not fairly fail, and almost nothing else. An older verifier that judged what it
+holds and found nothing broken exits 0. A Worker that
 cannot be reached is not that case and exits 1: it fails DESC-1, because a Worker is not conformant
 at an address that does not answer.
 

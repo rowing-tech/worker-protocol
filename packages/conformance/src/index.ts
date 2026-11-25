@@ -18,6 +18,7 @@ import { checkQueries, readableQuery } from "./checks/queries.ts";
 import { checkSubscriptions, type SinkExchange } from "./checks/subscriptions.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
 import { checkTasks } from "./checks/tasks.ts";
+import { behind, later } from "./edition.ts";
 import { type Report, type Result, type Rule, unclaimed } from "./report.ts";
 import { UNIVERSE } from "./rules.generated.ts";
 import { transcript, withParams } from "./transcript.ts";
@@ -238,13 +239,6 @@ export async function universe(): Promise<Universe> {
   return JSON.parse(JSON.stringify(UNIVERSE)) as Universe;
 }
 
-/** DESC-23: editions are ordered by comparing MAJOR and then MINOR, as numbers. */
-const later = (a: string, b: string): boolean => {
-  const [am, an] = a.split(".").map(Number);
-  const [bm, bn] = b.split(".").map(Number);
-  return am !== bm ? am > bm : an > bn;
-};
-
 /** DESC-31: whether a rule is one of the obligations an edition contains. */
 const contains = (edition: string, rule: Rule): boolean =>
   !later(rule.introducedIn, edition) &&
@@ -343,19 +337,14 @@ export async function verify(options: VerifyOptions): Promise<Report> {
     tape,
   );
 
-  // DESC-33: a verifier that does not hold the declared edition's MAJOR verifies NOTHING and
-  // reports that it is older than the Worker — rather than failing a Worker for a surface added
-  // after this tool was built. While the MAJOR is 0 a later MINOR counts the same, because DESC-32
-  // lets a MINOR break before 1.0. The ordering DESC-23 fixes is what lets it say `older` rather
-  // than merely `unrecognised`, and that is the difference between telling an operator to upgrade
-  // the verifier and leaving the Worker under suspicion for what is the reader's problem.
+  // DESC-40: a verifier that does not hold the declared edition's MAJOR verifies NOTHING and
+  // reports that it is older than the Worker — rather than failing a Worker for a Descriptor it
+  // cannot claim to read. The ordering DESC-23 fixes is what lets it say `older` rather than
+  // merely `unrecognised`, and that is the difference between telling an operator to upgrade the
+  // verifier and leaving the Worker under suspicion for what is the reader's problem.
   const declaredEdition = descriptor.document?.edition;
-  const [heldMajor] = EDITION.split(".");
-  const behind =
-    declaredEdition !== undefined &&
-    (declaredEdition.split(".")[0] !== heldMajor ||
-      (heldMajor === "0" && later(declaredEdition, EDITION)));
-  if (behind) {
+  const lag = declaredEdition === undefined ? null : behind(declaredEdition, EDITION);
+  if (lag === "major") {
     return {
       baseUrl: options.baseUrl,
       edition: descriptor.document?.edition ?? null,
@@ -372,9 +361,9 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   // DESC-31: a Worker is judged by the rules the edition it declares contains, and by no other. A
   // Worker built to an earlier MINOR and correct in it is correct in the edition it claimed, so a
   // rule added since is not exercised rather than failed, and a rule withdrawn since is still one
-  // it owes. From 1.0, where the Worker declares a later MINOR than this verifier holds, DESC-33 has
-  // it judge by what it holds; with no edition read there is nothing to place the Worker in but
-  // this verifier's own.
+  // it owes. Where the Worker declares a later MINOR than this verifier holds, DESC-40 has it
+  // judge by what it holds; with no edition read there is nothing to place the Worker in but this
+  // verifier's own.
   const judged =
     declaredEdition === undefined || later(declaredEdition, EDITION) ? EDITION : declaredEdition;
   const byId = new Map(all.filter((rule) => contains(judged, rule)).map((rule) => [rule.id, rule]));
@@ -717,10 +706,29 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   ];
   complete.sort((a, b) => a.rule.id.localeCompare(b.rule.id, "en", { numeric: true }));
 
-  return {
+  const report = {
     baseUrl: options.baseUrl,
     edition: descriptor.document?.edition ?? null,
     verifierEdition: EDITION,
-    results: complete,
   };
+  if (lag !== "minor") return { ...report, results: complete };
+
+  // DESC-40: behind on MINOR, this verifier judged what it holds and passes what it saw pass. What
+  // it saw break it does not fail: the edition it was built to is not the one the Worker claims,
+  // and a member or a rule added since reads, from here, exactly like a fault. So the finding is
+  // kept, with what was seen, under a verdict that condemns nobody — and named in `inDoubt`, so
+  // that a caller can tell a clean partial run from one somebody should repeat with a newer tool.
+  const inDoubt: string[] = [];
+  const partial = complete.map((result): Result => {
+    if (result.verdict !== "fails") return result;
+    inDoubt.push(result.rule.id);
+    return {
+      rule: result.rule,
+      verdict: "notExercised",
+      detail:
+        `broken as edition ${EDITION} reads it, and not failed: the Worker declares ` +
+        `${declaredEdition}, which this verifier does not hold — ${result.detail ?? "no detail"}`,
+    };
+  });
+  return { ...report, older: true, ignored: descriptor.ignored, inDoubt, results: partial };
 }

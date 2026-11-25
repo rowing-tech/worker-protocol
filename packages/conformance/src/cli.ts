@@ -24,8 +24,9 @@ import { type ListeningSink, listenAsSink } from "./sink.ts";
  * Which of those an unreachable Worker is, `verify` has already decided and this file does not
  * revisit: it fails DESC-1, naming what could not be fetched. That is a verdict and a correct one —
  * a Worker is not conformant at an address that does not answer — so it exits 1 like any other
- * failure. What exits 2 is the case where this tool is the one that is behind (DESC-33), and
- * whatever `verify` does not turn into a verdict at all.
+ * failure. What exits 2 is the case where this tool is the one that is behind (DESC-40) and either
+ * judged nothing or saw something broken it could not fairly fail, and whatever `verify` does not
+ * turn into a verdict at all.
  *
  * `notExercised` never fails the run. `conformance/README.md` spends a paragraph on why it is not
  * `fails`: the Worker declares no such Capability, or nobody arranged what the check needs to see.
@@ -263,17 +264,28 @@ if (values.json) {
   print(report);
 }
 
-// DESC-33 binds a verifier rather than a Worker: one that does not hold the declared MAJOR has
-// verified nothing and says so. Exit 2, for the same reason as the catch above — the Worker has
-// not been judged, and the thing that is behind is this tool.
+// DESC-40 binds a verifier rather than a Worker. Behind on MAJOR it has verified nothing; behind on
+// MINOR it judged what it holds, and anything it saw broken is in doubt rather than failed. Either
+// way no verdict was reached that a CI may act on, so exit 2 — the thing that is behind is this
+// tool. A partial run that found nothing broken is a pass of everything this edition knows.
 if (report.older) {
+  const judged = report.results.some((result) => result.verdict === "passes");
+  const inDoubt = report.inDoubt ?? [];
   if (!values.json) {
+    const ignored = report.ignored ?? [];
     console.error(
       `\nThis verifier encodes edition ${report.verifierEdition} and the Worker declares ` +
-        `${report.edition}. Nothing was judged. Install a newer @worker-protocol/conformance.`,
+        `${report.edition}. ` +
+        (judged
+          ? `It judged what edition ${report.verifierEdition} defines` +
+            (ignored.length > 0 ? `, and ignored ${ignored.join(", ")}` : "") +
+            (inDoubt.length > 0 ? `. In doubt, and not failed: ${inDoubt.join(", ")}` : "") +
+            "."
+          : "Nothing was judged.") +
+        " Install a newer @worker-protocol/conformance to judge the rest.",
     );
   }
-  process.exit(2);
+  if (!judged || inDoubt.length > 0) process.exit(2);
 }
 
 process.exit(report.results.some((result) => result.verdict === "fails") ? 1 : 0);

@@ -273,10 +273,12 @@ sends is compatible, because a reader built on the old schema can ignore it — 
 it. Adding a required member to something a Worker receives is breaking, because every sender built
 on the old schema omits it. One sentence about "adding a member" would be wrong half the time.
 
-Whether a reader actually *can* ignore an added member is not this file's to say — it is decided by
-whether the schema in question is closed, and `schemas/` decides that per document. That is why
-this file states the test and not the verdict: the same protocol has both closed documents and open
-ones, deliberately, and each says which it is.
+A reader can always ignore a member added to what a Worker sends: DESC-39 has a consumer read what
+its edition defines and set the rest aside, whether the schema is closed or open. What a closed
+schema decides is something else — what a verifier accepts from a Worker of that edition, so that a
+member the edition does not define is still a fault in such a Worker. That is why this file states
+the test and not the verdict: whether an edit breaks a reader depends on which direction the
+document travels and on what the reader holds, and not on the edit alone.
 
 **How long a Worker answers a superseded schema has an answer, and it is not a duration.** This
 file once listed it as blocked for a mechanical reason — DESC-22 keys Capabilities by name, so a

@@ -1,5 +1,6 @@
 import { error as errorSchema } from "@worker-protocol/schemas";
 import type * as z from "zod";
+import { readTolerantly } from "./tolerant.ts";
 import { type Trace, traceparentFor } from "./trace.ts";
 
 /**
@@ -73,6 +74,12 @@ export type CallerOptions = {
   fetch?: Fetch;
   /** For a test that needs the clock still. Defaults to a real wait. */
   wait?: (ms: number) => Promise<void>;
+  /**
+   * DESC-39. Told, for each answer, what this client ignored in it because its edition does not
+   * define it: a Capability name or a member, as a dotted path. A caller that shows a Worker to an
+   * operator says so, which is how anybody learns the console is older than the Worker.
+   */
+  onIgnored?: (ignored: { url: string; rule: string; paths: string[] }) => void;
 };
 
 export type Call = {
@@ -205,11 +212,15 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
   /** A call whose answer is a document this protocol fixes the shape of. */
   const validated = async <T>(spec: Call, schema: z.ZodType<T>, rule: string): Promise<T> => {
     const answer = await call(spec);
-    const parsed = schema.safeParse(answer.json);
+    // DESC-39: what this edition does not define is ignored, and what it does define is judged.
+    const parsed = readTolerantly(schema, answer.json);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       const where = issue?.path.join(".") || "(root)";
       throw new Malformed(rule, spec.url, `${where}: ${issue?.message ?? "did not validate"}`);
+    }
+    if (parsed.ignored.length > 0) {
+      options.onIgnored?.({ url: spec.url, rule, paths: parsed.ignored });
     }
     return parsed.data;
   };

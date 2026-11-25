@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.12";
+export const EDITION = "0.13";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -339,7 +339,7 @@ export const descriptor = z
         description:
           "DESC-23. The edition of worker-protocol this Worker speaks, written MAJOR.MINOR. " +
           "Editions are ordered by comparing MAJOR and then MINOR as numbers, which is the " +
-          "ordering DESC-33 spends when a verifier reports itself older than a Worker. DESC-32 " +
+          "ordering DESC-40 spends when a verifier reports itself older than a Worker. DESC-32 " +
           "gives the two components their meaning: MAJOR is what a reader cannot survive not " +
           "knowing, MINOR is what an older reader may ignore and still be correct — except " +
           "while the MAJOR is 0, when a MINOR may break as a MAJOR does. Leading " +

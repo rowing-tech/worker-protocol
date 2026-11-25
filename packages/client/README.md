@@ -141,6 +141,29 @@ inside: its JSON Schema is in the Descriptor, under `capabilities.queries.answer
 nothing else — a consumer reading on its own schedule is slower and never wrong — so it answers
 nothing and is safe to lose.
 
+## A Worker of a later edition
+
+A Worker upgrades on its own schedule, so a client built for one edition meets Workers built for a
+later one. **It reads what its edition defines and ignores what it does not** (DESC-39): a
+Capability it has never heard of, or a member added to the Descriptor or to anything a Worker
+answers. Everything it does know is read and offered as usual, and judged as strictly as ever — a
+value its edition does not admit, such as a `health` status it has no word for, is still
+`Malformed`.
+
+What was ignored is said rather than hidden. `worker.ignored` lists it for the Descriptor, as
+dotted paths, and `onIgnored` is told for every answer:
+
+```ts
+const worker = await consume(url, {
+  credential,
+  onIgnored: ({ url, paths }) => console.warn(`ignored at ${url}: ${paths.join(", ")}`),
+});
+worker.ignored; // ["capabilities.frobs"]: a Capability this client is too old to use
+```
+
+`readTolerantly(schema, value)` is the same reading for a document a caller holds itself — a
+Descriptor it stored, an event it received.
+
 ## When a call does not succeed
 
 | Thrown | What happened |

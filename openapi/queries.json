@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — queries",
-    "version": "0.12",
+    "version": "0.13",
     "description": "Reading what a Worker holds that this protocol does not name. The Descriptor is the catalog: each Query declares the schema of its parameters and of what it answers, and this surface answers and never lists what exists.",
     "license": {
       "name": "Apache-2.0",

@@ -165,14 +165,14 @@ REG-35 exists to catch — and it is the id the first move forces a Worker to ch
 which is the failure DESC-27 names. Appearance is a poor place to draw the line, and it is the only
 place a tool pointed at a Worker can draw it.
 
-*Exactly one* is what makes DESC-33 decidable. A verifier compares the edition it holds against the
+*Exactly one* is what makes DESC-40 decidable. A verifier compares the edition it holds against the
 edition the Worker declares and reports itself older or not; given two declared editions there is
 no *the* edition to compare against, and a Worker could always avoid the verdict by declaring one
 edition the verifier holds beside one it does not. A Worker that wants to serve two editions serves
 two Descriptors, which is to say it is two Workers with two ids — and that is the honest shape,
 because a Contract is made over a declaration and there would otherwise be no saying which.
 
-Editions are ordered because DESC-33 spends the ordering: a verifier that meets an edition it does
+Editions are ordered because DESC-40 spends the ordering: a verifier that meets an edition it does
 not hold reports that it is *older than the Worker*, and there is no way to say "older" about two
 values that cannot be compared. The alternative was to let a verifier report only that it did not
 recognize the edition, and that loses a diagnostic worth keeping — knowing the verifier is behind
@@ -191,9 +191,18 @@ of keeping every MINOR ignorable is that each correction which is not purely add
 for a MAJOR or is shaped around the readers of an edition nobody yet depends on. The packages that
 encode an edition already work this way (`packages/README.md`: on a zero MAJOR a MINOR is a wall
 nobody crosses without editing their own manifest), and an edition that promised more than the
-code built on it would be a promise nothing keeps. So before 1.0 a reader treats a later MINOR as
-it treats a later MAJOR — DESC-33 has a verifier do exactly that — and from 1.0 the guarantee is
-the whole of the sentence above.
+code built on it would be a promise nothing keeps. From 1.0 the guarantee is the whole of the
+sentence above.
+
+**What a break costs a reader is not read off the edition, though.** A break to a Capability's own
+surface moves that Capability's version (DESC-29), so a reader behind on MINOR still knows which
+surfaces it can talk to: the ones it holds, at the version it holds. DESC-40 has a verifier go
+exactly that far and no further, and DESC-39 has a consumer do the same.
+
+**DESC-39 keeps a consumer reading.** What a MINOR before 1.0 may break is the meaning of something
+an earlier edition already defined. What it adds — a Capability, a member — an earlier reader can
+ignore without being wrong about anything it does read, so DESC-39 has it do that, at every edition,
+rather than refuse a Worker for having grown.
 
 This is deliberately the same shape as the dotted and undotted Capability names. There, a name a
 reader does not recognize is either safely ignorable or a failure, and the dot is what tells the
@@ -282,25 +291,39 @@ That rule is all a verifier needs, and it needs no registry:
   ignored.**
 - **DESC-16 (required). A verifier fails a Worker for an undotted name it does not know, when it
   knows the declared edition:** the Descriptor claims a Capability that edition does not define.
-- **DESC-33 (required). A verifier that does not hold the declared edition's MAJOR — or, while the
-  MAJOR is 0, that holds an earlier MINOR than the declared one — verifies nothing, and reports
-  that it is older than the Worker. From 1.0, one that holds the MAJOR but not that MINOR verifies
-  what the edition it does hold defines, ignores every undotted name that edition does not name,
-  and reports what it ignored** — rather than failing a Worker for a Capability added after the
-  verifier was built.
+- **DESC-40 (required). A verifier that does not hold the declared edition's MAJOR verifies
+  nothing, and reports that it is older than the Worker. One that holds the MAJOR and an earlier
+  MINOR than the declared one verifies what the edition it holds defines of what the Worker
+  declares: it ignores an undotted Capability name that edition does not define and a Capability
+  declared at a version it does not hold, fails the Worker for nothing, and reports that it is
+  older, what it ignored, and what it saw broken.**
 - **DESC-31 (required). A verifier that holds a later MINOR of the declared edition's MAJOR judges
   the Worker by the rules the declared edition contains, including those a later edition
   withdrew, and by no other. It reports each later rule as not exercised, naming the edition that
   introduced it, and a withdrawn rule it no longer carries a check for as not exercised, saying
   so — never passed and never left out.**
 
-DESC-16 and DESC-33 divide cleanly because DESC-16 fires only when the verifier holds the declared
+DESC-16 and DESC-40 divide cleanly because DESC-16 fires only when the verifier holds the declared
 edition exactly. A verifier one MINOR behind does not, so it never fails a Worker for a name it
 could not have heard of; a verifier holding the edition does, and an undotted name that edition
 does not define is then a real fault with nowhere to hide. The two together are why an older
 verifier is useful rather than merely safe: it still checks everything it knows.
 
-**DESC-31 is DESC-33 the other way round.** A Worker built to an earlier MINOR and correct in it is
+**What a verifier behind on MINOR can judge is decided by what the Worker declares, and not by the
+number.** The edition says only that the Worker has grown since the tool was built. Each Capability
+says whether the two can still talk: a name the verifier holds, at the version it holds, is a
+surface DESC-29 says has not broken, and it is judged in full. A name it does not hold, or a later
+version of one it does, is set aside and said. Stopping at the number instead made every edition a
+day on which no deployed verifier could say anything about any Worker that had upgraded — including
+an edition that asked nothing new of a Worker at all.
+
+**It fails nothing, because from behind an addition and a fault look the same.** A member added to
+a document, or a rule rewritten since, reads to an older verifier exactly as a Worker getting it
+wrong does. So what it saw broken is reported with what was seen and under no verdict that condemns
+— a finding to repeat with a newer verifier, and not one to act on. What it saw pass, passed: that
+much of the edition it holds is true of this Worker, and a report may say so.
+
+**DESC-31 is DESC-40 the other way round.** A Worker built to an earlier MINOR and correct in it is
 correct — in the edition it claimed, which is all DESC-32 lets anybody ask of it — and a verifier
 that judged it by a rule added since would be failing it for not having read an edition it never
 claimed. The withdrawn rules are in it because the id convention in [the README](README.md) retires
@@ -316,6 +339,43 @@ dot is the whole of the syntax, because DESC-15 has a verifier ignore a dotted n
 know and nobody ever compares one Worker's vendor Capability against another's. The names that
 *are* compared across Workers — a Task type, a Skill, an event type — are namespaced under NAME-7
 instead, and the contrast between the two rules is argued there.
+
+## What a consumer does not know
+
+**DESC-39 (required). A consumer reads what the edition it holds defines of a document a Worker
+sends, and ignores what it does not: a Capability name, or a member of an object, that edition does
+not define. A value that edition does not admit, of a member it does define, is not ignored.**
+
+The protocol grows by addition. An edition adds a Capability, or a member to something a Worker
+already sends, and every reader built before it meets the addition the day a Worker upgrades. A
+reader that refused the whole document for it would turn each addition into a break for everybody
+already deployed — a Tower that loses a Worker's health because it learned to answer a Query the
+Tower has never heard of, a console that cannot list Tasks because a Task carries one more member.
+Nothing the reader would have done with what it knows has changed, so nothing it knows is a reason
+to stop.
+
+**This is not DESC-15, and the difference is the subject.** DESC-15 and DESC-16 tell a *verifier*
+what to do with a name, and a verifier judges a Worker: an undotted name its own edition does not
+define is a fault in a Worker of that edition. A consumer judges nobody. It is reading a Worker that
+may be of a later edition, and for it the dot makes no difference — a Capability it does not know
+is one it cannot use, whoever defined it.
+
+**The schemas stay closed, because they describe the writer.** `schemas/` states what a Worker of
+this edition sends, and a member it does not define is still a fault in such a Worker — a misspelt
+`granularty` is caught exactly that way. DESC-39 changes how a consumer reads, not what a Worker may
+send: a consumer applies the same schemas, sets aside what they do not define, and judges the rest
+by them.
+
+**A value is the line, and it is drawn where ignoring stops being safe.** A Capability or a member a
+reader does not know adds something beside what it knows. A value it does not know replaces
+something it does: a `health` status of `maintenance`, a severity it cannot rank. Reading past
+either would be reading a meaning nobody sent, so a value outside what an edition admits is still
+refused — which is why adding one to a closed list stays a breaking change, and this specification
+already treats it as one wherever it writes *this edition defines no other value*.
+
+A consumer that shows a Worker to somebody says what it ignored. It is not a rule, because nothing
+breaks when it does not, but it is how an operator learns that the console is older than the Worker
+rather than that the Worker declares nothing more.
 
 ## When the Descriptor and the Worker disagree
 
@@ -436,6 +496,18 @@ and stays structural; this section adds no rule, because there is no new violati
   not a correction's, so it belongs to the next one.
 
 ## Withdrawn
+
+- **DESC-33** (required, P, 0.4–0.13) — required that a verifier behind on MINOR verify nothing
+  while the MAJOR is 0, as one behind on MAJOR does. Replaced by **DESC-40**, which has it verify
+  what it holds of what the Worker declares, Capability by Capability, and fail nothing. A 0.12
+  verifier meeting a 0.13 Worker used to stop and report every rule as not exercised; now it
+  passes what it sees pass, so the verdict moves and the id did not survive.
+
+  DESC-33 answered a real fault in DESC-25 — an older verifier failing a Worker for what a later
+  edition changed — by judging nothing, and that cost more than the fault did: every edition,
+  including one that bound no Worker to anything new, left every deployed verifier silent about
+  every Worker that upgraded. DESC-40 keeps the answer to the fault, which is that such a verifier
+  condemns nobody, and gives back the rest.
 
 - **DESC-30** (required, P, 0.1–0.4) — required that a consumer meeting a declared address that
   serves nothing stop and not retry. Replaced by **DESC-38**, which keeps the refusal to retry and

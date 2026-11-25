@@ -87,8 +87,9 @@ whose reason is understood is one that survives a refactor.
 ### Identity and the Descriptor
 
 - **The edition is `MAJOR.MINOR` and describes the protocol, not the package version** (DESC-23).
-  Declare exactly one. A reader that does not hold the MAJOR — or, before 1.0, the MINOR — verifies
-  nothing and says so (DESC-33);
+  Declare exactly one. A verifier that does not hold the MAJOR verifies nothing and says so; one
+  behind on MINOR judges each Capability it holds at the version it holds and fails nothing
+  (DESC-40);
   one holding a later MINOR judges the Worker only by the rules its declared edition contains
   (DESC-31), so declare the edition the Worker was built and verified against, not the newest.
 - **The `id` is a constant the Worker is deployed with**, never the URL and never derived from it
@@ -99,6 +100,10 @@ whose reason is understood is one that survives a refactor.
   one out is always allowed (DESC-2).
 - **Every caller that authenticates gets the same Descriptor** (REG-8). Configuration that changes
   over time is ordinary; a document that differs per reader is what this forbids.
+- **A consumer reads what its edition defines and ignores the rest** (DESC-39): a Capability or a
+  member it does not know is read past, never a reason to refuse the document. A value it does not
+  admit, of a member it knows, is still a fault. Write a reader that way, and a Worker that adds a
+  Capability breaks nobody who did not ask for it.
 
 ### Refusals and paging
 

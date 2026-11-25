@@ -1,9 +1,11 @@
 import {
   capabilityName,
   descriptor as descriptorSchema,
+  EDITION,
   vendorCapabilityName,
 } from "@worker-protocol/schemas";
 import { type Attribution, ruleFor } from "../attribution.ts";
+import { behind } from "../edition.ts";
 import { type Result, type Rule, verdicts } from "../report.ts";
 import type { Transcript } from "../transcript.ts";
 
@@ -56,7 +58,17 @@ export type DescriptorReading = {
   url: string | null;
   /** Each declared address resolved against that route (DESC-36). */
   surfaces: { capability: string; url: string }[];
+  /** DESC-40: the Capabilities a verifier behind on MINOR set aside rather than judged. */
+  ignored: string[];
 };
+
+/**
+ * The version of every Capability this edition defines. DESC-29 makes the integer count breaking
+ * changes to a Capability's own surface, and no surface has had one.
+ */
+const HELD_VERSION = 1;
+
+const EDITION_FORM = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
 const ROUTE = ".well-known/worker-protocol";
 
@@ -80,7 +92,7 @@ export async function readDescriptor(
   } catch {
     say("DESC-35", "fails", `not a URL: ${baseUrl}`);
     nothingRead("no Descriptor could be read", ["DESC-35"]);
-    return { results, document: null, url: null, surfaces: [] };
+    return { results, document: null, url: null, surfaces: [], ignored: [] };
   }
 
   // `https`, or `http` on a loopback host, where no network path exists to read a credential on.
@@ -99,19 +111,19 @@ export async function readDescriptor(
     const why = cause instanceof Error ? cause.message : String(cause);
     say("DESC-1", "fails", `${url} could not be reached: ${why}`);
     nothingRead("no Descriptor could be read", ["DESC-1", "DESC-35"]);
-    return { results, document: null, url, surfaces: [] };
+    return { results, document: null, url, surfaces: [], ignored: [] };
   }
 
   if (first.status < 200 || first.status >= 300) {
     say("DESC-1", "fails", `${url} answered ${first.status}`);
     nothingRead("no Descriptor could be read", ["DESC-1", "DESC-35"]);
-    return { results, document: null, url, surfaces: [] };
+    return { results, document: null, url, surfaces: [], ignored: [] };
   }
 
   if (first.json === null) {
     say("DESC-1", "fails", `${url} did not answer JSON`);
     nothingRead("the Descriptor did not parse", ["DESC-1", "DESC-35"]);
-    return { results, document: null, url, surfaces: [] };
+    return { results, document: null, url, surfaces: [], ignored: [] };
   }
 
   // DESC-5: a GET changes nothing a later reader could observe, so the same request answers the
@@ -140,8 +152,6 @@ export async function readDescriptor(
   if (changed === undefined) say("ENDP-42", "passes");
   else say("ENDP-42", "fails", changed);
 
-  const validation = descriptorSchema.safeParse(first.json);
-
   /**
    * DESC-8 and DESC-14, judged before the document as a whole.
    *
@@ -161,12 +171,43 @@ export async function readDescriptor(
   );
   const reserved = new Set<string>(capabilityName.options);
   const unknownReserved = keys.filter((key) => !key.includes(".") && !reserved.has(key));
+
+  // DESC-40: against a Worker that declares a later MINOR, what decides whether a Capability is
+  // judged is the Capability and not the edition. A name this edition does not define, or one
+  // declared at a version this verifier does not hold, is set aside and reported; every other is
+  // judged in full, because DESC-29 says its surface has not broken since this tool was built.
+  const declared = (first.json as { edition?: unknown; capabilities?: Record<string, unknown> })
+    ?.edition;
+  const partial =
+    typeof declared === "string" &&
+    EDITION_FORM.test(declared) &&
+    behind(declared, EDITION) === "minor";
+  const ignored = partial
+    ? keys.filter((key) => {
+        if (key.includes(".")) return false;
+        const entry = (first.json as { capabilities: Record<string, { version?: unknown }> })
+          .capabilities[key];
+        const version = entry?.version;
+        return !reserved.has(key) || (typeof version === "number" && version > HELD_VERSION);
+      })
+    : [];
+  let read: unknown = first.json;
+  if (ignored.length > 0) {
+    const whole = first.json as { capabilities: Record<string, unknown> };
+    read = {
+      ...whole,
+      capabilities: Object.fromEntries(
+        Object.entries(whole.capabilities).filter(([key]) => !ignored.includes(key)),
+      ),
+    };
+  }
+  const validation = descriptorSchema.safeParse(read);
   const malformedVendor = keys.filter(
     (key) => key.includes(".") && !vendorCapabilityName.safeParse(key).success,
   );
 
   const judgedKeys = new Set<string>();
-  if (unknownReserved.length > 0) {
+  if (unknownReserved.length > 0 && !partial) {
     judgedKeys.add("DESC-8");
     const names = unknownReserved.map((k) => `\`${k}\``).join(", ");
     say("DESC-8", "fails", `${names}: undotted, and this edition defines no such Capability`);
@@ -198,7 +239,7 @@ export async function readDescriptor(
       "DESC-5",
       ...blamed,
     ]);
-    return { results, document: null, url, surfaces: [] };
+    return { results, document: null, url, surfaces: [], ignored: [] };
   }
 
   const document = validation.data as Descriptor;
@@ -250,7 +291,7 @@ export async function readDescriptor(
     }
   }
 
-  return { results, document, url, surfaces };
+  return { results, document, url, surfaces, ignored };
 }
 
 /**

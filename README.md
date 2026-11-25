@@ -172,7 +172,7 @@ about trust. Each still carries a `Still open here` section, which is what `stab
 be empty of. What `draft` means here is what the table above says: shaped and implementable, still
 moving — and moving now costs a withdrawal rather than a silent edit.
 
-What stands behind that: 237 rules, every one classified in
+What stands behind that: 238 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
 is broken, and every one of the 126 a tool can observe against an ordinary Worker checked by
 [`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 60 need a
@@ -180,11 +180,11 @@ Worker *arranged* to be observed — a second credential, a boot window, an Acti
 Worker that records something when it is read — and pass when that arrangement is handed to the
 verifier out of band, as the base URL and the credential already are.
 
-The remaining 51 are reported rather than passed, and the two kinds are not the same: 29 bind a
+The remaining 52 are reported rather than passed, and the two kinds are not the same: 30 bind a
 party who is not a Worker, so this tool never contacted whoever they oblige, and 22 have no witness
 anywhere.
 
-**Of the ids this edition has issued, 83 are withdrawn, and sixteen of them went at once.** A Claim
+**Of the ids this edition has issued, 84 are withdrawn, and sixteen of them went at once.** A Claim
 was an exclusive lease a consumer took on a Task, and [spec/tasks.md](spec/tasks.md) says why it is
 gone: a lease over a unit of work is the primitive of a work queue, orchestration is a declared
 non-goal, and the cost fell on the owner while the consumer's half of it was optional all along.

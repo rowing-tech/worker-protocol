@@ -17,7 +17,7 @@ live Worker. `pnpm test` runs them from TypeScript today.
 a promise the directory makes and this Worker does not keep: it is not a template and nobody should
 copy it. Most of it is a `WorkerOptions` surface that exists so the suite can configure a Worker
 *wrong* on purpose — an edition of `banana`, an id that does not match, a boot window held open —
-because that is how DESC-23, DESC-33, DESC-27, HLTH-4 and ENDP-1 are provoked. It is a test double,
+because that is how DESC-23, DESC-40, DESC-27, HLTH-4 and ENDP-1 are provoked. It is a test double,
 and a reader who opened it looking for how to write a Worker was reading the wrong file. What it
 buys is fifty-four of the sixty rules the register marks `H`. `examples/` now holds two
 Workers and both are templates: [minimal-worker](../examples/minimal-worker) to copy, and
@@ -28,7 +28,7 @@ Workers and both are templates: [minimal-worker](../examples/minimal-worker) to 
 A run produces a verdict for **every** rule in the specification, never only for the ones it
 exercised. That is the whole design of this vocabulary, and the reason is the one this repository
 applies everywhere else: something is produced and a party reads it. A report listing the checks
-that ran, all green, over a specification of 237 rules tells an operator that a Worker was checked
+that ran, all green, over a specification of 238 rules tells an operator that a Worker was checked
 against the protocol. Today that would be 186 of them, and nothing on the page would say which — so
 the reader concludes more than was established, which is the same fault as a generated artifact
 nobody compares.
@@ -49,7 +49,7 @@ there is a verdict waiting. `unverified` says no arrangement of any tool ever pr
 that showed both as *not checked* would hide the first behind the second, and the work of closing
 the gap would look permanent when almost all of it is a Tuesday afternoon.
 
-`other subject` is the verdict for the twenty-nine rules that bind somebody who is not a Worker.
+`other subject` is the verdict for the thirty rules that bind somebody who is not a Worker.
 [spec/README.md](../spec/README.md) already says the subject of a rule is whoever the sentence names
 and that a report says which of these it was checking; this is that sentence with a place to land.
 Those rules are not defects and not exemptions — DESC-20 obliges a Tower and ENDP-28 obliges a

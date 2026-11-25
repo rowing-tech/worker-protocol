@@ -122,7 +122,7 @@ describe("a Worker on workerd, verified over HTTP", () => {
     // of results, because a rule observed on several surfaces is reported once per surface.
     const judged = new Set(report.results.map((one) => one.rule.id));
     expect(judged.size).toBe((await universe()).rules.length);
-    // DESC-33 did not stop the run, so what follows is a verdict rather than a version complaint.
+    // DESC-40 did not stop the run, so what follows is a verdict rather than a version complaint.
     expect(report.older).toBeUndefined();
     expect(report.edition).toBe(report.verifierEdition);
   });

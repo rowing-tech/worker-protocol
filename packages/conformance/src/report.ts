@@ -58,14 +58,28 @@ export type Report = {
   /**
    * The edition this verifier holds.
    *
-   * DESC-33 binds a verifier rather than a Worker, and publishing an edition is what made it ours
-   * to obey: a tool that does not hold the declared MAJOR verifies nothing and says it is the one
-   * that is behind. A report that left this out would leave a reader unable to tell a Worker that
-   * failed from a verifier that could not read it.
+   * DESC-40 binds a verifier rather than a Worker, and publishing an edition is what made it ours
+   * to obey. A report that left this out would leave a reader unable to tell a Worker that failed
+   * from a verifier that could not read it.
    */
   verifierEdition: string;
-  /** Set where DESC-33 stopped the run: this verifier is older than the Worker. */
+  /**
+   * Set where this verifier is older than the Worker (DESC-40). Behind on MAJOR it judged nothing,
+   * and every verdict is `notExercised`. Behind on MINOR it judged what its own edition defines of
+   * what the Worker declares, and `ignored` and `inDoubt` say what that left out.
+   */
   older?: true;
+  /**
+   * Behind on MINOR: the Capabilities the Worker declares that this verifier did not judge — a
+   * name its edition does not define, or a version it does not hold. Empty where it knew them all.
+   */
+  ignored?: string[];
+  /**
+   * Behind on MINOR: the ids of the rules this verifier saw broken and did not fail, because what
+   * broke them may be what the later edition added. Each is `notExercised`, with what was seen as
+   * its detail. Empty is a clean partial run; anything here is a reason to run a newer verifier.
+   */
+  inDoubt?: string[];
   results: Result[];
 };
 
@@ -117,7 +131,7 @@ export const tally = (results: Result[]): Record<Verdict, number> => {
  *
  * `say` drops an id the universe does not carry rather than throwing, and that is deliberate: a
  * verifier holding an older `rules.json` than the module was written against reports what it can
- * and stays silent about what it cannot, which is DESC-33's posture one level down.
+ * and stays silent about what it cannot, which is DESC-40's posture one level down.
  */
 export function verdicts(rules: Map<string, Rule>, claims: readonly string[]) {
   const results: Result[] = [];

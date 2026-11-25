@@ -155,7 +155,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.12");
+    expect(report.edition).toBe("0.13");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -309,7 +309,7 @@ describe("the reference worker, verified", () => {
 
     // A rule binding a verifier, a Tower, a consumer, an issuer or the specification is never
     // passed by a tool that only ever contacted the Worker.
-    expect(counts.otherSubject).toBe(29);
+    expect(counts.otherSubject).toBe(30);
     // A rule nothing outside can observe is reported rather than counted as passed.
     expect(counts.unverified).toBe(22);
     // How many of the rules that need a Worker ARRANGED to be observed this double actually buys.
@@ -458,7 +458,7 @@ describe("the reference worker, verified", () => {
   });
 
   it("verifies nothing against a Worker whose edition it does not hold", async () => {
-    // DESC-33 binds a verifier, and publishing an edition is what made it ours to obey. A tool
+    // DESC-40 binds a verifier, and publishing an edition is what made it ours to obey. A tool
     // that met an edition it could not read and failed the Worker for it would be blaming a party
     // for what is the reader's problem — so it verifies nothing and says which of the two is
     // behind, which is a sentence an operator can act on.
@@ -468,23 +468,71 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.12");
+      expect(report.verifierEdition).toBe("0.13");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.12");
+      expect(report.results[0]?.detail).toContain("holds edition 0.13");
     } finally {
       await ahead.close();
     }
   });
 
-  it("verifies nothing against a later MINOR while the MAJOR is 0", async () => {
-    // DESC-32 lets a MINOR break before 1.0, so DESC-33 has a verifier behind on MINOR treat it as
-    // it treats a later MAJOR: judging a 0.13 Worker by 0.12's rules could fail it for what 0.13
-    // changed, and the honest sentence is that the verifier is the one behind.
-    const ahead = await start({ edition: "0.13" });
+  it("judges what it holds against a later MINOR, and fails nothing it cannot be sure of", async () => {
+    // DESC-40: the edition says this verifier is behind, and what the Worker declares says how far
+    // it can still go — every Capability it knows, at the version it holds. The reference Worker
+    // is conformant, so a partial run of it is clean: nothing ignored, nothing in doubt.
+    const ahead = await start({ edition: "0.14" });
     try {
       const report = await verify({ baseUrl: ahead.url });
       expect(report.older).toBe(true);
-      expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
+      expect(report.ignored).toEqual([]);
+      expect(report.inDoubt).toEqual([]);
+      const counts = tally(report.results);
+      expect(counts.passes).toBeGreaterThan(50);
+      expect(counts.fails).toBe(0);
+    } finally {
+      await ahead.close();
+    }
+  });
+
+  it("sets aside what a later MINOR added, and holds what it saw broken in doubt", async () => {
+    // The same Worker as a later edition might serve it: a Capability this edition has no name
+    // for, one it knows at a version it does not hold, and a `health` answer with a member more.
+    // The first two are ignored and said; the third reads as a fault from here and is not failed,
+    // because what broke it may be exactly what the later edition added.
+    const ahead = await start({ edition: "0.14" });
+    const grown: typeof globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      const answered = await fetch(url, init);
+      if (!answered.headers.get("content-type")?.includes("json")) return answered;
+      const json = (await answered.json()) as Record<string, unknown>;
+      const edited = String(url).endsWith("/.well-known/worker-protocol")
+        ? {
+            ...json,
+            capabilities: {
+              ...(json.capabilities as Record<string, Record<string, unknown>>),
+              frobs: { version: 1, address: "../frobs" },
+              logs: { version: 2, address: "../logs" },
+            },
+          }
+        : String(url).endsWith("/health")
+          ? { ...json, uptime: 99 }
+          : json;
+      return new Response(JSON.stringify(edited), {
+        status: answered.status,
+        headers: answered.headers,
+      });
+    }) as typeof globalThis.fetch;
+    try {
+      const report = await verify({ baseUrl: ahead.url, fetch: grown });
+      expect(report.older).toBe(true);
+      expect(report.ignored).toEqual(["logs", "frobs"]);
+      expect(report.inDoubt).toContain("HLTH-2");
+      expect(tally(report.results).fails).toBe(0);
+      const health = report.results.find((r) => r.rule.id === "HLTH-2");
+      expect(health?.verdict).toBe("notExercised");
+      expect(health?.detail).toContain("the Worker declares 0.14");
+      // What it does hold is still judged, and still passes.
+      expect(report.results.find((r) => r.rule.id === "DESC-1")?.verdict).toBe("passes");
+      expect(report.results.find((r) => r.rule.id === "TASK-5")?.verdict).toBe("passes");
     } finally {
       await ahead.close();
     }

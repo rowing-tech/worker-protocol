@@ -477,7 +477,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "descriptor.md",
       "class": "required",
       "reach": "P",
-      "introducedIn": "0.4"
+      "introducedIn": "0.4",
+      "withdrawnIn": "0.13"
     },
     {
       "id": "DESC-34",
@@ -513,6 +514,20 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "P",
       "introducedIn": "0.4"
+    },
+    {
+      "id": "DESC-39",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P",
+      "introducedIn": "0.13"
+    },
+    {
+      "id": "DESC-40",
+      "file": "descriptor.md",
+      "class": "required",
+      "reach": "P",
+      "introducedIn": "0.13"
     },
     {
       "id": "ENDP-1",
