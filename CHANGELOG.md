@@ -17,12 +17,13 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
-### Edition 0.14
+## [0.17.0] - 2026-11-25 — edition 0.14
 
 All five packages encode **edition 0.14**. A Query's parameter may now be a list, and three rules
 are reissued under new ids because a widening changes a verdict. A Worker built to 0.13 is still
 correct in 0.13 (DESC-31). A 0.13 client still reads a Descriptor that declares a list — it never
-looked inside a Query's `parameters` — and simply has no way to send one.
+looked inside a Query's `parameters` — and simply has no way to send one. A verifier holding 0.13
+meets a 0.14 Worker as one it is older than, and judges what it holds without failing it (DESC-40).
 
 ### Changed
 
@@ -1225,7 +1226,8 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.13.1...v0.14.0
