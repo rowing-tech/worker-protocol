@@ -2,10 +2,10 @@
 name: worker-protocol-hono
 description: >-
   Build or change a worker-protocol Worker in TypeScript with @worker-protocol/hono: write
-  defineWorker({ id, authenticate, health, metrics, actions, alerts, activity, nudges, tasks,
-  skills, events, logs }), let mount() carry every address, header, envelope, refusal, cursor and
-  bucket boundary the specification fixes, then run app.fetch on Cloudflare Workers, Vercel edge,
-  Deno Deploy, Node or Bun. Use this skill whenever the work touches a Worker in TypeScript —
+  defineWorker({ id, authenticate, health, metrics, actions, queries, alerts, activity, nudges,
+  tasks, skills, events, logs }), let mount() carry every address, header, envelope, refusal, cursor
+  and bucket boundary the specification fixes, then run app.fetch on Cloudflare Workers, Vercel
+  edge, Deno Deploy, Node or Bun. Use this skill whenever the work touches a Worker in TypeScript —
   declaring an Action with action(), wiring an outcome store for idempotency, adding a Capability,
   serving logs from a store, mounting on Hono, or when tsc complains about a member of the Worker
   type — and whenever somebody asks how to expose health, metrics, alerts or tasks over HTTP from a
@@ -22,7 +22,7 @@ metadata:
 the error envelope, the page envelope with its cursor and cap, the refusals, the bucket boundaries
 cut in a declared time zone, the idempotency window, and the JSON Schema the Descriptor carries.
 
-What is left is what only the Worker knows. Declaring all eleven Capabilities is about 220 lines
+What is left is what only the Worker knows. Declaring all twelve Capabilities is about 270 lines
 of domain; growing much past that means a rule `mount()` already carries is being re-derived.
 
 **Load the `worker-protocol` skill first** for the rules, the ids and the Capability-choosing table.
@@ -93,6 +93,14 @@ Read `references/members.md` for the signature of each member, and
 - **Declare each Action with `action({ input, run })`**, not as a bare object. `action()` infers
   `run`'s parameter from the Zod object beside it; a record annotated by hand makes it `unknown` and
   the shape gets written twice, which is two declarations that can disagree silently.
+- **Declare each Query with `query({ parameters?, result | items, read })`**, for the reason
+  `action()` exists. Parameters are a Zod object of strings — narrow one with `z.enum`, a `regex`
+  or a format, and transform it inside the schema if `read` wants a number — and `mount()` refuses
+  to build over one that is not, or over one named `query` or `cursor` (QRY-2, QRY-3). Paging is
+  not in `parameters`: `mount()` takes `cursor` off the query string and hands it to `read` in its
+  second argument beside `limit`, which is `queries.pageSize` and never the caller's to choose
+  (ENDP-19). Answer `{ items, nextCursor? }`, the cursor naming a position and not an offset
+  (ENDP-33). A `result` Query cannot refuse: what it does not hold is said inside the document.
 - **`run` never chooses a status.** Return the result for `200`, `undefined` for `204` (ACT-10), or
   `{ code: "unprocessable_content", message }` for input that is schema-valid and the Worker's own
   rules refuse (ACT-17). Every other refusal belongs to `mount()`.
@@ -146,6 +154,7 @@ Read `references/members.md` for the signature of each member, and
 | Input validation, and the JSON Schema in the Descriptor | The Zod object, and what `run` does |
 | Key required, repeat replayed, key reused with another body, a header key scoped to its caller | Where outcomes are recorded (`actions.outcomes`), and who the caller is |
 | Nudge body shape, `404` for an undeclared Skill, `204` | What to do when told there is work |
+| Query named in `query`, parameters read and judged, page envelope, the refusals (QRY-5 to QRY-11) | The Zod objects, and what `read` answers |
 | `/subscriptions`: types, sink rules, handshake, idempotence, caller scope | Where subscriptions live and what delivers them; when to publish |
 | `/grants`: who may apply, names checked, credential minted, digest stored, coverage bounded by the grant | Where grants live (`grants.store`, an atomic `put`), which callers may apply (`applicants`, by a stable `caller`), and any narrowing of your own (`covers`, `allows`) |
 
@@ -161,7 +170,7 @@ Read `references/members.md` for the signature of each member, and
 - **The consumer half** — `@worker-protocol/client`: `consume()` reads a Worker and takes work from
   it, with no web framework. A Tower, a console, or a Worker that answers another's Tasks is built
   on it. `canAnswer` and `compare` judge two Descriptors without calling anybody.
-- **Worked examples** — `examples/minimal-worker/src/worker.ts` for all eleven Capabilities
+- **Worked examples** — `examples/minimal-worker/src/worker.ts` for all twelve Capabilities
   explained line by line, and `examples/fleet-worker` for the same Worker on Cloudflare with a
   Durable Object, an outbox and a Tail Worker. Both at
   https://github.com/rowing-tech/worker-protocol.

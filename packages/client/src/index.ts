@@ -14,6 +14,7 @@ import {
   type logRecord,
   type metricBucket,
   metricPage,
+  page as pageSchema,
   subscriptionPage,
   subscriptionReceipt,
   type subscriptionRequest,
@@ -109,6 +110,25 @@ export type Consumed = {
     /** ACT-21. The document `configure` would accept, where this Worker exposes one. */
     settings?: () => Promise<unknown>;
   };
+  /**
+   * QRY-5. The reads this Worker defines, by the names its `queries` entry holds.
+   *
+   * A Query is a GET and changes nothing (ENDP-2), so there is no key to send and nothing to settle
+   * after a timeout: a caller that got no answer reads again. Which of the two calls below answers
+   * a Query is in its declaration — `result` or `items` (QRY-4) — and asking for the other throws
+   * before anything is sent, because the Descriptor already said which it is.
+   *
+   * What comes back is the Worker's own and is not looked inside: the declaration carries its JSON
+   * Schema under `descriptor.capabilities.queries.answers`, for a caller that wants to check it.
+   */
+  queries?: {
+    /** QRY-9. The one document a Query that declares `result` answers. */
+    read: (name: string, parameters?: QueryParameters) => Promise<unknown>;
+    /** QRY-9. Every item of a Query that declares `items`, paged through (ENDP-20, ENDP-31). */
+    list: (name: string, parameters?: QueryParameters) => Promise<unknown[]>;
+    /** One page of the same collection, for a caller that keeps the cursor itself. */
+    page: (name: string, parameters?: QueryParameters, read?: PageRead) => Promise<Page<unknown>>;
+  };
   /** ALRT-2. The Alerts whose conditions hold, whole; `.page()` for one page of them. */
   alerts?: Listed<Alert> & {
     /**
@@ -164,7 +184,7 @@ export type Consumed = {
     unsubscribe: (id: string) => Promise<void>;
   };
   /**
-   * GRANT-3 to GRANT-7. Tell this Worker, ahead of time, what a Contract's credential covers, and
+   * GRANT-4 to GRANT-7, GRANT-11. Tell this Worker, ahead of time, what a Contract's credential covers, and
    * receive the credential it issues for it — for whoever brokers Contracts, usually a Tower.
    *
    * `apply` answers a `credential` on creation and on a rotation, and only then: the Worker keeps
@@ -214,6 +234,9 @@ export type Consumed = {
     answers: (of: string | Task) => Offered[] | undefined;
   };
 };
+
+/** QRY-2, QRY-5. A Query's parameters: each a string, sent under its own name. */
+export type QueryParameters = Record<string, string>;
 
 export type MetricRead = {
   granularity?: string;
@@ -363,6 +386,53 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
       page: async (metric, { cursor, ...read } = {}) => {
         const { url, parameters } = metricRead(metric, read);
         return page<Bucket>(call, url, metricPage, "MET-14", parameters, cursor);
+      },
+    };
+  }
+
+  const queriesAddress = addressOf("queries");
+  if (queriesAddress !== undefined) {
+    type Declared = { result?: unknown; items?: unknown };
+    const answers = (entry("queries") as { answers?: Record<string, Declared> })?.answers ?? {};
+    // QRY-4: the declaration says whether a Query answers one document or a collection. A Query
+    // the entry does not hold is sent anyway, and the Worker's `404` is what the caller is told
+    // (QRY-6) — this reads a Descriptor that may be a poll old, and the Worker is who knows.
+    const mustAnswer = (name: string, kind: "result" | "items") => {
+      const declared = Object.hasOwn(answers, name) ? answers[name] : undefined;
+      const other = kind === "result" ? "items" : "result";
+      if (declared !== undefined && declared[kind] === undefined && declared[other] !== undefined) {
+        throw new TypeError(
+          kind === "result"
+            ? `The Query "${name}" answers a collection (QRY-4): read it with \`list\` or \`page\`.`
+            : `The Query "${name}" answers one document (QRY-4): read it with \`read\`.`,
+        );
+      }
+    };
+    // QRY-5: the Query in `query`, and each parameter under its own name beside it.
+    const named = (name: string, parameters: QueryParameters) => ({ ...parameters, query: name });
+    consumed.queries = {
+      read: async (name, parameters = {}) => {
+        mustAnswer(name, "result");
+        const url = new URL(queriesAddress);
+        for (const [key, value] of Object.entries(named(name, parameters))) {
+          url.searchParams.set(key, value);
+        }
+        return (await call.call({ url: url.toString() })).json;
+      },
+      list: async (name, parameters = {}) => {
+        mustAnswer(name, "items");
+        return collect<unknown>(call, queriesAddress, pageSchema, "QRY-9", named(name, parameters));
+      },
+      page: async (name, parameters = {}, { cursor } = {}) => {
+        mustAnswer(name, "items");
+        return page<unknown>(
+          call,
+          queriesAddress,
+          pageSchema,
+          "QRY-9",
+          named(name, parameters),
+          cursor,
+        );
       },
     };
   }

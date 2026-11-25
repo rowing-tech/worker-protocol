@@ -939,7 +939,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "grants.md",
       "class": "required",
       "reach": "H",
-      "introducedIn": "0.8"
+      "introducedIn": "0.8",
+      "withdrawnIn": "0.12"
     },
     {
       "id": "GRANT-4",
@@ -989,6 +990,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "H",
       "introducedIn": "0.8"
+    },
+    {
+      "id": "GRANT-11",
+      "file": "grants.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.12"
     },
     {
       "id": "HLTH-1",
@@ -1354,6 +1362,83 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "W",
       "introducedIn": "0.1"
+    },
+    {
+      "id": "QRY-1",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-2",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-3",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-4",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-5",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-6",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-7",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-8",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-9",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-10",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-11",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "H",
+      "introducedIn": "0.12"
     },
     {
       "id": "REG-3",
@@ -2148,6 +2233,20 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
     },
     "qualified-name": {
       "": "NAME-7"
+    },
+    "queries-entry": {
+      "": "QRY-1",
+      "address": "DESC-36",
+      "answers": "QRY-1",
+      "answers/*/items": "QRY-4",
+      "answers/*/parameters": "QRY-2",
+      "answers/*/result": "QRY-4",
+      "version": "DESC-9"
+    },
+    "query-declaration": {
+      "items": "QRY-4",
+      "parameters": "QRY-2",
+      "result": "QRY-4"
     },
     "skill-declaration": {
       "": "TASK-36",

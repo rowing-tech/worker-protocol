@@ -21,7 +21,7 @@ carried out, not an exception to it: the credential is still the owner's, made h
 already knows how to check one.
 
 **It is not a permission model.** It fixes what an owner and the party that applies a grant must
-agree on for a Contract to take effect — the three lists, the credential, and when a change counts —
+agree on for a Contract to take effect — the lists, the credential, and when a change counts —
 and nothing about how an owner stores a grant or checks a credential against it. `403` is still the
 whole vocabulary of a right withheld. A Worker that does not declare `grants` is conformant, and how
 its credentials are covered stays its own: a Worker holding one static secret can still be an owner,
@@ -74,10 +74,11 @@ have been handed the Tower's role by a Contract.
 
 ## Applying one
 
-**GRANT-3 (required). A POST to the address applies a grant. Its body carries the grant's `id`, and
-under `tasks`, `actions` and `events` either `all` or a list of names — Task types the `tasks`
+**GRANT-11 (required). A POST to the address applies a grant. Its body carries the grant's `id`,
+and under `tasks`, `actions` and `events` either `all` or a list of names — Task types the `tasks`
 entry raises, Actions the `actions` entry accepts, event types the `events` entry publishes — and
-optionally `rotate`, and nothing else. A name the Worker does not declare is `422`, with the code
+optionally, under `queries`, the same of the Queries the `queries` entry answers, and optionally
+`rotate`, and nothing else. A name the Worker does not declare is `422`, with the code
 `unprocessable_content`, and nothing is applied.**
 
 **GRANT-4 (required). A grant is identified by its applicant and its id. Applying under an id the
@@ -90,12 +91,22 @@ names and is answered `200` with the grant. It issues a credential only where th
 valid.**
 
 **The three lists are what a Contract names.** The [architecture](../docs/architecture.md) has a
-Contract name a Service's events, Task types and Actions, and those are what a credential reads
-(TASK-6), performs (ACT-22) and consumes (SUB-4). Health, Alerts, activity, logs and metrics are not
+Contract name a Service's events, Task types and Actions — and its Queries, which the fourth list
+below carries — and those are what a credential reads (TASK-6), performs (ACT-22) and consumes
+(SUB-4). Health, Alerts, activity, logs and metrics are not
 here: they are the relationship of enrollment between a Worker and whoever operates it, the same for
 every credential that reaches them (ALRT-6), and a grant that named them would force filtering on
 surfaces that are deliberately one document. `all` is a value and not an omission, so a grant that
 covers every Action says so, and one that names none sends an empty list.
+
+**`queries` is the fourth, and the one a grant may leave out.** A [Query](queries.md) is a read a
+Worker defines, and a Contract that lets a consumer read one names it as it names an Action. The
+list is optional where the other three are not for one reason, and it is not that reading matters
+less: the three were required from the edition that introduced grants, and a fourth required list
+would have made every grant already written, and every applicant already deployed, wrong on the
+day it appeared. Left out, it names no Query — which is what a grant written before Queries
+existed means by saying nothing about them (QRY-11) — so `all` stays a value and never becomes an
+omission here either.
 
 **An unknown name is refused rather than dropped**, for SUB-3's reason: a grant that quietly covered
 less than its applicant asked for would be a Contract the owner was never told about, and the
@@ -153,7 +164,7 @@ covers exactly the lists.
 Contract over a whole Service is written, and it widens when the Worker deploys a new Task type,
 Action or event type, which is what a Contract over the whole of something means. A grant that must
 not widen names its lists. A name the Worker stops declaring covers nothing from then on, as there
-is nothing left to cover; an applicant that applies the same lists again is told so with GRANT-3's
+is nothing left to cover; an applicant that applies the same lists again is told so with GRANT-11's
 `422`, and drops the name.
 
 **Watching is enrollment, and no grant names it.** GRANT-10 closes the surfaces through which a
@@ -207,10 +218,14 @@ worded so that a view for the Worker's own operator would be an addition rather 
 
 ## Still open here
 
-- Whether a grant carries more of a Contract than these three lists — a rate, a retention of Task
+- Whether a grant carries more of a Contract than these lists — a rate, a retention of Task
   events, the time zone a multi-tenant Worker cuts a consumer's metric buckets in. Open in
   [undecided](../docs/undecided.md).
 
 ## Withdrawn
 
-Nothing yet.
+- **GRANT-3** (required, H, 0.8–0.12) — required that a POST to the address apply a grant whose
+  body carried its `id`, the three lists `tasks`, `actions` and `events`, optionally `rotate`, and
+  nothing else, with `422` + `unprocessable_content` for a name the Worker does not declare.
+  Replaced by GRANT-11, which is the same rule with `queries` admitted as an optional fourth list:
+  a widening of what a request may carry, so it could not keep the id.

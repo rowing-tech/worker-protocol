@@ -52,12 +52,13 @@ envelope, a metric bucket, a Task, an Alert, an Activity, a Nudge.
 
 | Group | Objects |
 |---|---|
-| The Descriptor | `descriptor`, `capabilityEntry`, `skillDeclaration`, `healthEntry`, `metricsEntry`, `actionsEntry`, `tasksEntry`, `alertsEntry`, `nudgesEntry`, `activityEntry`, `eventsEntry` |
+| The Descriptor | `descriptor`, `capabilityEntry`, `skillDeclaration`, `healthEntry`, `metricsEntry`, `actionsEntry`, `queriesEntry`, `tasksEntry`, `alertsEntry`, `nudgesEntry`, `activityEntry`, `eventsEntry` |
 | Names and addresses | `capabilityName`, `vendorCapabilityName`, `qualifiedName`, `address` |
 | Health | `health`, `healthCheck`, `healthStatus` |
 | Refusals and paging | `error`, `rejectCodes`, `retryCodes`, `page` |
 | Metrics | `metricDeclaration`, `metricDimension`, `metricGranularity`, `metricBucket`, `metricPage`, `timeZone`, `INSTANT`, `DIMENSION_NAME` |
 | Actions | `actionDeclaration`, `idempotencyDeclaration` |
+| Queries | `queryDeclaration` |
 | Tasks | `taskTypeDeclaration`, `task`, `taskPage` |
 | Alerts, Activity, Nudges | `alert`, `alertSeverity`, `alertPage`, `activity`, `activityState`, `activityPage`, `nudge` |
 | Events | `eventTypeDeclaration`, `eventDestination` |

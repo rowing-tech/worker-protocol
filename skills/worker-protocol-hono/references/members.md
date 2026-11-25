@@ -29,7 +29,7 @@ and the rule each one cites.
   served at no address — it is what the Worker *is*, where a Capability is what it *serves*.
 - `edition?: string` — only to pin the edition verified against. Otherwise the package's.
 
-## The eleven Capabilities
+## The twelve Capabilities
 
 - `health: (call) => ({ status, checks })` — one status, named checks beneath it. Never better
   than its checks (HLTH-3).
@@ -61,6 +61,14 @@ and the rule each one cites.
   secret with `.meta({ writeOnly: true })`: `mount()` leaves it out of the reading address and
   keeps it when a form omits it (ACT-20, ACT-21). `supersededBy` names the Action in `accepts` that
   replaces this one, which is still answered as declared (NAME-10).
+- `queries: { answers: { [name]: query({ parameters?, result | items, read }) }, covers?,
+  pageSize? }` — the reads you define. `parameters` is a Zod object whose members are all strings,
+  because a GET carries them in the query string (QRY-2), and none is named `query` or `cursor`
+  (QRY-3). Declare `result` for one document or `items` for a collection, never both (QRY-4): with
+  `items`, `read(parameters, { cursor, limit })` answers `{ items, nextCursor? }` and the cursor
+  and the order are yours (ENDP-23, ENDP-33). `read` changes nothing (ENDP-2); what would is an
+  Action. `covers` names the Queries a credential may read (QRY-10); one issued through `grants`
+  reads only the Queries its grant names, and none where it names none (QRY-11).
 - `alerts: () => Alert[]` — `{ id, severity: "warning" | "critical", since, summary, actions,
   inputs? }`. `inputs` fills in, per offered Action and member, what the Alert already knows
   (ALRT-9).
@@ -103,31 +111,33 @@ and the rule each one cites.
   `wantedHere` inside the Durable Object that holds them),
   and `route`, `deliverAll` and `later` for a carrier that makes the first attempt itself, as
   `consumeQueues` does.
-- `grants: { store, applicants(call) }` — `store` a `GrantStore` (`memoryGrants()` in
-  one process); `applicants` which callers may apply, required, and `mount()` refuses to build
-  without it (GRANT-2). The applicant is the `caller` your `authenticate` names, and a caller it
-  names nothing for is refused `403` without `applicants` being asked — a Worker holding one static
-  secret names its one caller. Name a stable identity there, never the id of a key: rotating that
-  key would orphan every grant it applied, and every series counted under them.
-  `mount()` mints each credential, answers it once and keeps only its SHA-256; a presented
-  credential is looked up by digest before `authenticate`, on every request that carries one, so
-  index the digest and answer a miss cheaply. `put(grant, expected)` compares the serial it holds
-  with `expected` (`null` for none) and writes only on a match — make that one atomic write, as
-  `SubscriptionStore.ensure` is; a lost race is answered `503` and the applicant retries. What a
-  grant's credential covers is bounded by its grant, and your own `tasks.covers`, `actions.covers`
-  and `subscriptions.allows` are still asked and may only narrow inside it (GRANT-8). It is `403`
-  on health, metrics, alerts, activity, logs and settings (GRANT-10). Hand `eventHub` the same
-  store as `grants: { store }`, so a subscription a narrowed, rotated or revoked credential made
-  ends as `revoked` before its next delivery (GRANT-9). `call.grant` is `{ applicant, id }` for a
-  call a grant's credential made: hand it to `taskAnswered({ ..., grant: call.grant })` and the
-  applicant's deliveries carry `contract` (EVT-22); record `contractKey(call.grant)` under a
-  `contract` dimension and `mount()` turns a caller's `contract=<id>` into the same key, so nobody
-  else's id ever matches (MET-23). The key is opaque: store it exactly as returned, and declare
-  `contract: {}` with no values — `mount()` refuses a set, which would let anybody break it down.
-  `grant` lives on the `Publishable` in memory only: a Worker that publishes from an outbox stores
-  `call.grant` with the row and hands it back to `taskAnswered`, or the applicant's delivery loses
-  `contract` without a word. What goes to a broker never carries it — `envelopeOf` leaves it out,
-  and a Worker publishing to one by hand must too (EVT-22).
+- `grants: { store, applicants(call) }` — `store` a `GrantStore` (`memoryGrants()` in one process),
+  holding each grant's three lists and its `queries` where it names any (GRANT-11); `applicants`
+  which callers may apply, required, and `mount()` refuses to build without it (GRANT-2). The
+  applicant is the `caller` your `authenticate` names, and a caller it names nothing for is refused
+  `403` without `applicants` being asked — a Worker holding one static secret names its one caller.
+  Name a stable identity there, never the id of a key: rotating that key would orphan every grant it
+  applied, and every series counted under them. `mount()` mints each credential, answers it once and
+  keeps only its SHA-256; a presented credential is looked up by digest before `authenticate`, on
+  every request that carries one, so index the digest and answer a miss cheaply.
+  `put(grant, expected)` compares the serial it holds with `expected` (`null` for none) and writes
+  only on a match — make that one atomic write, as `SubscriptionStore.ensure` is; a lost race is
+  answered `503` and the applicant retries. What a grant's credential covers is bounded by its
+  grant, and your own `tasks.covers`, `actions.covers`, `queries.covers` and `subscriptions.allows`
+  are still asked and may only narrow inside it (GRANT-8, QRY-11). It is `403` on health, metrics,
+  alerts, activity, logs and settings (GRANT-10). Hand `eventHub` the same store as
+  `grants: { store }`, so a subscription a narrowed, rotated or revoked credential made ends as
+  `revoked` before its next delivery (GRANT-9).
+  `call.grant` is `{ applicant, id }` for a call a grant's credential made: hand it to
+  `taskAnswered({ ..., grant: call.grant })` and the applicant's deliveries carry `contract`
+  (EVT-22); record `contractKey(call.grant)` under a `contract` dimension and `mount()` turns a
+  caller's `contract=<id>` into the same key, so nobody else's id ever matches (MET-23). The key is
+  opaque: store it exactly as returned, and declare `contract: {}` with no values — `mount()`
+  refuses a set, which would let anybody break it down. `grant` lives on the `Publishable` in memory
+  only: a Worker that publishes from an outbox stores `call.grant` with the row and hands it back to
+  `taskAnswered`, or the applicant's delivery loses `contract` without a word. What goes to a broker
+  never carries it — `envelopeOf` leaves it out, and a Worker publishing to one by hand must too
+  (EVT-22).
 - `logs: { read({ levels, from, to, trace?, cursor, limit }), pageSize? }` — answer
   `{ records: [{ at, level, message, fields?, traceId?, spanId? }], nextCursor? }`, most recent
   first. `levels` arrives expanded and in order, lowest first, so the ladder never needs
@@ -156,6 +166,6 @@ and the rule each one cites.
 - `LEVELS`, `LogLevel`, `LogRecord`, `LogQuery`, `LogPage`, `LogFacts` — the `logs` vocabulary.
   `LEVELS` is the ladder in order, which is what a level floor is read off.
 - The route objects `openapi/` is generated from: `readDescriptor`, `pollHealth`, `readMetric`,
-  `performAction`, `readTasks`, `readAlerts`, `readActivity`, `readLogs`, `takeNudge`. Mounting them
-  in an app means asking that app for its own OpenAPI document and getting one that describes *this*
-  Worker, with its Actions and its Task payloads in it.
+  `performAction`, `readQuery`, `readTasks`, `readAlerts`, `readActivity`, `readLogs`, `takeNudge`.
+  Mounting them in an app means asking that app for its own OpenAPI document and getting one that
+  describes *this* Worker, with its Actions and its Task payloads in it.

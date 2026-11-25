@@ -58,6 +58,16 @@ export {
   type WorkerSource,
 } from "./mount.ts";
 export {
+  type Query,
+  type QueryCall,
+  type QueryDeclarations,
+  type QueryFacts,
+  type QueryPage,
+  type QueryPageCall,
+  type QueryParameters,
+  query,
+} from "./queries.ts";
+export {
   alertEnded,
   alertRaised,
   type CloudEvent,
@@ -98,6 +108,7 @@ export {
   readDescriptor,
   readLogs,
   readMetric,
+  readQuery,
   readTasks,
   revokeGrant,
   subscribe,

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "query-declaration.json",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {},
+          "description": "QRY-2. The JSON Schema of this Query's parameters: an object, each of whose members is a string, sent as a query parameter of the same name (QRY-5). An object with no members where the Query takes none. QRY-3: no member is named `query` or `cursor`."
+        },
+        "result": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {},
+          "description": "QRY-4. The JSON Schema of the one document a read answers (QRY-9). Declared where the Query answers one thing, and then `items` is absent."
+        }
+      },
+      "required": [
+        "parameters",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {},
+          "description": "QRY-2. The JSON Schema of this Query's parameters: an object, each of whose members is a string, sent as a query parameter of the same name (QRY-5). An object with no members where the Query takes none. QRY-3: no member is named `query` or `cursor`."
+        },
+        "items": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {},
+          "description": "QRY-4. The JSON Schema of one item of the collection a read answers, in the shared page envelope (QRY-9, ENDP-20). Declared where the Query answers a list, and then `result` is absent."
+        }
+      },
+      "required": [
+        "parameters",
+        "items"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "title": "Query declaration",
+  "description": "QRY-2, QRY-4. One Query a Worker answers: the schema of its parameters, and the schema of what it answers — one document under `result`, or one item of a collection under `items`, and never both."
+}

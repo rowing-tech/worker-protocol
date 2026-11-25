@@ -1,0 +1,23 @@
+{
+  "schema": "query-declaration",
+  "valid": false,
+  "rule": "QRY-4",
+  "why": "Both `result` and `items`. A read answers one document or a collection in the page envelope, and a caller has to know which before it reads: declared both, a client could not tell whether to page.",
+  "document": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      },
+      "required": ["vehicle"]
+    },
+    "result": {
+      "type": "object"
+    },
+    "items": {
+      "type": "object"
+    }
+  }
+}

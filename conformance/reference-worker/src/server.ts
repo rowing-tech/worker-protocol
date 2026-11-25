@@ -17,6 +17,7 @@ import { activity } from "./activity.ts";
 import { alerts } from "./alerts.ts";
 import { createLogs } from "./logs.ts";
 import { DECLARATIONS, read, TIME_ZONE } from "./metrics.ts";
+import { QUERIES } from "./queries.ts";
 import { createTasks, DIMENSIONS, RAISES, SKILLS } from "./tasks.ts";
 
 /**
@@ -94,6 +95,8 @@ export type WorkerOptions = {
   visibleTasks?: Record<string, string[]>;
   /** Which Actions each credential covers, for ACT-22. A credential absent from it covers all. */
   coveredActions?: Record<string, string[]>;
+  /** Which Queries each credential covers, for QRY-10. A credential absent from it covers all. */
+  coveredQueries?: Record<string, string[]>;
   /**
    * Sink origins exempted from SUB-5 and SUB-6, so a test can receive deliveries on a loopback
    * socket in plaintext. The Worker breaks both rules for these origins on purpose, and for no
@@ -254,6 +257,14 @@ export function referenceWorker(
       settings,
       outcomes,
       covers: ({ token }) => options.coveredActions?.[token ?? ""],
+    },
+
+    // QRY-1: the reads this Worker defines, each a GET that changes nothing. QRY-10: only the
+    // Queries the credential covers. A page of two, so the collection actually pages (ENDP-19).
+    queries: {
+      answers: QUERIES,
+      covers: ({ token }) => options.coveredQueries?.[token ?? ""],
+      pageSize: 2,
     },
 
     // TASK-6: only what the credential covers, because a list showing every Task to every holder

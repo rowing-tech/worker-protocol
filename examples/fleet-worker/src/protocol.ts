@@ -12,6 +12,7 @@ import {
   eventHub,
   LIFECYCLE,
   type OpenTask,
+  query,
   type SubscriptionFacts,
   type Worker,
 } from "@worker-protocol/hono";
@@ -237,6 +238,38 @@ export const fleetWorker = (fleet: Fleet, env: Env): Worker => {
               quietAfterMs(env),
             ),
           }),
+        }),
+      },
+    },
+
+    // QRY-1: what somebody may ask this Worker that the protocol has no name for — when each
+    // vehicle last reported, which is the Fact a consumer needs BETWEEN two `vehicle-went-quiet`
+    // events and no event carries. A GET that changes nothing, so it needs no key and no outcome.
+    queries: {
+      // ENDP-19: the cap this Worker holds a page to. A caller does not negotiate it — no address
+      // in this protocol takes a `limit` — so this number is what arrives below as `limit`.
+      pageSize: 100,
+      answers: {
+        "last-seen": query({
+          // QRY-9: `items`, so `mount()` answers the page envelope around what this returns.
+          items: z.object({ vehicle: z.string(), at: z.string() }),
+          // Where the paging comes from, because it is not in `parameters`: a caller pages with
+          // `?query=last-seen&cursor=…`, and `cursor` is the read's own parameter, which a Query
+          // may not declare (QRY-3). `mount()` takes it off the query string and hands it over
+          // here, beside `limit`, in the second argument. The first is what this Query declared
+          // for itself, and it declared nothing.
+          read: async (_, { cursor, limit }) => {
+            // The cursor is this Worker's and opaque to everyone else (ENDP-21): here, the last
+            // plate the page before carried. One row more than the page says whether there is a
+            // next one, without a second read.
+            const held = await fleet.lastSeen(cursor, limit + 1);
+            const items = held
+              .slice(0, limit)
+              .map((one) => ({ vehicle: one.vehicle, at: new Date(one.at).toISOString() }));
+            const last = held.length > limit ? items.at(-1) : undefined;
+            // ENDP-20: no cursor at the end of the collection — absent, not null.
+            return { items, ...(last === undefined ? {} : { nextCursor: last.vehicle }) };
+          },
         }),
       },
     },

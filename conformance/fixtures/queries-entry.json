@@ -1,0 +1,48 @@
+{
+  "schema": "queries-entry",
+  "valid": true,
+  "rule": "QRY-1",
+  "why": "An address and the catalog: one Query that answers a document and one that answers a collection, each with the schema of its parameters. The surface itself never lists what exists, so this is everything a caller knows before it reads.",
+  "document": {
+    "version": 1,
+    "address": "../queries",
+    "answers": {
+      "position": {
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "vehicle": {
+              "type": "string"
+            }
+          },
+          "required": ["vehicle"]
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "lat": {
+              "type": "number"
+            },
+            "lng": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "positions": {
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        },
+        "items": {
+          "type": "object",
+          "properties": {
+            "vehicle": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

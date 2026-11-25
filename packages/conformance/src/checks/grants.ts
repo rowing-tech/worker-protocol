@@ -4,7 +4,8 @@ import { type Result, type Rule, verdicts } from "../report.ts";
 import { type Transcript, withParams } from "../transcript.ts";
 
 /**
- * GRANT-1 to GRANT-9: applying a grant, what its credential covers, and when a change takes effect.
+ * GRANT-1 to GRANT-10: applying a grant, what its credential covers, and when a change takes
+ * effect — and QRY-11, which is judged here because this is where a grant's credential exists.
  *
  * Everything past GRANT-1 issues or revokes a real credential on the Worker, so it waits for
  * `applyGrants` as well as `mayPerform`, as ACT-20 waits for settings its operators will let go of.
@@ -14,7 +15,7 @@ import { type Transcript, withParams } from "../transcript.ts";
 export const CLAIMS = [
   "GRANT-1",
   "GRANT-2",
-  "GRANT-3",
+  "GRANT-11",
   "GRANT-4",
   "GRANT-5",
   "GRANT-6",
@@ -22,6 +23,7 @@ export const CLAIMS = [
   "GRANT-8",
   "GRANT-9",
   "GRANT-10",
+  "QRY-11",
 ] as const;
 
 const NEVER_DECLARED = "tech.rowing.worker-protocol.never-declared-by-anyone";
@@ -34,6 +36,9 @@ export async function checkGrants(given: {
   healthUrl: string | null;
   actionsUrl: string | null;
   tasksUrl: string | null;
+  /** QRY-11: the `queries` address, and the Queries the Worker declares, by name. */
+  queriesUrl: string | null;
+  queries: string[];
   /** The Actions the Worker declares, by name, for GRANT-8 and GRANT-9 to post one. */
   actions: string[];
   mayPerform: boolean;
@@ -43,6 +48,7 @@ export async function checkGrants(given: {
 }): Promise<Result[]> {
   const { url, descriptorUrl, healthUrl, actionsUrl, tasksUrl, actions, arrangement, transcript } =
     given;
+  const { queriesUrl, queries } = given;
   const { results, say, allExcept } = verdicts(given.rules, CLAIMS);
 
   // GRANT-1: the entry carries an address. Read off the Descriptor, so it needs nothing arranged.
@@ -95,7 +101,7 @@ export async function checkGrants(given: {
       ...(headers === undefined ? {} : { headers }),
     });
 
-  // GRANT-3: a name the Worker does not declare is refused, and nothing is applied.
+  // GRANT-11: a name the Worker does not declare is refused, and nothing is applied.
   const unknown = await apply(
     { id, tasks: [NEVER_DECLARED], actions: [], events: [] },
     "a grant naming a Task type the Worker does not declare",
@@ -110,11 +116,11 @@ export async function checkGrants(given: {
   }
   const afterUnknown = await listed("the grants, after an unknown name");
   if (unknown.status !== 422 || codeOf(unknown.json) !== "unprocessable_content") {
-    say("GRANT-3", "fails", `an undeclared Task type was answered ${unknown.status}, not 422`);
+    say("GRANT-11", "fails", `an undeclared Task type was answered ${unknown.status}, not 422`);
   } else if (afterUnknown.page?.items.some((one) => one.id === id)) {
-    say("GRANT-3", "fails", "the grant naming an undeclared Task type was applied anyway");
+    say("GRANT-11", "fails", "the grant naming an undeclared Task type was applied anyway");
   } else {
-    say("GRANT-3", "passes");
+    say("GRANT-11", "passes");
   }
 
   let revoked = false;
@@ -127,7 +133,7 @@ export async function checkGrants(given: {
     const first = credentialOf(created);
     if (created.status !== 201 || first === undefined) {
       say("GRANT-4", "fails", `creating a grant answered ${created.status} without a credential`);
-      allExcept("notExercised", "no grant could be created", ["GRANT-1", "GRANT-3", "GRANT-4"]);
+      allExcept("notExercised", "no grant could be created", ["GRANT-1", "GRANT-11", "GRANT-4"]);
       return results;
     }
     const reads = await readsDescriptor(first, "the Descriptor, with the grant's credential");
@@ -167,6 +173,16 @@ export async function checkGrants(given: {
       }
     }
 
+    // QRY-11, first half: this grant names no Query, so its credential reads none. A Query is a
+    // GET, so asking costs the Worker nothing whichever way it answers. The verdict waits for the
+    // second half, below, where the grant is replaced by one that names the Query.
+    const query = queries[0];
+    const readsQuery = async (intent: string) =>
+      queriesUrl === null || query === undefined
+        ? null
+        : transcript.send(withParams(queriesUrl, { query }), intent, { headers: as(first) });
+    const unnamed = await readsQuery(`the Query ${query}, which the grant does not name`);
+
     // GRANT-8: no Task type, so no Tasks; every Action, so a declared one is not refused `403`.
     const action = actions[0];
     const post = (credential: string, intent: string) =>
@@ -200,8 +216,16 @@ export async function checkGrants(given: {
 
     // GRANT-5, first half: applying again replaces and issues nothing. GRANT-9, narrowing: what the
     // credential no longer covers is `403`, and the credential is still read.
+    // The replacement names the Query where the Worker declares one: `queries` is the list a
+    // grant may leave out (GRANT-11), and this is where a verifier sees one that does not.
     const narrowed = await apply(
-      { id, tasks: [], actions: [], events: [] },
+      {
+        id,
+        tasks: [],
+        actions: [],
+        events: [],
+        ...(query === undefined ? {} : { queries: [query] }),
+      },
       "the same grant, narrowed to no Action",
     );
     const replacedWell =
@@ -209,6 +233,24 @@ export async function checkGrants(given: {
       grantReceipt.safeParse(narrowed.json).success &&
       credentialOf(narrowed) === undefined;
     const lost = await post(first, `${action}, after the grant was narrowed`);
+
+    // QRY-11, second half: named, the Query is no longer refused for the credential. What it
+    // answers is not judged — a Query that requires a parameter answers `400` here, and that is a
+    // Worker that got as far as reading it.
+    const named = await readsQuery(`the Query ${query}, now that the grant names it`);
+    if (unnamed === null || named === null) {
+      say("QRY-11", "notExercised", "the Worker declares no Query to read");
+    } else if (unnamed.status !== 403 || codeOf(unnamed.json) !== "forbidden") {
+      say(
+        "QRY-11",
+        "fails",
+        `a credential whose grant names no Query read ${query} and was answered ${unnamed.status}`,
+      );
+    } else if (named.status === 403 || named.status === 401) {
+      say("QRY-11", "fails", `the Query its grant names was refused ${named.status}`);
+    } else {
+      say("QRY-11", "passes");
+    }
 
     // GRANT-6: the applicant's own grant, without a credential; another caller's list without it.
     const mine = await listed("the grants, as their applicant");

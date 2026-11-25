@@ -109,9 +109,9 @@ it — so it arrives the way the base URL and the credential do: out of band, fr
 
 `arrangement` takes `safeAction`, `secondSafeAction`, `refusedInput`, `asyncAction`,
 `secondCredential`, `otherCallerCredential`, `consumerCredential`, `unprivilegedCredential`,
-`uncoveredAction`, `applyGrants`, `justStarted`, `replaceableSettings`, `recordsEveryRequest`,
-`publishedEvent`, `sink`, `publishingAction`, `answeringAction`, `before`, `after` and
-`abandonment`. Anything not arranged reports `notExercised` naming what was missing.
+`uncoveredAction`, `uncoveredQuery`, `applyGrants`, `justStarted`, `replaceableSettings`,
+`recordsEveryRequest`, `publishedEvent`, `sink`, `publishingAction`, `answeringAction`, `before`,
+`after` and `abandonment`. Anything not arranged reports `notExercised` naming what was missing.
 
 `recordsEveryRequest: true` says the Worker writes a record for every request it serves, which is
 what lets the verifier make a record exist without knowing the Worker's domain: reading the feed is
@@ -125,6 +125,10 @@ conformant Worker performs nothing with that call; one that checks no coverage a
 of an Action without input would, so it is made only with `mayPerform`, like every other POST.
 TASK-44 reads the Tasks with it and expects every one that Action answers to carry `available`
 without it.
+
+`uncoveredQuery` is the same for a declared Query: a credential, and a Query it does not cover.
+QRY-10 reads that Query with it, beside a parameter no Query declares, and expects `403` and not
+the `400` that parameter would earn. It is a GET, so it needs no `mayPerform`.
 
 `applyGrants: true`, with `mayPerform`, lets the verifier apply a grant with its own credential as
 the applicant: one grant under an id of its own, covering no Task type and no event type, which it

@@ -48,6 +48,7 @@ describe("what a Tower reads first", () => {
       "health",
       "logs",
       "metrics",
+      "queries",
       "subscriptions",
       "tasks",
     ]);
@@ -296,5 +297,48 @@ describe("grants, kept in the durable object", () => {
     expect((await at("/grants?grant=contract-1", { method: "DELETE" })).status).toBe(204);
     expect((await under(credential, "/tasks")).status).toBe(401);
     expect((await at("/grants?grant=contract-1", { method: "DELETE" })).status).toBe(404);
+  });
+});
+
+describe("a Query, paged from the durable object", () => {
+  it("answers when each vehicle last reported, a page at a time, repeating none (QRY-9, ENDP-33)", async () => {
+    const now = Date.now();
+    // More than one page of them, under a prefix no other test writes, in no particular order.
+    const plates = Array.from({ length: 130 }, (_, i) => `QRY-${String(i).padStart(3, "0")}`);
+    await fleet().ingest(
+      plates.toReversed().map((vehicle) => ({ vehicle, at: now })),
+      now,
+      QUIET_AFTER_MS,
+    );
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    let pages = 0;
+    do {
+      const search = new URLSearchParams({ query: "last-seen", ...(cursor ? { cursor } : {}) });
+      const response = await at(`/queries?${search}`);
+      expect(response.status).toBe(200);
+      const page = (await response.json()) as {
+        items: { vehicle: string; at: string }[];
+        nextCursor?: string;
+      };
+      // ENDP-19: the Worker's cap, whatever the caller would have liked.
+      expect(page.items.length).toBeLessThanOrEqual(100);
+      seen.push(...page.items.map((one) => one.vehicle));
+      cursor = page.nextCursor;
+      pages += 1;
+    } while (cursor !== undefined && pages < 10);
+
+    expect(pages).toBeGreaterThan(1);
+    // ENDP-23: the order it declares, by plate. ENDP-33: nothing twice.
+    expect(seen).toEqual([...seen].sort());
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(seen.filter((one) => one.startsWith("QRY-"))).toEqual(plates);
+  });
+
+  it("refuses a parameter the Query does not declare, a page size among them (ENDP-24)", async () => {
+    const response = await at("/queries?query=last-seen&limit=5");
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "unknown_filter" });
   });
 });

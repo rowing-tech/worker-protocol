@@ -53,7 +53,7 @@ argument earns each of these in turn.
 |---|---|
 | **Worker** | The only kind of node. Owns its state, publishes Events, and answers a Worker API. Everything below hangs off it. |
 | **Fact** | Something a Worker derived and is authoritative over. Facts belong to whoever derived them; nobody else may write them. |
-| **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, metrics, actions, alerts, activity, nudges, tasks, events, logs, subscriptions, grants — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
+| **Capability** | A part of this protocol a Worker implements, from a closed list the spec names — health, metrics, actions, queries, alerts, activity, nudges, tasks, events, logs, subscriptions, grants — each with a version of its own. A Worker declares which it implements; a verifier ignores one it does not know. |
 | **Descriptor** | The document a Worker serves at a route the spec fixes: its own id, distinct from where it lives; its Skill, if it has one, beside that id because a Skill is served at no address; the Capabilities it implements, with the schemas of each and, where one answers over HTTP, its address; and the edition of this protocol it speaks. Everything anyone knows about a Worker before calling it is read from here. |
 | **Control Tower** | A role, not a kind of node — the Tower, for short: the registry and the operator's console. It catalogs what Workers declare in their Descriptors, brokers the Contracts between them, and polls how each is doing. It holds no Worker's state, and nothing it offers is in the path of a call. A Tower that serves a Descriptor is a Worker like any other; what stays asymmetric is that every Worker reaches it by configuration rather than by discovery. |
 | **Metric** | A named quantity a Worker exposes over a period it declares, with a unit and no valuation — cost, volume, outcomes. Health says whether a Worker works; metrics say what it did. |
@@ -71,7 +71,7 @@ argument earns each of these in turn.
 | **Teams app** | A Worker that gives a person or team one view of the Tasks they hold across owners, by Skill. A recurring shape, not a kind of node: the protocol does not know the term. |
 | **Service** | A name a team publishes over what Workers already offer — Events, Task types, Actions — and answers for. The unit a Contract is made over; nothing is requested from it. |
 | **Contract** | An agreement between a consumer and a Service, brokered by the Tower: which of its Events, Task types and Actions the consumer may use, with credentials. Only the agreement and the credentials are stored; execution runs over it, not through the Tower. |
-| **Grant** | The part of a Contract one owner holds: which Task types, Actions and event types a credential covers on that Worker. Applied to the owner ahead of time, which issues the credential for it; the owner never reads the Contract itself. |
+| **Grant** | The part of a Contract one owner holds: which Task types, Actions, event types and Queries a credential covers on that Worker. Applied to the owner ahead of time, which issues the credential for it; the owner never reads the Contract itself. |
 | **Applicant** | The caller that applied a grant — in practice the Tower that brokered the Contract. It lists and revokes only its own grants. Not the Broker, which carries Events. |
 
 ## One kind of node, several platforms
@@ -319,7 +319,8 @@ a route the spec fixes, and it is the first thing anyone reads about it: the Wor
 HTTP, the address it answers at; and its versions.
 
 A Capability is a part of this protocol — health, metrics, actions with settings inside them,
-alerts, activity, nudges, tasks, events, logs, subscriptions, grants — and the list is closed; the
+queries, alerts, activity, nudges, tasks, events, logs, subscriptions, grants — and the list is
+closed; the
 spec names them. The word follows the convention of LSP, MCP and WebDriver, where *capabilities*
 already means exactly this. A prefix is
 reserved for a Worker to declare something of its own without breaking verification: a verifier
@@ -407,12 +408,12 @@ They are neither Tasks nor Alerts, and are named here only so nobody calls them 
 
 Workers are enrolled with the Tower, and teams publish Services over them. A consumer that needs a
 Service — wired by an operator ahead of time, or asking the Tower at runtime who answers a Task type
-— obtains a **Contract**: which of the Service's events, Task types and Actions it may use, under
-which credentials. Everything with the shape of a schema belongs to the workers; the Tower keeps a
-dated copy of what each last declared and is authority over none of it, and what it stores as its
-own is the agreement and the credentials — so a Contract is made over the workers' declarations
-and can drift from them by no more than the age of that copy. Discovery is by Task type, which is
-to say by Skill, never by Task instance.
+— obtains a **Contract**: which of the Service's events, Task types, Actions and Queries it may use,
+under which credentials. Everything with the shape of a schema belongs to the workers; the Tower
+keeps a dated copy of what each last declared and is authority over none of it, and what it stores
+as its own is the agreement and the credentials — so a Contract is made over the workers'
+declarations and can drift from them by no more than the age of that copy. Discovery is by Task
+type, which is to say by Skill, never by Task instance.
 
 Once a Contract exists, the consumer reads Tasks from the owner's API and posts Responses to it
 directly. The Tower is not in the path — if it aggregated open Tasks and routed them, it would be a
@@ -422,15 +423,15 @@ consumer that needs a *new* Contract, or credentials that have expired, waits fo
 anyone else. What never waits is the work.
 
 **What an owner holds of a Contract is a grant, and never the Contract.** The Tower applies one to
-every owner whose Task types, Actions or events the Contract names ([grants](../spec/grants.md)):
-the three lists, under the Contract's own id. The owner issues the credential for it and keeps
-only a digest, so the credential is whatever the owner already knows how to check and the Tower
-holds no signing key. Changing, rotating and revoking go the same way, and a revocation takes effect
-from its response. What an owner counts and publishes under a grant reaches only the Tower that
-applied it: a `contract` dimension on its metrics (MET-23), and the `contract` member of a
-`task-answered` delivered to that Tower's subscription (EVT-22). That is how a Tower compares a
-Worker's Skills against what it did without assigning the work — and how it learns who worked under
-which Contract without any other subscriber learning it too.
+every owner whose Task types, Actions, events or Queries the Contract names
+([grants](../spec/grants.md)): the lists, under the Contract's own id. The owner issues the
+credential for it and keeps only a digest, so the credential is whatever the owner already knows how
+to check and the Tower holds no signing key. Changing, rotating and revoking go the same way, and a
+revocation takes effect from its response. What an owner counts and publishes under a grant reaches
+only the Tower that applied it: a `contract` dimension on its metrics (MET-23), and the `contract`
+member of a `task-answered` delivered to that Tower's subscription (EVT-22). That is how a Tower
+compares a Worker's Skills against what it did without assigning the work — and how it learns who
+worked under which Contract without any other subscriber learning it too.
 
 ## Settings are an Action
 

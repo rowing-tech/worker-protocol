@@ -203,6 +203,27 @@ export class Fleet extends withLogs(
     };
   }
 
+  /**
+   * When each vehicle last reported, in the order of its plate, beyond the plate `after` names and
+   * at most `limit` of them: one page of the `last-seen` Query, read by key.
+   *
+   * `startAfter` is what makes the page ENDP-33's for nothing. The store is ordered by key, so
+   * asking for what is beyond a plate cannot answer a vehicle the page before carried, whatever
+   * reported in between — and a fleet of any size costs the `limit` rows it answers, never a list
+   * of every reading with the page cut out of it afterwards.
+   */
+  async lastSeen(
+    after: string | undefined,
+    limit: number,
+  ): Promise<{ vehicle: string; at: number }[]> {
+    const held = await this.ctx.storage.list<number>({
+      prefix: READING,
+      ...(after === undefined ? {} : { startAfter: `${READING}${after}` }),
+      limit,
+    });
+    return [...held].map(([key, at]) => ({ vehicle: key.slice(READING.length), at }));
+  }
+
   /** The protocol, answered from here, built once per object because the declaration is. */
   private served: ReturnType<typeof mount> | undefined;
 

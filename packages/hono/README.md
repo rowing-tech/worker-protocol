@@ -6,8 +6,9 @@ header, envelope and refusal worker-protocol fixes.
 **worker-protocol is an open specification for Workers that can be seen, operated and given work by
 people who did not build them.** HTTP and JSON Schema, no runtime. A *Worker* describes itself in a
 Descriptor served at `/.well-known/worker-protocol` — the one address this protocol fixes — and
-declares there which of its Capabilities it implements: `health`, `metrics`, `actions`, `alerts`,
-`activity`, `nudges`, `tasks`, `events`, `logs`. Any combination is allowed, including none.
+declares there which of its Capabilities it implements: `health`, `metrics`, `actions`, `queries`,
+`alerts`, `activity`, `nudges`, `tasks`, `events`, `logs`, `subscriptions`, `grants`. Any
+combination is allowed, including none.
 
 This package is what makes complying cheap. You write what your Worker *is* — what it knows how to
 do, what it counts, which conditions hold, what it is working on — and `mount()` writes the rest,
@@ -108,10 +109,15 @@ and a Worker that reads them at module scope works in one place only.
 - The idempotency window: a repeat under a key replays the recorded outcome instead of performing
   the work twice. A header key is scoped to the caller your `authenticate` names as `caller`, and
   a key read from the input is the Action's whoever sends it (ENDP-34, ENDP-35).
+- The `queries` address — the Query named in `query`, each parameter you declared read from the
+  query string and judged against your schema, the refusals for a Query you do not declare, a
+  parameter you do not declare and a credential that does not cover it, and the page envelope
+  around a collection (QRY-5 to QRY-11). You write `query({ parameters, result | items, read })`:
+  a read that changes nothing, where an Action is an operation that does.
 - The `subscriptions` address — who may subscribe to what, the sink rules, the webhook handshake,
   idempotence — and, through `eventHub()`, matching each event you publish against every
   subscription and delivering it with the retries SUB-12 fixes.
-- The `grants` address — who may apply, the three lists checked against what you declare, minting
+- The `grants` address — who may apply, the lists checked against what you declare, minting
   the credential and keeping only its digest — and what that credential covers on Tasks, Actions
   and subscriptions: the grant bounds it, and your own `covers` and `allows` may only narrow it.
 - Authentication, as `Authorization: Bearer <token>` on every address, answered by your

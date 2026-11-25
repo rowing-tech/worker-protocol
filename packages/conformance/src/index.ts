@@ -14,6 +14,7 @@ import { checkHealth } from "./checks/health.ts";
 import { checkLogs } from "./checks/logs.ts";
 import { checkMetrics } from "./checks/metrics.ts";
 import { checkNudges } from "./checks/nudges.ts";
+import { checkQueries, readableQuery } from "./checks/queries.ts";
 import { checkSubscriptions, type SinkExchange } from "./checks/subscriptions.ts";
 import { callSurfaces } from "./checks/surfaces.ts";
 import { checkTasks } from "./checks/tasks.ts";
@@ -132,6 +133,12 @@ export type Arrangement = {
    * that checks no coverage and ignores the body of an Action without input would perform it.
    */
   uncoveredAction?: { credential: string; name: string };
+  /**
+   * A credential the Worker authenticates, and a declared Query it does not cover (QRY-10).
+   *
+   * Told for the reason `uncoveredAction` is. The call is a GET, so it needs no `mayPerform`.
+   */
+  uncoveredQuery?: { credential: string; name: string };
   /**
    * That the operators will let the verifier apply grants on this Worker, with its own credential
    * as the applicant (GRANT-2 to GRANT-9).
@@ -399,18 +406,23 @@ export async function verify(options: VerifyOptions): Promise<Report> {
   try {
     if (descriptor.document !== null && descriptor.url !== null) {
       results.push(
-        ...(await callSurfaces(
-          descriptor.surfaces,
-          descriptor.url,
+        ...(await callSurfaces({
+          surfaces: descriptor.surfaces,
+          descriptorUrl: descriptor.url,
           // ENDP-6 is probed on every write this protocol has, and being wrong on a write is what
           // the rule is for: a Worker that refuses an unanswerable version on a read and performs
           // one here has done the thing it exists to prevent.
-          [surface("actions"), surface("nudges")].filter((url): url is string => url !== null),
-          byId,
-          tape,
-          options.credential,
-          options.mayPerform === true,
-        )),
+          writeAddresses: [surface("actions"), surface("nudges")].filter(
+            (url): url is string => url !== null,
+          ),
+          // ENDP-24 on `queries`, whose bare address answers nothing (QRY-7): one Query that
+          // requires no parameter, so the only thing wrong with the read is the filter added to it.
+          filtered: readableQuery(descriptor.document.capabilities.queries, surface("queries")),
+          rules: byId,
+          transcript: tape,
+          credential: options.credential,
+          mayPerform: options.mayPerform === true,
+        })),
       );
       // TASK-35 is an agreement between two entries rather than a shape inside one, so the tasks
       // check is handed the `actions` entry itself: every name a Task type points at must be one it
@@ -454,6 +466,16 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           byId,
           attribution,
           tape,
+        )),
+      );
+      // Every call here is a GET (QRY-5), so it runs whether or not the verifier may perform.
+      results.push(
+        ...(await checkQueries(
+          descriptor.document.capabilities.queries,
+          surface("queries"),
+          byId,
+          tape,
+          options.arrangement ?? {},
         )),
       );
       // `events` has no address by design (DESC-22), so this check sends nothing and takes no
@@ -583,6 +605,11 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           healthUrl: surface("health"),
           actionsUrl: surface("actions"),
           tasksUrl: surface("tasks"),
+          queriesUrl: surface("queries"),
+          queries: Object.keys(
+            (descriptor.document.capabilities.queries as { answers?: Record<string, unknown> })
+              ?.answers ?? {},
+          ),
           actions: Object.keys(
             (descriptor.document.capabilities.actions as { accepts?: Record<string, unknown> })
               ?.accepts ?? {},

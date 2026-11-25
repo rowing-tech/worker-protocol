@@ -9,9 +9,10 @@
  * not idempotent through a key (`spec/grants.md`).
  *
  * **Coverage is derived here, so a Worker that declares `grants` needs no `covers`.** A credential
- * issued for a grant reads the Tasks of the types it names, performs the Actions it names and
- * subscribes to the event types it names, and never more (GRANT-8). The Worker's own `tasks.covers`,
- * `actions.covers` and `subscriptions.allows` are still asked, and may only narrow inside the grant:
+ * issued for a grant reads the Tasks of the types it names, performs the Actions it names,
+ * subscribes to the event types it names and reads the Queries it names, and never more (GRANT-8,
+ * QRY-11). The Worker's own `tasks.covers`, `actions.covers`, `queries.covers` and
+ * `subscriptions.allows` are still asked, and may only narrow inside the grant:
  * the grant bounds, the Worker refuses by rules of its own domain. A credential no grant issued —
  * the Tower's, the operator's — is covered by those hooks alone, as before.
  */
@@ -21,11 +22,16 @@ import { readJson, schemaMismatch } from "./actions.ts";
 import type { ErrorCode } from "./codes.ts";
 import type { Answer, CallContext, Refusal } from "./worker.ts";
 
-/** GRANT-3: one of a grant's three lists — every name, or these. */
+/** GRANT-11: one of a grant's lists — every name, or these. */
 export type Covered = "all" | string[];
 
-/** GRANT-8: what a credential issued for a grant covers. */
-export type Coverage = { tasks: Covered; actions: Covered; events: Covered };
+/**
+ * GRANT-8, QRY-11: what a credential issued for a grant covers.
+ *
+ * `queries` is absent on a grant that names none — one applied without the member, and every
+ * grant a store held before Queries existed — and absent covers no Query.
+ */
+export type Coverage = { tasks: Covered; actions: Covered; events: Covered; queries?: Covered };
 
 /** One grant as a store holds it. */
 export type StoredGrant = Coverage & {
@@ -250,12 +256,13 @@ const listed = (grant: StoredGrant) => ({
   tasks: grant.tasks,
   actions: grant.actions,
   events: grant.events,
+  ...(grant.queries === undefined ? {} : { queries: grant.queries }),
 });
 
 export function grantsSurface(config: {
   facts: GrantFacts;
-  /** GRANT-3: what the Worker declares, which is all a grant may name. */
-  declared: { tasks: string[]; actions: string[]; events: string[] };
+  /** GRANT-11: what the Worker declares, which is all a grant may name. */
+  declared: { tasks: string[]; actions: string[]; events: string[]; queries: string[] };
 }) {
   const { facts, declared } = config;
 
@@ -273,17 +280,20 @@ export function grantsSurface(config: {
       return { status: 204, body: null };
     },
 
-    /** GRANT-3 to GRANT-5: creates, replaces, or rotates. */
+    /** GRANT-4, GRANT-5, GRANT-11: creates, replaces, or rotates. */
     async apply(asked: { applicant: string; raw: string }): Promise<Answer | Refusal> {
       const read = readJson(asked.raw);
       if ("code" in read) return read;
       const request = grantRequest.safeParse(read.parsed);
       if (!request.success) return schemaMismatch(request.error);
-      const { id, rotate, ...lists } = request.data;
+      const { id, rotate, queries, ...three } = request.data;
+      // Absent is left absent rather than written as `undefined`, so what is stored and listed is
+      // the grant as it was applied.
+      const lists: Coverage = { ...three, ...(queries === undefined ? {} : { queries }) };
 
-      // GRANT-3: a name the Worker does not declare is refused rather than quietly dropped.
-      for (const which of ["tasks", "actions", "events"] as const) {
-        const list = lists[which];
+      // GRANT-11: a name the Worker does not declare is refused rather than quietly dropped.
+      for (const which of ["tasks", "actions", "events", "queries"] as const) {
+        const list = lists[which] ?? [];
         const unknown = list === "all" ? undefined : list.find((n) => !declared[which].includes(n));
         if (unknown !== undefined) {
           return refuse("unprocessable_content", `This Worker declares no ${unknown}.`);
@@ -295,7 +305,10 @@ export function grantsSurface(config: {
       let credential: string | undefined;
       let stored: StoredGrant;
       if (existing !== undefined && rotate !== true) {
-        stored = { ...existing, ...lists };
+        // GRANT-5 replaces what the grant names, whole: a `queries` the replacement leaves out is
+        // gone, and spreading the lists over the grant held would have kept it.
+        const { applicant, digest, serial } = existing;
+        stored = { applicant, id, ...lists, digest, serial };
       } else {
         credential = mint();
         stored = {

@@ -17,6 +17,53 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-25 — edition 0.12
+
+All five packages encode **edition 0.12**, which adds one Capability and widens one rule: a grant
+may name Queries, so GRANT-3 is withdrawn for GRANT-11. Nothing a 0.11 Worker or applicant sends
+stops being accepted. A Worker built to 0.11 is still correct in 0.11 (DESC-31); a verifier or a
+client holding 0.11 meets a Worker that declares 0.12 as one it is older than (DESC-33).
+
+### Added
+
+- spec: **`queries`** ([spec/queries.md](spec/queries.md), QRY-1 to QRY-11) — the reads a Worker
+  defines itself, the other half of `actions`. Each Query declares the JSON Schema of its
+  parameters, which are strings because a GET carries them, and of what it answers: one document
+  under `result`, or one item of a collection under `items`. It is read with a GET naming it in
+  `query`, and changes nothing (ENDP-2), so it takes no idempotency key and a caller that got no
+  answer reads again. Until now a Worker's own read had to be published as an Action, which tells
+  every reader of the Descriptor that performing it changes something, or as a dotted Capability,
+  which declares nothing about how it is called.
+- schemas: `queriesEntry` and `queryDeclaration`, and `queries` in `capabilityName`.
+- hono: `Worker.queries` and `query()`, as `actions` and `action()` are. `mount()` serves the
+  address, reads and judges the parameters against the Zod object declared, answers the refusals
+  QRY-6 to QRY-8, QRY-10 and QRY-11 fix and wraps a collection in the page envelope. A Query
+  declaring a parameter that is not a string, one named `query` or `cursor`, or both or neither of
+  `result` and `items`, is refused at mount.
+- client: `consumed.queries.read(name, parameters)` for a Query that answers one document, and
+  `.list()` and `.page()` for one that answers a collection.
+- conformance: checks for all eleven rules, nine of them with no arrangement, because a read
+  changes nothing and may be asked uninvited. `arrangement.uncoveredQuery` names a credential and
+  a Query it does not cover, for QRY-10, and QRY-11 reads a Query with the credential of the grant
+  `applyGrants` lets the verifier apply.
+- conformance: ENDP-24 is also judged on one Query that requires no parameter, because the bare
+  `queries` address answers nothing for the generic probe to add a filter to.
+- examples: `minimal-worker` declares `queries`, one Query of each kind, and `fleet-worker`
+  declares `last-seen`, a collection paged by key from its Durable Object.
+
+### Changed
+
+- spec: a grant may carry a fourth list, **`queries`**, naming the Queries its credential reads.
+  It is optional and absent means none, so every grant and every applicant written for 0.11 is
+  still correct. GRANT-3 said a request carries three lists *and nothing else*, so it is withdrawn
+  and GRANT-11 replaces it, the same rule with `queries` admitted. QRY-11 is the other half: a
+  credential issued for a grant covers no Query its grant does not name.
+- schemas: `grantRequest`, `grant` and `grantReceipt` take an optional `queries`.
+- hono: a grant's `queries` bounds what its credential reads, and `queries.covers` may only narrow
+  inside it. `StoredGrant` gains an optional `queries`; a grant a store already holds has none and
+  covers none, so no store needs migrating. Replacing a grant now replaces its lists whole, so a
+  `queries` the replacement leaves out is gone.
+
 ## [0.14.0] - 2026-10-26 — edition 0.11
 
 All five packages still encode **edition 0.11**. A MINOR because every hook a Worker writes now
@@ -1116,7 +1163,23 @@ version and the edition agree here and will not again.
   devDependencies, so it resolved by accident through npm's flat tree and not at all under pnpm's —
   a break that depends on the consumer's package manager.
 
-[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/rowing-tech/worker-protocol/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.13.1...v0.14.0
+[0.13.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.13.0...v0.13.1
+[0.13.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.12.1...v0.13.0
+[0.12.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.12.0...v0.12.1
+[0.12.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.10.1...v0.11.0
+[0.10.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.9.4...v0.10.0
+[0.9.4]: https://github.com/rowing-tech/worker-protocol/compare/v0.9.3...v0.9.4
+[0.9.3]: https://github.com/rowing-tech/worker-protocol/compare/v0.9.2...v0.9.3
+[0.9.2]: https://github.com/rowing-tech/worker-protocol/compare/v0.9.1...v0.9.2
+[0.9.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.8.2...v0.9.0
+[0.8.2]: https://github.com/rowing-tech/worker-protocol/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/rowing-tech/worker-protocol/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rowing-tech/worker-protocol/compare/v0.6.0...v0.7.0

@@ -1,0 +1,17 @@
+{
+  "schema": "query-declaration",
+  "valid": false,
+  "rule": "QRY-4",
+  "why": "Parameters and nothing it answers. A Query that declared no schema for what it answers would be a read whose shape a caller learns from somewhere other than the Descriptor.",
+  "document": {
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "vehicle": {
+          "type": "string"
+        }
+      },
+      "required": ["vehicle"]
+    }
+  }
+}

@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.11";
+export const EDITION = "0.12";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -69,6 +69,7 @@ export const capabilityName = z
     "logs",
     "subscriptions",
     "grants",
+    "queries",
   ])
   .meta({
     title: "Capability name",
@@ -877,6 +878,78 @@ export const actionsEntry = capabilityEntry
     description:
       "ACT-16. The shared Capability entry with the address required, and the Actions this Worker " +
       "accepts. The Descriptor is the catalog: the surface performs and never lists what exists.",
+  });
+
+/**
+ * QRY-2, QRY-4 — one Query a Worker answers: what it takes, and what it answers.
+ *
+ * `parameters` is a JSON Schema of an object whose members are all strings, because a GET carries
+ * them in its query string and a URL carries nothing else (QRY-2). That every member is a string,
+ * and that none is named `query` or `cursor` (QRY-3), are conditions on a schema held inside this
+ * one, so they are rules a verifier judges rather than a shape this object asserts.
+ *
+ * `result` and `items` are the two things a read answers — one document, or one item of a
+ * collection answered in the shared page envelope (QRY-9) — and exactly one is declared. That is
+ * the one condition here a shape can state, so it is stated: the union below refuses both and
+ * refuses neither.
+ */
+const queryParameters = z.looseObject({}).meta({
+  description:
+    "QRY-2. The JSON Schema of this Query's parameters: an object, each of whose members is a " +
+    "string, sent as a query parameter of the same name (QRY-5). An object with no members where " +
+    "the Query takes none. QRY-3: no member is named `query` or `cursor`.",
+});
+
+export const queryDeclaration = z
+  .union([
+    z.strictObject({
+      parameters: queryParameters,
+      result: z.looseObject({}).meta({
+        description:
+          "QRY-4. The JSON Schema of the one document a read answers (QRY-9). Declared where the " +
+          "Query answers one thing, and then `items` is absent.",
+      }),
+    }),
+    z.strictObject({
+      parameters: queryParameters,
+      items: z.looseObject({}).meta({
+        description:
+          "QRY-4. The JSON Schema of one item of the collection a read answers, in the shared " +
+          "page envelope (QRY-9, ENDP-20). Declared where the Query answers a list, and then " +
+          "`result` is absent.",
+      }),
+    }),
+  ])
+  .meta({
+    title: "Query declaration",
+    description:
+      "QRY-2, QRY-4. One Query a Worker answers: the schema of its parameters, and the schema of " +
+      "what it answers — one document under `result`, or one item of a collection under `items`, " +
+      "and never both.",
+  });
+
+/**
+ * QRY-1 — the `queries` entry: the shared entry with the address required, and the Queries.
+ *
+ * One address for the Capability and a parameter naming the Query, the shape `metrics` and
+ * `actions` already have. The map is named for what the Worker does with what it holds, as
+ * `accepts`, `publishes` and `raises` are.
+ */
+export const queriesEntry = capabilityEntry
+  .extend({
+    address,
+    answers: z.record(z.string().min(1), queryDeclaration).meta({
+      description:
+        "QRY-1. Every Query the Worker answers, keyed by name. A Query not here is `404` under " +
+        "QRY-6. The key carries no pattern: it travels as the VALUE of the `query` parameter and " +
+        "is percent-encoded like any other.",
+    }),
+  })
+  .meta({
+    title: "Queries capability entry",
+    description:
+      "QRY-1. The shared Capability entry with the address required, and the Queries this Worker " +
+      "answers. The Descriptor is the catalog: the surface answers and never lists what exists.",
   });
 
 /**
@@ -1808,21 +1881,32 @@ export const grantId = z
       "grants under the same id.",
   });
 
-/** GRANT-3 — `all`, or a list of names: what one of a grant's three lists may be. */
-const covered = (names: z.ZodType<string>, what: string, rule: string) =>
+/** GRANT-11 — `all`, or a list of names: what one of a grant's lists may be. */
+const covered = (names: z.ZodType<string>, what: string, rule: string, absent = "") =>
   z.union([z.literal("all"), z.array(names)]).meta({
     description:
-      `GRANT-3. \`all\`, or the ${what} a credential issued for this grant covers (${rule}), ` +
-      "each one the Worker declares. An empty list covers none.",
+      `GRANT-11. \`all\`, or the ${what} a credential issued for this grant covers (${rule}), ` +
+      `each one the Worker declares. An empty list covers none.${absent}`,
   });
 
+/**
+ * `queries` is the one list a grant may leave out, and leaving it out covers none (QRY-11). It is
+ * optional because it arrived after the other three: a grant written before Queries existed says
+ * nothing about them, and is still a whole grant.
+ */
 const grantLists = {
   tasks: covered(qualifiedName, "Task types the `tasks` entry raises whose Tasks", "TASK-6"),
   actions: covered(z.string().min(1), "Actions the `actions` entry accepts that", "ACT-22"),
   events: covered(qualifiedName, "event types the `events` entry publishes that", "SUB-4"),
+  queries: covered(
+    z.string().min(1),
+    "Queries the `queries` entry answers that",
+    "QRY-11",
+    " Absent, it covers none, as an empty list does.",
+  ).optional(),
 };
 
-/** GRANT-3 — what a POST to the address carries to apply a grant, and nothing else. */
+/** GRANT-11 — what a POST to the address carries to apply a grant, and nothing else. */
 export const grantRequest = z
   .strictObject({
     id: grantId,
@@ -1839,8 +1923,8 @@ export const grantRequest = z
   .meta({
     title: "Grant request",
     description:
-      "GRANT-3. The body of a POST that applies a grant: its id and its three lists, and " +
-      "optionally `rotate`.",
+      "GRANT-11. The body of a POST that applies a grant: its id, its three lists, and " +
+      "optionally `queries` and `rotate`.",
   });
 
 /** GRANT-6 — one grant as its applicant lists it. Never a credential. */
@@ -1912,6 +1996,8 @@ registry.add(page, { id: "page" });
 registry.add(idempotencyDeclaration, { id: "idempotency-declaration" });
 registry.add(actionDeclaration, { id: "action-declaration" });
 registry.add(actionsEntry, { id: "actions-entry" });
+registry.add(queryDeclaration, { id: "query-declaration" });
+registry.add(queriesEntry, { id: "queries-entry" });
 registry.add(taskTypeDeclaration, { id: "task-type-declaration" });
 registry.add(taskDimension, { id: "task-dimension" });
 registry.add(tasksEntry, { id: "tasks-entry" });

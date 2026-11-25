@@ -1,6 +1,6 @@
 # Verifiability inventory
 
-Every rule in the fifteen `draft` files — all of them — classified by what a check would observe.
+Every rule in the sixteen `draft` files — all of them — classified by what a check would observe.
 This is the audit [spec/README.md](../spec/README.md) demands of itself — *a rule earns its place
 only if you can name what a conformance check would observe when it is broken* — run for the first
 time, and it is also the specification of what `packages/conformance` implements.
@@ -17,8 +17,8 @@ this document, and separating them moved six rules.
 
 | Class | Meaning | Count |
 |---|---|---|
-| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 117 |
-| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 58 |
+| **W** | Observable against a Worker at its base URL with one ordinary credential. Nothing else needed. | 126 |
+| **H** | Observable only against a Worker arranged to be observed, and described to the verifier: the arrangement is handed in out of band, exactly as a base URL and a credential are. | 60 |
 | **P** | The subject is not a Worker. The rule binds a verifier, a Control Tower, a consumer, an issuer, a subscriber, or this specification. No tool pointed at a base URL can reach it. | 29 |
 | **N** | No witness anywhere, and the subject is the Worker — where the subject is somebody else the class is `P`, because that is what a report has to say. [spec/README.md](../spec/README.md) names two of these as its worked examples; this table is the register of all of them. | 22 |
 | **—** | Blocked: the surface the rule is about belongs to a file that is still `open`. | 0 |
@@ -107,7 +107,7 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ENDP-20 | W | 0.1 | Every list answers the page envelope |
 | ENDP-21 | P | 0.1 | *Opaque* is unfalsifiable from outside; *never constructed by a caller* binds the caller |
 | ENDP-23 | W | 0.1 | Page twice, check each read holds the declared order and paging terminates. Values and which items are present are not compared: a metric's current bucket keeps counting and a bucket is born when something first lands in it |
-| ENDP-24 | W | 0.1 | An invented filter parameter is `400` + `unknown_filter` |
+| ENDP-24 | W | 0.1 | An invented filter parameter is `400` + `unknown_filter`, on every address that answers a bare read and on one Query that requires no parameter, where the Worker declares one |
 | ENDP-33 | H | 0.2 | Page twice while the collection is being added to, and check the second page repeats nothing from the first. It needs a Worker whose collection changes on demand, which is `logs` with a Worker that records when it is read — under an offset the arrivals push the collection along and the repeat is the failure |
 | ENDP-39 | W | 0.4 | Every 4xx and 5xx response carries code, message and class |
 | ENDP-26 | W | 0.1 | Across every response collected, no code under two statuses |
@@ -167,6 +167,22 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | ACT-20 | H | 0.4 | Replacing a Worker's settings is the most consequential thing this protocol can do to one |
 | ACT-21 | W | 0.4 | `configure` has a reading address, and it answers a document its own input schema would accept, without the members marked `writeOnly` |
 | ACT-22 | H | 0.8 | A credential arranged not to cover a declared Action, posting it with no key and a body that is not JSON, is `403` + `forbidden`: not ENDP-18's `400` and not ENDP-4's. A conformant Worker performs nothing with that call, and a broken one that ignores the body of an Action without input might, so it is a POST like any other |
+
+## queries.md — 11
+
+| Rule | Class | Introduced in | What a check observes, or why nothing does |
+|---|---|---|---|
+| QRY-1 | W | 0.12 | The `queries` entry carries an address and an `answers` map of Queries |
+| QRY-2 | W | 0.12 | Each Query's `parameters` is the schema of an object, and every member it declares is a string |
+| QRY-3 | W | 0.12 | No Query declares a parameter named `query` or `cursor` |
+| QRY-4 | W | 0.12 | Each Query declares `result` or `items`, and not both |
+| QRY-5 | W | 0.12 | A GET naming a Query that requires no parameter is answered `200`. Reading changes nothing (ENDP-2), so unlike ACT-5 a verifier may ask on its own |
+| QRY-6 | W | 0.12 | A Query name no entry declares is `404` + `not_found` |
+| QRY-7 | W | 0.12 | A request naming no Query is `400` + `invalid_parameter` |
+| QRY-8 | W | 0.12 | A Query read without a parameter its schema requires, or with one it declares sent twice, is `400` + `invalid_parameter`. Not exercised by a Worker none of whose Queries declares a parameter |
+| QRY-9 | W | 0.12 | What a Query that requires no parameter answers agrees with what it declared: the document under `result`, or the page envelope and each item of its first page under `items`. Judged against what the schema fixes about one value and one level of members, and no further, as TASK-37 is |
+| QRY-10 | H | 0.12 | A credential arranged not to cover a declared Query, reading it with a parameter no Query declares, is `403` + `forbidden` and not ENDP-24's `400` |
+| QRY-11 | H | 0.12 | The applied grant's credential, reading a declared Query its grant does not name, is `403` + `forbidden`; once the grant is replaced by one naming that Query, it is refused neither `403` nor `401`. Needs `applyGrants`, as GRANT-10 does, and is not exercised by a Worker that declares no Query |
 
 ## tasks.md — 24
 
@@ -371,18 +387,18 @@ own and are revoked before the run ends.
 |---|---|---|---|
 | GRANT-1 | W | 0.8 | The `grants` entry carries an address |
 | GRANT-2 | H | 0.8 | A credential issued for a grant, applying one, is `403` + `forbidden`. That only some callers may apply has no witness without a caller arranged not to |
-| GRANT-3 | H | 0.8 | Applying a grant that names a Task type, an Action or an event type the Worker does not declare is `422` + `unprocessable_content`, and the list shows no such grant |
 | GRANT-4 | H | 0.8 | Applying under a fresh id is `201` with the grant and a credential, and the credential reads the Descriptor |
 | GRANT-5 | H | 0.8 | Applying again without `rotate` is `200` with no credential; with `rotate`, `200` with a new one, and the previous one is `401` |
 | GRANT-6 | H | 0.8 | The list carries the applied grant and no credential; with another caller's credential, where it may apply, it does not |
 | GRANT-7 | H | 0.8 | Revoking is `204`; revoking the same id again is `404` + `not_found`, and so is another caller revoking an id it never applied |
 | GRANT-8 | H | 0.8 | A credential whose grant names no Task type reads no Tasks, and one whose grant covers every Action is not refused `403` or `401` on a declared one. That the Worker narrows no further is not asked: GRANT-8 is a ceiling |
 | GRANT-10 | H | 0.8 | The applied grant's credential, on the `health` address where the Worker declares one, is `403` + `forbidden` |
+| GRANT-11 | H | 0.12 | Applying a grant that names a Task type, an Action, an event type or a Query the Worker does not declare is `422` + `unprocessable_content`, and the list shows no such grant. A grant carrying `queries` is applied like any other, which QRY-11's check sees |
 | GRANT-9 | H | 0.8 | After revoking, the credential is `401`; after narrowing a grant from every Action to none, a declared Action is `403` and not `401`. A subscription ending is not observed, which would need a sink and a grant credential subscribing |
 
 ## Where this stands
 
-226 rules across fifteen files, none of them `open`, under edition 0.4. Every rule the register
+237 rules across sixteen files, none of them `open`, under edition 0.4. Every rule the register
 marks `W` or `H` has a check in `packages/conformance` that has run against a Worker answering over
 a real socket, so nothing here is a claim about what a check *could* observe and everything is a
 claim about what one did.

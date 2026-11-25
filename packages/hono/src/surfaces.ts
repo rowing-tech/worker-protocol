@@ -401,6 +401,59 @@ export const performAction = createRoute({
   },
 });
 
+export const readQuery = createRoute({
+  method: "get",
+  path: "/",
+  summary: "Read one Query",
+  description: cite(
+    "QRY-5",
+    "A read the Worker defines, named in `query`, with each parameter it declares sent under its own name. A GET, so it changes nothing a later reader could observe (ENDP-2) and a caller that got no answer reads again.",
+  ),
+  request: {
+    query: z.object({
+      query: z
+        .string()
+        .min(1)
+        .openapi({
+          description: cite(
+            "QRY-5",
+            "One of the Queries the entry declares. Naming none is `400`; naming one it does not declare is `404`; naming one the credential presented does not cover is `403` (QRY-10), before its parameters are judged.",
+          ),
+        }),
+      // QRY-5 spells a parameter into a query parameter of its own NAME, as MET-16 does a
+      // dimension, and the names are the Worker's — so the same exploded object carries them.
+      // `parameters` is this document's name for them and never travels.
+      parameters: z
+        .record(z.string(), z.string())
+        .optional()
+        .openapi({
+          description: cite(
+            "QRY-5",
+            "Each parameter the Query declares, sent under exactly its own name and at most once, against the JSON Schema its entry declares (QRY-8). The names are the Worker's own and are read from its Descriptor, so they are not enumerated here.",
+          ),
+          param: { style: "form", explode: true },
+        }),
+      cursor,
+    }),
+    headers: versionHeader,
+  },
+  responses: {
+    200: answer(
+      "QRY-9",
+      "The document the Query declares under `result`, or the shared page envelope carrying the items it declares under `items`. Either is against the Query's own declared schema, so no shape is fixed here.",
+      null,
+    ),
+    ...refusals([
+      ["invalid_parameter", "QRY-7"],
+      ["invalid_parameter", "QRY-8"],
+      ["unknown_filter", "ENDP-24"],
+      ["forbidden", "QRY-10"],
+      ["not_found", "QRY-6"],
+      ...SHARED,
+    ]),
+  },
+});
+
 export const readTasks = createRoute({
   method: "get",
   path: "/",
@@ -671,14 +724,14 @@ export const applyGrant = createRoute({
   path: "/",
   summary: "Apply a grant",
   description: cite(
-    "GRANT-3",
+    "GRANT-11",
     "The body is the grant's id and the Task types, Actions and event types a credential issued for it covers, each `all` or a list, and optionally `rotate`. Creating issues a credential (GRANT-4); applying again replaces what the grant covers and issues one only when asked to rotate (GRANT-5).",
   ),
   request: {
     headers: versionHeader,
     body: {
       required: true,
-      description: cite("GRANT-3", "The grant, and whether to rotate its credential."),
+      description: cite("GRANT-11", "The grant, and whether to rotate its credential."),
       content: {
         "application/json": {
           schema: { $ref: "#/components/schemas/grant-request" } as never,
@@ -694,10 +747,10 @@ export const applyGrant = createRoute({
       grantReceipt,
     ),
     ...refusals([
-      ["schema_mismatch", "GRANT-3"],
+      ["schema_mismatch", "GRANT-11"],
       ["malformed_request", "ENDP-4"],
-      ["invalid_parameter", "GRANT-3"],
-      ["unprocessable_content", "GRANT-3"],
+      ["invalid_parameter", "GRANT-11"],
+      ["unprocessable_content", "GRANT-11"],
       ["forbidden", "GRANT-2"],
       ...SHARED,
     ]),
@@ -807,6 +860,15 @@ export const SURFACES: Surface[] = [
     routes: [performAction],
   },
   {
+    document: "queries",
+    capability: "queries",
+    server: address("queries", "QRY-1"),
+    title: "worker-protocol — queries",
+    description:
+      "Reading what a Worker holds that this protocol does not name. The Descriptor is the catalog: each Query declares the schema of its parameters and of what it answers, and this surface answers and never lists what exists.",
+    routes: [readQuery],
+  },
+  {
     document: "tasks",
     capability: "tasks",
     server: {
@@ -889,4 +951,6 @@ export const SURFACES: Surface[] = [
  * - **A dimension named as a query parameter.** MET-16 spells a dimension into a parameter of its
  *   own name, and those names are the Worker's. `dimensions` above is the OpenAPI shape for that
  *   and never travels under its own name.
+ * - **A Query's parameter.** QRY-5 does the same with each parameter a Query declares, and
+ *   `parameters` above is that shape: it never travels under its own name either.
  */

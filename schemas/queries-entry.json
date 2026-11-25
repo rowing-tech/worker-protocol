@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "queries-entry.json",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "DESC-9. A single integer; there is no minor version. DESC-29 makes it count breaking changes to this Capability's own surface alone."
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^(?:https:\\/\\/|http:\\/\\/(?:localhost|127\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|\\[::1\\])(?=[:/?#]|$)|(?![A-Za-z][A-Za-z0-9+.-]*:))\\S*$",
+      "title": "Address",
+      "format": "uri-reference",
+      "description": "DESC-36. An absolute https URL — or http on a loopback host, where no network path exists to read a credential on — or a relative reference resolved against the Descriptor's own URL. DESC-13 governs whether a credential may be sent to one that is off-origin."
+    },
+    "answers": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "query-declaration.json"
+      },
+      "description": "QRY-1. Every Query the Worker answers, keyed by name. A Query not here is `404` under QRY-6. The key carries no pattern: it travels as the VALUE of the `query` parameter and is percent-encoded like any other."
+    }
+  },
+  "required": [
+    "version",
+    "address",
+    "answers"
+  ],
+  "additionalProperties": {},
+  "title": "Queries capability entry",
+  "description": "QRY-1. The shared Capability entry with the address required, and the Queries this Worker answers. The Descriptor is the catalog: the surface answers and never lists what exists."
+}

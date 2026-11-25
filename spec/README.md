@@ -27,6 +27,7 @@ a version of its own:
 | `health` | [health.md](health.md) | The answer to a poll: one status, named checks |
 | `metrics` | [metrics.md](metrics.md) | Named quantities accumulated over declared periods |
 | `actions` | [actions.md](actions.md) | Declaring and performing an operation, `configure` and settings included |
+| `queries` | [queries.md](queries.md) | Declaring and reading what a Worker holds that this protocol does not name |
 | `alerts` | [alerts.md](alerts.md) | Conditions an operator should see |
 | `activity` | [activity.md](activity.md) | What a Worker is doing, and what it has undertaken to do |
 | `nudges` | [nudges.md](nudges.md) | Being told there is work, best effort and carrying nothing |
@@ -55,6 +56,7 @@ spread across four files each arguing from its own side.
 | How much of something happened? | `metrics` | Accumulated over declared periods; a number, never an occurrence |
 | What happened, and is over? | `logs` | Written deliberately, past tense, acted on by nobody |
 | What can I make it do? | `actions` | An operation with a declared input, performed on request |
+| What else can I ask it? | `queries` | A read the Worker defines, with declared parameters; a GET, and changes nothing (QRY-5) |
 | What does it tell others about? | `events` | Pushed to a broker or to a subscriber's sink, for whoever contracted for it |
 | How do I say there is work? | `nudges` | Best effort, carries a Task type and nothing else (NDG-2) |
 | What may a Contract's credential do here? | `grants` | Applied ahead of time by whoever brokered the Contract; the owner issues the credential (GRANT-4) |
@@ -66,6 +68,13 @@ sentence: **if it stops being true on its own, it is an Alert.** A record writte
 condition starts holding is a worse Alert — nothing clears it and nothing can act on it. An Alert
 raised for something already over is a condition nobody can make go away. [logs.md](logs.md)
 carries the contrast at length.
+
+**`actions` and `queries` are told apart by whether it may be sent twice.** Both are what a Worker
+defines itself, declared with a schema of what they take and of what they answer. A Query is a GET
+and changes nothing, so a caller that got no answer reads again; an Action is a POST and does
+something, so a caller that got no answer has a question to settle first. A read published as an
+Action tells every reader of the Descriptor that pressing it changes something, and an operation
+published as a Query is a GET that does. [queries.md](queries.md) opens with the argument.
 
 **The next two are `activity` and `tasks`, and the test is whose work it is.** An activity is what
 this Worker took on; a Task is what it needs from somebody else. Both are present tense, and a
@@ -119,7 +128,7 @@ the exception *had to stay small* and named two. The register, the first time an
 question to every rule in turn, found sixteen. Whether that is too many is worth arguing about, and
 the argument is now possible — which is the point of the count living somewhere gated rather than
 in a sentence here that would drift the moment a rule was written. It has drifted since: the
-specification is fifteen files rather than six; the register counts twenty-two, which is a larger
+specification is sixteen files rather than six; the register counts twenty-two, which is a larger
 number and the same proportion. Whether that is too many is still worth arguing about, and the
 argument is still there to be had.
 
@@ -214,6 +223,7 @@ so that two files never race for the same one:
 | | | [logs.md](logs.md) | `LOG` |
 | | | [subscriptions.md](subscriptions.md) | `SUB` |
 | | | [grants.md](grants.md) | `GRANT` |
+| | | [queries.md](queries.md) | `QRY` |
 
 Numbers are issued in the order rules are written, not in the order they appear, so a file's ids
 need not read in sequence. **The number never restarts, and an id is never reused and never

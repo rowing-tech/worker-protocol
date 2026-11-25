@@ -187,6 +187,7 @@ describe("a Control Tower, over Workers that answer", () => {
       "logs",
       "metrics",
       "nudges",
+      "queries",
       "subscriptions",
       "tasks",
     ]);

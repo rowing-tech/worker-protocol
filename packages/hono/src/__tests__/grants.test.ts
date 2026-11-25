@@ -3,6 +3,7 @@ import * as z from "zod";
 import { action } from "../actions.ts";
 import { contractKey, grantCaller, grantOf, memoryGrants } from "../grants.ts";
 import { mount } from "../mount.ts";
+import { query } from "../queries.ts";
 import {
   eventHub,
   memoryDeliveries,
@@ -106,6 +107,14 @@ const build = () => {
         { id: "V-1", type: INSPECT, payload: {}, since: SINCE },
       ],
     },
+    queries: {
+      answers: {
+        backlog: query({ result: z.object({ open: z.number() }), read: () => ({ open: 2 }) }),
+        archive: query({ result: z.object({ closed: z.number() }), read: () => ({ closed: 9 }) }),
+      },
+      // The Worker's own narrowing, which a grant never widens: `tower-b` never reads the archive.
+      covers: ({ caller }) => (caller === "tower-b" ? ["backlog"] : undefined),
+    },
     events: EVENTS,
     subscriptions,
     grants,
@@ -156,7 +165,7 @@ describe("grants, applying", () => {
     expect((await call(credential, { path: "/grants" })).status).toBe(403);
   });
 
-  it("refuses a name the Worker does not declare, and applies nothing (GRANT-3)", async () => {
+  it("refuses a name the Worker does not declare, and applies nothing (GRANT-11)", async () => {
     const { apply, call } = build();
     const refused = await apply("tower-a", { ...REVIEWER, actions: ["approve", "delete-all"] });
     expect(refused.status).toBe(422);
@@ -183,6 +192,60 @@ describe("grants, applying", () => {
       401,
     );
     expect((await call(credential, { path: "/.well-known/worker-protocol" })).status).toBe(200);
+  });
+});
+
+describe("grants, and the Queries a credential reads", () => {
+  const reads = async (call: ReturnType<typeof build>["call"], credential: string, name: string) =>
+    (await call(credential, { path: `/queries?query=${name}` })).status;
+  const issued = async (answered: Response) =>
+    ((await answered.json()) as { credential: string }).credential;
+
+  it("covers none where the grant carries no `queries` (QRY-11)", async () => {
+    const { apply, call } = build();
+    const credential = await issued(await apply("tower-a", REVIEWER));
+    expect(await reads(call, credential, "backlog")).toBe(403);
+    // QRY-6 before QRY-11: which Queries exist is no secret.
+    expect(await reads(call, credential, "no-such")).toBe(404);
+  });
+
+  it("covers the Queries the grant names, and `all` of them (QRY-11, GRANT-11)", async () => {
+    const { apply, call } = build();
+    const created = await apply("tower-a", { ...REVIEWER, queries: ["backlog"] });
+    const body = (await created.clone().json()) as Record<string, unknown>;
+    expect(body.queries).toEqual(["backlog"]);
+    const credential = await issued(created);
+    expect(await reads(call, credential, "backlog")).toBe(200);
+    expect(await reads(call, credential, "archive")).toBe(403);
+
+    await apply("tower-a", { ...REVIEWER, queries: "all" });
+    expect(await reads(call, credential, "archive")).toBe(200);
+  });
+
+  it("drops the list when a replacement leaves it out (GRANT-5)", async () => {
+    const { apply, call } = build();
+    const credential = await issued(await apply("tower-a", { ...REVIEWER, queries: "all" }));
+    const replaced = await apply("tower-a", REVIEWER);
+    expect(await replaced.json()).toEqual(REVIEWER);
+    expect(await reads(call, credential, "backlog")).toBe(403);
+  });
+
+  it("refuses a Query the Worker does not declare, and applies nothing (GRANT-11)", async () => {
+    const { apply, call } = build();
+    const refused = await apply("tower-a", { ...REVIEWER, queries: ["odometer"] });
+    expect(refused.status).toBe(422);
+    expect(await (await call("tower-a", { path: "/grants" })).json()).toEqual({ items: [] });
+  });
+
+  it("lets the Worker narrow inside the grant, and never widen (QRY-10, QRY-11)", async () => {
+    const { apply, call } = build();
+    // `covers` is asked with the grant's caller, which is not `tower-b`, so it narrows nothing
+    // here; the grant is what bounds. The enrolled credential it does narrow is refused by QRY-10.
+    const credential = await issued(await apply("tower-a", { ...REVIEWER, queries: ["archive"] }));
+    expect(await reads(call, credential, "archive")).toBe(200);
+    expect(await reads(call, credential, "backlog")).toBe(403);
+    expect(await reads(call, "tower-b", "archive")).toBe(403);
+    expect(await reads(call, "tower-b", "backlog")).toBe(200);
   });
 });
 

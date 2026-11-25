@@ -49,6 +49,9 @@ A fleet, simplified from a telemetry worker that polls a GPS provider.
 - A quiet vehicle is a Task (`tech.rowing.fleet.inspect-quiet-vehicle`) for whoever can go and look.
 - Performing `record-inspection` puts a verification on record, so the condition stops holding and
   the Task is gone the next time anybody reads — TASK-15, with nothing closing anything.
+- When each vehicle last reported is a Query, `last-seen`: the Fact a consumer needs between two
+  events and that no event carries. It is paged by key from the Durable Object, a hundred at a
+  time, with a cursor that names the last plate a page carried (QRY-9, ENDP-33).
 - Each *crossing* into quiet is an event. The crossing and not the state: republishing on every
   cycle a vehicle stayed quiet would be publishing a state under a name that says *changed*.
 - The crossing is also when the Task is born, and a reading or an inspection is when it ends, so

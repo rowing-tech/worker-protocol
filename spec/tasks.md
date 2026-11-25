@@ -269,7 +269,7 @@ meaning stays free for an edition that has a case for one.
 **A fixed dimension narrows what TASK-6 already bounds, and never widens it.** The filter is
 applied to the Tasks the credential presented reads, so it adds no right and needs no rule of its
 own. If a person must not *see* another base's Tasks, that is coverage and not a filter, and a
-grant names Task types and nothing finer (GRANT-3). That is a larger question than this section
+grant names Task types and nothing finer (GRANT-11). That is a larger question than this section
 answers, and it is open below.
 
 ## What a Task binds, and what it offers now
@@ -511,7 +511,7 @@ anybody did about it.
 - What a consumer reports about the cost and elapsed time of the work it did, and who consolidates
   it. Open in [undecided](../docs/undecided.md).
 - **Whether a grant may cover Tasks by dimension.** TASK-6 decides what a credential reads and
-  GRANT-3 names Task types and nothing finer, so a person who must not see another base's Tasks is
+  GRANT-11 names Task types and nothing finer, so a person who must not see another base's Tasks is
   not served by a filter. Nothing has asked for it yet.
 - **Whether a Task type should list the dimensions its Tasks carry**, so that a console knows before
   the first read that a type is about a base and a store. It would be one more place for a

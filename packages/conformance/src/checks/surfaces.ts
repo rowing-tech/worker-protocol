@@ -41,16 +41,25 @@ const WRITTEN = new Set(["actions", "nudges"]);
  */
 const RESERVED = new Set(["grants"]);
 
-export async function callSurfaces(
-  surfaces: Surface[],
-  descriptorUrl: string,
-  writeAddresses: string[],
-  rules: Map<string, Rule>,
-  transcript: Transcript,
-  credential: string | undefined,
-  mayPerform: boolean,
-): Promise<Result[]> {
-  const { results, say } = verdicts(rules, CLAIMS);
+export async function callSurfaces(given: {
+  surfaces: Surface[];
+  descriptorUrl: string;
+  writeAddresses: string[];
+  /**
+   * Reads ENDP-24 is also judged on, beside every surface that answered its bare address: one that
+   * answers nothing until it is told what to read. `queries` is the case — its address is `400`
+   * without a `query` (QRY-7) — so `verify` names a Query that requires no parameter, where the
+   * Worker declares one.
+   */
+  filtered: { capability: string; url: string }[];
+  rules: Map<string, Rule>;
+  transcript: Transcript;
+  credential: string | undefined;
+  mayPerform: boolean;
+}): Promise<Result[]> {
+  const { surfaces, descriptorUrl, writeAddresses, filtered, transcript, credential, mayPerform } =
+    given;
+  const { results, say } = verdicts(given.rules, CLAIMS);
 
   if (surfaces.length === 0) {
     say("DESC-18", "passes", "the Descriptor declares no address, so none can be missing");
@@ -93,7 +102,7 @@ export async function callSurfaces(
     else say("DESC-18", "fails", missing.join("; "));
   }
 
-  await probeReads(answered, writeAddresses, mayPerform, transcript, say);
+  await probeReads({ answered, filtered, writeAddresses, mayPerform, transcript, say });
 
   if (credential === undefined) {
     // Without one there is nothing to present, and a Worker that reads openly is conformant —
@@ -151,23 +160,51 @@ export async function callSurfaces(
  * Worker cannot know, a Capability version it cannot answer, a read repeated to see whether it
  * changed anything.
  */
-async function probeReads(
-  answered: { capability: string; url: string; body: string }[],
-  writeAddresses: string[],
-  mayPerform: boolean,
-  transcript: Transcript,
-  say: (id: string, verdict: Result["verdict"], detail?: string) => void,
-): Promise<void> {
+async function probeReads(given: {
+  answered: { capability: string; url: string; body: string }[];
+  filtered: { capability: string; url: string }[];
+  writeAddresses: string[];
+  mayPerform: boolean;
+  transcript: Transcript;
+  say: (id: string, verdict: Result["verdict"], detail?: string) => void;
+}): Promise<void> {
+  const { answered, filtered, writeAddresses, mayPerform, transcript, say } = given;
   // A Worker whose only declared surface is written — a thin proxy that accepts an operation and
   // passes it on, which DESC-1's argument names as a Worker worth admitting — has nothing to read
   // twice and nothing to hand an unknown filter to. ENDP-6 is not in that position: it is about a
   // REQUEST, and a write is one, so it goes on below with whatever write addresses there are.
+  // ENDP-24: an unrecognized filter parameter is 400, and is never ignored. Asked of every read
+  // that answered, and of the ones `verify` named beside them.
+  const probed = [...answered, ...filtered];
+  const probeFilters = async (): Promise<void> => {
+    const ignored: string[] = [];
+    for (const surface of probed) {
+      const target = new URL(surface.url);
+      target.searchParams.set("no-such-filter-8e31", "1");
+      const answer = await transcript.send(target.toString(), "a filter the Worker cannot know", {
+        permanent: true,
+      });
+      const code = (answer.json as { code?: string } | null)?.code;
+      if (answer.status !== 400 || code !== "unknown_filter") {
+        ignored.push(
+          `\`${surface.capability}\` answered ${answer.status} with \`${code ?? "no code"}\``,
+        );
+      }
+    }
+    if (probed.length > 0) {
+      if (ignored.length === 0) say("ENDP-24", "passes");
+      else say("ENDP-24", "fails", ignored.join("; "));
+    }
+  };
+
   if (answered.length === 0) {
-    for (const id of ["ENDP-2", "ENDP-24"]) {
-      say(id, "notExercised", "no declared surface answered a read");
+    say("ENDP-2", "notExercised", "no declared surface answered a read");
+    if (probed.length === 0) {
+      say("ENDP-24", "notExercised", "no declared surface answered a read");
     }
     if (writeAddresses.length === 0 || !mayPerform) {
       say("ENDP-6", "notExercised", "no surface was reachable to state a version at");
+      await probeFilters();
       return;
     }
   }
@@ -272,25 +309,7 @@ async function probeReads(
     }
   }
 
-  // ENDP-24: an unrecognized filter parameter is 400, and is never ignored.
-  const ignored: string[] = [];
-  for (const surface of answered) {
-    const probed = new URL(surface.url);
-    probed.searchParams.set("no-such-filter-8e31", "1");
-    const answer = await transcript.send(probed.toString(), "a filter the Worker cannot know", {
-      permanent: true,
-    });
-    const code = (answer.json as { code?: string } | null)?.code;
-    if (answer.status !== 400 || code !== "unknown_filter") {
-      ignored.push(
-        `\`${surface.capability}\` answered ${answer.status} with \`${code ?? "no code"}\``,
-      );
-    }
-  }
-  if (answered.length > 0) {
-    if (ignored.length === 0) say("ENDP-24", "passes");
-    else say("ENDP-24", "fails", ignored.join("; "));
-  }
+  await probeFilters();
 
   // ENDP-6: a caller may state the Capability version it expects, and a Worker that cannot answer
   // it refuses the request WHOLE rather than substituting its own. A version no edition will reach

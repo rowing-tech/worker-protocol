@@ -122,6 +122,21 @@ Task type may have several answers — a check recorded, a vehicle reported miss
 Action of its own. `worker.alerts?.offers(alert)` answers the same question for an Alert: what it
 offers, each with its schema and the values it filled in.
 
+`worker.queries` reads what a Worker defines beyond what this protocol names. A Query is a GET and
+changes nothing (ENDP-2), so there is no key to send and nothing to settle after a timeout — a
+caller that got no answer reads again. Its declaration says whether it answers one document or a
+collection (QRY-4), and each has its call:
+
+```ts
+await worker.queries?.read("position", { vehicle: "mty-411" }); // the one document
+await worker.queries?.list("positions", { moving: "true" });    // every item, paged through
+await worker.queries?.page("positions", {}, { cursor });        // one page, the cursor yours to keep
+```
+
+Parameters are strings, each sent under its own name (QRY-5). Asking a Query for the other kind of
+answer throws before anything is sent. What comes back is the Worker's own and is not looked
+inside: its JSON Schema is in the Descriptor, under `capabilities.queries.answers`.
+
 `worker.nudges?.(type)` tells a Worker there is work of a type it answers. It buys latency and
 nothing else — a consumer reading on its own schedule is slower and never wrong — so it answers
 nothing and is safe to lose.

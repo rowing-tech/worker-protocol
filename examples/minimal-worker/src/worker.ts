@@ -7,7 +7,7 @@
  * the page envelope with its cursor and its order, the bucket boundaries cut in a declared time
  * zone, the idempotency window: all of that is `mount()`'s, once, in `@worker-protocol/hono`.
  *
- * It declares all eleven Capabilities, because seeing one written is worth more than reading that
+ * It declares all twelve Capabilities, because seeing one written is worth more than reading that
  * it exists. A real Worker declares the ones it implements and leaves out the rest: any
  * combination is allowed, including none at all, and a Worker that serves only a Descriptor is
  * already enrolled, catalogued and reachable.
@@ -39,6 +39,7 @@ import {
   memorySubscriptions,
   mount,
   type OpenTask,
+  query,
   type Trace,
   taskEnded,
   type Worker,
@@ -382,6 +383,45 @@ export const fleetWorker = defineWorker<Env>((env) => ({
           });
           configuration = replacement;
           return null;
+        },
+      }),
+    },
+  },
+
+  // What somebody may ASK this Worker that the protocol has no name for: which vehicles are quiet,
+  // and since when. A Query is the other half of an Action — declared the same way, with a Zod
+  // object for what it takes and one for what it answers — and it is a GET that changes nothing, so
+  // there is no key, no window and no `outcomes`: a caller that got no answer reads again. Whatever
+  // answering would change is an Action instead.
+  queries: {
+    answers: {
+      // `result`: one document. Parameters travel in the query string, so each is a string, and
+      // `mount()` has judged them against this object before `read` runs.
+      "quiet-vehicle": query({
+        parameters: z.object({ vehicle: z.string().min(1) }),
+        result: z.object({ vehicle: z.string(), quiet: z.boolean(), since: z.string().optional() }),
+        read: ({ vehicle }) => {
+          const since = silent.get(vehicle);
+          return { vehicle, quiet: since !== undefined, since: since?.toISOString() };
+        },
+      }),
+      // `items`: a collection, which `mount()` answers in the same page envelope as every other.
+      // The order and the cursor are this Worker's: ordered by plate, and the cursor names the last
+      // plate a page carried, so the next page holds only what is beyond it whatever went quiet
+      // meanwhile. `depot` is a name and any value is accepted — one nothing matches is an empty page.
+      "quiet-vehicles": query({
+        parameters: z.object({ depot: z.string().optional() }),
+        items: z.object({ vehicle: z.string(), since: z.string() }),
+        read: ({ depot }, { cursor, limit }) => {
+          const beyond = [...silent]
+            .filter(([vehicle]) => depot === undefined || depots.get(vehicle) === depot)
+            .filter(([vehicle]) => cursor === undefined || vehicle > cursor)
+            .sort(([a], [b]) => (a < b ? -1 : 1));
+          const items = beyond
+            .slice(0, limit)
+            .map(([vehicle, since]) => ({ vehicle, since: since.toISOString() }));
+          const last = beyond.length > limit ? items.at(-1) : undefined;
+          return { items, ...(last === undefined ? {} : { nextCursor: last.vehicle }) };
         },
       }),
     },

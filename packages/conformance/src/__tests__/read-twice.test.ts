@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readableQuery } from "../checks/queries.ts";
 import { callSurfaces } from "../checks/surfaces.ts";
 import { universe } from "../index.ts";
 import { transcript } from "../transcript.ts";
@@ -32,16 +33,49 @@ const answering = (reads: string[][]): typeof globalThis.fetch => {
 
 const endp2 = async (fetch: typeof globalThis.fetch) => {
   const { rules } = await universe();
-  const results = await callSurfaces(
-    [{ capability: "activity", url: "https://worker.invalid/activity" }],
-    "https://worker.invalid/.well-known/worker-protocol",
-    [],
-    new Map(rules.map((rule) => [rule.id, rule])),
-    transcript(fetch),
-    undefined,
-    false,
-  );
+  const results = await callSurfaces({
+    surfaces: [{ capability: "activity", url: "https://worker.invalid/activity" }],
+    descriptorUrl: "https://worker.invalid/.well-known/worker-protocol",
+    writeAddresses: [],
+    filtered: [],
+    rules: new Map(rules.map((rule) => [rule.id, rule])),
+    transcript: transcript(fetch),
+    credential: undefined,
+    mayPerform: false,
+  });
   return results.find((result) => result.rule.id === "ENDP-2");
+};
+
+/** ENDP-24 over one Query read, on a Worker whose bare `queries` address answers QRY-7's `400`. */
+const endp24 = async (ignoresFilters: boolean) => {
+  const { rules } = await universe();
+  const fetch: typeof globalThis.fetch = async (input) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (!url.searchParams.has("query")) {
+      return Response.json(
+        { code: "invalid_parameter", class: "reject", message: "no" },
+        { status: 400 },
+      );
+    }
+    return url.searchParams.has("no-such-filter-8e31") && !ignoresFilters
+      ? Response.json({ code: "unknown_filter", class: "reject", message: "no" }, { status: 400 })
+      : Response.json({ vehicles: 3 });
+  };
+  const queries = "https://worker.invalid/queries";
+  const results = await callSurfaces({
+    surfaces: [{ capability: "queries", url: queries }],
+    descriptorUrl: "https://worker.invalid/.well-known/worker-protocol",
+    writeAddresses: [],
+    filtered: readableQuery(
+      { answers: { summary: { parameters: { type: "object" }, result: { type: "object" } } } },
+      queries,
+    ),
+    rules: new Map(rules.map((rule) => [rule.id, rule])),
+    transcript: transcript(fetch),
+    credential: undefined,
+    mayPerform: false,
+  });
+  return results.find((result) => result.rule.id === "ENDP-24");
 };
 
 describe("ENDP-2, on a collection that changes on its own", () => {
@@ -64,5 +98,17 @@ describe("ENDP-2, on a collection that changes on its own", () => {
     const result = await endp2(answering([["a", "b"], ["a"], ["c", "d"], ["c"]]));
     expect(result?.verdict).toBe("fails");
     expect(result?.detail).toMatch(/on two pairs of reads/);
+  });
+});
+
+describe("ENDP-24, on an address that answers nothing bare", () => {
+  it("is judged on a Query that requires no parameter", async () => {
+    expect((await endp24(false))?.verdict).toBe("passes");
+  });
+
+  it("fails a Worker that ignores a filter on a Query", async () => {
+    const result = await endp24(true);
+    expect(result?.verdict).toBe("fails");
+    expect(result?.detail).toMatch(/`queries` answered 200/);
   });
 });

@@ -82,7 +82,7 @@ packages/
   client/        consume(): read a Worker and take work from it — the consumer half
   conformance/   the verifier: point it at a worker, get a report of what it complies with
 examples/          two Workers, and both are templates
-  minimal-worker/    all eleven Capabilities, explained line by line. Copy this one
+  minimal-worker/    all twelve Capabilities, explained line by line. Copy this one
   fleet-worker/      the same shape on Cloudflare: a Durable Object, an outbox, a Tail Worker
 CHANGELOG.md     every release, and the edition each one encodes — the two are not the same number
 skills/          what a coding agent reads before writing a Worker
@@ -172,10 +172,10 @@ about trust. Each still carries a `Still open here` section, which is what `stab
 be empty of. What `draft` means here is what the table above says: shaped and implementable, still
 moving — and moving now costs a withdrawal rather than a silent edit.
 
-What stands behind that: 226 rules, every one classified in
+What stands behind that: 237 rules, every one classified in
 [conformance/verifiability.md](conformance/verifiability.md) by what a check would observe when it
-is broken, and every one of the 117 a tool can observe against an ordinary Worker checked by
-[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 58 need a
+is broken, and every one of the 126 a tool can observe against an ordinary Worker checked by
+[`@worker-protocol/conformance`](packages/conformance) over a real socket. Another 60 need a
 Worker *arranged* to be observed — a second credential, a boot window, an Action safe to perform, a
 Worker that records something when it is read — and pass when that arrangement is handed to the
 verifier out of band, as the base URL and the credential already are.
@@ -184,7 +184,7 @@ The remaining 51 are reported rather than passed, and the two kinds are not the 
 party who is not a Worker, so this tool never contacted whoever they oblige, and 22 have no witness
 anywhere.
 
-**Of the ids this edition has issued, 82 are withdrawn, and sixteen of them went at once.** A Claim
+**Of the ids this edition has issued, 83 are withdrawn, and sixteen of them went at once.** A Claim
 was an exclusive lease a consumer took on a Task, and [spec/tasks.md](spec/tasks.md) says why it is
 gone: a lease over a unit of work is the primitive of a work queue, orchestration is a declared
 non-goal, and the cost fell on the owner while the consumer's half of it was optional all along.

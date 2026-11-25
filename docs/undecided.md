@@ -12,10 +12,10 @@ back — so that when the answer lands, both places know.
 - **What a health check carries beyond status and detail** — observed values and units, and
   whether common checks share names across workers. Listed in [spec/health.md](../spec/health.md).
 - **What a Contract carries beyond what its credential covers.** [spec/grants.md](../spec/grants.md)
-  answers the coverage — the Task types, Actions and event types a credential reads, performs and
-  consumes — and when a revocation takes effect, for a credential issued through it. Still open:
-  rate, retention of Task events, and the time zone a multi-tenant Worker cuts a consumer's metric
-  buckets in. Listed in [spec/grants.md](../spec/grants.md), and the time zone in
+  answers the coverage — the Task types, Actions, event types and Queries a credential reads,
+  performs and consumes — and when a revocation takes effect, for a credential issued through it.
+  Still open: rate, retention of Task events, and the time zone a multi-tenant Worker cuts a
+  consumer's metric buckets in. Listed in [spec/grants.md](../spec/grants.md), and the time zone in
   [spec/metrics.md](../spec/metrics.md).
 - **Whether a Task type may belong to several Services, and whether a Service may span workers of
   several teams.**

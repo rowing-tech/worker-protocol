@@ -22,6 +22,7 @@ import {
 } from "./grants.ts";
 import { logs as logsSurface } from "./logs.ts";
 import { metrics as metricsSurface } from "./metrics.ts";
+import { parametersSchema, queries as queriesSurface, unreadable } from "./queries.ts";
 import { subscriptionsSurface } from "./subscriptions.ts";
 import {
   applyGrant,
@@ -35,6 +36,7 @@ import {
   readDescriptor,
   readLogs,
   readMetric,
+  readQuery,
   readTasks,
   revokeGrant,
   SURFACES,
@@ -247,6 +249,7 @@ function surfacesOf(worker: Worker) {
       : undefined,
     actions: worker.actions ? actionsSurface(worker.actions, worker.tasks) : undefined,
     metrics: worker.metrics ? metricsSurface(worker.metrics) : undefined,
+    queries: worker.queries ? queriesSurface(worker.queries) : undefined,
     logs: worker.logs ? logsSurface(worker.logs) : undefined,
   };
 }
@@ -281,6 +284,10 @@ function enumerated(worker: Worker): string | null {
     "caller break it down and see every Contract's share. Declare it with no values: `contract: {}`."
   );
 }
+
+/** A Query this app cannot serve as `spec/queries.md` says (QRY-2, QRY-3, QRY-4). */
+const misdeclared = (worker: Worker): string | null =>
+  worker.queries === undefined ? null : unreadable(worker.queries.answers);
 
 /**
  * A Worker that declares `grants` and does not say who may apply one. Nobody becomes an applicant
@@ -386,6 +393,21 @@ function descriptorOf(worker: Worker, edition: string): string {
       };
     }
     capabilities.actions = { version: 1, address: "../actions", accepts: declared };
+  }
+
+  if (worker.queries) {
+    // QRY-2, QRY-4: JSON Schema generated from the Zod objects the Worker declared, as ACT-2's is,
+    // so what a console renders a form from and what a request is judged against cannot drift.
+    capabilities.queries = {
+      version: 1,
+      address: "../queries",
+      answers: mapValues(worker.queries.answers, (declared) => ({
+        parameters: parametersSchema(declared),
+        ...(declared.items === undefined
+          ? { result: jsonSchema(declared.result) }
+          : { items: jsonSchema(declared.items) }),
+      })),
+    };
   }
 
   // EVT-12, TASK-35, TASK-36: the Descriptor carries JSON Schema, generated from the Zod object the
@@ -515,6 +537,7 @@ export function mount<E = unknown>(
       warn(unguarded(worker));
       warn(enumerated(worker));
       warn(unfound(worker));
+      warn(misdeclared(worker));
       firstStore = worker.actions?.outcomes;
     } else {
       warn(forgetful(firstStore, worker.actions?.outcomes));
@@ -527,7 +550,12 @@ export function mount<E = unknown>(
   // `5xx` for a condition that will not change, and this one never will.
   if (typeof source !== "function") {
     checked = true;
-    const fault = unrecorded(source) ?? unguarded(source) ?? enumerated(source) ?? unfound(source);
+    const fault =
+      unrecorded(source) ??
+      unguarded(source) ??
+      enumerated(source) ??
+      unfound(source) ??
+      misdeclared(source);
     if (fault !== null) throw new Error(fault);
     firstStore = source.actions?.outcomes;
   }
@@ -839,6 +867,23 @@ export function mount<E = unknown>(
     },
   );
 
+  // QRY-5: the Query is named in the query string beside its own parameters, and what it answers
+  // is the Worker's own document or the page envelope around its items (QRY-9).
+  serve(
+    { capability: "queries", path: "/queries", route: readQuery, ownParameters: true },
+    async (c, { worker, context, grant }) => {
+      const read = surfacesOf(worker).queries;
+      if (!read) return undeclared("queries");
+      // QRY-11: a grant that names no Queries covers none, which is what a grant applied before
+      // they existed says about them.
+      const granted = grant === undefined ? undefined : (grant.queries ?? []);
+      const answered = await read({ search: query(c), context, granted });
+      return refused(answered)
+        ? envelope(answered)
+        : c.json(answered.body as Record<string, unknown>, 200);
+    },
+  );
+
   // ACT-21: where the Worker exposes its settings, this app serves the reading address, which is
   // why the declaration above points at it and the two cannot disagree.
   app.use("/settings", capabilityVersion);
@@ -1049,6 +1094,7 @@ export function mount<E = unknown>(
           tasks: Object.keys(worker.tasks?.raises ?? {}),
           actions: Object.keys(worker.actions?.accepts ?? {}),
           events: Object.keys(worker.events?.publishes ?? {}),
+          queries: Object.keys(worker.queries?.answers ?? {}),
         },
       }),
     };

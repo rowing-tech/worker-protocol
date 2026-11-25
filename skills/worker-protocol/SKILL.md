@@ -2,7 +2,7 @@
 name: worker-protocol
 description: >-
   Build, change or debug a worker-protocol Worker in any language: the Descriptor served at
-  /.well-known/worker-protocol, the eleven Capabilities (health, metrics, actions, alerts,
+  /.well-known/worker-protocol, the twelve Capabilities (health, metrics, actions, queries, alerts,
   activity, nudges, tasks, events, logs, subscriptions, grants), the credential, the error and page
   envelopes, cursors, idempotency, and verification with npx @worker-protocol/conformance. Use this
   skill whenever the work touches a
@@ -59,10 +59,11 @@ Cite rule ids in the code too. A failure that names `ENDP-24` can be looked up; 
 | How much of something happened? | `metrics` | Accumulated over declared periods; never an occurrence |
 | What happened, and is over? | `logs` | Written deliberately, past tense, acted on by nobody |
 | What can I make it do? | `actions` | An operation with a declared input, performed on request |
+| What else can I ask it? | `queries` | A read the Worker defines, with declared parameters; a GET, and changes nothing (QRY-5) |
 | What does it tell others about? | `events` | Pushed to a broker, for whoever contracted for it |
 | How do I say there is work? | `nudges` | Best effort, carries a Task type and nothing else (NDG-2) |
 
-Three pairs get confused. Each has a one-sentence test:
+Four pairs get confused. Each has a one-sentence test:
 
 - **`alerts` vs `logs`** — if it stops being true on its own, it is an Alert. They overlap only on
   failure: *twelve files compressed* is a record and is no kind of Alert, because an Alert is never
@@ -73,6 +74,10 @@ Three pairs get confused. Each has a one-sentence test:
 - **`metrics` vs `logs`** — what will be asked later. *Fourteen uploads failed last night* is a
   metric; *upload of `a.pdf` failed on the third attempt* is a record. Counting loses which one, so
   a Worker that will be asked *which* writes both.
+- **`actions` vs `queries`** — may it be sent twice without a thought. A Query is a GET and changes
+  nothing; an Action does something. A read published as an Action tells every console that
+  pressing it changes something, and a read that marks something seen, advances a position or
+  consumes what it returned is an Action that answers a result.
 
 ## Rules hand-written implementations break
 
@@ -171,6 +176,18 @@ whose reason is understood is one that survives a refactor.
   another member of the same map, and a chain that ends. Removing the old name is the announcement.
   A Tower compares each Descriptor with the one it held and shows the operator a schema that broke
   under a kept name (REG-36); `compare` in `@worker-protocol/client` is that comparison.
+- **`queries` is the read a Worker defines, declared like an Action and read with a GET** (QRY-1 to
+  QRY-11). The entry carries `answers`, a map of name to `{ parameters, result }` or
+  `{ parameters, items }` — exactly one of the two (QRY-4). `parameters` is the JSON Schema of an
+  object whose members are all strings, because they travel in the query string, and none is named
+  `query` or `cursor` (QRY-2, QRY-3). One address: `GET ?query=<name>&<parameter>=<value>`, each
+  parameter at most once. Check in this order: no `query` is `400 invalid_parameter` (QRY-7); a
+  name you do not declare is `404 not_found` (QRY-6); a credential that does not cover it is `403`
+  (QRY-10); a parameter it does not declare is `400 unknown_filter` (ENDP-24); one it declares,
+  sent wrongly, is `400 invalid_parameter` (QRY-8). `result` answers the document; `items` answers
+  the page envelope and takes `cursor`, with a cap that is yours and no page-size parameter
+  (ENDP-19). Something you do not hold is still `200`, said inside the document or as an empty
+  page — `404` here means only that the Query is not declared.
 
 ### The state-bearing surfaces
 
@@ -207,19 +224,20 @@ whose reason is understood is one that survives a refactor.
   `sink()` in `@worker-protocol/client` does all three. Back its `SeenStore` with something that
   outlives a request — on Convex, a table claimed in a mutation, never `memorySeen()`, which forgets
   between invocations and handles a repeated delivery twice.
-- **`grants` tells an owner what a Contract's credential covers** (GRANT-1 to GRANT-9), and is
-  optional. One address: `POST { id, tasks, actions, events, rotate? }` applies — each list `all`
-  or names you declare, else `422` — `GET` lists the applicant's own, `DELETE ?grant=<id>` revokes,
-  `404` for an id the caller holds none under. The applicant is the caller your authentication
-  names, never the credential's bytes; refuse any caller you do not accept as one, and every
-  grant's credential, with `403`. Creating answers `201` with a credential; applying again answers
-  `200` and issues one only with `rotate: true`. Keep only a digest of what you issue. A grant's
-  credential covers nothing outside the Task types, Actions and event types it names — `all`
-  includes what you declare later — and you may narrow inside them by rules of your own, never
-  widen (GRANT-8). Refuse it health, metrics, alerts, activity, logs and settings with `403`:
-  watching is enrollment (GRANT-10). From the response on: revoked or rotated away is `401`
-  everywhere, narrowed is `403` for what it lost, and a subscription it made that is no longer
-  covered ends as `revoked` and receives nothing more.
+- **`grants` tells an owner what a Contract's credential covers** (GRANT-1 to GRANT-11), and is
+  optional. One address: `POST { id, tasks, actions, events, queries?, rotate? }` applies — each
+  list `all` or names you declare, else `422`, and `queries` left out names none (GRANT-11) — `GET`
+  lists the applicant's own, `DELETE ?grant=<id>` revokes, `404` for an id the caller holds none
+  under. The applicant is the caller your authentication names, never the credential's bytes; refuse
+  any caller you do not accept as one, and every grant's credential, with `403`. Creating answers
+  `201` with a credential; applying again answers `200` and issues one only with `rotate: true`.
+  Keep only a digest of what you issue. A grant's credential covers nothing outside the Task types,
+  Actions, event types and Queries it names — `all` includes what you declare later — and you may
+  narrow inside them by rules of your own, never widen (GRANT-8, QRY-11). Replacing a grant replaces
+  its lists whole, so a `queries` the replacement leaves out is gone. Refuse it health, metrics,
+  alerts, activity, logs and settings with `403`: watching is enrollment (GRANT-10). From the
+  response on: revoked or rotated away is `401` everywhere, narrowed is `403` for what it lost, and
+  a subscription it made that is no longer covered ends as `revoked` and receives nothing more.
 - **`contract` is told to the applicant of a grant and nobody else.** A metric counted per Contract
   declares a free dimension named `contract`; a read fixing an id answers what came under the
   caller's own grant of that id, and nothing for anybody else's — never `403`, never a breakdown
@@ -311,13 +329,14 @@ Load these when the task needs them, not before.
 - **A rule by id** — `spec/` at https://github.com/rowing-tech/worker-protocol, one file per prefix:
   `DESC` `descriptor.md`, `ENDP` `endpoints.md`, `REG` `registration.md`, `NAME` `naming.md`,
   `HLTH` `health.md`, `MET` `metrics.md`, `ACT` `actions.md`, `ALRT` `alerts.md`, `ACTV`
-  `activity.md`, `NDG` `nudges.md`, `TASK` `tasks.md`, `EVT` `events.md`, `LOG` `logs.md`. A rule is
+  `activity.md`, `NDG` `nudges.md`, `TASK` `tasks.md`, `EVT` `events.md`, `LOG` `logs.md`, `SUB`
+  `subscriptions.md`, `GRANT` `grants.md`, `QRY` `queries.md`. A rule is
   a bold line carrying an id and a class; everything else in those files binds nobody.
-- **The shape of a document** — `schemas/`, 40 JSON Schemas named after the thing they describe.
+- **The shape of a document** — `schemas/`, 60 JSON Schemas named after the thing they describe.
   Normative: where prose and a schema disagree, the schema wins. Validate against them.
 - **A verb, parameter, header or refusal on one address** — `openapi/`, one document per address.
   Normative for the surface. Generate from these rather than reading them by hand.
-- **A Worker to model on** — `examples/minimal-worker/src/worker.ts` declares all eleven
+- **A Worker to model on** — `examples/minimal-worker/src/worker.ts` declares all twelve
   Capabilities with a comment per line. It is TypeScript and the *declarations* are what to copy,
   not the syntax. Do not model on `conformance/reference-worker`: it is a test double, deliberately
   arranged wrong in places so the verifier can observe rules nothing else provokes.

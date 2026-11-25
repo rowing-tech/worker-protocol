@@ -11,6 +11,7 @@ import type { ErrorCode } from "./codes.ts";
 import type { GrantFacts, GrantRef } from "./grants.ts";
 import type { LogFacts } from "./logs.ts";
 import type { MetricFacts } from "./metrics.ts";
+import type { QueryFacts } from "./queries.ts";
 import type { SubscriptionFacts } from "./subscriptions.ts";
 import type { TaskFacts, TaskTypes } from "./tasks.ts";
 import type { Trace } from "./trace.ts";
@@ -118,6 +119,12 @@ export type Worker = {
   metrics?: MetricFacts;
   /** `actions`: the Actions this Worker accepts, each with its input and what it does. */
   actions?: ActionFacts;
+  /**
+   * `queries`: the reads this Worker defines, each with its parameters, what it answers and the
+   * read itself (QRY-1). The other half of `actions`: a Query is a GET and changes nothing, so
+   * whatever answering would change belongs in an Action instead.
+   */
+  queries?: QueryFacts;
   /** `alerts`: the Alerts whose conditions hold (ALRT-2). `mount()` orders, serializes and pages. */
   alerts?: (call: CallContext) => Alert[] | Promise<Alert[]>;
   /**
