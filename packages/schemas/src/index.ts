@@ -39,7 +39,7 @@ export const SCHEMA_ID_BASE: string | null = null;
  * change to anything a Worker sends. `packages/README.md` carries that argument, including why the
  * two numbers agreeing today is a coincidence rather than a rule.
  */
-export const EDITION = "0.13";
+export const EDITION = "0.14";
 
 /** The `$id` of one generated schema. A registry id is also its file name, plus `.json`. */
 export const schemaId = (name: string): string =>
@@ -881,12 +881,13 @@ export const actionsEntry = capabilityEntry
   });
 
 /**
- * QRY-2, QRY-4 — one Query a Worker answers: what it takes, and what it answers.
+ * QRY-12, QRY-4 — one Query a Worker answers: what it takes, and what it answers.
  *
- * `parameters` is a JSON Schema of an object whose members are all strings, because a GET carries
- * them in its query string and a URL carries nothing else (QRY-2). That every member is a string,
- * and that none is named `query` or `cursor` (QRY-3), are conditions on a schema held inside this
- * one, so they are rules a verifier judges rather than a shape this object asserts.
+ * `parameters` is a JSON Schema of an object whose members are strings or arrays of strings,
+ * because a GET carries them in its query string and a URL carries nothing else (QRY-12). That
+ * every member is one of the two, and that none is named `query` or `cursor` (QRY-3), are
+ * conditions on a schema held inside this one, so they are rules a verifier judges rather than a
+ * shape this object asserts.
  *
  * `result` and `items` are the two things a read answers — one document, or one item of a
  * collection answered in the shared page envelope (QRY-9) — and exactly one is declared. That is
@@ -895,9 +896,10 @@ export const actionsEntry = capabilityEntry
  */
 const queryParameters = z.looseObject({}).meta({
   description:
-    "QRY-2. The JSON Schema of this Query's parameters: an object, each of whose members is a " +
-    "string, sent as a query parameter of the same name (QRY-5). An object with no members where " +
-    "the Query takes none. QRY-3: no member is named `query` or `cursor`.",
+    "QRY-12. The JSON Schema of this Query's parameters: an object, each of whose members is a " +
+    "string or an array of strings, sent as a query parameter of the same name — an array as the " +
+    "key repeated, once per element (QRY-13). An object with no members where the Query takes " +
+    "none. QRY-3: no member is named `query` or `cursor`.",
 });
 
 export const queryDeclaration = z
@@ -923,7 +925,7 @@ export const queryDeclaration = z
   .meta({
     title: "Query declaration",
     description:
-      "QRY-2, QRY-4. One Query a Worker answers: the schema of its parameters, and the schema of " +
+      "QRY-12, QRY-4. One Query a Worker answers: the schema of its parameters, and the schema of " +
       "what it answers — one document under `result`, or one item of a collection under `items`, " +
       "and never both.",
   });

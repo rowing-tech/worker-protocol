@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "worker-protocol — queries",
-    "version": "0.13",
+    "version": "0.14",
     "description": "Reading what a Worker holds that this protocol does not name. The Descriptor is the catalog: each Query declares the schema of its parameters and of what it answers, and this surface answers and never lists what exists.",
     "license": {
       "name": "Apache-2.0",
@@ -25,13 +25,13 @@
     "/": {
       "get": {
         "summary": "Read one Query",
-        "description": "QRY-5. A read the Worker defines, named in `query`, with each parameter it declares sent under its own name. A GET, so it changes nothing a later reader could observe (ENDP-2) and a caller that got no answer reads again.",
+        "description": "QRY-13. A read the Worker defines, named in `query`, with each parameter it declares sent under its own name. A GET, so it changes nothing a later reader could observe (ENDP-2) and a caller that got no answer reads again.",
         "parameters": [
           {
             "name": "query",
             "in": "query",
             "required": true,
-            "description": "QRY-5. One of the Queries the entry declares. Naming none is `400`; naming one it does not declare is `404`; naming one the credential presented does not cover is `403` (QRY-10), before its parameters are judged.",
+            "description": "QRY-13. One of the Queries the entry declares. Naming none is `400`; naming one it does not declare is `404`; naming one the credential presented does not cover is `403` (QRY-10), before its parameters are judged.",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -41,13 +41,23 @@
             "name": "parameters",
             "in": "query",
             "required": false,
-            "description": "QRY-5. Each parameter the Query declares, sent under exactly its own name and at most once, against the JSON Schema its entry declares (QRY-8). The names are the Worker's own and are read from its Descriptor, so they are not enumerated here.",
+            "description": "QRY-13. Each parameter the Query declares, sent under exactly its own name, against the JSON Schema its entry declares (QRY-14): a string at most once, and an array of strings as the key repeated, once per element and in order. The names are the Worker's own and are read from its Descriptor, so they are not enumerated here.",
             "style": "form",
             "explode": true,
             "schema": {
               "type": "object",
               "additionalProperties": {
-                "type": "string"
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
               }
             }
           },
@@ -105,7 +115,7 @@
             }
           },
           "400": {
-            "description": "ENDP-39. The shared error envelope, carrying one of: `invalid_parameter` (QRY-7), `invalid_parameter` (QRY-8), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
+            "description": "ENDP-39. The shared error envelope, carrying one of: `invalid_parameter` (QRY-7), `invalid_parameter` (QRY-14), `unknown_filter` (ENDP-24), `unsupported_version` (ENDP-6).",
             "headers": {
               "Worker-Protocol-Edition": {
                 "description": "ENDP-37. The edition that produced this answer. A caller that sees one it did not expect re-reads the Descriptor rather than parsing the body.",

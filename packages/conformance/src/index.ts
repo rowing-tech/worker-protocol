@@ -457,7 +457,7 @@ export async function verify(options: VerifyOptions): Promise<Report> {
           tape,
         )),
       );
-      // Every call here is a GET (QRY-5), so it runs whether or not the verifier may perform.
+      // Every call here is a GET (QRY-13), so it runs whether or not the verifier may perform.
       results.push(
         ...(await checkQueries(
           descriptor.document.capabilities.queries,

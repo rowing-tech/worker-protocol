@@ -155,7 +155,7 @@ describe("the reference worker, verified", () => {
       arrangement: ARRANGEMENT,
     });
 
-    expect(report.edition).toBe("0.13");
+    expect(report.edition).toBe("0.14");
 
     // Every rule gets a verdict, never only the ones a check claimed.
     const rules = new Set(report.results.map((r) => r.rule.id));
@@ -468,9 +468,9 @@ describe("the reference worker, verified", () => {
 
       expect(report.older).toBe(true);
       expect(report.edition).toBe("9.0");
-      expect(report.verifierEdition).toBe("0.13");
+      expect(report.verifierEdition).toBe("0.14");
       expect(report.results.every((r) => r.verdict === "notExercised")).toBe(true);
-      expect(report.results[0]?.detail).toContain("holds edition 0.13");
+      expect(report.results[0]?.detail).toContain("holds edition 0.14");
     } finally {
       await ahead.close();
     }
@@ -480,7 +480,7 @@ describe("the reference worker, verified", () => {
     // DESC-40: the edition says this verifier is behind, and what the Worker declares says how far
     // it can still go — every Capability it knows, at the version it holds. The reference Worker
     // is conformant, so a partial run of it is clean: nothing ignored, nothing in doubt.
-    const ahead = await start({ edition: "0.14" });
+    const ahead = await start({ edition: "0.15" });
     try {
       const report = await verify({ baseUrl: ahead.url });
       expect(report.older).toBe(true);
@@ -499,7 +499,7 @@ describe("the reference worker, verified", () => {
     // for, one it knows at a version it does not hold, and a `health` answer with a member more.
     // The first two are ignored and said; the third reads as a fault from here and is not failed,
     // because what broke it may be exactly what the later edition added.
-    const ahead = await start({ edition: "0.14" });
+    const ahead = await start({ edition: "0.15" });
     const grown: typeof globalThis.fetch = (async (url: string, init?: RequestInit) => {
       const answered = await fetch(url, init);
       if (!answered.headers.get("content-type")?.includes("json")) return answered;
@@ -529,7 +529,7 @@ describe("the reference worker, verified", () => {
       expect(tally(report.results).fails).toBe(0);
       const health = report.results.find((r) => r.rule.id === "HLTH-2");
       expect(health?.verdict).toBe("notExercised");
-      expect(health?.detail).toContain("the Worker declares 0.14");
+      expect(health?.detail).toContain("the Worker declares 0.15");
       // What it does hold is still judged, and still passes.
       expect(report.results.find((r) => r.rule.id === "DESC-1")?.verdict).toBe("passes");
       expect(report.results.find((r) => r.rule.id === "TASK-5")?.verdict).toBe("passes");

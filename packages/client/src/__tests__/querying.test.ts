@@ -37,12 +37,17 @@ const tracker = mount({
         },
       }),
       positions: query({
-        parameters: z.object({ moving: z.enum(["true", "false"]).optional() }),
+        parameters: z.object({
+          moving: z.enum(["true", "false"]).optional(),
+          vehicle: z.array(z.string()).optional(),
+        }),
         items: z.object({ vehicle: z.string(), lat: z.number(), lng: z.number() }),
-        read: ({ moving }, { cursor, limit }) => {
+        read: ({ moving, vehicle }, { cursor, limit }) => {
           const matching = FLEET.filter(
             (one) => moving === undefined || String(one.moving) === moving,
-          ).filter((one) => cursor === undefined || one.vehicle > cursor);
+          )
+            .filter((one) => vehicle === undefined || vehicle.includes(one.vehicle))
+            .filter((one) => cursor === undefined || one.vehicle > cursor);
           const items = matching.slice(0, limit);
           const last = items.at(-1);
           return matching.length > limit && last !== undefined
@@ -69,7 +74,7 @@ const refusal = async (attempt: Promise<unknown> | undefined): Promise<Refused> 
 };
 
 describe("reading a Query a Worker defines", () => {
-  it("is declared with the schema of its parameters and of what it answers (QRY-1, QRY-2, QRY-4)", async () => {
+  it("is declared with the schema of its parameters and of what it answers (QRY-1, QRY-12, QRY-4)", async () => {
     const { descriptor } = await reader();
     expect(descriptor.capabilities.queries).toMatchObject({
       version: 1,
@@ -92,7 +97,7 @@ describe("reading a Query a Worker defines", () => {
     expect(declared.answers.positions).not.toHaveProperty("result");
   });
 
-  it("answers the one document a Query declares under `result` (QRY-5, QRY-9)", async () => {
+  it("answers the one document a Query declares under `result` (QRY-13, QRY-9)", async () => {
     const { queries } = await reader();
     await expect(queries?.read("position", { vehicle: "mty-411" })).resolves.toEqual({
       vehicle: "mty-411",
@@ -118,6 +123,22 @@ describe("reading a Query a Worker defines", () => {
     expect(moving.map((one) => one.vehicle)).toEqual(["mty-411", "tij-002"]);
   });
 
+  it("sends a list parameter as the key repeated, and reads only those (QRY-12, QRY-13)", async () => {
+    const { queries } = await reader();
+    const chosen = (await queries?.list("positions", { vehicle: ["tij-002", "mty-411"] })) as {
+      vehicle: string;
+    }[];
+    expect(chosen.map((one) => one.vehicle)).toEqual(["mty-411", "tij-002"]);
+  });
+
+  it("refuses an empty list before sending it, rather than read it as no filter", async () => {
+    const { queries } = await reader();
+    await expect(queries?.list("positions", { vehicle: [] })).rejects.toThrow(/empty list/);
+    // Left out, as `undefined`, is how an optional list says no filter: every vehicle.
+    const all = await queries?.list("positions", { vehicle: undefined });
+    expect(all).toHaveLength(3);
+  });
+
   it("refuses the other call before sending anything (QRY-4)", async () => {
     const { queries } = await reader();
     await expect(queries?.read("positions")).rejects.toThrow(/answers a collection/);
@@ -132,7 +153,7 @@ describe("reading a Query a Worker defines", () => {
     });
   });
 
-  it("is refused for parameters the declared schema refuses (QRY-8)", async () => {
+  it("is refused for parameters the declared schema refuses (QRY-14)", async () => {
     const { queries } = await reader();
     // One it requires, absent; one whose value it refuses.
     expect(await refusal(queries?.read("position"))).toMatchObject({ code: "invalid_parameter" });
@@ -157,7 +178,7 @@ describe("reading a Query a Worker defines", () => {
     await expect(queries?.read("position", { vehicle: "mty-534" })).resolves.toMatchObject({
       vehicle: "mty-534",
     });
-    // `moving: "maybe"` would be QRY-8's `400` for a credential that covers the Query.
+    // `moving: "maybe"` would be QRY-14's `400` for a credential that covers the Query.
     expect(await refusal(queries?.page("positions", { moving: "maybe" }))).toMatchObject({
       code: "forbidden",
       status: 403,

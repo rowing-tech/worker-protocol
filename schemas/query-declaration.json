@@ -9,7 +9,7 @@
           "type": "object",
           "properties": {},
           "additionalProperties": {},
-          "description": "QRY-2. The JSON Schema of this Query's parameters: an object, each of whose members is a string, sent as a query parameter of the same name (QRY-5). An object with no members where the Query takes none. QRY-3: no member is named `query` or `cursor`."
+          "description": "QRY-12. The JSON Schema of this Query's parameters: an object, each of whose members is a string or an array of strings, sent as a query parameter of the same name — an array as the key repeated, once per element (QRY-13). An object with no members where the Query takes none. QRY-3: no member is named `query` or `cursor`."
         },
         "result": {
           "type": "object",
@@ -31,7 +31,7 @@
           "type": "object",
           "properties": {},
           "additionalProperties": {},
-          "description": "QRY-2. The JSON Schema of this Query's parameters: an object, each of whose members is a string, sent as a query parameter of the same name (QRY-5). An object with no members where the Query takes none. QRY-3: no member is named `query` or `cursor`."
+          "description": "QRY-12. The JSON Schema of this Query's parameters: an object, each of whose members is a string or an array of strings, sent as a query parameter of the same name — an array as the key repeated, once per element (QRY-13). An object with no members where the Query takes none. QRY-3: no member is named `query` or `cursor`."
         },
         "items": {
           "type": "object",
@@ -48,5 +48,5 @@
     }
   ],
   "title": "Query declaration",
-  "description": "QRY-2, QRY-4. One Query a Worker answers: the schema of its parameters, and the schema of what it answers — one document under `result`, or one item of a collection under `items`, and never both."
+  "description": "QRY-12, QRY-4. One Query a Worker answers: the schema of its parameters, and the schema of what it answers — one document under `result`, or one item of a collection under `items`, and never both."
 }

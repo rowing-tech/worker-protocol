@@ -1390,7 +1390,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "queries.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.12"
+      "introducedIn": "0.12",
+      "withdrawnIn": "0.14"
     },
     {
       "id": "QRY-3",
@@ -1411,7 +1412,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "queries.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.12"
+      "introducedIn": "0.12",
+      "withdrawnIn": "0.14"
     },
     {
       "id": "QRY-6",
@@ -1432,7 +1434,8 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "file": "queries.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.12"
+      "introducedIn": "0.12",
+      "withdrawnIn": "0.14"
     },
     {
       "id": "QRY-9",
@@ -1454,6 +1457,27 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "class": "required",
       "reach": "H",
       "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-12",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.14"
+    },
+    {
+      "id": "QRY-13",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.14"
+    },
+    {
+      "id": "QRY-14",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.14"
     },
     {
       "id": "REG-3",
@@ -2254,13 +2278,13 @@ export const UNIVERSE: { rules: Rule[]; codes: Code[]; attribution: Attribution 
       "address": "DESC-36",
       "answers": "QRY-1",
       "answers/*/items": "QRY-4",
-      "answers/*/parameters": "QRY-2",
+      "answers/*/parameters": "QRY-12",
       "answers/*/result": "QRY-4",
       "version": "DESC-9"
     },
     "query-declaration": {
       "items": "QRY-4",
-      "parameters": "QRY-2",
+      "parameters": "QRY-12",
       "result": "QRY-4"
     },
     "skill-declaration": {

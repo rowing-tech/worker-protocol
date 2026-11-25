@@ -236,6 +236,37 @@ export function caller(descriptorUrl: string, options: CallerOptions = {}) {
 
 export type Caller = ReturnType<typeof caller>;
 
+/**
+ * Parameters onto a URL: a string once, and an array as the key repeated, once per element and in
+ * order — how a query string says *these several values* (QRY-13, MET-19). Each key is cleared
+ * first, so a parameter is never sent twice by accident.
+ *
+ * **An empty array throws, before anything is sent.** A query string has no way to write a list
+ * with no elements: it is the key absent. A required parameter answers that `400` (QRY-14), but
+ * an optional one reads it as *no filter*, and a caller that filtered by a selection that came out
+ * empty would be answered the whole collection and could not tell. This does not know which the
+ * Query declared and does not need to: neither is what an empty list meant. So the caller decides
+ * instead: no call, if it meant nothing, or the key left out, if it meant everything.
+ */
+export function setParameters(
+  url: URL,
+  parameters: Record<string, string | readonly string[] | undefined>,
+): void {
+  for (const [key, value] of Object.entries(parameters)) {
+    // Left out: `{ asset: undefined }` is the parameter not sent, which is how *no filter* is said.
+    if (value === undefined) continue;
+    if (typeof value !== "string" && value.length === 0) {
+      throw new TypeError(
+        `The parameter "${key}" is an empty list, which a query string cannot carry: it would be ` +
+          "read as the parameter left out. Leave it out to mean no filter, or do not call.",
+      );
+    }
+    url.searchParams.delete(key);
+    if (typeof value === "string") url.searchParams.set(key, value);
+    else for (const one of value) url.searchParams.append(key, one);
+  }
+}
+
 /** ENDP-40's `retry` rows, for an answer that carries no envelope to read a class off. */
 const RETRY_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
@@ -262,7 +293,7 @@ export async function collect<T>(
   url: string,
   schema: z.ZodType<Page<T>>,
   rule: string,
-  parameters: Record<string, string> = {},
+  parameters: Record<string, string | readonly string[] | undefined> = {},
 ): Promise<T[]> {
   const held: T[] = [];
   for await (const page of pages(caller, url, schema, rule, parameters)) held.push(...page);
@@ -274,7 +305,7 @@ export async function* pages<T>(
   url: string,
   schema: z.ZodType<Page<T>>,
   rule: string,
-  parameters: Record<string, string> = {},
+  parameters: Record<string, string | readonly string[] | undefined> = {},
 ): AsyncGenerator<T[]> {
   let cursor: string | undefined;
   // A bound, because a Worker whose cursor never advances would otherwise spin a consumer forever.
@@ -310,11 +341,11 @@ export async function page<T>(
   url: string,
   schema: z.ZodType<Page<T>>,
   rule: string,
-  parameters: Record<string, string> = {},
+  parameters: Record<string, string | readonly string[] | undefined> = {},
   cursor?: string,
 ): Promise<Page<T>> {
   const target = new URL(url);
-  for (const [key, value] of Object.entries(parameters)) target.searchParams.set(key, value);
+  setParameters(target, parameters);
   if (cursor !== undefined) target.searchParams.set("cursor", cursor);
 
   const answered = await caller.validated(

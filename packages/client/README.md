@@ -130,12 +130,18 @@ collection (QRY-4), and each has its call:
 ```ts
 await worker.queries?.read("position", { vehicle: "mty-411" }); // the one document
 await worker.queries?.list("positions", { moving: "true" });    // every item, paged through
+await worker.queries?.list("positions", { vehicle: ["a", "b"] }); // a list: ?vehicle=a&vehicle=b
 await worker.queries?.page("positions", {}, { cursor });        // one page, the cursor yours to keep
 ```
 
-Parameters are strings, each sent under its own name (QRY-5). Asking a Query for the other kind of
-answer throws before anything is sent. What comes back is the Worker's own and is not looked
-inside: its JSON Schema is in the Descriptor, under `capabilities.queries.answers`.
+Parameters are strings, or arrays of strings where the Query declares a list, each sent under its
+own name — an array as the key repeated, once per element (QRY-13). An empty array throws, whether
+the Query declares the list required or optional: it cannot be sent, and an optional one would be
+read as no filter at all — everything, where you meant nothing. To mean no filter on an optional
+list, leave the parameter out or pass it as `undefined`; when your selection is empty, do not call.
+Asking a Query for the other kind of answer throws before anything is sent. What comes back is the
+Worker's own and is not looked inside: its JSON Schema is in the Descriptor, under
+`capabilities.queries.answers`.
 
 `worker.nudges?.(type)` tells a Worker there is work of a type it answers. It buys latency and
 nothing else — a consumer reading on its own schedule is slower and never wrong — so it answers

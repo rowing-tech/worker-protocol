@@ -174,16 +174,16 @@ from 0.1. A withdrawn rule has no row here; its `Withdrawn` entry carries both o
 | Rule | Class | Introduced in | What a check observes, or why nothing does |
 |---|---|---|---|
 | QRY-1 | W | 0.12 | The `queries` entry carries an address and an `answers` map of Queries |
-| QRY-2 | W | 0.12 | Each Query's `parameters` is the schema of an object, and every member it declares is a string |
 | QRY-3 | W | 0.12 | No Query declares a parameter named `query` or `cursor` |
 | QRY-4 | W | 0.12 | Each Query declares `result` or `items`, and not both |
-| QRY-5 | W | 0.12 | A GET naming a Query that requires no parameter is answered `200`. Reading changes nothing (ENDP-2), so unlike ACT-5 a verifier may ask on its own |
 | QRY-6 | W | 0.12 | A Query name no entry declares is `404` + `not_found` |
 | QRY-7 | W | 0.12 | A request naming no Query is `400` + `invalid_parameter` |
-| QRY-8 | W | 0.12 | A Query read without a parameter its schema requires, or with one it declares sent twice, is `400` + `invalid_parameter`. Not exercised by a Worker none of whose Queries declares a parameter |
 | QRY-9 | W | 0.12 | What a Query that requires no parameter answers agrees with what it declared: the document under `result`, or the page envelope and each item of its first page under `items`. Judged against what the schema fixes about one value and one level of members, and no further, as TASK-37 is |
 | QRY-10 | H | 0.12 | A credential arranged not to cover a declared Query, reading it with a parameter no Query declares, is `403` + `forbidden` and not ENDP-24's `400` |
 | QRY-11 | H | 0.12 | The applied grant's credential, reading a declared Query its grant does not name, is `403` + `forbidden`; once the grant is replaced by one naming that Query, it is refused neither `403` nor `401`. Needs `applyGrants`, as GRANT-10 does, and is not exercised by a Worker that declares no Query |
+| QRY-12 | W | 0.14 | Each Query's `parameters` is the schema of an object, and every member it declares is a string or an array of strings |
+| QRY-13 | W | 0.14 | A GET naming a Query that requires no parameter is answered `200`; a Query whose array parameter is sent repeated is answered as it would be sent once per element. Reading changes nothing (ENDP-2), so unlike ACT-5 a verifier may ask on its own |
+| QRY-14 | W | 0.14 | A Query read without a parameter its schema requires, or with a string parameter it declares sent twice, is `400` + `invalid_parameter`. Not exercised by a Worker none of whose Queries declares a parameter |
 
 ## tasks.md — 24
 

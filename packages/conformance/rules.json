@@ -1381,7 +1381,8 @@
       "file": "queries.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.12"
+      "introducedIn": "0.12",
+      "withdrawnIn": "0.14"
     },
     {
       "id": "QRY-3",
@@ -1402,7 +1403,8 @@
       "file": "queries.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.12"
+      "introducedIn": "0.12",
+      "withdrawnIn": "0.14"
     },
     {
       "id": "QRY-6",
@@ -1423,7 +1425,8 @@
       "file": "queries.md",
       "class": "required",
       "reach": "W",
-      "introducedIn": "0.12"
+      "introducedIn": "0.12",
+      "withdrawnIn": "0.14"
     },
     {
       "id": "QRY-9",
@@ -1445,6 +1448,27 @@
       "class": "required",
       "reach": "H",
       "introducedIn": "0.12"
+    },
+    {
+      "id": "QRY-12",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.14"
+    },
+    {
+      "id": "QRY-13",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.14"
+    },
+    {
+      "id": "QRY-14",
+      "file": "queries.md",
+      "class": "required",
+      "reach": "W",
+      "introducedIn": "0.14"
     },
     {
       "id": "REG-3",
@@ -2245,13 +2269,13 @@
       "address": "DESC-36",
       "answers": "QRY-1",
       "answers/*/items": "QRY-4",
-      "answers/*/parameters": "QRY-2",
+      "answers/*/parameters": "QRY-12",
       "answers/*/result": "QRY-4",
       "version": "DESC-9"
     },
     "query-declaration": {
       "items": "QRY-4",
-      "parameters": "QRY-2",
+      "parameters": "QRY-12",
       "result": "QRY-4"
     },
     "skill-declaration": {

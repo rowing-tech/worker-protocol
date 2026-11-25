@@ -17,6 +17,29 @@ justifies it. This file says what a release carried; those say what a rule becam
 
 ## [Unreleased]
 
+### Edition 0.14
+
+All five packages encode **edition 0.14**. A Query's parameter may now be a list, and three rules
+are reissued under new ids because a widening changes a verdict. A Worker built to 0.13 is still
+correct in 0.13 (DESC-31). A 0.13 client still reads a Descriptor that declares a list — it never
+looked inside a Query's `parameters` — and simply has no way to send one.
+
+### Changed
+
+- spec: **a Query parameter may be an array of strings**, sent as the key repeated, once per
+  element and in order (`?asset=a&asset=b`) — the spelling MET-19 already gives `by`, and OpenAPI's
+  default for an array in a query string. What the list selects is the Query's to say. A string
+  parameter sent twice is still `400`. QRY-2, QRY-5 and QRY-8 are withdrawn for QRY-12, QRY-13 and
+  QRY-14. Use it for a selection of tens of names; for hundreds, read the whole collection.
+- hono: `query()` accepts `z.array(z.string())` parameters and `mount()` reads them from the
+  repeated key; a list of anything but strings is refused at mount, and so is one that is empty
+  when it is not sent (`.default([])`), which would answer nothing where no filter was asked for.
+- client: `QueryParameters` admits `readonly string[]`, sent as the key repeated. An empty array
+  throws before anything is sent: a query string cannot carry it, and it would be read as the
+  parameter left out — everything, where the caller meant nothing.
+- conformance: QRY-12 accepts a list of strings, QRY-13 reads a Query with a list parameter sent
+  twice and expects an answer, and QRY-14 sends twice only a string parameter.
+
 ## [0.16.0] - 2026-11-25 — edition 0.13
 
 All five packages encode **edition 0.13**, which binds no Worker to anything new: DESC-39 is about

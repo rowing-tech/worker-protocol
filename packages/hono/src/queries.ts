@@ -2,9 +2,9 @@
  * `queries`: the reads a Worker defines, declared once and answered by `mount()`.
  *
  * It is `actions` for the other half, and divided the same way. What this protocol fixes is here:
- * the Query named in a parameter (QRY-5), the refusal for one that is not declared (QRY-6), for a
+ * the Query named in a parameter (QRY-13), the refusal for one that is not declared (QRY-6), for a
  * request that names none (QRY-7), for a credential that does not cover it (QRY-10, QRY-11), for parameters
- * its schema refuses (QRY-8) and for one it does not declare at all (ENDP-24), and the page envelope
+ * its schema refuses (QRY-14) and for one it does not declare at all (ENDP-24), and the page envelope
  * a collection travels in (QRY-9). What is left with the Worker is what only it knows: what the
  * Query takes, what it answers, and the read itself.
  */
@@ -43,14 +43,21 @@ export type QueryPage = {
 };
 
 /**
- * QRY-2. The parameters of a Query: a Zod object each of whose members is a string, because a GET
- * carries them in its query string. Narrow one with `z.enum`, a `regex` or a format; an optional
- * member is `z.string().optional()`.
+ * QRY-12. The parameters of a Query: a Zod object each of whose members is a string or an array of
+ * strings, because a GET carries them in its query string — an array as the key repeated, once per
+ * element (QRY-13). Narrow a string with `z.enum`, a `regex` or a format; an optional member is
+ * `z.string().optional()`, and a list is `z.array(z.string())`.
+ *
+ * A list never reaches `read` empty, because a query string cannot carry one: no key is the
+ * parameter absent. Required, that is QRY-14's `400` and `read` is not called. Optional —
+ * `z.array(z.string()).optional()` — it is `undefined`, which means *no filter* and not *none of
+ * them*, so test for `undefined` and not for a length. `mount()` refuses a list that defaults to
+ * an empty one, which would hand `read` exactly that.
  */
 export type QueryParameters = z.ZodObject;
 
 type Declared = {
-  /** QRY-2. Left out, the Query takes none. */
+  /** QRY-12. Left out, the Query takes none. */
   parameters?: QueryParameters;
 };
 
@@ -158,6 +165,16 @@ const RESERVED = new Set(["query", "cursor"]);
 
 const NO_PARAMETERS = z.object({});
 
+type ParameterSchema = { type?: unknown; items?: { type?: unknown } };
+
+/** The members a Query declares, as their JSON Schema. */
+const declaredParameters = (declared: Query): Record<string, ParameterSchema> =>
+  (parametersSchema(declared).properties as Record<string, ParameterSchema> | undefined) ?? {};
+
+/** QRY-12: a list of strings, which travels as the key repeated (QRY-13). */
+const isList = (schema: ParameterSchema | undefined): boolean =>
+  schema?.type === "array" && schema.items?.type === "string";
+
 /** The JSON Schema of what a Query takes: an object with no members where it declared none. */
 export const parametersSchema = (declared: Query): Record<string, unknown> =>
   jsonSchema(declared.parameters ?? NO_PARAMETERS);
@@ -167,23 +184,33 @@ export const parametersSchema = (declared: Query): Record<string, unknown> =>
  *
  * Each is a mistake in how the Worker was written and none is one a request could reveal: a
  * parameter that is not a string validates against whatever the author's schema says and travels
- * as text anyway (QRY-2), and one named `cursor` would be taken by the envelope before the Worker
+ * as text anyway (QRY-12), and one named `cursor` would be taken by the envelope before the Worker
  * saw it (QRY-3). So they are found when the Worker is first read, where somebody can act on them.
+ *
+ * The last is a list that is empty when it is not sent, as `.default([])` makes it. No rule names
+ * it; QRY-13 gives an empty list no spelling, so absent is *no filter* to every caller, and a
+ * `read` handed `[]` would answer none of them — the opposite, in a shape nobody could tell apart.
+ * A default that holds elements is a choice the Query may make, and is left alone.
  */
 export function unreadable(answers: QueryDeclarations): string | null {
   for (const [name, declared] of Object.entries(answers)) {
     if ((declared.result === undefined) === (declared.items === undefined)) {
       return `QRY-4: the Query \`${name}\` declares exactly one of \`result\` and \`items\`.`;
     }
-    const properties = parametersSchema(declared).properties as
-      | Record<string, { type?: unknown }>
-      | undefined;
-    for (const [parameter, schema] of Object.entries(properties ?? {})) {
+    for (const [parameter, schema] of Object.entries(declaredParameters(declared))) {
       if (RESERVED.has(parameter)) {
         return `QRY-3: the Query \`${name}\` declares a parameter named \`${parameter}\`, which this read defines itself.`;
       }
-      if (schema.type !== "string") {
-        return `QRY-2: the parameter \`${parameter}\` of the Query \`${name}\` is not a string. A GET carries its parameters in the query string, so each is declared as one.`;
+      if (schema.type !== "string" && !isList(schema)) {
+        return `QRY-12: the parameter \`${parameter}\` of the Query \`${name}\` is neither a string nor an array of strings. A GET carries its parameters in the query string, so each is declared as one of the two.`;
+      }
+      // Asked of the schema itself and not read off its JSON Schema, so `.default([])`,
+      // `.prefault([])` and `.catch([])` are all the same answer to the same question.
+      const absent = isList(schema)
+        ? (declared.parameters?.shape[parameter] as z.ZodType | undefined)?.safeParse(undefined)
+        : undefined;
+      if (absent?.success && Array.isArray(absent.data) && absent.data.length === 0) {
+        return `QRY-13: the list \`${parameter}\` of the Query \`${name}\` is an empty list when it is not sent. A query string cannot carry an empty list, so no caller could mean one: left out is no filter, and \`read\` would select nothing where everything was asked for. Declare it \`.optional()\` and read \`undefined\` as no filter.`;
       }
     }
   }
@@ -192,6 +219,21 @@ export function unreadable(answers: QueryDeclarations): string | null {
 
 export function queries(facts: QueryFacts) {
   const cap = facts.pageSize ?? 100;
+
+  // Which parameters of a Query are lists, read off its schema once and not once per request.
+  const lists = new Map<Query, Set<string>>();
+  const listsOf = (declared: Query): Set<string> => {
+    let known = lists.get(declared);
+    if (known === undefined) {
+      known = new Set(
+        Object.entries(declaredParameters(declared))
+          .filter(([, schema]) => isList(schema))
+          .map(([parameter]) => parameter),
+      );
+      lists.set(declared, known);
+    }
+    return known;
+  };
 
   return async function read(asked: {
     search: URLSearchParams;
@@ -220,11 +262,13 @@ export function queries(facts: QueryFacts) {
       return refuse("forbidden", "Not covered by this credential.");
     }
 
-    // ENDP-24, then QRY-8. A parameter the Query does not declare is unknown here, `cursor` on a
-    // Query that answers one document among them; one it declares, sent twice, is sent wrongly.
+    // ENDP-24, then QRY-14. A parameter the Query does not declare is unknown here, `cursor` on a
+    // Query that answers one document among them; a string parameter sent twice is sent wrongly,
+    // and a list is read as its elements, in the order they came (QRY-13).
     const paged = declared.items !== undefined;
     const parameters = declared.parameters ?? NO_PARAMETERS;
-    const sent: Record<string, string> = {};
+    const listed = listsOf(declared);
+    const sent: Record<string, string | string[]> = {};
     for (const key of new Set(search.keys())) {
       if (key === "query") {
         if (search.getAll(key).length > 1) {
@@ -239,6 +283,10 @@ export function queries(facts: QueryFacts) {
       }
       if (!Object.hasOwn(parameters.shape, key)) {
         return refuse("unknown_filter", `The Query ${name} takes no parameter named ${key}.`);
+      }
+      if (listed.has(key)) {
+        sent[key] = values;
+        continue;
       }
       if (values.length > 1) {
         return refuse("invalid_parameter", `The parameter ${key} is sent at most once.`);

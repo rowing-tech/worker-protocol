@@ -184,7 +184,7 @@ The remaining 52 are reported rather than passed, and the two kinds are not the 
 party who is not a Worker, so this tool never contacted whoever they oblige, and 22 have no witness
 anywhere.
 
-**Of the ids this edition has issued, 84 are withdrawn, and sixteen of them went at once.** A Claim
+**Of the ids this edition has issued, 87 are withdrawn, and sixteen of them went at once.** A Claim
 was an exclusive lease a consumer took on a Task, and [spec/tasks.md](spec/tasks.md) says why it is
 gone: a lease over a unit of work is the primitive of a work queue, orchestration is a declared
 non-goal, and the cost fell on the owner while the consumer's half of it was optional all along.

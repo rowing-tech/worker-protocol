@@ -59,7 +59,7 @@ Cite rule ids in the code too. A failure that names `ENDP-24` can be looked up; 
 | How much of something happened? | `metrics` | Accumulated over declared periods; never an occurrence |
 | What happened, and is over? | `logs` | Written deliberately, past tense, acted on by nobody |
 | What can I make it do? | `actions` | An operation with a declared input, performed on request |
-| What else can I ask it? | `queries` | A read the Worker defines, with declared parameters; a GET, and changes nothing (QRY-5) |
+| What else can I ask it? | `queries` | A read the Worker defines, with declared parameters; a GET, and changes nothing (QRY-13) |
 | What does it tell others about? | `events` | Pushed to a broker, for whoever contracted for it |
 | How do I say there is work? | `nudges` | Best effort, carries a Task type and nothing else (NDG-2) |
 
@@ -182,17 +182,18 @@ whose reason is understood is one that survives a refactor.
   A Tower compares each Descriptor with the one it held and shows the operator a schema that broke
   under a kept name (REG-36); `compare` in `@worker-protocol/client` is that comparison.
 - **`queries` is the read a Worker defines, declared like an Action and read with a GET** (QRY-1 to
-  QRY-11). The entry carries `answers`, a map of name to `{ parameters, result }` or
-  `{ parameters, items }` — exactly one of the two (QRY-4). `parameters` is the JSON Schema of an
-  object whose members are all strings, because they travel in the query string, and none is named
-  `query` or `cursor` (QRY-2, QRY-3). One address: `GET ?query=<name>&<parameter>=<value>`, each
-  parameter at most once. Check in this order: no `query` is `400 invalid_parameter` (QRY-7); a
-  name you do not declare is `404 not_found` (QRY-6); a credential that does not cover it is `403`
-  (QRY-10); a parameter it does not declare is `400 unknown_filter` (ENDP-24); one it declares,
-  sent wrongly, is `400 invalid_parameter` (QRY-8). `result` answers the document; `items` answers
-  the page envelope and takes `cursor`, with a cap that is yours and no page-size parameter
-  (ENDP-19). Something you do not hold is still `200`, said inside the document or as an empty
-  page — `404` here means only that the Query is not declared.
+  QRY-14). The entry carries `answers`, a map of name to `{ parameters, result }` or `{ parameters,
+  items }` — exactly one of the two (QRY-4). `parameters` is the JSON Schema of an object whose
+  members are strings or arrays of strings, because they travel in the query string, and none is
+  named `query` or `cursor` (QRY-12, QRY-3). One address: `GET ?query=<name>&<parameter>=<value>`, a
+  string at most once and an array as the key repeated, once per element (QRY-13). Check in this
+  order: no `query` is `400 invalid_parameter` (QRY-7); a name you do not declare is `404 not_found`
+  (QRY-6); a credential that does not cover it is `403` (QRY-10); a parameter it does not declare is
+  `400 unknown_filter` (ENDP-24); one it declares, sent wrongly — a string sent twice among them —
+  is `400 invalid_parameter` (QRY-14). `result` answers the document; `items` answers the page
+  envelope and takes `cursor`, with a cap that is yours and no page-size parameter (ENDP-19).
+  Something you do not hold is still `200`, said inside the document or as an empty page — `404`
+  here means only that the Query is not declared.
 
 ### The state-bearing surfaces
 

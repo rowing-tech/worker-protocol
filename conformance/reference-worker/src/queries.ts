@@ -6,10 +6,10 @@ import * as z from "zod";
  *
  * Two Queries, because QRY-4 draws one line and a verifier that read only one side of it would have
  * nothing to say about the other: `fleet-summary` answers one document and takes one optional
- * parameter, so it can be read with no arrangement (QRY-5, QRY-9); `vehicles` answers a collection,
+ * parameter, so it can be read with no arrangement (QRY-13, QRY-9); `vehicles` answers a collection,
  * a page of two at a time, so the envelope and its cursor are something a check sees work.
  *
- * `vehicle` requires a parameter, which is what QRY-8 needs to be asked: a verifier cannot invent a
+ * `vehicle` requires a parameter, which is what QRY-14 needs to be asked: a verifier cannot invent a
  * plate that exists, and can always leave one out. A plate it does not hold is `found: false` and
  * never `404`, which on this address means the Query itself is not declared (QRY-6).
  *
@@ -46,7 +46,7 @@ export const QUERIES: QueryDeclarations = {
     },
   }),
 
-  // QRY-8: `plate` is required, so a read without it is refused before anything is looked up.
+  // QRY-14: `plate` is required, so a read without it is refused before anything is looked up.
   vehicle: query({
     parameters: z.object({ plate: z.string().min(1) }),
     result: z.object({ found: z.boolean(), vehicle: vehicle.optional() }),
@@ -57,12 +57,14 @@ export const QUERIES: QueryDeclarations = {
   }),
 
   // QRY-9, ENDP-23, ENDP-33: ordered by plate, and the cursor names the last plate a page carried,
-  // so the page after it holds only what is beyond that position.
+  // so the page after it holds only what is beyond that position. QRY-12, QRY-13: `plate` is a list,
+  // sent as the key repeated, and selects the vehicles whose plate is any of them.
   vehicles: query({
-    parameters: z.object({ status: STATUS.optional() }),
+    parameters: z.object({ status: STATUS.optional(), plate: z.array(z.string()).optional() }),
     items: vehicle,
-    read: ({ status }, { cursor, limit }) => {
+    read: ({ status, plate }, { cursor, limit }) => {
       const beyond = VEHICLES.filter((one) => status === undefined || one.status === status)
+        .filter((one) => plate === undefined || plate.includes(one.plate))
         .filter((one) => cursor === undefined || one.plate > cursor)
         .map((one) => ({ ...one }));
       const items = beyond.slice(0, limit);

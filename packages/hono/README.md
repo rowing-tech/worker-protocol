@@ -112,8 +112,10 @@ and a Worker that reads them at module scope works in one place only.
 - The `queries` address — the Query named in `query`, each parameter you declared read from the
   query string and judged against your schema, the refusals for a Query you do not declare, a
   parameter you do not declare and a credential that does not cover it, and the page envelope
-  around a collection (QRY-5 to QRY-11). You write `query({ parameters, result | items, read })`:
-  a read that changes nothing, where an Action is an operation that does.
+  around a collection (QRY-6, QRY-7, QRY-9 to QRY-11, QRY-13, QRY-14). A parameter declared as
+  `z.array(z.string())` is read from the key repeated (`?plate=a&plate=b`). You write
+  `query({ parameters, result | items, read })`: a read that changes nothing, where an Action is an
+  operation that does.
 - The `subscriptions` address — who may subscribe to what, the sink rules, the webhook handshake,
   idempotence — and, through `eventHub()`, matching each event you publish against every
   subscription and delivering it with the retries SUB-12 fixes.

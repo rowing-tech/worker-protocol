@@ -406,7 +406,7 @@ export const readQuery = createRoute({
   path: "/",
   summary: "Read one Query",
   description: cite(
-    "QRY-5",
+    "QRY-13",
     "A read the Worker defines, named in `query`, with each parameter it declares sent under its own name. A GET, so it changes nothing a later reader could observe (ENDP-2) and a caller that got no answer reads again.",
   ),
   request: {
@@ -416,20 +416,20 @@ export const readQuery = createRoute({
         .min(1)
         .openapi({
           description: cite(
-            "QRY-5",
+            "QRY-13",
             "One of the Queries the entry declares. Naming none is `400`; naming one it does not declare is `404`; naming one the credential presented does not cover is `403` (QRY-10), before its parameters are judged.",
           ),
         }),
-      // QRY-5 spells a parameter into a query parameter of its own NAME, as MET-16 does a
+      // QRY-13 spells a parameter into a query parameter of its own NAME, as MET-16 does a
       // dimension, and the names are the Worker's — so the same exploded object carries them.
       // `parameters` is this document's name for them and never travels.
       parameters: z
-        .record(z.string(), z.string())
+        .record(z.string(), z.union([z.string(), z.array(z.string())]))
         .optional()
         .openapi({
           description: cite(
-            "QRY-5",
-            "Each parameter the Query declares, sent under exactly its own name and at most once, against the JSON Schema its entry declares (QRY-8). The names are the Worker's own and are read from its Descriptor, so they are not enumerated here.",
+            "QRY-13",
+            "Each parameter the Query declares, sent under exactly its own name, against the JSON Schema its entry declares (QRY-14): a string at most once, and an array of strings as the key repeated, once per element and in order. The names are the Worker's own and are read from its Descriptor, so they are not enumerated here.",
           ),
           param: { style: "form", explode: true },
         }),
@@ -445,7 +445,7 @@ export const readQuery = createRoute({
     ),
     ...refusals([
       ["invalid_parameter", "QRY-7"],
-      ["invalid_parameter", "QRY-8"],
+      ["invalid_parameter", "QRY-14"],
       ["unknown_filter", "ENDP-24"],
       ["forbidden", "QRY-10"],
       ["not_found", "QRY-6"],
@@ -951,6 +951,6 @@ export const SURFACES: Surface[] = [
  * - **A dimension named as a query parameter.** MET-16 spells a dimension into a parameter of its
  *   own name, and those names are the Worker's. `dimensions` above is the OpenAPI shape for that
  *   and never travels under its own name.
- * - **A Query's parameter.** QRY-5 does the same with each parameter a Query declares, and
+ * - **A Query's parameter.** QRY-13 does the same with each parameter a Query declares, and
  *   `parameters` above is that shape: it never travels under its own name either.
  */

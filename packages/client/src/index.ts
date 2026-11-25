@@ -23,7 +23,15 @@ import {
   type task as taskSchema,
 } from "@worker-protocol/schemas";
 import type * as z from "zod";
-import { type CallerOptions, caller, collect, Malformed, type Page, page } from "./call.ts";
+import {
+  type CallerOptions,
+  caller,
+  collect,
+  Malformed,
+  type Page,
+  page,
+  setParameters,
+} from "./call.ts";
 import { readTolerantly } from "./tolerant.ts";
 import type { Trace } from "./trace.ts";
 
@@ -119,7 +127,7 @@ export type Consumed = {
     settings?: () => Promise<unknown>;
   };
   /**
-   * QRY-5. The reads this Worker defines, by the names its `queries` entry holds.
+   * QRY-13. The reads this Worker defines, by the names its `queries` entry holds.
    *
    * A Query is a GET and changes nothing (ENDP-2), so there is no key to send and nothing to settle
    * after a timeout: a caller that got no answer reads again. Which of the two calls below answers
@@ -243,8 +251,12 @@ export type Consumed = {
   };
 };
 
-/** QRY-2, QRY-5. A Query's parameters: each a string, sent under its own name. */
-export type QueryParameters = Record<string, string>;
+/**
+ * QRY-12, QRY-13. A Query's parameters, each sent under its own name: a string once, and an array
+ * of strings as the key repeated, once per element and in order. `undefined` is the parameter left
+ * out, which is how an optional one says *no filter*; an empty array throws (see `setParameters`).
+ */
+export type QueryParameters = Record<string, string | readonly string[] | undefined>;
 
 export type MetricRead = {
   granularity?: string;
@@ -430,15 +442,13 @@ export async function consume(baseUrl: string, options: CallerOptions = {}): Pro
         );
       }
     };
-    // QRY-5: the Query in `query`, and each parameter under its own name beside it.
+    // QRY-13: the Query in `query`, and each parameter under its own name beside it.
     const named = (name: string, parameters: QueryParameters) => ({ ...parameters, query: name });
     consumed.queries = {
       read: async (name, parameters = {}) => {
         mustAnswer(name, "result");
         const url = new URL(queriesAddress);
-        for (const [key, value] of Object.entries(named(name, parameters))) {
-          url.searchParams.set(key, value);
-        }
+        setParameters(url, named(name, parameters));
         return (await call.call({ url: url.toString() })).json;
       },
       list: async (name, parameters = {}) => {

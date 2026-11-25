@@ -47,8 +47,8 @@ can state. Rules carry ids and a class; the convention is in [spec/README.md](RE
 the Worker answers, keyed by name. The Descriptor is the catalog: this surface answers and never
 lists what exists.**
 
-**QRY-2 (required). Each Query declares the JSON Schema of its parameters: an object, each of whose
-members is a string.**
+**QRY-12 (required). Each Query declares the JSON Schema of its parameters: an object, each of
+whose members is a string or an array of strings.**
 
 **QRY-3 (required). A Query declares no parameter named `query` or `cursor`.**
 
@@ -61,7 +61,7 @@ decides whether there is anything to show, and renders the form that asks for it
 anything; a consumer under a Contract knows what it will receive before it writes the code that
 reads it.
 
-**QRY-2 says strings because a URL carries nothing else.** The parameters of a GET travel in its
+**QRY-12 says strings because a URL carries nothing else.** The parameters of a GET travel in its
 query string, where `7` and `"7"` are the same four bytes and `true` is a word. A schema that
 declared an integer there would have two readings — the Worker's, which parsed it, and the
 caller's, which has to guess how — and the declaration would be the one place they could not
@@ -70,11 +70,30 @@ for strings: an `enum`, a `pattern`, a `format`. An instant is a string with a f
 everywhere else in this protocol. A Query that takes no parameters declares an object with no
 members, which is what *none* looks like in a schema.
 
-It is also why a parameter is not a list, and why there is no body. A read whose input does not fit
-in a URL is asking for a selection the caller could make itself from a wider answer, and paging
-(QRY-9) is what makes the wider answer affordable. Where the input really is a document — a search
-over a structure, a computation over something the caller sends — it is not this file's read, and
-`Still open here` says what is not yet decided about it.
+**A list of strings is the one other shape, because a query string already has one.** A key sent
+more than once is how every URL says *these several values*: `?asset=a&asset=b`, which is the
+spelling MET-19 already gives `by`, and what OpenAPI's form style means by an exploded array. So a
+parameter declared as an array of strings travels once per element (QRY-13), and the Worker reads
+the values in the order they came. What the list means is the Query's to say — a selection by any
+of its values, for a parameter that names things. Declaring it as an array is what tells a caller
+the key may repeat; a string parameter sent twice is still refused (QRY-14), because the caller
+has then meant one value twice and the Worker cannot know which.
+
+**A list with no elements cannot be sent.** It has no spelling in a query string: it is the key
+absent, and what the key absent means is what the Query declared. Where the list is required,
+absent is QRY-14's `400`, so a required list always arrives with at least one element. Where it is
+optional, absent is the parameter not sent, which is *no filter* — so a caller that filtered by a
+selection that came out empty would be answered everything rather than nothing, in a shape it
+would happily parse. No rule can reach that second case, because the Worker never sees the
+difference; it is the caller's to avoid, by not reading at all when it meant nothing and by
+leaving the key out only when it meant everything. `packages/client` refuses an empty list before
+it sends anything, whichever of the two the Query declared.
+
+There is still no body, and a list does not change why. A read whose input does not fit in a URL —
+hundreds of names rather than tens — is asking for a selection the caller could make itself from a
+wider answer, and paging (QRY-9) is what makes the wider answer affordable. Where the input really
+is a document — a search over a structure, a computation over something the caller sends — it is
+not this file's read, and `Still open here` says what is not yet decided about it.
 
 QRY-3 is TASK-46 again. `query` names which Query is read and `cursor` walks a collection, on the
 same address and in the same query string as the Query's own parameters; a Query that declared
@@ -91,17 +110,17 @@ that both declare `positions` are never placed side by side.
 
 ## Reading one
 
-**QRY-5 (required). A Query is read by a GET of the address its entry declares, naming the Query in
-the `query` parameter. Each parameter the Query declares travels as a query parameter of the same
-name, at most once.**
+**QRY-13 (required). A Query is read by a GET of the address its entry declares, naming the Query
+in the `query` parameter. Each parameter the Query declares travels as a query parameter of the
+same name: a string at most once, and an array of strings once per element, in order.**
 
 **QRY-6 (required). A Query the entry does not declare is `404`, with the code `not_found`.**
 
 **QRY-7 (required). A request that names no Query is `400`, with the code `invalid_parameter`.**
 
-**QRY-8 (required). Parameters that do not match the Query's declared schema are `400`, with the
-code `invalid_parameter`: one it requires that is absent, one whose value it refuses, one sent more
-than once.**
+**QRY-14 (required). Parameters that do not match the Query's declared schema are `400`, with the
+code `invalid_parameter`: one it requires that is absent, one whose value it refuses, a string
+parameter sent more than once.**
 
 One address and a parameter naming what is asked for there is the shape [metrics](metrics.md) and
 [actions](actions.md) already have, and the argument is in [actions](actions.md) and is not
@@ -111,7 +130,7 @@ to a path is an address somebody assembled, which ENDP-1 exists to forbid.
 QRY-6 and QRY-7 divide as ACT-6 and ACT-7 do, by which side is wrong about what. A Query that is
 not declared is a resource that does not exist; a request naming none has not said what it wants.
 
-**QRY-8 stops where ENDP-24 begins, and the two are not the same fault.** A parameter the Query
+**QRY-14 stops where ENDP-24 begins, and the two are not the same fault.** A parameter the Query
 declares, sent wrongly, is a caller that knows the Query and filled it in badly:
 `invalid_parameter`. A parameter the Query does not declare is ENDP-24's — `unknown_filter`, and
 never ignored — because a filter dropped in silence answers more than was asked for in a shape the
@@ -147,7 +166,7 @@ A Query that declares `result` does not take `cursor`; sent one, it has been sen
 does not know, which is ENDP-24's.
 
 **A read about something the Worker does not hold is still answered, and the answer says so.** A
-plate nobody registered matches the schema of a parameter that takes a plate, so QRY-8 has nothing
+plate nobody registered matches the schema of a parameter that takes a plate, so QRY-14 has nothing
 to refuse and QRY-9 has a document to answer: one whose declared schema has a way to say *nothing
 here* — a flag, a member left out — or, for a collection, a page with no items. It is never `404`.
 On this address `not_found` means one thing, that the Query is not declared (QRY-6), and a caller
@@ -177,7 +196,7 @@ other credential.
 
 After QRY-6, because which Queries exist is no secret: the Descriptor is the same document for
 every caller (REG-8), so a declared Query this credential may not read is refused as such, and an
-undeclared one stays `404` (REG-7). Before QRY-8, so that a caller that may not read a Query learns
+undeclared one stays `404` (REG-7). Before QRY-14, so that a caller that may not read a Query learns
 nothing about what it takes that the Descriptor did not already say.
 
 **QRY-11 is GRANT-8's ceiling, said where a Query is.** A grant names what a Contract's credential
@@ -205,13 +224,22 @@ address, and a rate agreed between two parties is a Contract's.
 
 ## Still open here
 
-- **A read whose input is a document.** QRY-2 keeps a parameter a string because a GET has nowhere
-  else to put one. A search over a structure does not fit, and the two honest answers — a body on a
-  read, which HTTP leaves undefined on a GET, or a POST that this protocol would have to promise
-  changes nothing — each cost a rule this file is not yet in a position to argue.
+- **A read whose input is a document.** QRY-12 keeps a parameter a string or a list of strings
+  because a GET has nowhere else to put one. A search over a structure does not fit, and the two
+  honest answers — a body on a read, which HTTP leaves undefined on a GET, or a POST that this
+  protocol would have to promise changes nothing — each cost a rule this file is not yet in a
+  position to argue.
 - Whether a Query may name in `supersededBy` the one that replaces it, as NAME-10 lets an Action, a
   Task type and an event type do.
 
 ## Withdrawn
 
-Nothing yet.
+- **QRY-2** (required, W, 0.12–0.14) — required that each Query declare the JSON Schema of its
+  parameters as an object each of whose members is a string. Replaced by QRY-12, which also admits
+  an array of strings: a widening of what a declaration may carry, so it could not keep the id.
+- **QRY-5** (required, W, 0.12–0.14) — required that a Query be read by a GET naming it in `query`,
+  each declared parameter sent under its own name at most once. Replaced by QRY-13, which sends an
+  array of strings once per element.
+- **QRY-8** (required, W, 0.12–0.14) — required `400` + `invalid_parameter` for parameters the
+  declared schema refuses, including any parameter sent more than once. Replaced by QRY-14, which
+  refuses a repeated string parameter and reads a repeated array parameter as its elements.

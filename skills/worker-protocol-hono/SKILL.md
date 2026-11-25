@@ -94,13 +94,14 @@ Read `references/members.md` for the signature of each member, and
   `run`'s parameter from the Zod object beside it; a record annotated by hand makes it `unknown` and
   the shape gets written twice, which is two declarations that can disagree silently.
 - **Declare each Query with `query({ parameters?, result | items, read })`**, for the reason
-  `action()` exists. Parameters are a Zod object of strings — narrow one with `z.enum`, a `regex`
-  or a format, and transform it inside the schema if `read` wants a number — and `mount()` refuses
-  to build over one that is not, or over one named `query` or `cursor` (QRY-2, QRY-3). Paging is
-  not in `parameters`: `mount()` takes `cursor` off the query string and hands it to `read` in its
-  second argument beside `limit`, which is `queries.pageSize` and never the caller's to choose
-  (ENDP-19). Answer `{ items, nextCursor? }`, the cursor naming a position and not an offset
-  (ENDP-33). A `result` Query cannot refuse: what it does not hold is said inside the document.
+  `action()` exists. Parameters are a Zod object of strings or `z.array(z.string())` lists, sent as
+  the key repeated — narrow a string with `z.enum`, a `regex` or a format, and transform it inside
+  the schema if `read` wants a number — and `mount()` refuses to build over one that is not, or over
+  one named `query` or `cursor` (QRY-12, QRY-3). Paging is not in `parameters`: `mount()` takes
+  `cursor` off the query string and hands it to `read` in its second argument beside `limit`, which
+  is `queries.pageSize` and never the caller's to choose (ENDP-19). Answer `{ items, nextCursor? }`,
+  the cursor naming a position and not an offset (ENDP-33). A `result` Query cannot refuse: what it
+  does not hold is said inside the document.
 - **`run` never chooses a status.** Return the result for `200`, `undefined` for `204` (ACT-10), or
   `{ code: "unprocessable_content", message }` for input that is schema-valid and the Worker's own
   rules refuse (ACT-17). Every other refusal belongs to `mount()`.
@@ -154,7 +155,7 @@ Read `references/members.md` for the signature of each member, and
 | Input validation, and the JSON Schema in the Descriptor | The Zod object, and what `run` does |
 | Key required, repeat replayed, key reused with another body, a header key scoped to its caller | Where outcomes are recorded (`actions.outcomes`), and who the caller is |
 | Nudge body shape, `404` for an undeclared Skill, `204` | What to do when told there is work |
-| Query named in `query`, parameters read and judged, page envelope, the refusals (QRY-5 to QRY-11) | The Zod objects, and what `read` answers |
+| Query named in `query`, parameters read and judged, page envelope, the refusals (QRY-6, QRY-7, QRY-9 to QRY-11, QRY-13, QRY-14) | The Zod objects, and what `read` answers |
 | `/subscriptions`: types, sink rules, handshake, idempotence, caller scope | Where subscriptions live and what delivers them; when to publish |
 | `/grants`: who may apply, names checked, credential minted, digest stored, coverage bounded by the grant | Where grants live (`grants.store`, an atomic `put`), which callers may apply (`applicants`, by a stable `caller`), and any narrowing of your own (`covers`, `allows`) |
 

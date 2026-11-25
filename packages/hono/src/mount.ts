@@ -285,7 +285,7 @@ function enumerated(worker: Worker): string | null {
   );
 }
 
-/** A Query this app cannot serve as `spec/queries.md` says (QRY-2, QRY-3, QRY-4). */
+/** A Query this app cannot serve as `spec/queries.md` says (QRY-12, QRY-3, QRY-4). */
 const misdeclared = (worker: Worker): string | null =>
   worker.queries === undefined ? null : unreadable(worker.queries.answers);
 
@@ -396,7 +396,7 @@ function descriptorOf(worker: Worker, edition: string): string {
   }
 
   if (worker.queries) {
-    // QRY-2, QRY-4: JSON Schema generated from the Zod objects the Worker declared, as ACT-2's is,
+    // QRY-12, QRY-4: JSON Schema generated from the Zod objects the Worker declared, as ACT-2's is,
     // so what a console renders a form from and what a request is judged against cannot drift.
     capabilities.queries = {
       version: 1,
@@ -867,7 +867,7 @@ export function mount<E = unknown>(
     },
   );
 
-  // QRY-5: the Query is named in the query string beside its own parameters, and what it answers
+  // QRY-13: the Query is named in the query string beside its own parameters, and what it answers
   // is the Worker's own document or the page envelope around its items (QRY-9).
   serve(
     { capability: "queries", path: "/queries", route: readQuery, ownParameters: true },

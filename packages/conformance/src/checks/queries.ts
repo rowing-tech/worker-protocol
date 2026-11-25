@@ -11,7 +11,7 @@ import { agrees, type Declared } from "./inputs.ts";
  * verifier may read every one it can name the parameters of without asking anybody — which is the
  * position `actions` is never in, where ACT-5 waits for an Action somebody arranged to be safe.
  * What it cannot do is invent a value for a parameter a Query requires: a vehicle that exists, an
- * instant inside what the Worker holds. So QRY-5 and QRY-9 are judged on the Queries that require
+ * instant inside what the Worker holds. So QRY-13 and QRY-9 are judged on the Queries that require
  * none, and say so where every Query requires one.
  *
  * QRY-11 is not here: it needs the credential of a grant, so `checks/grants.ts` judges it.
@@ -22,13 +22,13 @@ import { agrees, type Declared } from "./inputs.ts";
  */
 export const CLAIMS = [
   "QRY-1",
-  "QRY-2",
+  "QRY-12",
   "QRY-3",
   "QRY-4",
-  "QRY-5",
+  "QRY-13",
   "QRY-6",
   "QRY-7",
-  "QRY-8",
+  "QRY-14",
   "QRY-9",
   "QRY-10",
 ] as const;
@@ -51,6 +51,39 @@ const required = (schema: Schema | undefined): string[] =>
   Array.isArray(schema?.required)
     ? schema.required.filter((one): one is string => typeof one === "string")
     : [];
+
+/** QRY-12: a parameter declared as an array of strings, which travels as the key repeated. */
+const isList = (schema: unknown): schema is { type: "array"; items: Schema } =>
+  isObject(schema) &&
+  schema.type === "array" &&
+  isObject(schema.items) &&
+  schema.items.type === "string";
+
+/**
+ * QRY-13: a list parameter of a Query and two values its schema admits, or none.
+ *
+ * A verifier cannot invent a value that names something, and does not have to: a list whose
+ * elements match the declared schema is answered whatever it selects (QRY-14 refuses only what the
+ * schema does). So the values come from an `enum` where there is one and are two letters where
+ * nothing constrains them, and a list this package cannot fill honestly — a `format`, a pattern
+ * two letters miss, a length that is not two — is left alone rather than guessed at.
+ */
+const repeatable = (declared: Query): { parameter: string; values: string[] } | undefined => {
+  for (const [parameter, schema] of Object.entries(declared.parameters?.properties ?? {})) {
+    if (!isList(schema)) continue;
+    const bounds = schema as { minItems?: unknown; maxItems?: unknown };
+    if (typeof bounds.minItems === "number" && bounds.minItems > 2) continue;
+    if (typeof bounds.maxItems === "number" && bounds.maxItems < 2) continue;
+    const one = schema.items;
+    if ("format" in one) continue;
+    const candidates: unknown[] = Array.isArray(one.enum) ? one.enum : ["a", "b"];
+    const values = candidates
+      .filter((value): value is string => typeof value === "string" && agrees(one, value))
+      .slice(0, 2);
+    if (values.length === 2) return { parameter, values };
+  }
+  return undefined;
+};
 
 const refusalOf = (answer: { status: number; json: unknown }) =>
   `${answer.status} with \`${(answer.json as { code?: string } | null)?.code ?? "no code"}\``;
@@ -134,8 +167,10 @@ export async function checkQueries(
     } else {
       for (const [parameter, schema] of Object.entries(parameters.properties ?? {})) {
         if (RESERVED.includes(parameter)) reserved.push(`\`${name}\` declares \`${parameter}\``);
-        if (!isObject(schema) || schema.type !== "string") {
-          unstringed.push(`\`${parameter}\` of \`${name}\` is not declared a string`);
+        if (!isObject(schema) || (schema.type !== "string" && !isList(schema))) {
+          unstringed.push(
+            `\`${parameter}\` of \`${name}\` is declared neither a string nor an array of strings`,
+          );
         }
       }
     }
@@ -146,16 +181,16 @@ export async function checkQueries(
     }
   }
   if (Object.keys(answers).length === 0) {
-    for (const id of ["QRY-2", "QRY-3", "QRY-4"]) {
+    for (const id of ["QRY-12", "QRY-3", "QRY-4"]) {
       say(id, "notExercised", "the entry declares no Query");
     }
   } else {
-    say("QRY-2", unstringed.length === 0 ? "passes" : "fails", unstringed.join("; ") || undefined);
+    say("QRY-12", unstringed.length === 0 ? "passes" : "fails", unstringed.join("; ") || undefined);
     say("QRY-3", reserved.length === 0 ? "passes" : "fails", reserved.join("; ") || undefined);
     say("QRY-4", unanswered.length === 0 ? "passes" : "fails", unanswered.join("; ") || undefined);
   }
 
-  const calls = ["QRY-5", "QRY-6", "QRY-7", "QRY-8", "QRY-9", "QRY-10"];
+  const calls = ["QRY-13", "QRY-6", "QRY-7", "QRY-14", "QRY-9", "QRY-10"];
   if (url === null) {
     for (const id of calls) say(id, "notExercised", "the declared address did not resolve");
     return results;
@@ -177,7 +212,7 @@ export async function checkQueries(
   if (refusedAs(unknown, 404, "not_found")) say("QRY-6", "passes");
   else say("QRY-6", "fails", `answered ${refusalOf(unknown)}`);
 
-  // QRY-5, QRY-9: every Query that requires no parameter is read, and what it answers is judged
+  // QRY-13, QRY-9: every Query that requires no parameter is read, and what it answers is judged
   // against what it declared. Reading changes nothing (ENDP-2), so nothing here waits to be asked.
   const well = Object.entries(answers).filter(([, declared]) => wellDeclared(declared));
   const readable = well.filter(([, declared]) => required(declared.parameters).length === 0);
@@ -186,7 +221,7 @@ export async function checkQueries(
       well.length === 0
         ? "the entry declares no Query that could be read"
         : "every Query requires a parameter, and a verifier cannot invent a value for one";
-    say("QRY-5", "notExercised", why);
+    say("QRY-13", "notExercised", why);
     say("QRY-9", "notExercised", why);
   } else {
     const unread: string[] = [];
@@ -196,6 +231,20 @@ export async function checkQueries(
       if (answered.status !== 200) {
         unread.push(`\`${name}\` answered ${refusalOf(answered)}`);
         continue;
+      }
+      // QRY-13: a list parameter sent as the key repeated is answered, where QRY-14 would refuse
+      // the same two values of a string.
+      const list = repeatable(declared);
+      if (list !== undefined) {
+        const repeated = await transcript.send(
+          withParams(url, { query: name, [list.parameter]: list.values }),
+          `the Query ${name}, with the list \`${list.parameter}\` sent twice`,
+        );
+        if (repeated.status !== 200) {
+          unread.push(
+            `\`${name}\` with the list \`${list.parameter}\` sent twice answered ${refusalOf(repeated)}`,
+          );
+        }
       }
       if (declared.result !== undefined) {
         const fault = disagreement(declared.result, answered.json);
@@ -213,7 +262,7 @@ export async function checkQueries(
         .find((one) => one !== null);
       if (fault !== undefined) wrong.push(`an item \`${name}\` answered ${fault}`);
     }
-    say("QRY-5", unread.length === 0 ? "passes" : "fails", unread.join("; ") || undefined);
+    say("QRY-13", unread.length === 0 ? "passes" : "fails", unread.join("; ") || undefined);
     if (unread.length === readable.length) {
       say("QRY-9", "notExercised", "no Query answered a read to judge");
     } else {
@@ -221,11 +270,14 @@ export async function checkQueries(
     }
   }
 
-  // QRY-8: a parameter the Query requires, left out; failing that, one it declares, sent twice.
+  // QRY-14: a parameter the Query requires, left out; failing that, a string parameter it
+  // declares, sent twice. An array of strings may repeat (QRY-13), so it is never the one sent twice.
+  const strings = (declared: Query) =>
+    Object.entries(declared.parameters?.properties ?? {})
+      .filter(([, schema]) => isObject(schema) && schema.type === "string")
+      .map(([parameter]) => parameter);
   const demanding = well.find(([, declared]) => required(declared.parameters).length > 0);
-  const taking = well.find(
-    ([, declared]) => Object.keys(declared.parameters?.properties ?? {}).length > 0,
-  );
+  const taking = well.find(([, declared]) => strings(declared).length > 0);
   if (demanding !== undefined) {
     const [name, declared] = demanding;
     const missing = required(declared.parameters)[0];
@@ -234,22 +286,22 @@ export async function checkQueries(
       `the Query ${name}, without \`${missing}\`, which it requires`,
       { permanent: true },
     );
-    if (refusedAs(answered, 400, "invalid_parameter")) say("QRY-8", "passes");
+    if (refusedAs(answered, 400, "invalid_parameter")) say("QRY-14", "passes");
     else
-      say("QRY-8", "fails", `\`${name}\` without \`${missing}\` answered ${refusalOf(answered)}`);
+      say("QRY-14", "fails", `\`${name}\` without \`${missing}\` answered ${refusalOf(answered)}`);
   } else if (taking !== undefined) {
     const [name, declared] = taking;
-    const twice = Object.keys(declared.parameters?.properties ?? {})[0] as string;
+    const twice = strings(declared)[0] as string;
     const answered = await transcript.send(
       withParams(url, { query: name, [twice]: ["a", "b"] }),
       `the Query ${name}, with \`${twice}\` sent twice`,
       { permanent: true },
     );
-    if (refusedAs(answered, 400, "invalid_parameter")) say("QRY-8", "passes");
+    if (refusedAs(answered, 400, "invalid_parameter")) say("QRY-14", "passes");
     else
-      say("QRY-8", "fails", `\`${name}\` with \`${twice}\` twice answered ${refusalOf(answered)}`);
+      say("QRY-14", "fails", `\`${name}\` with \`${twice}\` twice answered ${refusalOf(answered)}`);
   } else {
-    say("QRY-8", "notExercised", "no Query declares a parameter");
+    say("QRY-14", "notExercised", "no Query declares a required parameter or a string parameter");
   }
 
   // QRY-10: with a parameter no Query declares, so that ENDP-24 would answer `400` were the

@@ -62,9 +62,13 @@ and the rule each one cites.
   keeps it when a form omits it (ACT-20, ACT-21). `supersededBy` names the Action in `accepts` that
   replaces this one, which is still answered as declared (NAME-10).
 - `queries: { answers: { [name]: query({ parameters?, result | items, read }) }, covers?,
-  pageSize? }` — the reads you define. `parameters` is a Zod object whose members are all strings,
-  because a GET carries them in the query string (QRY-2), and none is named `query` or `cursor`
-  (QRY-3). Declare `result` for one document or `items` for a collection, never both (QRY-4): with
+  pageSize? }` — the reads you define. `parameters` is a Zod object whose members are strings or
+  `z.array(z.string())`, because a GET carries them in the query string (QRY-12) — a list as the
+  key repeated (QRY-13) — and none is named `query` or `cursor` (QRY-3). A list never reaches
+  `read` empty: absent, a required one is `400` before `read` runs (QRY-14) and an optional one
+  (`z.array(z.string()).optional()`) is `undefined`, which means no filter and not none of them —
+  so `mount()` refuses a list that defaults to an empty one.
+  Declare `result` for one document or `items` for a collection, never both (QRY-4): with
   `items`, `read(parameters, { cursor, limit })` answers `{ items, nextCursor? }` and the cursor
   and the order are yours (ENDP-23, ENDP-33). `read` changes nothing (ENDP-2); what would is an
   Action. `covers` names the Queries a credential may read (QRY-10); one issued through `grants`
